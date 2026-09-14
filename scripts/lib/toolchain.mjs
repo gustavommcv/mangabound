@@ -159,6 +159,19 @@ export async function latestReleaseTag(repository) {
   return release.tag_name;
 }
 
+export async function releaseDetails(repository, tag) {
+  const release = await githubJson(
+    `https://api.github.com/repos/${repository}/releases/tags/${encodeURIComponent(tag)}`,
+  );
+  return {
+    notes:
+      typeof release.body === 'string' && release.body.trim() !== ''
+        ? release.body
+        : '_No release notes provided._',
+    url: release.html_url,
+  };
+}
+
 export async function buildReleasePin(toolName, tag) {
   const spec = toolSpecs[toolName];
   if (spec === undefined) throw new Error(`Unknown tool: ${toolName}`);

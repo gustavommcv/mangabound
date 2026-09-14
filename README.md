@@ -38,7 +38,7 @@ See [the ADR index](docs/adr/README.md) for confirmed decisions and [the milesto
 
 ## Bundled CLI updates
 
-`toolchain.lock.json` records the release tag, checksum-file hash, archive hash, and executable hash for all supported targets. A scheduled GitHub Actions workflow checks the latest stable releases every Monday and opens or refreshes a pull request when the pins change. It never updates an installed app at runtime, and it never merges its own proposal.
+`toolchain.lock.json` records the release tag, checksum-file hash, archive hash, and executable hash for all supported targets. A scheduled GitHub Actions workflow checks each tool's latest stable release daily and opens or refreshes a separate pull request when that pin changes. Pull requests are created with a narrowly scoped GitHub App token so normal CI runs on them; repository secrets `TOOLCHAIN_BOT_APP_ID` and `TOOLCHAIN_BOT_PRIVATE_KEY` provide that identity. The bot includes upstream release notes and old/new compatibility information, never updates an installed app at runtime, and never merges its own proposal.
 
 ## Scope boundary
 
