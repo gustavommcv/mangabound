@@ -2,7 +2,7 @@
 
 Mangabound is a desktop GUI for organizing the HakuNeko → mangabind → mangapress → e-reader workflow. It ingests folders or CBZ files that already exist, helps build and correct chapter-to-volume mappings, produces device-ready books, and exposes the output library through OPDS.
 
-This repository contains the accepted architecture decisions, the tested Electron foundation, and the checksum-pinned CLI acquisition layer. The first structured releases are locked to mangabind `v0.4.0` and mangapress `v0.5.0`.
+This repository contains the accepted architecture decisions, the tested Electron foundation, the checksum-pinned CLI acquisition layer, and the offline-first chapter mapping core. The first structured releases are locked to mangabind `v0.4.0` and mangapress `v0.5.0`.
 
 ## Development
 
@@ -23,6 +23,12 @@ Run the local quality gates:
 
 ```text
 npm run check
+```
+
+Inspect the manual, provider-suggested, warning, and error UI states:
+
+```text
+npm run storybook
 ```
 
 The unit-test gate downloads the two immutable release assets for the current platform, verifies both checksum layers and the unpacked executables, then executes their version and protocol handshakes. Generated binaries remain under ignored `vendor/toolchain/` and are never committed.

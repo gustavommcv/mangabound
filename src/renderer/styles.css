@@ -49,11 +49,11 @@
   --ring: oklch(0.76 0.13 176);
   --shadow-card: 0 0.5rem 1.5rem oklch(0.08 0.02 255 / 0.18);
   --shadow-status: 0 0 0.75rem oklch(0.76 0.13 176 / 0.5);
-  --subtle-foreground: oklch(0.58 0.025 250);
+  --subtle-foreground: oklch(0.64 0.025 250);
   --surface: oklch(0.2 0.028 255);
   --status-cancelled: oklch(0.65 0.025 250);
   --status-complete: oklch(0.72 0.16 155);
-  --status-failed: oklch(0.54 0.2 25);
+  --status-failed: oklch(0.68 0.18 25);
   --status-pending: oklch(0.65 0.025 250);
   --status-running: oklch(0.72 0.14 230);
   --status-warning: oklch(0.78 0.16 80);
