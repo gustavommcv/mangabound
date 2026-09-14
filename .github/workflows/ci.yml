@@ -1,0 +1,110 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: '120000'
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Quality (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Install Chromium system dependencies
+        if: runner.os == 'Linux'
+        run: npx playwright install --with-deps chromium
+      - name: Install Chromium
+        if: runner.os != 'Linux'
+        run: npx playwright install chromium
+      - run: npm run check
+
+  visual-regression:
+    name: Storybook visual regression (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install chromium
+      - run: npm run test:visual
+      - name: Upload visual diff
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: storybook-visual-diff
+          path: test-results/
+          if-no-files-found: ignore
+
+  packaged-shell:
+    name: Packaged shell (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run package
+      - run: npm run test:e2e
+      - name: Upload E2E diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: packaged-shell-${{ runner.os }}
+          path: |
+            test-results/
+            *.log
+          if-no-files-found: ignore
+
+  wayland-shell:
+    name: Packaged shell (Wayland)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: sudo apt-get update && sudo apt-get install --yes weston
+      - run: npm run package
+      - name: Run the packaged shell in headless Wayland
+        shell: bash
+        run: .github/scripts/run-wayland-smoke.sh

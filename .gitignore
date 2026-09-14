@@ -1,0 +1,15 @@
+node_modules/
+.webpack/
+out/
+storybook-static/
+coverage/
+test-results/
+vendor/toolchain/
+allure-results/
+allure-report/
+*.log
+.DS_Store
+Thumbs.db
+.env
+.env.*
+!.env.example

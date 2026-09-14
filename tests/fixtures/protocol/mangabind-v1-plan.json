@@ -1,0 +1,90 @@
+{
+  "protocol_version": 1,
+  "tool": "mangabind",
+  "tool_version": "candidate",
+  "kind": "report",
+  "mode": "plan",
+  "status": "completed_with_warnings",
+  "input_path": "/fixtures/Mangá São José",
+  "output_path": "/fixtures/Output Library",
+  "batch": false,
+  "manga": [
+    {
+      "name": "Mangá São José",
+      "input_path": "/fixtures/Mangá São José",
+      "metadata_file": "/fixtures/Mangá São José/mangabind.json",
+      "status": "completed_with_warnings",
+      "units": [
+        {
+          "name": "Chapter 1",
+          "path": "/fixtures/Mangá São José/Chapter 1",
+          "kind": "folder",
+          "page_count": 2,
+          "parser": {
+            "matched": true,
+            "name": "chapter-only",
+            "chapter": 1
+          },
+          "metadata_assignment": {
+            "status": "applied",
+            "metadata_volume": 1
+          },
+          "effective_volume": 1,
+          "disposition": "included"
+        },
+        {
+          "name": "Chapter 3",
+          "path": "/fixtures/Mangá São José/Chapter 3",
+          "kind": "folder",
+          "page_count": 1,
+          "parser": {
+            "matched": true,
+            "name": "chapter-only",
+            "chapter": 3
+          },
+          "metadata_assignment": {
+            "status": "not_found"
+          },
+          "disposition": "unassigned"
+        }
+      ],
+      "volumes": [
+        {
+          "number": 1,
+          "output_path": "/fixtures/Output Library/Mangá São José - Vol.01.cbz",
+          "page_count": 2,
+          "chapters": ["Chapter 1"],
+          "written": false
+        }
+      ],
+      "issues": [
+        {
+          "tool": "mangabind",
+          "severity": "warning",
+          "code": "unassigned_chapter",
+          "stage": "group",
+          "manga": "Mangá São José",
+          "chapter": 3,
+          "path": "/fixtures/Mangá São José/Chapter 3",
+          "recoverable": true,
+          "message": "Chapter 3 has no volume assignment and was skipped."
+        }
+      ],
+      "summary": {
+        "units": 2,
+        "volumes": 1,
+        "pages": 2,
+        "warnings": 1,
+        "errors": 0
+      }
+    }
+  ],
+  "issues": [],
+  "summary": {
+    "manga": 1,
+    "volumes": 1,
+    "pages": 2,
+    "errors": 0,
+    "warnings": 1
+  }
+}

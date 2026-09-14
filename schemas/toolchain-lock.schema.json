@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/gustavommcv/mangabound/schemas/toolchain-lock.schema.json",
+  "title": "Mangabound toolchain lock",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["manifestVersion", "state", "supportedTargets", "tools"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "manifestVersion": { "const": 1 },
+    "state": { "enum": ["awaiting-structured-releases", "locked"] },
+    "supportedTargets": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": ["win32-x64", "linux-x64", "darwin-x64", "darwin-arm64"]
+      }
+    },
+    "tools": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mangabind", "mangapress"],
+      "properties": {
+        "mangabind": { "$ref": "#/$defs/tool" },
+        "mangapress": { "$ref": "#/$defs/tool" }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "checksumFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["assetName", "url", "sha256"],
+      "properties": {
+        "assetName": { "type": "string", "minLength": 1 },
+        "url": { "type": "string", "format": "uri", "pattern": "^https://github.com/" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["assetName", "url", "archiveSha256", "executableSha256"],
+      "properties": {
+        "assetName": { "type": "string", "minLength": 1 },
+        "url": { "type": "string", "format": "uri", "pattern": "^https://github.com/" },
+        "archiveSha256": { "$ref": "#/$defs/sha256" },
+        "executableSha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceRepo", "pin"],
+      "properties": {
+        "sourceRepo": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://github.com/"
+        },
+        "pin": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/pin" }]
+        }
+      }
+    },
+    "pin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["releaseTag", "protocolVersion", "checksums", "artifacts"],
+      "properties": {
+        "releaseTag": { "type": "string", "pattern": "^v?[0-9]+\\.[0-9]+\\.[0-9]+" },
+        "protocolVersion": { "type": "string", "minLength": 1 },
+        "checksums": { "$ref": "#/$defs/checksumFile" },
+        "artifacts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["win32-x64", "linux-x64", "darwin-x64", "darwin-arm64"],
+          "properties": {
+            "win32-x64": { "$ref": "#/$defs/artifact" },
+            "linux-x64": { "$ref": "#/$defs/artifact" },
+            "darwin-x64": { "$ref": "#/$defs/artifact" },
+            "darwin-arm64": { "$ref": "#/$defs/artifact" }
+          }
+        }
+      }
+    }
+  }
+}

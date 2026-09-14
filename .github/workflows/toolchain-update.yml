@@ -1,0 +1,65 @@
+name: Toolchain update
+
+on:
+  schedule:
+    - cron: '17 9 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: toolchain-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: Propose verified CLI pins
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Build pins from the latest upstream releases
+        run: npm run toolchain:update
+      - name: Validate and execute the host binaries
+        run: |
+          npm run toolchain:check
+          npm run toolchain:acquire
+      - name: Open or refresh the toolchain pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          if git diff --quiet -- toolchain.lock.json; then
+            echo "Toolchain pins are already current."
+            exit 0
+          fi
+
+          branch="automation/toolchain-pins"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$branch"
+          git add toolchain.lock.json
+          git commit -m "chore: update bundled CLI pins"
+          git push --force-with-lease origin "HEAD:refs/heads/$branch"
+
+          existing="$(gh pr list --head "$branch" --state open --json number --jq '.[0].number')"
+          if [ -n "$existing" ]; then
+            gh pr edit "$existing" \
+              --title "chore: update bundled CLI pins" \
+              --body "Updates the checksum-pinned mangabind and mangapress release artifacts. CI reacquires and exercises the real host binaries before this can merge."
+          else
+            gh pr create \
+              --base main \
+              --head "$branch" \
+              --title "chore: update bundled CLI pins" \
+              --body "Updates the checksum-pinned mangabind and mangapress release artifacts. CI reacquires and exercises the real host binaries before this can merge."
+          fi

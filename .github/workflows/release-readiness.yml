@@ -1,0 +1,21 @@
+name: Release readiness
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  toolchain-gate:
+    name: Require structured CLI pins
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Verify the manifest is release-eligible
+        run: |
+          npm run toolchain:check
+          node -e "const lock=require('./toolchain.lock.json'); if(lock.state!=='locked') throw new Error('Release blocked until structured mangabind and mangapress releases are pinned')"
