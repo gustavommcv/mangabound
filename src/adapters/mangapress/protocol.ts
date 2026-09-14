@@ -14,6 +14,14 @@ const baseEventSchema = z
   })
   .passthrough();
 
+const issueContextSchema = {
+  manga: z.string().optional(),
+  volume: z.union([z.string(), z.number()]).optional(),
+  chapter: z.union([z.string(), z.number()]).optional(),
+  page: z.number().int().positive().optional(),
+  path: z.string().optional(),
+} as const;
+
 const knownEventSchemas = {
   protocol: baseEventSchema.extend({ capabilities: z.array(z.string()) }),
   profile: baseEventSchema.extend({
@@ -50,6 +58,7 @@ const knownEventSchemas = {
     stage: z.string().min(1),
     recoverable: z.boolean(),
     message: z.string().min(1),
+    ...issueContextSchema,
   }),
   error: baseEventSchema.extend({
     severity: z.literal('error'),
@@ -58,14 +67,38 @@ const knownEventSchemas = {
     recoverable: z.boolean(),
     message: z.string().min(1),
     diagnostic: z.string(),
+    ...issueContextSchema,
   }),
   result: baseEventSchema.extend({
     status: z.literal('completed'),
     operation: z.enum(['convert', 'list_profiles']),
+    dry_run: z.boolean().optional(),
+    manga: z.string().optional(),
+    author: z.string().optional(),
+    format: z.enum(['epub', 'cbz', 'pdf']).optional(),
+    profile: z.string().optional(),
+    width: z.number().int().nonnegative().optional(),
+    height: z.number().int().nonnegative().optional(),
+    chapters: z.number().int().nonnegative().optional(),
+    source_pages: z.number().int().nonnegative().optional(),
+    output_pages: z.number().int().nonnegative().optional(),
+    output_path: z.string().optional(),
+    bytes: z.number().int().nonnegative().optional(),
+    written: z.boolean().optional(),
   }),
 } as const;
 
 export type MangapressEvent = z.infer<typeof baseEventSchema>;
+export type MangapressErrorEvent = z.infer<(typeof knownEventSchemas)['error']>;
+export type MangapressResultEvent = z.infer<(typeof knownEventSchemas)['result']>;
+
+export function isMangapressErrorEvent(event: MangapressEvent): event is MangapressErrorEvent {
+  return knownEventSchemas.error.safeParse(event).success;
+}
+
+export function isMangapressResultEvent(event: MangapressEvent): event is MangapressResultEvent {
+  return knownEventSchemas.result.safeParse(event).success;
+}
 
 function parseJson(line: string): unknown {
   try {
