@@ -178,4 +178,63 @@ describe('CLI process adapters', () => {
 
     expect(isMangapressErrorEvent(future)).toBe(false);
   });
+
+  it('loads device profiles from mangapress structured output', async () => {
+    const stream = [
+      {
+        protocol_version: 1,
+        tool: 'mangapress',
+        tool_version: '0.5.0',
+        sequence: 1,
+        type: 'profile',
+        code: 'KV',
+        name: 'Kindle Voyage',
+        width: 1072,
+        height: 1448,
+        gray_levels: 16,
+        family: 'kindle',
+      },
+      {
+        protocol_version: 1,
+        tool: 'mangapress',
+        tool_version: '0.5.0',
+        sequence: 2,
+        type: 'result',
+        status: 'completed',
+        operation: 'list_profiles',
+      },
+    ]
+      .map((event) => JSON.stringify(event))
+      .join('\n');
+    const returning = runnerReturning(`${stream}\n`);
+    const profiles = await new MangapressCliAdapter('mangapress', returning.runner).listProfiles();
+
+    expect(profiles.profiles).toMatchObject([{ code: 'KV', name: 'Kindle Voyage' }]);
+    expect(returning.run.mock.calls[0]?.[0].arguments).toEqual([
+      '--list-profiles',
+      '--json-events',
+    ]);
+  });
+
+  it.each([
+    { exitCode: 1, operation: 'list_profiles' },
+    { exitCode: 0, operation: 'convert' },
+  ])('rejects an invalid profile listing: %j', async ({ exitCode, operation }) => {
+    const stream = `${JSON.stringify({
+      protocol_version: 1,
+      tool: 'mangapress',
+      tool_version: '0.5.0',
+      sequence: 1,
+      type: 'result',
+      status: 'completed',
+      operation,
+    })}\n`;
+
+    await expect(
+      new MangapressCliAdapter(
+        'mangapress',
+        runnerReturning(stream, exitCode).runner,
+      ).listProfiles(),
+    ).rejects.toMatchObject({ code: 'invalid_payload' });
+  });
 });

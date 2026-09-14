@@ -1,0 +1,164 @@
+import { randomUUID } from 'node:crypto';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+import type { MangabindCliAdapter, MangabindRunResult } from './cli';
+import { mappingDraftFromMangabindReport } from './mapping-draft';
+
+import type {
+  BindingInspection,
+  BindingPort,
+  BindingResult,
+} from '@/application/ports/conversion-tools';
+import { type PipelineIssue, ToolExecutionError } from '@/domain/conversion';
+import { serializeMangabindMetadata } from '@/domain/mapping';
+
+interface Workspace {
+  readonly rootPath: string;
+  readonly inputPath: string;
+  readonly metadataPath: string;
+  readonly volumesPath: string;
+}
+
+export interface WorkspaceFileSystem {
+  readonly createTemporaryDirectory: (prefix: string) => Promise<string>;
+  readonly createDirectory: (directoryPath: string) => Promise<void>;
+  readonly writeText: (filePath: string, contents: string) => Promise<void>;
+  readonly removeDirectory: (directoryPath: string) => Promise<void>;
+}
+
+const workspaceFileSystem: WorkspaceFileSystem = {
+  createTemporaryDirectory: (prefix) => mkdtemp(prefix),
+  createDirectory: (directoryPath) =>
+    mkdir(directoryPath, { recursive: true }).then(() => undefined),
+  writeText: (filePath, contents) => writeFile(filePath, contents, 'utf8'),
+  removeDirectory: (directoryPath) => rm(directoryPath, { recursive: true, force: true }),
+};
+
+export class MangabindBindingAdapter implements BindingPort {
+  private readonly workspaces = new Map<string, Workspace>();
+
+  constructor(
+    private readonly cli: Pick<MangabindCliAdapter, 'run'>,
+    private readonly files: WorkspaceFileSystem = workspaceFileSystem,
+    private readonly temporaryRoot = os.tmpdir(),
+    private readonly createId: () => string = randomUUID,
+  ) {}
+
+  async inspect(inputPath: string, signal?: AbortSignal): Promise<BindingInspection> {
+    const rootPath = await this.files.createTemporaryDirectory(
+      path.join(this.temporaryRoot, 'mangabound-'),
+    );
+    const workspaceId = this.createId();
+    const workspace = {
+      rootPath,
+      inputPath,
+      metadataPath: path.join(rootPath, 'mangabind.json'),
+      volumesPath: path.join(rootPath, 'volumes'),
+    };
+    this.workspaces.set(workspaceId, workspace);
+    try {
+      await this.files.createDirectory(workspace.volumesPath);
+      const result = await this.cli.run(
+        { inputPath, outputPath: workspace.volumesPath, dryRun: true },
+        signal === undefined ? {} : { signal },
+      );
+      assertSuccessful(result);
+      return {
+        workspaceId,
+        draft: mappingDraftFromMangabindReport(result.report, { seed: 'empty' }),
+        issues: collectIssues(result),
+      };
+    } catch (error) {
+      await this.release(workspaceId);
+      throw error;
+    }
+  }
+
+  async bind(
+    workspaceId: string,
+    mapping: Parameters<BindingPort['bind']>[1],
+    signal?: AbortSignal,
+  ): Promise<BindingResult> {
+    const workspace = this.workspaces.get(workspaceId);
+    if (workspace === undefined) {
+      throw new Error('The temporary binding workspace is no longer available.');
+    }
+    await this.files.writeText(workspace.metadataPath, serializeMangabindMetadata(mapping));
+    const result = await this.cli.run(
+      {
+        inputPath: workspace.inputPath,
+        outputPath: workspace.volumesPath,
+        metadataFilePath: workspace.metadataPath,
+        dryRun: false,
+      },
+      signal === undefined ? {} : { signal },
+    );
+    assertSuccessful(result);
+    const volumePaths = result.report.manga
+      .flatMap((manga) => manga.volumes)
+      .filter((volume) => volume.written)
+      .sort((left, right) => left.number - right.number)
+      .map((volume) => checkedChildPath(workspace.volumesPath, volume.output_path));
+    return { volumePaths, issues: collectIssues(result) };
+  }
+
+  async release(workspaceId: string): Promise<void> {
+    const workspace = this.workspaces.get(workspaceId);
+    this.workspaces.delete(workspaceId);
+    if (workspace === undefined) return;
+    const expectedPrefix = path.resolve(this.temporaryRoot) + path.sep;
+    const resolved = path.resolve(workspace.rootPath);
+    if (
+      !resolved.startsWith(expectedPrefix) ||
+      !path.basename(resolved).startsWith('mangabound-')
+    ) {
+      throw new Error('Refusing to remove an invalid temporary workspace path.');
+    }
+    await this.files.removeDirectory(resolved);
+  }
+}
+
+function collectIssues(result: MangabindRunResult): readonly PipelineIssue[] {
+  return [...result.report.issues, ...result.report.manga.flatMap((manga) => manga.issues)].map(
+    (issue) => ({
+      tool: 'mangabind',
+      severity: issue.severity,
+      code: issue.code,
+      stage: issue.stage,
+      recoverable: issue.recoverable,
+      message: issue.message,
+      ...(issue.diagnostic === undefined ? {} : { diagnostic: issue.diagnostic }),
+      ...(issue.manga === undefined ? {} : { manga: issue.manga }),
+      ...(issue.volume === undefined ? {} : { volume: String(issue.volume) }),
+      ...(issue.chapter === undefined ? {} : { chapter: String(issue.chapter) }),
+      ...(issue.path === undefined ? {} : { path: issue.path }),
+    }),
+  );
+}
+
+function assertSuccessful(result: MangabindRunResult): void {
+  if (result.exitCode === 0 && result.report.status !== 'failed') return;
+  const issue = collectIssues(result).find((candidate) => candidate.severity === 'error') ?? {
+    tool: 'mangabind',
+    severity: 'error',
+    code: 'process_failed',
+    stage: result.report.mode,
+    recoverable: true,
+    message: 'Mangabind could not build the selected volumes.',
+    ...(result.stderr === '' ? {} : { diagnostic: result.stderr }),
+  };
+  throw new ToolExecutionError(issue, result.exitCode);
+}
+
+function checkedChildPath(parentPath: string, childPath: string): string {
+  const parent = path.resolve(parentPath);
+  const child = path.resolve(childPath);
+  const parentUrl = pathToFileURL(`${parent}${path.sep}`).href;
+  if (!pathToFileURL(child).href.startsWith(parentUrl)) {
+    throw new Error('Mangabind reported an output outside its temporary workspace.');
+  }
+  return child;
+}

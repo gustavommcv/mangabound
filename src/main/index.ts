@@ -1,13 +1,323 @@
+import { randomUUID } from 'node:crypto';
+import { stat } from 'node:fs/promises';
 import path from 'node:path';
 
-import { app, BrowserWindow, ipcMain, type BrowserWindowConstructorOptions } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  shell,
+  type BrowserWindowConstructorOptions,
+  type IpcMainInvokeEvent,
+} from 'electron';
 import started from 'electron-squirrel-startup';
+import { ZodError } from 'zod';
 
+import { MangabindBindingAdapter } from '@/adapters/mangabind/binding-port';
+import { MangabindCliAdapter } from '@/adapters/mangabind/cli';
+import { CliProtocolError } from '@/adapters/cli-protocol-error';
+import { MangapressCliAdapter } from '@/adapters/mangapress/cli';
+import { MangapressConversionAdapter } from '@/adapters/mangapress/conversion-port';
+import { createNodeProcessRunner } from '@/adapters/process/node-process-runner';
 import { verifyBundledToolchain } from '@/adapters/toolchain/verification';
-import type { ToolchainStatus } from '@/shared/toolchain-status';
+import { ProcessCancelledError } from '@/application/ports/process-runner';
+import { SingleInputWorkflow } from '@/application/workflows/single-input';
+import {
+  ConversionWorkflowError,
+  type InputSelection,
+  ToolExecutionError,
+} from '@/domain/conversion';
+import type { ToolchainStatus, ToolchainTarget } from '@/shared/toolchain-status';
+import {
+  type ArtifactSummary,
+  conversionCommandSchema,
+  type DeviceProfileSummary,
+  identifierSchema,
+  inputKindSchema,
+  type InspectedInputPayload,
+  type SelectedInput,
+  type SelectedLibrary,
+  type WorkflowFailure,
+  type WorkflowResult,
+} from '@/shared/workflow-contract';
 
-if (started) {
-  app.quit();
+if (started) app.quit();
+
+const selectedInputs = new Map<string, InputSelection>();
+const selectedLibraries = new Map<string, string>();
+const artifactPaths = new Map<string, string>();
+const activeJobs = new Map<string, AbortController>();
+let workflow: SingleInputWorkflow | undefined;
+let mangapressCli: MangapressCliAdapter | undefined;
+let cleanupStarted = false;
+
+const ok = <T>(value: T): WorkflowResult<T> => ({ ok: true, value });
+const failed = <T>(error: WorkflowFailure): WorkflowResult<T> => ({ ok: false, error });
+
+function toFailure(error: unknown): WorkflowFailure {
+  if (error instanceof ToolExecutionError) {
+    return { code: error.issue.code, message: error.message, issue: error.issue };
+  }
+  if (error instanceof ProcessCancelledError) {
+    return { code: 'cancelled', message: 'Conversion cancelled.' };
+  }
+  if (error instanceof ConversionWorkflowError) {
+    return { code: error.code, message: error.message };
+  }
+  if (error instanceof CliProtocolError) {
+    return {
+      code: error.code,
+      message:
+        'A bundled conversion tool returned incompatible data. Reinstall Mangabound or open Diagnostics.',
+    };
+  }
+  if (error instanceof ZodError) {
+    return { code: 'invalid_request', message: 'Mangabound rejected an invalid workflow request.' };
+  }
+  return { code: 'internal_error', message: 'Mangabound could not complete that action.' };
+}
+
+function executablePath(
+  toolchainRoot: string,
+  target: ToolchainTarget,
+  tool: 'mangabind' | 'mangapress',
+): string {
+  const extension = target.startsWith('win32-') ? '.exe' : '';
+  return path.join(toolchainRoot, target, `${tool}${extension}`);
+}
+
+function requireWorkflow(): SingleInputWorkflow {
+  if (workflow === undefined) throw new Error('The bundled conversion tools are not ready.');
+  return workflow;
+}
+
+function registerWorkflowHandlers(): void {
+  ipcMain.handle(
+    'workflow:choose-input',
+    async (_event, rawKind: unknown): Promise<WorkflowResult<SelectedInput | null>> => {
+      try {
+        const kind = inputKindSchema.parse(rawKind);
+        const result = await dialog.showOpenDialog({
+          title: kind === 'folder' ? 'Choose a manga folder' : 'Choose a CBZ file',
+          properties: kind === 'folder' ? ['openDirectory'] : ['openFile'],
+          ...(kind === 'cbz'
+            ? { filters: [{ name: 'Comic book archive', extensions: ['cbz'] }] }
+            : {}),
+        });
+        const inputPath = result.filePaths[0];
+        if (result.canceled || inputPath === undefined) return ok(null);
+        const inputStats = await stat(inputPath);
+        const validInput =
+          kind === 'folder'
+            ? inputStats.isDirectory()
+            : inputStats.isFile() && path.extname(inputPath).toLowerCase() === '.cbz';
+        if (!validInput) {
+          return failed({
+            code: 'invalid_input',
+            message:
+              kind === 'folder'
+                ? 'Choose a folder containing manga chapters.'
+                : 'Choose a valid .cbz file.',
+          });
+        }
+        const selectionId = randomUUID();
+        const selection = {
+          inputPath,
+          displayName: path.basename(inputPath),
+          kind,
+        };
+        selectedInputs.set(selectionId, selection);
+        return ok({
+          selectionId,
+          displayName: selection.displayName,
+          displayPath: inputPath,
+          kind,
+        });
+      } catch (error) {
+        return failed(toFailure(error));
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'workflow:inspect-input',
+    async (_event, rawSelectionId: unknown): Promise<WorkflowResult<InspectedInputPayload>> => {
+      try {
+        const selectionId = identifierSchema.parse(rawSelectionId);
+        const selection = selectedInputs.get(selectionId);
+        if (selection === undefined) {
+          return failed({ code: 'selection_not_found', message: 'Choose the input again.' });
+        }
+        try {
+          return ok(await requireWorkflow().inspect(selection));
+        } finally {
+          selectedInputs.delete(selectionId);
+        }
+      } catch (error) {
+        return failed(toFailure(error));
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'workflow:release-input',
+    async (_event, rawSessionId: unknown): Promise<WorkflowResult<undefined>> => {
+      try {
+        const sessionId = identifierSchema.parse(rawSessionId);
+        await requireWorkflow().release(sessionId);
+        return ok(undefined);
+      } catch (error) {
+        return failed(toFailure(error));
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'workflow:choose-library',
+    async (): Promise<WorkflowResult<SelectedLibrary | null>> => {
+      try {
+        const result = await dialog.showOpenDialog({
+          title: 'Choose the output library',
+          buttonLabel: 'Use this folder',
+          properties: ['openDirectory', 'createDirectory'],
+        });
+        const libraryPath = result.filePaths[0];
+        if (result.canceled || libraryPath === undefined) return ok(null);
+        const libraryId = randomUUID();
+        selectedLibraries.set(libraryId, libraryPath);
+        return ok({ libraryId, displayPath: libraryPath });
+      } catch (error) {
+        return failed(toFailure(error));
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'workflow:get-device-profiles',
+    async (): Promise<WorkflowResult<readonly DeviceProfileSummary[]>> => {
+      try {
+        if (mangapressCli === undefined) throw new Error('mangapress is unavailable.');
+        const list = await mangapressCli.listProfiles();
+        return ok(
+          list.profiles.map((profile) => ({
+            code: profile.code,
+            name: profile.name,
+            width: profile.width,
+            height: profile.height,
+            grayLevels: profile.gray_levels,
+            family: profile.family,
+          })),
+        );
+      } catch (error) {
+        return failed(toFailure(error));
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'workflow:convert',
+    async (
+      event: IpcMainInvokeEvent,
+      rawCommand: unknown,
+    ): Promise<WorkflowResult<readonly ArtifactSummary[]>> => {
+      try {
+        const command = conversionCommandSchema.parse(rawCommand);
+        const libraryPath = selectedLibraries.get(command.libraryId);
+        if (libraryPath === undefined) {
+          return failed({ code: 'library_not_found', message: 'Choose the output folder again.' });
+        }
+        if (activeJobs.has(command.jobId)) {
+          return failed({ code: 'job_exists', message: 'That conversion is already running.' });
+        }
+        const controller = new AbortController();
+        activeJobs.set(command.jobId, controller);
+        try {
+          const artifacts = await requireWorkflow().convert(
+            {
+              sessionId: command.sessionId,
+              libraryPath,
+              profile: command.profile,
+              format: command.format,
+              ...(command.mapping === undefined ? {} : { mapping: command.mapping }),
+            },
+            {
+              signal: controller.signal,
+              onProgress: (progress) => {
+                event.sender.send('workflow:progress', { jobId: command.jobId, ...progress });
+              },
+            },
+          );
+          for (const artifact of artifacts) artifactPaths.set(artifact.id, artifact.path);
+          return ok(artifacts.map(({ bytes, format, id, name }) => ({ bytes, format, id, name })));
+        } finally {
+          activeJobs.delete(command.jobId);
+        }
+      } catch (error) {
+        return failed(toFailure(error));
+      }
+    },
+  );
+
+  ipcMain.handle('workflow:cancel', (_event, rawJobId: unknown): WorkflowResult<undefined> => {
+    try {
+      const jobId = identifierSchema.parse(rawJobId);
+      const controller = activeJobs.get(jobId);
+      if (controller === undefined) {
+        return failed({ code: 'job_not_found', message: 'That conversion is no longer running.' });
+      }
+      controller.abort();
+      return ok(undefined);
+    } catch (error) {
+      return failed(toFailure(error));
+    }
+  });
+
+  ipcMain.handle('artifact:open', async (_event, rawArtifactId: unknown) =>
+    withArtifact(rawArtifactId, async (artifactPath) => {
+      const message = await shell.openPath(artifactPath);
+      if (message !== '') throw new Error(message);
+    }),
+  );
+  ipcMain.handle('artifact:show-in-folder', (_event, rawArtifactId: unknown) =>
+    withArtifact(rawArtifactId, (artifactPath) => {
+      shell.showItemInFolder(artifactPath);
+      return Promise.resolve();
+    }),
+  );
+}
+
+async function withArtifact(
+  rawArtifactId: unknown,
+  action: (artifactPath: string) => Promise<void>,
+): Promise<WorkflowResult<undefined>> {
+  try {
+    const artifactId = identifierSchema.parse(rawArtifactId);
+    const artifactPath = artifactPaths.get(artifactId);
+    if (artifactPath === undefined) {
+      return failed({
+        code: 'artifact_not_found',
+        message: 'The saved book is no longer available.',
+      });
+    }
+    try {
+      if (!(await stat(artifactPath)).isFile()) {
+        return failed({
+          code: 'artifact_not_found',
+          message: 'The saved book is no longer available.',
+        });
+      }
+    } catch {
+      return failed({
+        code: 'artifact_not_found',
+        message: 'The saved book is no longer available.',
+      });
+    }
+    await action(artifactPath);
+    return ok(undefined);
+  } catch (error) {
+    return failed(toFailure(error));
+  }
 }
 
 const createMainWindow = (): BrowserWindow => {
@@ -17,14 +327,7 @@ const createMainWindow = (): BrowserWindow => {
   > =
     process.platform === 'darwin'
       ? { trafficLightPosition: { x: 16, y: 16 } }
-      : {
-          titleBarOverlay: {
-            color: '#111827',
-            height: 48,
-            symbolColor: '#e5e7eb',
-          },
-        };
-
+      : { titleBarOverlay: { color: '#111827', height: 48, symbolColor: '#e5e7eb' } };
   const window = new BrowserWindow({
     backgroundColor: '#0b101b',
     height: 760,
@@ -42,7 +345,6 @@ const createMainWindow = (): BrowserWindow => {
       sandbox: true,
     },
   });
-
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', (event) => {
     event.preventDefault();
@@ -51,7 +353,6 @@ const createMainWindow = (): BrowserWindow => {
     window.show();
   });
   void window.loadURL(MAIN_WINDOW_WEBPACK_ENTRY);
-
   return window;
 };
 
@@ -73,18 +374,40 @@ void app.whenReady().then(async () => {
       message: 'The bundled-tool manifest could not be verified. Reinstall Mangabound.',
     };
   }
+  if (toolchainStatus.state === 'ready' && toolchainStatus.target !== undefined) {
+    const runner = createNodeProcessRunner();
+    const mangabindCli = new MangabindCliAdapter(
+      executablePath(toolchainRoot, toolchainStatus.target, 'mangabind'),
+      runner,
+    );
+    mangapressCli = new MangapressCliAdapter(
+      executablePath(toolchainRoot, toolchainStatus.target, 'mangapress'),
+      runner,
+    );
+    workflow = new SingleInputWorkflow(
+      new MangabindBindingAdapter(mangabindCli),
+      new MangapressConversionAdapter(mangapressCli),
+      randomUUID,
+    );
+  }
   ipcMain.handle('toolchain:get-status', () => toolchainStatus);
+  registerWorkflowHandlers();
   createMainWindow();
-
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createMainWindow();
-    }
+    if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
+  });
+});
+
+app.on('before-quit', (event) => {
+  if (cleanupStarted || workflow === undefined) return;
+  event.preventDefault();
+  cleanupStarted = true;
+  for (const controller of activeJobs.values()) controller.abort();
+  void workflow.releaseAll().finally(() => {
+    app.quit();
   });
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+  if (process.platform !== 'darwin') app.quit();
 });

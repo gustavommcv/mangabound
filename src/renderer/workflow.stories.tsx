@@ -1,0 +1,140 @@
+import type { Meta, StoryObj } from '@storybook/react-vite';
+
+import { Complete, ConversionSettings, Home, Inspecting, IssueCallout, Running } from './app';
+
+const frame = (Story: React.ComponentType): React.JSX.Element => (
+  <div className="bg-background text-foreground min-h-screen p-10">
+    <div className="mx-auto max-w-6xl">
+      <Story />
+    </div>
+  </div>
+);
+
+const meta = {
+  title: 'Workflows/Single input',
+  component: Home,
+  decorators: [frame],
+  parameters: { layout: 'fullscreen' },
+} satisfies Meta<typeof Home>;
+
+export default meta;
+type Story = StoryObj<typeof meta>;
+
+export const Start: Story = {
+  args: { disabled: false, onChoose: () => undefined },
+};
+
+export const Disabled: Story = {
+  args: { disabled: true, onChoose: () => undefined },
+};
+
+export const Loading: Story = {
+  args: { disabled: false, onChoose: () => undefined },
+  render: () => (
+    <Inspecting
+      selection={{
+        selectionId: 'selection',
+        displayName: 'A Quiet Journey',
+        displayPath: '/Manga/A Quiet Journey',
+        kind: 'folder',
+      }}
+    />
+  ),
+};
+
+export const Settings: Story = {
+  args: { disabled: false, onChoose: () => undefined },
+  render: () => (
+    <ConversionSettings
+      format="epub"
+      inspection={{
+        sessionId: 'session',
+        displayName: 'A Quiet Journey',
+        kind: 'folder',
+        issues: [],
+      }}
+      library={{ libraryId: 'library', displayPath: '/Books/Manga' }}
+      mapping={{
+        mangaTitle: 'A Quiet Journey',
+        chapters: [],
+        volumes: [{ id: 'v1', number: '1', chapterIds: [] }],
+      }}
+      onBack={() => undefined}
+      onChooseLibrary={() => undefined}
+      onFormat={() => undefined}
+      onProfile={() => undefined}
+      onStart={() => undefined}
+      profile="KV"
+      profiles={[
+        {
+          code: 'KV',
+          name: 'Kindle Voyage',
+          width: 1072,
+          height: 1448,
+          grayLevels: 16,
+          family: 'kindle',
+        },
+      ]}
+    />
+  ),
+};
+
+export const Progress: Story = {
+  args: { disabled: false, onChoose: () => undefined },
+  render: () => (
+    <Running
+      onCancel={() => undefined}
+      progress={{
+        stage: 'processing',
+        message: 'Processed page 42 of 120.',
+        completed: 42,
+        total: 120,
+        volume: '1 of 2',
+      }}
+      selection={{
+        selectionId: 'selection',
+        displayName: 'A Quiet Journey',
+        displayPath: '/Manga/A Quiet Journey',
+        kind: 'folder',
+      }}
+    />
+  ),
+};
+
+export const Success: Story = {
+  args: { disabled: false, onChoose: () => undefined },
+  render: () => (
+    <Complete
+      artifacts={[
+        { id: 'one', name: 'A Quiet Journey - Vol.01.epub', bytes: 8_400_000, format: 'epub' },
+        { id: 'two', name: 'A Quiet Journey - Vol.02.epub', bytes: 9_100_000, format: 'epub' },
+      ]}
+      onOpen={() => undefined}
+      onShow={() => undefined}
+      onStartOver={() => undefined}
+    />
+  ),
+};
+
+export const Error: Story = {
+  args: { disabled: false, onChoose: () => undefined },
+  render: () => (
+    <IssueCallout
+      failure={{
+        code: 'page_processing_failed',
+        message: "Couldn't process page 17 in chapter 'Chapter 4'.",
+        issue: {
+          tool: 'mangapress',
+          severity: 'error',
+          code: 'page_processing_failed',
+          stage: 'process',
+          recoverable: true,
+          message: "Couldn't process page 17 in chapter 'Chapter 4'.",
+          chapter: 'Chapter 4',
+          page: 17,
+          diagnostic: 'Image decoder rejected the source page.',
+        },
+      }}
+    />
+  ),
+};

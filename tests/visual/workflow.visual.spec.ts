@@ -1,0 +1,15 @@
+import { expect, test } from '@playwright/test';
+
+test('single-input start remains visually consistent', async ({ page }) => {
+  await page.goto('/iframe.html?id=workflows-single-input--start&viewMode=story');
+  await expect(page.getByRole('heading', { name: 'What are you bringing in?' })).toBeVisible();
+  await page.evaluate(async () => document.fonts.ready);
+  await expect(page.locator('#storybook-root')).toHaveScreenshot('single-input-start.png');
+});
+
+test('completed artifacts remain visually consistent', async ({ page }) => {
+  await page.goto('/iframe.html?id=workflows-single-input--success&viewMode=story');
+  await expect(page.getByRole('heading', { name: '2 books saved' })).toBeVisible();
+  await page.evaluate(async () => document.fonts.ready);
+  await expect(page.locator('#storybook-root')).toHaveScreenshot('single-input-success.png');
+});

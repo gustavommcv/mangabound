@@ -1,10 +1,12 @@
 import { buildMangapressArguments, type MangapressRunArguments } from './arguments';
 import {
   isMangapressErrorEvent,
+  isMangapressProfileEvent,
   isMangapressResultEvent,
   type MangapressErrorEvent,
   type MangapressEvent,
   MangapressEventDecoder,
+  type MangapressProfileEvent,
   type MangapressResultEvent,
 } from './protocol';
 
@@ -17,6 +19,11 @@ export interface MangapressRunResult {
   readonly result?: MangapressResultEvent;
   readonly exitCode: number | null;
   readonly stderr: string;
+}
+
+export interface MangapressProfileList {
+  readonly profiles: readonly MangapressProfileEvent[];
+  readonly result: MangapressResultEvent;
 }
 
 export class MangapressCliAdapter {
@@ -35,6 +42,33 @@ export class MangapressCliAdapter {
       readonly signal?: AbortSignal;
     } = {},
   ): Promise<MangapressRunResult> {
+    return this.runEvents(buildMangapressArguments(request), { onEvent, signal });
+  }
+
+  async listProfiles(signal?: AbortSignal): Promise<MangapressProfileList> {
+    const run = await this.runEvents(['--list-profiles', '--json-events'], { signal });
+    if (run.exitCode !== 0 || run.result!.operation !== 'list_profiles') {
+      throw new CliProtocolError(
+        'invalid_payload',
+        'mangapress could not return its device profiles.',
+      );
+    }
+    return {
+      profiles: run.events.filter(isMangapressProfileEvent),
+      result: run.result!,
+    };
+  }
+
+  private async runEvents(
+    arguments_: readonly string[],
+    {
+      onEvent,
+      signal,
+    }: {
+      readonly onEvent?: (event: MangapressEvent) => void;
+      readonly signal?: AbortSignal;
+    },
+  ): Promise<MangapressRunResult> {
     const decoder = new MangapressEventDecoder();
     const events: MangapressEvent[] = [];
     const emit = (decoded: readonly MangapressEvent[]): void => {
@@ -46,7 +80,7 @@ export class MangapressCliAdapter {
     const processResult = await this.processRunner.run(
       {
         executablePath: this.executablePath,
-        arguments: buildMangapressArguments(request),
+        arguments: arguments_,
       },
       {
         ...(signal === undefined ? {} : { signal }),

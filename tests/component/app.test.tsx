@@ -16,7 +16,7 @@ describe('application foundation', () => {
     ).toBeVisible();
     expect(screen.getByRole('region', { name: 'Foundation boundaries' })).toBeVisible();
     expect(screen.getByRole('region', { name: 'Bundled tool status' })).toHaveTextContent(
-      /verified in the desktop app/i,
+      /Checking versions, compatibility, and file integrity/i,
     );
   });
 
