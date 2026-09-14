@@ -11,13 +11,23 @@ const appBinaryPath =
       ? path.join(packageDirectory, 'Mangabound.app', 'Contents', 'MacOS', 'mangabound')
       : path.join(packageDirectory, 'mangabound');
 
+const isWayland = process.env.MANGABOUND_WAYLAND === '1';
+
 export const config: WebdriverIO.Config = {
-  autoXvfb: process.env.MANGABOUND_WAYLAND !== '1',
+  autoXvfb: !isWayland,
   capabilities: [
     {
       browserName: 'electron',
       'wdio:electronServiceOptions': {
         appBinaryPath,
+        // ELECTRON_OZONE_PLATFORM_HINT alone depends on the electron-service
+        // child process inheriting our custom env vars, which isn't
+        // guaranteed -- passing the same choice as an explicit CLI switch is
+        // the reliable way Electron actually selects the Wayland Ozone
+        // backend instead of falling back to (and failing without) X11.
+        appArgs: isWayland
+          ? ['--ozone-platform=wayland', '--enable-features=UseOzonePlatform']
+          : [],
       },
     },
   ],
