@@ -20,14 +20,30 @@ export const config: WebdriverIO.Config = {
       browserName: 'electron',
       'wdio:electronServiceOptions': {
         appBinaryPath,
+        // electron-service only supplies its own essential default
+        // (`appArgs = ['--no-sandbox']`, confirmed by reading
+        // @wdio/electron-service's source directly) when this key is
+        // completely absent -- a JS destructuring default only fires on
+        // `undefined`, not on an explicit `[]`. An earlier version of this
+        // fix set `appArgs: []` for the non-Wayland case and `appArgs:
+        // [ozone flags]` (without --no-sandbox) for Wayland; both silently
+        // dropped --no-sandbox and broke Chrome's launch in CI regardless of
+        // Wayland. So the key is omitted entirely unless Wayland needs it,
+        // and --no-sandbox is carried alongside the Wayland-specific flags
+        // rather than assumed to still apply.
+        //
         // ELECTRON_OZONE_PLATFORM_HINT alone depends on the electron-service
         // child process inheriting our custom env vars, which isn't
         // guaranteed -- passing the same choice as an explicit CLI switch is
         // the reliable way Electron actually selects the Wayland Ozone
         // backend instead of falling back to (and failing without) X11.
-        appArgs: isWayland
-          ? ['--ozone-platform=wayland', '--enable-features=UseOzonePlatform']
-          : [],
+        ...(isWayland && {
+          appArgs: [
+            '--no-sandbox',
+            '--ozone-platform=wayland',
+            '--enable-features=UseOzonePlatform',
+          ],
+        }),
       },
     },
   ],
