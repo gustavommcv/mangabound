@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "tools": {
+    "mangabind": {
+      "workflow": ["-i", "-input", "-o", "-output"],
+      "user": ["-batch", "-dry-run", "-metadata-file", "-n", "-q", "-quiet"],
+      "internal": ["-json", "-protocol-version", "-version"]
+    },
+    "mangapress": {
+      "workflow": ["--output", "-o"],
+      "user": [
+        "--author",
+        "--autolevel",
+        "--cropping",
+        "--croppingminimum",
+        "--croppingpower",
+        "--customheight",
+        "--customwidth",
+        "--dry-run",
+        "--eraserainbow",
+        "--forcepng",
+        "--format",
+        "--gamma",
+        "--ipc",
+        "--jpeg-quality",
+        "--keepcomicinfo",
+        "--language",
+        "--manga-style",
+        "--metadatatitle",
+        "--noautocontrast",
+        "--preservemargin",
+        "--profile",
+        "--quiet",
+        "--rotateright",
+        "--splitter",
+        "--stretch",
+        "--title",
+        "--upscale",
+        "--wallpaper",
+        "--whiteborders",
+        "-a",
+        "-c",
+        "-f",
+        "-g",
+        "-m",
+        "-n",
+        "-p",
+        "-q",
+        "-r",
+        "-s",
+        "-t",
+        "-u"
+      ],
+      "internal": [
+        "--help",
+        "--json-events",
+        "--list-profiles",
+        "--protocol-version",
+        "--version",
+        "-V",
+        "-h"
+      ]
+    }
+  }
+}

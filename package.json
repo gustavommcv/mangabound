@@ -23,11 +23,13 @@
     "test:stories": "vitest run --project storybook",
     "test:visual": "playwright test --config playwright.visual.config.ts",
     "test:e2e": "wdio run wdio.conf.ts",
+    "precapabilities:check": "npm run toolchain:acquire",
+    "capabilities:check": "node scripts/verify-cli-capabilities.mjs",
     "toolchain:acquire": "node scripts/acquire-toolchain.mjs",
     "toolchain:check": "node scripts/verify-toolchain-lock.mjs",
     "toolchain:update": "node scripts/update-toolchain-lock.mjs --write",
     "audit:production": "npm audit --omit=dev",
-    "check": "npm run format:check && npm run lint && npm run typecheck && npm run audit:production && npm run toolchain:check && npm run test:unit && npm run test:component && npm run test:stories && npm run build-storybook"
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm run audit:production && npm run toolchain:check && npm run test:unit && npm run capabilities:check && npm run test:component && npm run test:stories && npm run build-storybook"
   },
   "dependencies": {
     "@radix-ui/react-checkbox": "^1.3.11",
