@@ -28,6 +28,16 @@ function mappedDraft(overrides: Partial<MappingDraft> = {}): MappingDraft {
 
 function dependencies({ volumePaths = ['/work/volume-1.cbz', '/work/volume-2.cbz'] } = {}) {
   const bind = vi.fn<BindingPort['bind']>(() => Promise.resolve({ volumePaths, issues: [] }));
+  const bindingPlan = vi.fn<BindingPort['plan']>(() =>
+    Promise.resolve({
+      title: 'Trusted Manga',
+      volumes: [
+        { name: 'Trusted Manga - Vol.01.cbz', pageCount: 2 },
+        { name: 'Trusted Manga - Vol.02.cbz', pageCount: 3 },
+      ],
+      issues: [],
+    }),
+  );
   const inspect = vi.fn<BindingPort['inspect']>(() =>
     Promise.resolve({ workspaceId: 'workspace-1', draft: trustedDraft, issues: [] }),
   );
@@ -49,13 +59,25 @@ function dependencies({ volumePaths = ['/work/volume-1.cbz', '/work/volume-2.cbz
     };
     return Promise.resolve(artifact);
   });
+  const conversionPlan = vi.fn<ConversionPort['plan']>(() =>
+    Promise.resolve({
+      title: 'Standalone',
+      name: 'Standalone.epub',
+      pageCount: 3,
+      profile: 'KV',
+      width: 1072,
+      height: 1448,
+    }),
+  );
   return {
-    binding: { bind, inspect, release } satisfies BindingPort,
-    conversion: { convert } satisfies ConversionPort,
+    binding: { bind, inspect, plan: bindingPlan, release } satisfies BindingPort,
+    conversion: { convert, plan: conversionPlan } satisfies ConversionPort,
     bind,
+    bindingPlan,
     inspect,
     release,
     convert,
+    conversionPlan,
   };
 }
 
@@ -176,6 +198,91 @@ describe('single-input workflow', () => {
     );
   });
 
+  it('validates folder plans with mangabind and direct CBZ plans with mangapress', async () => {
+    const ports = dependencies();
+    let id = 0;
+    const workflow = new SingleInputWorkflow(ports.binding, ports.conversion, () => String(++id));
+    const inspectedFolder = await workflow.inspect(folder);
+    const inspectedCbz = await workflow.inspect(cbz);
+    const controller = new AbortController();
+
+    await expect(
+      workflow.plan(
+        {
+          sessionId: inspectedFolder.sessionId,
+          libraryPath: '/library',
+          settings: defaultMangapressSettings,
+          format: 'epub',
+          mapping: mappedDraft(),
+        },
+        { signal: controller.signal },
+      ),
+    ).resolves.toEqual({
+      tool: 'mangabind',
+      title: 'Trusted Manga',
+      message: 'mangabind validated 2 volumes · no library files written',
+      books: [
+        { name: 'Trusted Manga - Vol.01.cbz', pageCount: 2 },
+        { name: 'Trusted Manga - Vol.02.cbz', pageCount: 3 },
+      ],
+      issues: [],
+    });
+    expect(ports.bindingPlan).toHaveBeenCalledWith(
+      'workspace-1',
+      expect.objectContaining({ mangaTitle: 'Trusted Manga' }),
+      controller.signal,
+    );
+
+    await expect(
+      workflow.plan(
+        {
+          sessionId: inspectedCbz.sessionId,
+          libraryPath: '/library',
+          settings: defaultMangapressSettings,
+          format: 'epub',
+        },
+        { signal: controller.signal },
+      ),
+    ).resolves.toEqual({
+      tool: 'mangapress',
+      title: 'Standalone',
+      message: 'mangapress validated KV · 1072 × 1448 · no library files written',
+      books: [{ name: 'Standalone.epub', pageCount: 3 }],
+      issues: [],
+    });
+    expect(ports.conversionPlan).toHaveBeenCalledWith(
+      expect.objectContaining({ inputPath: '/input/Standalone.cbz' }),
+      { signal: controller.signal },
+    );
+    await workflow.plan({
+      sessionId: inspectedCbz.sessionId,
+      libraryPath: '/library',
+      settings: defaultMangapressSettings,
+      format: 'epub',
+    });
+    expect(ports.conversionPlan).toHaveBeenLastCalledWith(
+      expect.objectContaining({ inputPath: '/input/Standalone.cbz' }),
+      {},
+    );
+
+    ports.bindingPlan.mockResolvedValueOnce({
+      title: 'Trusted Manga',
+      volumes: [{ name: 'Trusted Manga - Vol.01.cbz', pageCount: 5 }],
+      issues: [],
+    });
+    await expect(
+      workflow.plan({
+        sessionId: inspectedFolder.sessionId,
+        libraryPath: '/library',
+        settings: defaultMangapressSettings,
+        format: 'epub',
+        mapping: mappedDraft(),
+      }),
+    ).resolves.toMatchObject({
+      message: 'mangabind validated 1 volume · no library files written',
+    });
+  });
+
   it('rejects stale sessions, absent or invalid mappings, and empty binding output', async () => {
     const ports = dependencies({ volumePaths: [] });
     const workflow = new SingleInputWorkflow(ports.binding, ports.conversion, () => 'folder');
@@ -272,6 +379,38 @@ describe('single-input workflow', () => {
     ).rejects.toMatchObject({ code: 'invalid_settings' });
     expect(ports.bind).not.toHaveBeenCalled();
     expect(ports.convert).not.toHaveBeenCalled();
+
+    await expect(
+      workflow.plan({
+        sessionId: inspected.sessionId,
+        libraryPath: '/library',
+        settings: { ...defaultMangapressSettings, customWidth: 0 },
+        format: 'epub',
+      }),
+    ).rejects.toMatchObject({ code: 'invalid_settings' });
+  });
+
+  it('rejects stale and unconfirmed folder plan requests', async () => {
+    const ports = dependencies();
+    const workflow = new SingleInputWorkflow(ports.binding, ports.conversion, () => 'folder-plan');
+
+    await expect(
+      workflow.plan({
+        sessionId: 'missing',
+        libraryPath: '/library',
+        settings: defaultMangapressSettings,
+        format: 'epub',
+      }),
+    ).rejects.toMatchObject({ code: 'session_not_found' });
+    const inspected = await workflow.inspect(folder);
+    await expect(
+      workflow.plan({
+        sessionId: inspected.sessionId,
+        libraryPath: '/library',
+        settings: defaultMangapressSettings,
+        format: 'epub',
+      }),
+    ).rejects.toMatchObject({ code: 'mapping_required' });
   });
 
   it('releases folder workspaces and treats direct and unknown sessions as no-op cleanup', async () => {

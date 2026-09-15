@@ -20,3 +20,10 @@ test('full output settings remain visually consistent', async ({ page }) => {
   await page.evaluate(async () => document.fonts.ready);
   await expect(page.locator('#storybook-root')).toHaveScreenshot('output-settings.png');
 });
+
+test('validated plan remains visually consistent', async ({ page }) => {
+  await page.goto('/iframe.html?id=workflows-single-input--validated-plan&viewMode=story');
+  await expect(page.getByRole('heading', { name: 'Plan validated' })).toBeVisible();
+  await page.evaluate(async () => document.fonts.ready);
+  await expect(page.locator('#storybook-root')).toHaveScreenshot('validated-plan.png');
+});

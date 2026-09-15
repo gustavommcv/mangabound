@@ -73,6 +73,17 @@ function bridge(overrides: Partial<MangaboundBridge> = {}): MangaboundBridge {
         ok: true,
         value: [{ id: 'artifact', name: 'Offline Work.epub', bytes: 2048, format: 'epub' }],
       }),
+    planConversion: () =>
+      Promise.resolve({
+        ok: true,
+        value: {
+          tool: 'mangabind',
+          title: 'Offline Work',
+          message: 'mangabind validated 1 volume · no library files written',
+          books: [{ name: 'Offline Work - Vol.01.cbz', pageCount: 4 }],
+          issues: [],
+        },
+      }),
     cancelConversion: () => Promise.resolve({ ok: true, value: undefined }),
     openArtifact: () => Promise.resolve({ ok: true, value: undefined }),
     showArtifactInFolder: () => Promise.resolve({ ok: true, value: undefined }),
@@ -170,6 +181,45 @@ describe('single-input application workflow', () => {
     expect(await screen.findByRole('heading', { name: 'Convert Standalone.cbz' })).toBeVisible();
     expect(screen.getByText('This CBZ will go directly to mangapress.')).toBeVisible();
     expect(screen.queryByText('Chapter mapping')).not.toBeInTheDocument();
+  });
+
+  it('shows a successful no-output plan before conversion', async () => {
+    const user = userEvent.setup();
+    const planConversion = vi.fn<MangaboundBridge['planConversion']>(() =>
+      Promise.resolve({
+        ok: true,
+        value: {
+          tool: 'mangabind',
+          title: 'Offline Work',
+          message: 'mangabind validated 1 volume · no library files written',
+          books: [{ name: 'Offline Work - Vol.01.cbz', pageCount: 4 }],
+          issues: [
+            {
+              tool: 'mangabind',
+              severity: 'warning',
+              code: 'chapter_name_normalized',
+              stage: 'plan',
+              recoverable: true,
+              message: 'One chapter name was normalized.',
+            },
+          ],
+        },
+      }),
+    );
+    installBridge(bridge({ planConversion }));
+    render(<App />);
+
+    await user.click(await screen.findByRole('button', { name: /Manga folder/i }));
+    await user.click(await screen.findByRole('button', { name: 'Confirm mapping' }));
+    await user.click(screen.getByRole('button', { name: 'Choose output folder' }));
+    await user.click(screen.getByRole('button', { name: 'Validate plan' }));
+
+    expect(await screen.findByRole('heading', { name: 'Plan validated' })).toBeVisible();
+    expect(screen.getByText('Offline Work - Vol.01.cbz')).toBeVisible();
+    expect(screen.getByText('1 warning reported by mangabind.')).toBeVisible();
+    expect(planConversion).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: 'session', settings: defaultMangapressSettings }),
+    );
   });
 
   it('keeps actionable failures persistent with collapsed technical details', async () => {

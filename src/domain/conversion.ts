@@ -41,6 +41,19 @@ export interface ConversionArtifact {
   readonly format: BookFormat;
 }
 
+export interface PlannedBook {
+  readonly name: string;
+  readonly pageCount: number;
+}
+
+export interface WorkflowPlan {
+  readonly tool: 'mangabind' | 'mangapress';
+  readonly title: string;
+  readonly message: string;
+  readonly books: readonly PlannedBook[];
+  readonly issues: readonly PipelineIssue[];
+}
+
 export interface ConversionProgress {
   readonly stage: 'binding' | 'processing' | 'saving';
   readonly message: string;

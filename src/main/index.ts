@@ -36,6 +36,7 @@ import {
   identifierSchema,
   inputKindSchema,
   type InspectedInputPayload,
+  type PlanSummary,
   type SelectedInput,
   type SelectedLibrary,
   type WorkflowFailure,
@@ -209,6 +210,45 @@ function registerWorkflowHandlers(): void {
             family: profile.family,
           })),
         );
+      } catch (error) {
+        return failed(toFailure(error));
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'workflow:plan',
+    async (
+      _event: IpcMainInvokeEvent,
+      rawCommand: unknown,
+    ): Promise<WorkflowResult<PlanSummary>> => {
+      try {
+        const command = conversionCommandSchema.parse(rawCommand);
+        const libraryPath = selectedLibraries.get(command.libraryId);
+        if (libraryPath === undefined) {
+          return failed({ code: 'library_not_found', message: 'Choose the output folder again.' });
+        }
+        if (activeJobs.has(command.jobId)) {
+          return failed({ code: 'job_exists', message: 'That validation is already running.' });
+        }
+        const controller = new AbortController();
+        activeJobs.set(command.jobId, controller);
+        try {
+          return ok(
+            await requireWorkflow().plan(
+              {
+                sessionId: command.sessionId,
+                libraryPath,
+                settings: command.settings,
+                format: command.format,
+                ...(command.mapping === undefined ? {} : { mapping: command.mapping }),
+              },
+              { signal: controller.signal },
+            ),
+          );
+        } finally {
+          activeJobs.delete(command.jobId);
+        }
       } catch (error) {
         return failed(toFailure(error));
       }

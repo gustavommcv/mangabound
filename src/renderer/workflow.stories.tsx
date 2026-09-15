@@ -2,7 +2,15 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 
 import { defaultMangapressSettings } from '@/domain/output-profile';
 
-import { Complete, ConversionSettings, Home, Inspecting, IssueCallout, Running } from './app';
+import {
+  Complete,
+  ConversionSettings,
+  Home,
+  Inspecting,
+  IssueCallout,
+  PlanResult,
+  Running,
+} from './app';
 
 const frame = (Story: React.ComponentType): React.JSX.Element => (
   <div className="bg-background text-foreground min-h-screen p-10">
@@ -64,9 +72,11 @@ export const Settings: Story = {
       onBack={() => undefined}
       onChooseLibrary={() => undefined}
       onFormat={() => undefined}
+      onPlan={() => undefined}
       onSettings={() => undefined}
       onStart={() => undefined}
       settings={defaultMangapressSettings}
+      planning={false}
       profiles={[
         {
           code: 'KV',
@@ -98,6 +108,33 @@ export const Progress: Story = {
         displayName: 'A Quiet Journey',
         displayPath: '/Manga/A Quiet Journey',
         kind: 'folder',
+      }}
+    />
+  ),
+};
+
+export const ValidatedPlan: Story = {
+  args: { disabled: false, onChoose: () => undefined },
+  render: () => (
+    <PlanResult
+      plan={{
+        tool: 'mangabind',
+        title: 'A Quiet Journey',
+        message: 'mangabind validated 2 volumes · no library files written',
+        books: [
+          { name: 'A Quiet Journey - Vol.01.cbz', pageCount: 46 },
+          { name: 'A Quiet Journey - Vol.02.cbz', pageCount: 51 },
+        ],
+        issues: [
+          {
+            tool: 'mangabind',
+            severity: 'warning',
+            code: 'chapter_name_normalized',
+            stage: 'plan',
+            recoverable: true,
+            message: 'One chapter name was normalized.',
+          },
+        ],
       }}
     />
   ),

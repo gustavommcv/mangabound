@@ -97,7 +97,25 @@ describe('mangabind binding port', () => {
     const cli = {
       run: vi.fn<MangabindCliAdapter['run']>((request) => {
         const report = structuredClone(fixture);
-        if (!request.dryRun) {
+        if (request.dryRun && request.metadataFilePath !== undefined) {
+          report.status = 'completed';
+          report.manga[0]!.volumes = [
+            {
+              number: 2,
+              output_path: path.join(root, 'volumes', 'planned-v2.cbz'),
+              page_count: 1,
+              chapters: ['3'],
+              written: false,
+            },
+            {
+              number: 1,
+              output_path: path.join(root, 'volumes', 'planned-v1.cbz'),
+              page_count: 2,
+              chapters: ['1'],
+              written: false,
+            },
+          ];
+        } else if (!request.dryRun) {
           report.mode = 'execute';
           report.status = 'completed';
           report.issues = [
@@ -153,6 +171,16 @@ describe('mangabind binding port', () => {
 
     expect(inspection.draft.volumes).toEqual([]);
     expect(inspection.issues[0]).toMatchObject({ code: 'unassigned_chapter', chapter: '3' });
+    const planned = await adapter.plan(
+      inspection.workspaceId,
+      completeMapping(),
+      controller.signal,
+    );
+    expect(planned.volumes).toEqual([
+      { name: 'planned-v1.cbz', pageCount: 2 },
+      { name: 'planned-v2.cbz', pageCount: 1 },
+    ]);
+    expect(files.writeTextAtomically).not.toHaveBeenCalled();
     const bound = await adapter.bind(inspection.workspaceId, completeMapping(), controller.signal);
     expect(bound.volumePaths.map((volumePath) => path.basename(volumePath))).toEqual([
       'v1.cbz',
@@ -276,10 +304,35 @@ describe('mangabind binding port', () => {
     await expect(adapter.bind('missing', completeMapping())).rejects.toThrow(
       /no longer available/u,
     );
+    await expect(adapter.plan('missing', completeMapping())).rejects.toThrow(
+      /no longer available/u,
+    );
     await adapter.inspect('/input');
     await expect(adapter.bind('unsafe', completeMapping())).rejects.toThrow(/outside/u);
     report.manga[0]!.volumes[0]!.output_path = path.join(root, '..', 'outside.cbz');
     await expect(adapter.bind('unsafe', completeMapping())).rejects.toThrow(/outside/u);
+  });
+
+  it('rejects an incomplete dry-run plan', async () => {
+    const root = path.join(os.tmpdir(), 'mangabound-incomplete-plan');
+    const files = fakeFiles(root);
+    let invocation = 0;
+    const adapter = new MangabindBindingAdapter(
+      {
+        run: () => {
+          invocation += 1;
+          const report = structuredClone(fixture);
+          if (invocation === 2) report.manga = [];
+          return Promise.resolve(result({ report }));
+        },
+      },
+      files,
+      os.tmpdir(),
+      () => 'incomplete',
+    );
+
+    await adapter.inspect('/input');
+    await expect(adapter.plan('incomplete', completeMapping())).rejects.toThrow(/incomplete/u);
   });
 
   it('refuses unsafe cleanup paths and treats repeated release as a no-op', async () => {

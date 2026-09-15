@@ -39,6 +39,10 @@ describe('packaged conversion pipeline', () => {
     await $('button=Confirm mapping').click();
     await $('h1=Convert Mangabound E2E').waitForDisplayed();
     await $('button=Choose output folder').click();
+    await $('button=Validate plan').click();
+    await $('h2=Plan validated').waitForDisplayed({ timeout: 30_000 });
+    assert.deepEqual(await readdir(libraryPath), []);
+    await assert.rejects(readFile(path.join(inputPath, 'mangabind.json'), 'utf8'));
     await $('button=Start conversion').click();
     await $('h1=1 book saved').waitForDisplayed({ timeout: 120_000 });
 
@@ -62,6 +66,9 @@ describe('packaged conversion pipeline', () => {
     await $('button*=One CBZ file').click();
     await $('h1=Convert Mangabound Direct.cbz').waitForDisplayed({ timeout: 30_000 });
     assert.match(await $('main').getText(), /directly to mangapress/u);
+    await $('button=Validate plan').click();
+    await $('h2=Plan validated').waitForDisplayed({ timeout: 30_000 });
+    assert.deepEqual(await readdir(libraryPath), ['Mangabound E2E - Vol.01.epub']);
     await $('button=Start conversion').click();
     await $('h1=1 book saved').waitForDisplayed({ timeout: 120_000 });
 

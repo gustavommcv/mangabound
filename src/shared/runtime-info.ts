@@ -5,6 +5,7 @@ import type {
   ConversionProgressPayload,
   DeviceProfileSummary,
   InspectedInputPayload,
+  PlanSummary,
   SelectedInput,
   SelectedLibrary,
   WorkflowResult,
@@ -28,6 +29,7 @@ export interface MangaboundBridge {
   readonly convert: (
     command: ConversionCommand,
   ) => Promise<WorkflowResult<readonly ArtifactSummary[]>>;
+  readonly planConversion: (command: ConversionCommand) => Promise<WorkflowResult<PlanSummary>>;
   readonly cancelConversion: (jobId: string) => Promise<WorkflowResult<undefined>>;
   readonly openArtifact: (artifactId: string) => Promise<WorkflowResult<undefined>>;
   readonly showArtifactInFolder: (artifactId: string) => Promise<WorkflowResult<undefined>>;

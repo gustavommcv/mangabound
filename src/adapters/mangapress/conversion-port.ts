@@ -21,6 +21,52 @@ export class MangapressConversionAdapter implements ConversionPort {
     private readonly createId: () => string = randomUUID,
   ) {}
 
+  async plan(
+    request: {
+      readonly inputPath: string;
+      readonly outputDirectory: string;
+      readonly settings: MangapressSettings;
+      readonly format: BookFormat;
+    },
+    options: { readonly signal?: AbortSignal } = {},
+  ): ReturnType<ConversionPort['plan']> {
+    const { deviceProfile, ...settings } = request.settings;
+    const run = await this.cli.run(
+      {
+        inputPath: request.inputPath,
+        outputPath: request.outputDirectory,
+        profile: deviceProfile,
+        format: request.format,
+        dryRun: true,
+        ...settings,
+      },
+      options.signal === undefined ? {} : { signal: options.signal },
+    );
+    const result = requireSuccessfulResult(run);
+    if (
+      result.operation !== 'convert' ||
+      result.dry_run !== true ||
+      result.written !== false ||
+      result.output_path === undefined ||
+      result.manga === undefined ||
+      result.profile === undefined ||
+      result.width === undefined ||
+      result.height === undefined ||
+      result.source_pages === undefined
+    ) {
+      throw new Error('Mangapress returned an incomplete conversion plan.');
+    }
+    const outputPath = checkedChildPath(request.outputDirectory, result.output_path);
+    return {
+      title: result.manga,
+      name: path.basename(outputPath),
+      pageCount: result.source_pages,
+      profile: result.profile,
+      width: result.width,
+      height: result.height,
+    };
+  }
+
   async convert(
     request: {
       readonly inputPath: string;
@@ -51,23 +97,7 @@ export class MangapressConversionAdapter implements ConversionPort {
         },
       },
     );
-    if (run.exitCode !== 0 || run.result === undefined) {
-      const error = run.errors[0];
-      const issue =
-        error === undefined
-          ? {
-              tool: 'mangapress' as const,
-              severity: 'error' as const,
-              code: 'process_failed',
-              stage: 'conversion',
-              recoverable: true,
-              message: 'Mangapress could not convert this volume.',
-              ...(run.stderr === '' ? {} : { diagnostic: run.stderr }),
-            }
-          : issueFromError(error);
-      throw new ToolExecutionError(issue, run.exitCode);
-    }
-    const result = run.result;
+    const result = requireSuccessfulResult(run);
     if (
       result.operation !== 'convert' ||
       result.written !== true ||
@@ -86,6 +116,26 @@ export class MangapressConversionAdapter implements ConversionPort {
       format: result.format,
     };
   }
+}
+
+function requireSuccessfulResult(
+  run: Awaited<ReturnType<MangapressCliAdapter['run']>>,
+): NonNullable<Awaited<ReturnType<MangapressCliAdapter['run']>>['result']> {
+  if (run.exitCode === 0 && run.result !== undefined) return run.result;
+  const error = run.errors[0];
+  const issue =
+    error === undefined
+      ? {
+          tool: 'mangapress' as const,
+          severity: 'error' as const,
+          code: 'process_failed',
+          stage: 'conversion',
+          recoverable: true,
+          message: 'Mangapress could not convert this volume.',
+          ...(run.stderr === '' ? {} : { diagnostic: run.stderr }),
+        }
+      : issueFromError(error);
+  throw new ToolExecutionError(issue, run.exitCode);
 }
 
 function issueFromError(error: MangapressErrorEvent): PipelineIssue {

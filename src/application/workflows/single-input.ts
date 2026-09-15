@@ -6,6 +6,7 @@ import {
   ConversionWorkflowError,
   type InputSelection,
   type InspectedInput,
+  type WorkflowPlan,
 } from '@/domain/conversion';
 import { createMappingDraft, type MappingDraft, validateMapping } from '@/domain/mapping';
 import { validateMangapressSettings } from '@/domain/output-profile';
@@ -132,6 +133,62 @@ export class SingleInputWorkflow {
       message: `${String(artifacts.length)} book${artifacts.length === 1 ? '' : 's'} saved.`,
     });
     return artifacts;
+  }
+
+  async plan(
+    request: ConversionRequest,
+    { signal }: { readonly signal?: AbortSignal } = {},
+  ): Promise<WorkflowPlan> {
+    if (validateMangapressSettings(request.settings).length > 0) {
+      throw new ConversionWorkflowError(
+        'invalid_settings',
+        'Review the output settings before validating the plan.',
+      );
+    }
+    const session = this.sessions.get(request.sessionId);
+    if (session === undefined) {
+      throw new ConversionWorkflowError(
+        'session_not_found',
+        'This input is no longer available. Choose it again.',
+      );
+    }
+    if (session.selection.kind === 'cbz') {
+      const plan = await this.conversion.plan(
+        {
+          inputPath: session.selection.inputPath,
+          outputDirectory: request.libraryPath,
+          settings: request.settings,
+          format: request.format,
+        },
+        signal === undefined ? {} : { signal },
+      );
+      return {
+        tool: 'mangapress',
+        title: plan.title,
+        message: `mangapress validated ${plan.profile} · ${String(plan.width)} × ${String(plan.height)} · no library files written`,
+        books: [{ name: plan.name, pageCount: plan.pageCount }],
+        issues: [],
+      };
+    }
+    if (
+      session.trustedDraft === undefined ||
+      session.workspaceId === undefined ||
+      request.mapping === undefined
+    ) {
+      throw new ConversionWorkflowError(
+        'mapping_required',
+        'Confirm the chapter-to-volume mapping before validating the plan.',
+      );
+    }
+    const mapping = trustedMapping(session.trustedDraft, request.mapping);
+    const plan = await this.binding.plan(session.workspaceId, mapping, signal);
+    return {
+      tool: 'mangabind',
+      title: plan.title,
+      message: `mangabind validated ${String(plan.volumes.length)} volume${plan.volumes.length === 1 ? '' : 's'} · no library files written`,
+      books: plan.volumes,
+      issues: plan.issues,
+    };
   }
 
   async release(sessionId: string): Promise<void> {

@@ -68,6 +68,50 @@ const request = {
 };
 
 describe('mangapress conversion port', () => {
+  it('returns a no-output plan from a complete mangapress dry run', async () => {
+    const planned = resultEvent({
+      dry_run: true,
+      written: false,
+      bytes: undefined,
+      source_pages: 12,
+      output_path: path.resolve('/library', 'Planned.epub'),
+    });
+    const run = vi.fn(() => Promise.resolve(runResult({ result: planned })));
+    const controller = new AbortController();
+    const adapter = new MangapressConversionAdapter({ run });
+
+    await expect(adapter.plan(request, { signal: controller.signal })).resolves.toEqual({
+      title: 'Book',
+      name: 'Planned.epub',
+      pageCount: 12,
+      profile: 'KV',
+      width: 1072,
+      height: 1448,
+    });
+    expect(run).toHaveBeenCalledWith(expect.objectContaining({ dryRun: true, profile: 'KV' }), {
+      signal: controller.signal,
+    });
+  });
+
+  it.each([
+    { operation: 'list_profiles' },
+    { dry_run: false },
+    { written: true },
+    { output_path: undefined },
+    { manga: undefined },
+    { profile: undefined },
+    { width: undefined },
+    { height: undefined },
+    { source_pages: undefined },
+  ])('rejects an incomplete dry-run conversion plan: %j', async (fields) => {
+    const incomplete = resultEvent({ dry_run: true, written: false, ...fields });
+    const adapter = new MangapressConversionAdapter({
+      run: () => Promise.resolve(runResult({ result: incomplete })),
+    });
+
+    await expect(adapter.plan(request)).rejects.toThrow(/incomplete/u);
+  });
+
   it('maps streaming page and stage events into contextual progress and a library artifact', async () => {
     const run = vi.fn<MangapressCliAdapter['run']>((_request, options = {}) => {
       options.onEvent?.(event({ type: 'stage', stage: 'inspect', state: 'started' }));

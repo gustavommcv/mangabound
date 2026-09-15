@@ -9,6 +9,7 @@ import { mappingDraftFromMangabindReport } from './mapping-draft';
 
 import type {
   BindingInspection,
+  BindingPlan,
   BindingPort,
   BindingResult,
 } from '@/application/ports/conversion-tools';
@@ -131,6 +132,39 @@ export class MangabindBindingAdapter implements BindingPort {
       .sort((left, right) => left.number - right.number)
       .map((volume) => checkedChildPath(workspace.volumesPath, volume.output_path));
     return { volumePaths, issues: collectIssues(result) };
+  }
+
+  async plan(
+    workspaceId: string,
+    mapping: Parameters<BindingPort['plan']>[1],
+    signal?: AbortSignal,
+  ): Promise<BindingPlan> {
+    const workspace = this.workspaces.get(workspaceId);
+    if (workspace === undefined) {
+      throw new Error('The temporary binding workspace is no longer available.');
+    }
+    const metadata = serializeMangabindMetadata(mapping);
+    await this.files.writeText(workspace.metadataPath, metadata);
+    const result = await this.cli.run(
+      {
+        inputPath: workspace.inputPath,
+        outputPath: workspace.volumesPath,
+        metadataFilePath: workspace.metadataPath,
+        dryRun: true,
+      },
+      signal === undefined ? {} : { signal },
+    );
+    assertSuccessful(result);
+    const manga = result.report.manga[0];
+    if (manga === undefined) throw new Error('Mangabind returned an incomplete plan.');
+    const volumes = manga.volumes
+      .slice()
+      .sort((left, right) => left.number - right.number)
+      .map((volume) => ({
+        name: path.basename(checkedChildPath(workspace.volumesPath, volume.output_path)),
+        pageCount: volume.page_count,
+      }));
+    return { title: manga.name, volumes, issues: collectIssues(result) };
   }
 
   async release(workspaceId: string): Promise<void> {

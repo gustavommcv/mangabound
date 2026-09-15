@@ -108,6 +108,17 @@ export interface ArtifactSummary {
   readonly format: BookFormat;
 }
 
+export interface PlanSummary {
+  readonly tool: 'mangabind' | 'mangapress';
+  readonly title: string;
+  readonly message: string;
+  readonly books: readonly {
+    readonly name: string;
+    readonly pageCount: number;
+  }[];
+  readonly issues: readonly PipelineIssue[];
+}
+
 export interface ConversionCommand {
   readonly jobId: string;
   readonly sessionId: string;

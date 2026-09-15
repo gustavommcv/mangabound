@@ -9,6 +9,7 @@ import type {
   ConversionProgressPayload,
   DeviceProfileSummary,
   InspectedInputPayload,
+  PlanSummary,
   SelectedInput,
   SelectedLibrary,
   WorkflowResult,
@@ -31,6 +32,7 @@ const bridge: MangaboundBridge = Object.freeze({
   getDeviceProfiles: () => invoke<readonly DeviceProfileSummary[]>('workflow:get-device-profiles'),
   convert: (command: ConversionCommand) =>
     invoke<readonly ArtifactSummary[]>('workflow:convert', command),
+  planConversion: (command: ConversionCommand) => invoke<PlanSummary>('workflow:plan', command),
   cancelConversion: (jobId: string) => invoke<undefined>('workflow:cancel', jobId),
   openArtifact: (artifactId: string) => invoke<undefined>('artifact:open', artifactId),
   showArtifactInFolder: (artifactId: string) =>

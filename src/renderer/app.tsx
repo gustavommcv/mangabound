@@ -12,7 +12,7 @@ import {
   RadioTower,
   Square,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import type { BookFormat, ConversionProgress, InputKind } from '@/domain/conversion';
 import type { MappingDraft } from '@/domain/mapping';
@@ -30,6 +30,7 @@ import type {
   ArtifactSummary,
   DeviceProfileSummary,
   InspectedInputPayload,
+  PlanSummary,
   SelectedInput,
   SelectedLibrary,
   WorkflowFailure,
@@ -69,7 +70,15 @@ export function App(): React.JSX.Element {
   const [jobId, setJobId] = useState<string>();
   const [progress, setProgress] = useState<ConversionProgress>();
   const [artifacts, setArtifacts] = useState<readonly ArtifactSummary[]>([]);
+  const [plan, setPlan] = useState<PlanSummary>();
+  const [planning, setPlanning] = useState(false);
   const [failure, setFailure] = useState<WorkflowFailure>();
+  const planTokenRef = useRef(0);
+
+  const invalidatePlan = (): void => {
+    planTokenRef.current += 1;
+    setPlan(undefined);
+  };
 
   useEffect(() => {
     if (bridge === undefined) return;
@@ -141,7 +150,39 @@ export function App(): React.JSX.Element {
     if (bridge === undefined) return;
     const result = await bridge.chooseLibrary();
     if (!result.ok) setFailure(result.error);
-    else if (result.value !== null) setLibrary(result.value);
+    else if (result.value !== null) {
+      setLibrary(result.value);
+      invalidatePlan();
+    }
+  };
+
+  const validatePlan = async (): Promise<void> => {
+    if (
+      bridge === undefined ||
+      bridge.planConversion === undefined ||
+      inspection === undefined ||
+      library === undefined
+    ) {
+      return;
+    }
+    setFailure(undefined);
+    invalidatePlan();
+    const token = planTokenRef.current;
+    setPlanning(true);
+    try {
+      const result = await bridge.planConversion({
+        jobId: crypto.randomUUID(),
+        sessionId: inspection.sessionId,
+        libraryId: library.libraryId,
+        settings,
+        format,
+        ...(mapping === undefined ? {} : { mapping }),
+      });
+      if (!result.ok) setFailure(result.error);
+      else if (planTokenRef.current === token) setPlan(result.value);
+    } finally {
+      setPlanning(false);
+    }
   };
 
   const startConversion = async (): Promise<void> => {
@@ -195,6 +236,7 @@ export function App(): React.JSX.Element {
     setArtifacts([]);
     setFailure(undefined);
     setProgress(undefined);
+    invalidatePlan();
     setJobId(undefined);
     setStep('home');
     if (sessionId !== undefined && bridge?.releaseInput !== undefined) {
@@ -226,6 +268,7 @@ export function App(): React.JSX.Element {
               initialDraft={inspection.mapping}
               onConfirm={(_metadata, draft) => {
                 setMapping(draft);
+                invalidatePlan();
                 setStep('settings');
               }}
             />
@@ -243,11 +286,22 @@ export function App(): React.JSX.Element {
               onChooseLibrary={() => {
                 void chooseLibrary();
               }}
-              onFormat={setFormat}
-              onSettings={setSettings}
+              onFormat={(nextFormat) => {
+                setFormat(nextFormat);
+                invalidatePlan();
+              }}
+              onPlan={() => {
+                void validatePlan();
+              }}
+              onSettings={(nextSettings) => {
+                setSettings(nextSettings);
+                invalidatePlan();
+              }}
               onStart={() => {
                 void startConversion();
               }}
+              plan={plan}
+              planning={planning}
               settings={settings}
               profiles={profiles}
             />
@@ -416,9 +470,12 @@ export function ConversionSettings({
   onBack,
   onChooseLibrary,
   onFormat,
+  onPlan,
   onSettings,
   onStart,
   settings,
+  plan,
+  planning,
   profiles,
 }: {
   readonly format: BookFormat;
@@ -428,9 +485,12 @@ export function ConversionSettings({
   readonly onBack: () => void;
   readonly onChooseLibrary: () => void;
   readonly onFormat: (format: BookFormat) => void;
+  readonly onPlan: () => void;
   readonly onSettings: (settings: MangapressSettings) => void;
   readonly onStart: () => void;
   readonly settings: MangapressSettings;
+  readonly plan?: PlanSummary;
+  readonly planning: boolean;
   readonly profiles: readonly DeviceProfileSummary[];
 }): React.JSX.Element {
   const settingIssues = validateMangapressSettings(settings);
@@ -475,14 +535,63 @@ export function ConversionSettings({
           Review the highlighted output settings before converting.
         </p>
       )}
-      <div className="flex justify-end">
+      {plan !== undefined && <PlanResult plan={plan} />}
+      <div className="flex flex-wrap justify-end gap-3">
         <Button
-          disabled={library === undefined || settingIssues.length > 0}
+          disabled={library === undefined || settingIssues.length > 0 || planning}
+          onClick={onPlan}
+          size="lg"
+          variant="outline"
+        >
+          {planning ? (
+            <LoaderCircle aria-hidden="true" className="animate-spin" />
+          ) : (
+            <CheckCircle2 />
+          )}
+          {planning ? 'Validating…' : 'Validate plan'}
+        </Button>
+        <Button
+          disabled={library === undefined || settingIssues.length > 0 || planning}
           onClick={onStart}
           size="lg"
         >
           <MonitorSmartphone /> Start conversion
         </Button>
+      </div>
+    </section>
+  );
+}
+
+export function PlanResult({ plan }: { readonly plan: PlanSummary }): React.JSX.Element {
+  return (
+    <section
+      aria-labelledby="plan-title"
+      className="border-status-complete/40 bg-status-complete/5 rounded-xl border p-5"
+    >
+      <div className="flex items-start gap-3">
+        <CheckCircle2 aria-hidden="true" className="text-status-complete mt-0.5 size-5" />
+        <div className="min-w-0 flex-1">
+          <h2 className="font-semibold" id="plan-title">
+            Plan validated
+          </h2>
+          <p className="text-muted-foreground mt-1 text-sm">{plan.message}</p>
+          <ul className="mt-3 space-y-1 text-sm">
+            {plan.books.map((book) => (
+              <li className="flex justify-between gap-4" key={book.name}>
+                <span className="truncate">{book.name}</span>
+                <span className="text-muted-foreground shrink-0">
+                  {String(book.pageCount)} page{book.pageCount === 1 ? '' : 's'}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {plan.issues.length > 0 && (
+            <p className="text-status-warning mt-3 text-xs">
+              {String(plan.issues.length)} warning{plan.issues.length === 1 ? '' : 's'} reported by{' '}
+              {plan.tool}.
+            </p>
+          )}
+        </div>
       </div>
     </section>
   );
