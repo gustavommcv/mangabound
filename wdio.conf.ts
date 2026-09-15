@@ -56,6 +56,6 @@ export const config: WebdriverIO.Config = {
   reporters: ['spec'],
   runner: 'local',
   services: ['electron'],
-  specs: ['./tests/e2e/**/*.e2e.ts'],
+  specs: isWayland ? ['./tests/e2e/shell.e2e.ts'] : ['./tests/e2e/**/*.e2e.ts'],
   waitforTimeout: 10_000,
 };
