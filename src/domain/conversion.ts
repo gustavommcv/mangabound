@@ -64,6 +64,7 @@ export class ConversionWorkflowError extends Error {
     readonly code:
       | 'binding_failed'
       | 'invalid_mapping'
+      | 'invalid_settings'
       | 'mapping_save_failed'
       | 'mapping_required'
       | 'no_volumes'

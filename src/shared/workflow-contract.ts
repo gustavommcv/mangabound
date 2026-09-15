@@ -27,25 +27,22 @@ export const mappingDraftSchema = z.object({
 
 export const inputKindSchema = z.enum(['folder', 'cbz']);
 export const identifierSchema = z.string().min(1).max(200);
-export const conversionCommandSchema = z.object({
-  jobId: identifierSchema,
-  sessionId: identifierSchema,
-  libraryId: identifierSchema,
-  settings: z.object({
-    deviceProfile: z.string().min(1).max(40),
+const mangapressSettingsSchema = z
+  .object({
+    deviceProfile: z.string().trim().min(1).max(40),
     quiet: z.boolean(),
     mangaStyle: z.boolean(),
     cropping: z.enum(['disabled', 'margins', 'margins-and-page-numbers']),
     croppingPower: z.number().finite(),
-    croppingMinimum: z.number().finite(),
-    preserveMargin: z.number().finite(),
+    croppingMinimum: z.number().finite().min(0).max(100),
+    preserveMargin: z.number().finite().min(0).max(100),
     splitter: z.enum(['split', 'rotate', 'both']),
     upscale: z.boolean(),
     stretch: z.boolean(),
     wallpaper: z.boolean(),
     whiteBorders: z.boolean(),
     forcePng: z.boolean(),
-    jpegQuality: z.number().int().optional(),
+    jpegQuality: z.number().int().min(1).max(100).optional(),
     rotateRight: z.boolean(),
     gamma: z.number().finite().optional(),
     autoLevel: z.boolean(),
@@ -56,10 +53,21 @@ export const conversionCommandSchema = z.object({
     author: z.string().max(300).optional(),
     metadataTitle: z.enum(['series-only', 'combine', 'title-only']),
     keepComicInfo: z.boolean(),
-    language: z.string().min(1).max(40),
-    customWidth: z.number().int().optional(),
-    customHeight: z.number().int().optional(),
-  }),
+    language: z.string().trim().min(1).max(40),
+    customWidth: z.number().int().min(1).optional(),
+    customHeight: z.number().int().min(1).optional(),
+  })
+  .refine(
+    (settings) =>
+      settings.deviceProfile !== 'OTHER' ||
+      (settings.customWidth !== undefined && settings.customHeight !== undefined),
+    { message: 'The custom device profile needs both a width and height.' },
+  );
+export const conversionCommandSchema = z.object({
+  jobId: identifierSchema,
+  sessionId: identifierSchema,
+  libraryId: identifierSchema,
+  settings: mangapressSettingsSchema,
   format: z.enum(['epub', 'cbz', 'pdf']),
   mapping: mappingDraftSchema.optional(),
 });

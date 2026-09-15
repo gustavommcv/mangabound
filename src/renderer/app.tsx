@@ -16,11 +16,15 @@ import { useEffect, useState } from 'react';
 
 import type { BookFormat, ConversionProgress, InputKind } from '@/domain/conversion';
 import type { MappingDraft } from '@/domain/mapping';
-import { defaultMangapressSettings, type MangapressSettings } from '@/domain/output-profile';
+import {
+  defaultMangapressSettings,
+  type MangapressSettings,
+  validateMangapressSettings,
+} from '@/domain/output-profile';
 import { MappingEditor } from '@/renderer/components/mapping/mapping-editor';
+import { MangapressSettingsEditor } from '@/renderer/components/settings/mangapress-settings';
 import { Button } from '@/renderer/components/ui/button';
 import { Label } from '@/renderer/components/ui/label';
-import { NativeSelect } from '@/renderer/components/ui/native-select';
 import type { ToolchainStatus } from '@/shared/toolchain-status';
 import type {
   ArtifactSummary,
@@ -429,9 +433,9 @@ export function ConversionSettings({
   readonly settings: MangapressSettings;
   readonly profiles: readonly DeviceProfileSummary[];
 }): React.JSX.Element {
-  const selectedProfile = profiles.find((candidate) => candidate.code === settings.deviceProfile);
+  const settingIssues = validateMangapressSettings(settings);
   return (
-    <section className="mx-auto max-w-3xl space-y-6" aria-labelledby="settings-title">
+    <section className="mx-auto max-w-5xl space-y-6" aria-labelledby="settings-title">
       <Button onClick={onBack} variant="ghost">
         <ArrowLeft /> Back
       </Button>
@@ -446,46 +450,15 @@ export function ConversionSettings({
             : 'This CBZ will go directly to mangapress.'}
         </p>
       </div>
-      <div className="border-border bg-surface shadow-card grid gap-6 rounded-xl border p-6 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="device-profile">Device profile</Label>
-          <NativeSelect
-            disabled={profiles.length === 0}
-            id="device-profile"
-            onChange={(event) => {
-              onSettings({ ...settings, deviceProfile: event.target.value });
-            }}
-            value={settings.deviceProfile}
-          >
-            {profiles.length === 0 && <option value="">Profiles unavailable</option>}
-            {profiles.map((candidate) => (
-              <option key={candidate.code} value={candidate.code}>
-                {candidate.name} ({candidate.code})
-              </option>
-            ))}
-          </NativeSelect>
-          {selectedProfile !== undefined && (
-            <p className="text-muted-foreground text-xs">
-              {String(selectedProfile.width)} × {String(selectedProfile.height)} ·{' '}
-              {String(selectedProfile.grayLevels)} gray levels
-            </p>
-          )}
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="output-format">Book format</Label>
-          <NativeSelect
-            id="output-format"
-            onChange={(event) => {
-              onFormat(event.target.value as BookFormat);
-            }}
-            value={format}
-          >
-            <option value="epub">EPUB</option>
-            <option value="cbz">CBZ</option>
-            <option value="pdf">PDF</option>
-          </NativeSelect>
-        </div>
-        <div className="space-y-3 sm:col-span-2">
+      <MangapressSettingsEditor
+        format={format}
+        onFormat={onFormat}
+        onSettings={onSettings}
+        profiles={profiles}
+        settings={settings}
+      />
+      <div className="border-border bg-surface shadow-card rounded-xl border p-6">
+        <div className="space-y-3">
           <div>
             <Label>Output library</Label>
             <p className="text-muted-foreground mt-1 text-sm break-all">
@@ -497,9 +470,14 @@ export function ConversionSettings({
           </Button>
         </div>
       </div>
+      {settingIssues.length > 0 && (
+        <p className="text-status-failed text-sm" role="alert">
+          Review the highlighted output settings before converting.
+        </p>
+      )}
       <div className="flex justify-end">
         <Button
-          disabled={library === undefined || settings.deviceProfile === ''}
+          disabled={library === undefined || settingIssues.length > 0}
           onClick={onStart}
           size="lg"
         >

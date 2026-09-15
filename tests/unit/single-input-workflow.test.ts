@@ -254,6 +254,26 @@ describe('single-input workflow', () => {
     ).rejects.toMatchObject({ code: 'no_volumes' });
   });
 
+  it('rejects invalid output settings before invoking either tool', async () => {
+    const ports = dependencies();
+    const workflow = new SingleInputWorkflow(ports.binding, ports.conversion, () => 'direct');
+    const inspected = await workflow.inspect(cbz);
+
+    await expect(
+      workflow.convert(
+        {
+          sessionId: inspected.sessionId,
+          libraryPath: '/library',
+          settings: { ...defaultMangapressSettings, jpegQuality: 101 },
+          format: 'epub',
+        },
+        { onProgress: vi.fn() },
+      ),
+    ).rejects.toMatchObject({ code: 'invalid_settings' });
+    expect(ports.bind).not.toHaveBeenCalled();
+    expect(ports.convert).not.toHaveBeenCalled();
+  });
+
   it('releases folder workspaces and treats direct and unknown sessions as no-op cleanup', async () => {
     const ports = dependencies();
     let id = 0;

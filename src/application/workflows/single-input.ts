@@ -8,6 +8,7 @@ import {
   type InspectedInput,
 } from '@/domain/conversion';
 import { createMappingDraft, type MappingDraft, validateMapping } from '@/domain/mapping';
+import { validateMangapressSettings } from '@/domain/output-profile';
 
 interface ActiveSession {
   readonly selection: InputSelection;
@@ -61,6 +62,12 @@ export class SingleInputWorkflow {
       readonly signal?: AbortSignal;
     },
   ): Promise<readonly ConversionArtifact[]> {
+    if (validateMangapressSettings(request.settings).length > 0) {
+      throw new ConversionWorkflowError(
+        'invalid_settings',
+        'Review the output settings before converting.',
+      );
+    }
     const session = this.sessions.get(request.sessionId);
     if (session === undefined) {
       throw new ConversionWorkflowError(

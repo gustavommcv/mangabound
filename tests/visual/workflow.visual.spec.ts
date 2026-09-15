@@ -13,3 +13,10 @@ test('completed artifacts remain visually consistent', async ({ page }) => {
   await page.evaluate(async () => document.fonts.ready);
   await expect(page.locator('#storybook-root')).toHaveScreenshot('single-input-success.png');
 });
+
+test('full output settings remain visually consistent', async ({ page }) => {
+  await page.goto('/iframe.html?id=workflows-output-settings--normal&viewMode=story');
+  await expect(page.getByRole('heading', { name: 'Device & output' })).toBeVisible();
+  await page.evaluate(async () => document.fonts.ready);
+  await expect(page.locator('#storybook-root')).toHaveScreenshot('output-settings.png');
+});
