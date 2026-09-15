@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import type { BookFormat, ConversionProgress, InputKind, PipelineIssue } from '@/domain/conversion';
 import type { MappingDraft } from '@/domain/mapping';
+import type { MangapressSettings } from '@/domain/output-profile';
 
 const chapterSchema = z.object({
   id: z.string().min(1),
@@ -30,7 +31,35 @@ export const conversionCommandSchema = z.object({
   jobId: identifierSchema,
   sessionId: identifierSchema,
   libraryId: identifierSchema,
-  profile: z.string().min(1).max(40),
+  settings: z.object({
+    deviceProfile: z.string().min(1).max(40),
+    quiet: z.boolean(),
+    mangaStyle: z.boolean(),
+    cropping: z.enum(['disabled', 'margins', 'margins-and-page-numbers']),
+    croppingPower: z.number().finite(),
+    croppingMinimum: z.number().finite(),
+    preserveMargin: z.number().finite(),
+    splitter: z.enum(['split', 'rotate', 'both']),
+    upscale: z.boolean(),
+    stretch: z.boolean(),
+    wallpaper: z.boolean(),
+    whiteBorders: z.boolean(),
+    forcePng: z.boolean(),
+    jpegQuality: z.number().int().optional(),
+    rotateRight: z.boolean(),
+    gamma: z.number().finite().optional(),
+    autoLevel: z.boolean(),
+    noAutoContrast: z.boolean(),
+    interPanelCrop: z.enum(['disabled', 'horizontal', 'both']),
+    eraseRainbow: z.boolean(),
+    title: z.string().max(300).optional(),
+    author: z.string().max(300).optional(),
+    metadataTitle: z.enum(['series-only', 'combine', 'title-only']),
+    keepComicInfo: z.boolean(),
+    language: z.string().min(1).max(40),
+    customWidth: z.number().int().optional(),
+    customHeight: z.number().int().optional(),
+  }),
   format: z.enum(['epub', 'cbz', 'pdf']),
   mapping: mappingDraftSchema.optional(),
 });
@@ -75,7 +104,7 @@ export interface ConversionCommand {
   readonly jobId: string;
   readonly sessionId: string;
   readonly libraryId: string;
-  readonly profile: string;
+  readonly settings: MangapressSettings;
   readonly format: BookFormat;
   readonly mapping?: MappingDraft;
 }

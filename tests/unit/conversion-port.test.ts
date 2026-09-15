@@ -11,6 +11,7 @@ import {
   type MangapressEvent,
   type MangapressResultEvent,
 } from '@/adapters/mangapress/protocol';
+import { defaultMangapressSettings } from '@/domain/output-profile';
 
 function event(fields: Record<string, unknown>): MangapressEvent {
   return parseMangapressEventLine(
@@ -62,7 +63,7 @@ function runResult(overrides: Partial<MangapressRunResult> = {}): MangapressRunR
 const request = {
   inputPath: path.resolve('/input', 'Volume 01.cbz'),
   outputDirectory: path.resolve('/library'),
-  profile: 'KV',
+  settings: defaultMangapressSettings,
   format: 'epub' as const,
 };
 
@@ -111,6 +112,14 @@ describe('mangapress conversion port', () => {
       message: 'Saving the finished book…',
     });
     expect(run.mock.calls[0]?.[0]).toMatchObject({
+      profile: 'KV',
+      cropping: 'margins-and-page-numbers',
+      croppingPower: 1,
+      croppingMinimum: 0,
+      preserveMargin: 0,
+      splitter: 'split',
+      metadataTitle: 'series-only',
+      language: 'en-US',
       dryRun: false,
       outputPath: request.outputDirectory,
     });

@@ -4,6 +4,7 @@ import type { BindingPort, ConversionPort } from '@/application/ports/conversion
 import { SingleInputWorkflow } from '@/application/workflows/single-input';
 import type { ConversionArtifact, InputSelection } from '@/domain/conversion';
 import { createMappingDraft, type MappingDraft } from '@/domain/mapping';
+import { defaultMangapressSettings } from '@/domain/output-profile';
 
 const trustedDraft = createMappingDraft({
   mangaTitle: 'Trusted Manga',
@@ -127,7 +128,7 @@ describe('single-input workflow', () => {
       {
         sessionId: inspected.sessionId,
         libraryPath: '/library',
-        profile: 'KPW5',
+        settings: { ...defaultMangapressSettings, deviceProfile: 'KPW5' },
         format: 'epub',
         mapping: submitted,
       },
@@ -162,7 +163,7 @@ describe('single-input workflow', () => {
       {
         sessionId: inspected.sessionId,
         libraryPath: '/library',
-        profile: 'KV',
+        settings: defaultMangapressSettings,
         format: 'cbz',
       },
       { signal: controller.signal, onProgress: vi.fn() },
@@ -180,7 +181,12 @@ describe('single-input workflow', () => {
     const workflow = new SingleInputWorkflow(ports.binding, ports.conversion, () => 'folder');
     await expect(
       workflow.convert(
-        { sessionId: 'missing', libraryPath: '/library', profile: 'KV', format: 'epub' },
+        {
+          sessionId: 'missing',
+          libraryPath: '/library',
+          settings: defaultMangapressSettings,
+          format: 'epub',
+        },
         { onProgress: vi.fn() },
       ),
     ).rejects.toMatchObject({ code: 'session_not_found' });
@@ -188,7 +194,12 @@ describe('single-input workflow', () => {
     await workflow.inspect(folder);
     await expect(
       workflow.convert(
-        { sessionId: 'folder', libraryPath: '/library', profile: 'KV', format: 'epub' },
+        {
+          sessionId: 'folder',
+          libraryPath: '/library',
+          settings: defaultMangapressSettings,
+          format: 'epub',
+        },
         { onProgress: vi.fn() },
       ),
     ).rejects.toMatchObject({ code: 'mapping_required' });
@@ -197,7 +208,7 @@ describe('single-input workflow', () => {
         {
           sessionId: 'folder',
           libraryPath: '/library',
-          profile: 'KV',
+          settings: defaultMangapressSettings,
           format: 'epub',
           mapping: {
             ...trustedDraft,
@@ -212,7 +223,7 @@ describe('single-input workflow', () => {
         {
           sessionId: 'folder',
           libraryPath: '/library',
-          profile: 'KV',
+          settings: defaultMangapressSettings,
           format: 'epub',
           mapping: {
             ...trustedDraft,
@@ -227,7 +238,7 @@ describe('single-input workflow', () => {
         {
           sessionId: 'folder',
           libraryPath: '/library',
-          profile: 'KV',
+          settings: defaultMangapressSettings,
           format: 'epub',
           mapping: createMappingDraft({
             mangaTitle: 'Conflict',

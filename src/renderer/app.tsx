@@ -16,6 +16,7 @@ import { useEffect, useState } from 'react';
 
 import type { BookFormat, ConversionProgress, InputKind } from '@/domain/conversion';
 import type { MappingDraft } from '@/domain/mapping';
+import { defaultMangapressSettings, type MangapressSettings } from '@/domain/output-profile';
 import { MappingEditor } from '@/renderer/components/mapping/mapping-editor';
 import { Button } from '@/renderer/components/ui/button';
 import { Label } from '@/renderer/components/ui/label';
@@ -59,7 +60,7 @@ export function App(): React.JSX.Element {
   const [inspection, setInspection] = useState<InspectedInputPayload>();
   const [mapping, setMapping] = useState<MappingDraft>();
   const [library, setLibrary] = useState<SelectedLibrary>();
-  const [profile, setProfile] = useState('KV');
+  const [settings, setSettings] = useState<MangapressSettings>(defaultMangapressSettings);
   const [format, setFormat] = useState<BookFormat>('epub');
   const [jobId, setJobId] = useState<string>();
   const [progress, setProgress] = useState<ConversionProgress>();
@@ -80,7 +81,10 @@ export function App(): React.JSX.Element {
         if (result.ok) {
           setProfiles(result.value);
           if (!result.value.some((candidate) => candidate.code === 'KV')) {
-            setProfile(result.value[0]?.code ?? '');
+            setSettings((current) => ({
+              ...current,
+              deviceProfile: result.value[0]?.code ?? '',
+            }));
           }
         } else {
           setFailure(result.error);
@@ -147,7 +151,7 @@ export function App(): React.JSX.Element {
       jobId: nextJobId,
       sessionId: inspection.sessionId,
       libraryId: library.libraryId,
-      profile,
+      settings,
       format,
       ...(mapping === undefined ? {} : { mapping }),
     });
@@ -236,11 +240,11 @@ export function App(): React.JSX.Element {
                 void chooseLibrary();
               }}
               onFormat={setFormat}
-              onProfile={setProfile}
+              onSettings={setSettings}
               onStart={() => {
                 void startConversion();
               }}
-              profile={profile}
+              settings={settings}
               profiles={profiles}
             />
           )}
@@ -408,9 +412,9 @@ export function ConversionSettings({
   onBack,
   onChooseLibrary,
   onFormat,
-  onProfile,
+  onSettings,
   onStart,
-  profile,
+  settings,
   profiles,
 }: {
   readonly format: BookFormat;
@@ -420,12 +424,12 @@ export function ConversionSettings({
   readonly onBack: () => void;
   readonly onChooseLibrary: () => void;
   readonly onFormat: (format: BookFormat) => void;
-  readonly onProfile: (profile: string) => void;
+  readonly onSettings: (settings: MangapressSettings) => void;
   readonly onStart: () => void;
-  readonly profile: string;
+  readonly settings: MangapressSettings;
   readonly profiles: readonly DeviceProfileSummary[];
 }): React.JSX.Element {
-  const selectedProfile = profiles.find((candidate) => candidate.code === profile);
+  const selectedProfile = profiles.find((candidate) => candidate.code === settings.deviceProfile);
   return (
     <section className="mx-auto max-w-3xl space-y-6" aria-labelledby="settings-title">
       <Button onClick={onBack} variant="ghost">
@@ -449,9 +453,9 @@ export function ConversionSettings({
             disabled={profiles.length === 0}
             id="device-profile"
             onChange={(event) => {
-              onProfile(event.target.value);
+              onSettings({ ...settings, deviceProfile: event.target.value });
             }}
-            value={profile}
+            value={settings.deviceProfile}
           >
             {profiles.length === 0 && <option value="">Profiles unavailable</option>}
             {profiles.map((candidate) => (
@@ -494,7 +498,11 @@ export function ConversionSettings({
         </div>
       </div>
       <div className="flex justify-end">
-        <Button disabled={library === undefined || profile === ''} onClick={onStart} size="lg">
+        <Button
+          disabled={library === undefined || settings.deviceProfile === ''}
+          onClick={onStart}
+          size="lg"
+        >
           <MonitorSmartphone /> Start conversion
         </Button>
       </div>

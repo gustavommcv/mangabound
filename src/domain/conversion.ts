@@ -1,4 +1,5 @@
 import type { MappingDraft } from './mapping';
+import type { MangapressSettings } from './output-profile';
 
 export type InputKind = 'folder' | 'cbz';
 export type BookFormat = 'epub' | 'cbz' | 'pdf';
@@ -53,7 +54,7 @@ export interface ConversionProgress {
 export interface ConversionRequest {
   readonly sessionId: string;
   readonly libraryPath: string;
-  readonly profile: string;
+  readonly settings: MangapressSettings;
   readonly format: BookFormat;
   readonly mapping?: MappingDraft;
 }

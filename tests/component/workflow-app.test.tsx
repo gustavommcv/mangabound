@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createMappingDraft } from '@/domain/mapping';
+import { defaultMangapressSettings } from '@/domain/output-profile';
 import { App } from '@/renderer/app';
 import type { MangaboundBridge } from '@/shared/runtime-info';
 
@@ -122,7 +123,7 @@ describe('single-input application workflow', () => {
     expect(convert.mock.calls[0]?.[0]).toMatchObject({
       sessionId: 'session',
       libraryId: 'library',
-      profile: 'KV',
+      settings: defaultMangapressSettings,
       format: 'epub',
       mapping,
     });

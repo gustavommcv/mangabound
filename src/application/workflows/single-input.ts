@@ -108,7 +108,7 @@ export class SingleInputWorkflow {
           {
             inputPath,
             outputDirectory: request.libraryPath,
-            profile: request.profile,
+            settings: request.settings,
             format: request.format,
           },
           {

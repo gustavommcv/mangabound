@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 
+import { defaultMangapressSettings } from '@/domain/output-profile';
+
 import { Complete, ConversionSettings, Home, Inspecting, IssueCallout, Running } from './app';
 
 const frame = (Story: React.ComponentType): React.JSX.Element => (
@@ -62,9 +64,9 @@ export const Settings: Story = {
       onBack={() => undefined}
       onChooseLibrary={() => undefined}
       onFormat={() => undefined}
-      onProfile={() => undefined}
+      onSettings={() => undefined}
       onStart={() => undefined}
-      profile="KV"
+      settings={defaultMangapressSettings}
       profiles={[
         {
           code: 'KV',

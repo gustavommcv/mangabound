@@ -13,6 +13,7 @@ import {
   type PipelineIssue,
   ToolExecutionError,
 } from '@/domain/conversion';
+import type { MangapressSettings } from '@/domain/output-profile';
 
 export class MangapressConversionAdapter implements ConversionPort {
   constructor(
@@ -24,7 +25,7 @@ export class MangapressConversionAdapter implements ConversionPort {
     request: {
       readonly inputPath: string;
       readonly outputDirectory: string;
-      readonly profile: string;
+      readonly settings: MangapressSettings;
       readonly format: BookFormat;
     },
     options: {
@@ -32,13 +33,15 @@ export class MangapressConversionAdapter implements ConversionPort {
       readonly onProgress: (progress: ConversionProgress) => void;
     },
   ): Promise<ConversionArtifact> {
+    const { deviceProfile, ...settings } = request.settings;
     const run = await this.cli.run(
       {
         inputPath: request.inputPath,
         outputPath: request.outputDirectory,
-        profile: request.profile,
+        profile: deviceProfile,
         format: request.format,
         dryRun: false,
+        ...settings,
       },
       {
         ...(options.signal === undefined ? {} : { signal: options.signal }),

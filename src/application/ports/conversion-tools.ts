@@ -5,6 +5,7 @@ import type {
   PipelineIssue,
 } from '@/domain/conversion';
 import type { MappingDraft } from '@/domain/mapping';
+import type { MangapressSettings } from '@/domain/output-profile';
 
 export interface BindingInspection {
   readonly workspaceId: string;
@@ -28,7 +29,7 @@ export interface ConversionPort {
     request: {
       readonly inputPath: string;
       readonly outputDirectory: string;
-      readonly profile: string;
+      readonly settings: MangapressSettings;
       readonly format: BookFormat;
     },
     options: {

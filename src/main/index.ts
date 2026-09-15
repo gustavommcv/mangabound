@@ -237,7 +237,7 @@ function registerWorkflowHandlers(): void {
             {
               sessionId: command.sessionId,
               libraryPath,
-              profile: command.profile,
+              settings: command.settings,
               format: command.format,
               ...(command.mapping === undefined ? {} : { mapping: command.mapping }),
             },
