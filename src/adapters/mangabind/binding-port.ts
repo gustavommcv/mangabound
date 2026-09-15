@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rename, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -12,7 +12,11 @@ import type {
   BindingPort,
   BindingResult,
 } from '@/application/ports/conversion-tools';
-import { type PipelineIssue, ToolExecutionError } from '@/domain/conversion';
+import {
+  ConversionWorkflowError,
+  type PipelineIssue,
+  ToolExecutionError,
+} from '@/domain/conversion';
 import { serializeMangabindMetadata } from '@/domain/mapping';
 
 interface Workspace {
@@ -26,6 +30,7 @@ export interface WorkspaceFileSystem {
   readonly createTemporaryDirectory: (prefix: string) => Promise<string>;
   readonly createDirectory: (directoryPath: string) => Promise<void>;
   readonly writeText: (filePath: string, contents: string) => Promise<void>;
+  readonly writeTextAtomically: (filePath: string, contents: string) => Promise<void>;
   readonly removeDirectory: (directoryPath: string) => Promise<void>;
 }
 
@@ -34,6 +39,16 @@ const workspaceFileSystem: WorkspaceFileSystem = {
   createDirectory: (directoryPath) =>
     mkdir(directoryPath, { recursive: true }).then(() => undefined),
   writeText: (filePath, contents) => writeFile(filePath, contents, 'utf8'),
+  writeTextAtomically: async (filePath, contents) => {
+    const temporaryPath = `${filePath}.${String(process.pid)}.${randomUUID()}.tmp`;
+    try {
+      await writeFile(temporaryPath, contents, { encoding: 'utf8', flag: 'wx' });
+      await rename(temporaryPath, filePath);
+    } catch (error) {
+      await rm(temporaryPath, { force: true });
+      throw error;
+    }
+  },
   removeDirectory: (directoryPath) => rm(directoryPath, { recursive: true, force: true }),
 };
 
@@ -86,7 +101,20 @@ export class MangabindBindingAdapter implements BindingPort {
     if (workspace === undefined) {
       throw new Error('The temporary binding workspace is no longer available.');
     }
-    await this.files.writeText(workspace.metadataPath, serializeMangabindMetadata(mapping));
+    const metadata = serializeMangabindMetadata(mapping);
+    await this.files.writeText(workspace.metadataPath, metadata);
+    try {
+      await this.files.writeTextAtomically(
+        path.join(workspace.inputPath, 'mangabind.json'),
+        metadata,
+      );
+    } catch (error) {
+      throw new ConversionWorkflowError(
+        'mapping_save_failed',
+        "Couldn't save mangabind.json in the source folder. Check that the folder is writable and try again.",
+        { cause: error },
+      );
+    }
     const result = await this.cli.run(
       {
         inputPath: workspace.inputPath,

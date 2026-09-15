@@ -47,12 +47,16 @@ function fakeFiles(rootPath: string): WorkspaceFileSystem & {
   >;
   readonly createDirectory: ReturnType<typeof vi.fn<WorkspaceFileSystem['createDirectory']>>;
   readonly writeText: ReturnType<typeof vi.fn<WorkspaceFileSystem['writeText']>>;
+  readonly writeTextAtomically: ReturnType<
+    typeof vi.fn<WorkspaceFileSystem['writeTextAtomically']>
+  >;
   readonly removeDirectory: ReturnType<typeof vi.fn<WorkspaceFileSystem['removeDirectory']>>;
 } {
   return {
     createTemporaryDirectory: vi.fn(() => Promise.resolve(rootPath)),
     createDirectory: vi.fn(() => Promise.resolve()),
     writeText: vi.fn(() => Promise.resolve()),
+    writeTextAtomically: vi.fn(() => Promise.resolve()),
     removeDirectory: vi.fn(() => Promise.resolve()),
   };
 }
@@ -159,6 +163,10 @@ describe('mangabind binding port', () => {
       path.join(root, 'mangabind.json'),
       expect.stringContaining('"schema_version": 1'),
     );
+    expect(files.writeTextAtomically).toHaveBeenCalledWith(
+      path.join('/input/manga', 'mangabind.json'),
+      expect.stringContaining('"schema_version": 1'),
+    );
     await adapter.release(inspection.workspaceId);
     expect(files.removeDirectory).toHaveBeenCalledWith(path.resolve(root));
   });
@@ -221,6 +229,25 @@ describe('mangabind binding port', () => {
     );
     await expect(noDiagnostic.inspect('/input')).rejects.toMatchObject({
       issue: { code: 'process_failed' },
+    });
+  });
+
+  it('reports an actionable error when the confirmed mapping cannot be persisted', async () => {
+    const root = path.join(os.tmpdir(), 'mangabound-save-failure');
+    const files = fakeFiles(root);
+    files.writeTextAtomically.mockRejectedValue(new Error('read only'));
+    const adapter = new MangabindBindingAdapter(
+      { run: () => Promise.resolve(result()) },
+      files,
+      os.tmpdir(),
+      () => 'save-failure',
+    );
+
+    await adapter.inspect('/input');
+    await expect(adapter.bind('save-failure', completeMapping())).rejects.toMatchObject({
+      code: 'mapping_save_failed',
+      message:
+        "Couldn't save mangabind.json in the source folder. Check that the folder is writable and try again.",
     });
   });
 
@@ -304,11 +331,37 @@ describe('mangabind binding port', () => {
         return Promise.resolve(result({ report }));
       }),
     };
+    const input = path.join(root, 'input');
+    await fs.promises.mkdir(input);
     const adapter = new MangabindBindingAdapter(cli, undefined, root, () => 'real');
-    const inspection = await adapter.inspect('/input');
+    const inspection = await adapter.inspect(input);
     await adapter.bind(inspection.workspaceId, completeMapping());
+    const savedMetadata = JSON.parse(
+      await fs.promises.readFile(path.join(input, 'mangabind.json'), 'utf8'),
+    ) as { schema_version: number };
     await adapter.release(inspection.workspaceId);
 
+    expect(savedMetadata.schema_version).toBe(1);
     expect(fs.existsSync(path.dirname(workspaceOutput))).toBe(false);
+  });
+
+  it('removes an atomic-save temporary file when replacement fails', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'mangabound-atomic-test-'));
+    temporaryDirectories.push(root);
+    const input = path.join(root, 'input');
+    await fs.promises.mkdir(path.join(input, 'mangabind.json'), { recursive: true });
+    const adapter = new MangabindBindingAdapter(
+      { run: () => Promise.resolve(result()) },
+      undefined,
+      root,
+      () => 'atomic-failure',
+    );
+
+    await adapter.inspect(input);
+    await expect(adapter.bind('atomic-failure', completeMapping())).rejects.toMatchObject({
+      code: 'mapping_save_failed',
+    });
+    expect((await fs.promises.readdir(input)).filter((name) => name.endsWith('.tmp'))).toEqual([]);
+    await adapter.release('atomic-failure');
   });
 });

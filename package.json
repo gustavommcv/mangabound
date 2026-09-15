@@ -9,6 +9,7 @@
   "scripts": {
     "start": "electron-forge start",
     "package": "electron-forge package",
+    "package:e2e": "node scripts/package-e2e.mjs",
     "make": "electron-forge make",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

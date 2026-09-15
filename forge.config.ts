@@ -13,6 +13,8 @@ import type { ForgeConfig } from '@electron-forge/shared-types';
 import { mainConfig } from './webpack.main.config';
 import { rendererConfig } from './webpack.renderer.config';
 
+const buildForPackagedE2e = process.env.MANGABOUND_E2E === '1';
+
 const acquireToolchain = (platform: string, arch: string): Promise<void> =>
   new Promise((resolve, reject) => {
     const child = spawn(
@@ -66,7 +68,10 @@ const config: ForgeConfig = {
       [FuseV1Options.RunAsNode]: false,
       [FuseV1Options.EnableCookieEncryption]: true,
       [FuseV1Options.EnableNodeOptionsEnvironmentVariable]: false,
-      [FuseV1Options.EnableNodeCliInspectArguments]: false,
+      // WebdriverIO's supported Electron-API mocking requires the main-process
+      // inspector. Production packages keep it fused off; only the disposable
+      // packaged E2E build enables it so native dialogs can be deterministic.
+      [FuseV1Options.EnableNodeCliInspectArguments]: buildForPackagedE2e,
       [FuseV1Options.EnableEmbeddedAsarIntegrityValidation]: true,
       [FuseV1Options.OnlyLoadAppFromAsar]: true,
     }),

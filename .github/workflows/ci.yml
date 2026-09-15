@@ -77,7 +77,7 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npm run package
+      - run: npm run package:e2e
       - run: npm run test:e2e
       - name: Upload E2E diagnostics
         if: failure()

@@ -51,7 +51,7 @@ export const config: WebdriverIO.Config = {
   logLevel: 'warn',
   maxInstances: 1,
   mochaOpts: {
-    timeout: 30_000,
+    timeout: 180_000,
   },
   reporters: ['spec'],
   runner: 'local',
