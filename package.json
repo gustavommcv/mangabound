@@ -67,7 +67,7 @@
     "@types/react-dom": "^19.1.9",
     "@vitest/browser": "4.1.11",
     "@vitest/browser-playwright": "4.1.11",
-    "@vitest/coverage-v8": "4.1.11",
+    "@vitest/coverage-v8": "5.0.0",
     "@wdio/cli": "9.31.9",
     "@wdio/electron-service": "10.3.0",
     "@wdio/globals": "9.31.3",
