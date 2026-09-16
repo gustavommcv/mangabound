@@ -6,8 +6,11 @@ import { pathToFileURL } from 'node:url';
 
 import type { MangabindCliAdapter, MangabindRunResult } from './cli';
 import { mappingDraftFromMangabindReport } from './mapping-draft';
+import type { MangabindReport } from './protocol';
 
 import type {
+  BindingBatchPlan,
+  BindingBatchResult,
   BindingInspection,
   BindingPlan,
   BindingPort,
@@ -167,6 +170,88 @@ export class MangabindBindingAdapter implements BindingPort {
     return { title: manga.name, volumes, issues: collectIssues(result) };
   }
 
+  async planBatch(parentPath: string, signal?: AbortSignal): Promise<BindingBatchPlan> {
+    const rootPath = await this.files.createTemporaryDirectory(
+      path.join(this.temporaryRoot, 'mangabound-'),
+    );
+    const scratchId = this.createId();
+    const volumesPath = path.join(rootPath, 'volumes');
+    this.workspaces.set(scratchId, {
+      rootPath,
+      inputPath: parentPath,
+      metadataPath: path.join(rootPath, 'mangabind.json'),
+      volumesPath,
+    });
+    try {
+      await this.files.createDirectory(volumesPath);
+      const result = await this.cli.run(
+        { inputPath: parentPath, outputPath: volumesPath, dryRun: true, batch: true },
+        signal === undefined ? {} : { signal },
+      );
+      return {
+        titles: result.report.manga.map((manga, index) =>
+          titleFromManga(manga, index, result.report, volumesPath),
+        ),
+        issues: result.report.issues.map(toPipelineIssue),
+      };
+    } finally {
+      await this.release(scratchId);
+    }
+  }
+
+  async bindBatch(parentPath: string, signal?: AbortSignal): Promise<BindingBatchResult> {
+    const rootPath = await this.files.createTemporaryDirectory(
+      path.join(this.temporaryRoot, 'mangabound-'),
+    );
+    const workspaceId = this.createId();
+    const volumesPath = path.join(rootPath, 'volumes');
+    this.workspaces.set(workspaceId, {
+      rootPath,
+      inputPath: parentPath,
+      metadataPath: path.join(rootPath, 'mangabind.json'),
+      volumesPath,
+    });
+    try {
+      await this.files.createDirectory(volumesPath);
+      const result = await this.cli.run(
+        { inputPath: parentPath, outputPath: volumesPath, dryRun: false, batch: true },
+        signal === undefined ? {} : { signal },
+      );
+      return {
+        workspaceId,
+        titles: result.report.manga.map((manga) => ({
+          title: manga.name,
+          status: manga.status,
+          volumePaths: manga.volumes
+            .filter((volume) => volume.written)
+            .sort((left, right) => left.number - right.number)
+            .map((volume) => checkedChildPath(volumesPath, volume.output_path)),
+          issues: manga.issues.map(toPipelineIssue),
+        })),
+        issues: result.report.issues.map(toPipelineIssue),
+      };
+    } catch (error) {
+      await this.release(workspaceId);
+      throw error;
+    }
+  }
+
+  async writeTitleMapping(
+    inputPath: string,
+    mapping: Parameters<BindingPort['bind']>[1],
+  ): Promise<void> {
+    const metadata = serializeMangabindMetadata(mapping);
+    try {
+      await this.files.writeTextAtomically(path.join(inputPath, 'mangabind.json'), metadata);
+    } catch (error) {
+      throw new ConversionWorkflowError(
+        'mapping_save_failed',
+        "Couldn't save mangabind.json in the source folder. Check that the folder is writable and try again.",
+        { cause: error },
+      );
+    }
+  }
+
   async release(workspaceId: string): Promise<void> {
     const workspace = this.workspaces.get(workspaceId);
     this.workspaces.delete(workspaceId);
@@ -183,22 +268,48 @@ export class MangabindBindingAdapter implements BindingPort {
   }
 }
 
+function toPipelineIssue(issue: MangabindReport['issues'][number]): PipelineIssue {
+  return {
+    tool: 'mangabind',
+    severity: issue.severity,
+    code: issue.code,
+    stage: issue.stage,
+    recoverable: issue.recoverable,
+    message: issue.message,
+    ...(issue.diagnostic === undefined ? {} : { diagnostic: issue.diagnostic }),
+    ...(issue.manga === undefined ? {} : { manga: issue.manga }),
+    ...(issue.volume === undefined ? {} : { volume: String(issue.volume) }),
+    ...(issue.chapter === undefined ? {} : { chapter: String(issue.chapter) }),
+    ...(issue.path === undefined ? {} : { path: issue.path }),
+  };
+}
+
 function collectIssues(result: MangabindRunResult): readonly PipelineIssue[] {
   return [...result.report.issues, ...result.report.manga.flatMap((manga) => manga.issues)].map(
-    (issue) => ({
-      tool: 'mangabind',
-      severity: issue.severity,
-      code: issue.code,
-      stage: issue.stage,
-      recoverable: issue.recoverable,
-      message: issue.message,
-      ...(issue.diagnostic === undefined ? {} : { diagnostic: issue.diagnostic }),
-      ...(issue.manga === undefined ? {} : { manga: issue.manga }),
-      ...(issue.volume === undefined ? {} : { volume: String(issue.volume) }),
-      ...(issue.chapter === undefined ? {} : { chapter: String(issue.chapter) }),
-      ...(issue.path === undefined ? {} : { path: issue.path }),
-    }),
+    toPipelineIssue,
   );
+}
+
+function titleFromManga(
+  manga: MangabindReport['manga'][number],
+  index: number,
+  report: MangabindReport,
+  volumesPath: string,
+): BindingBatchPlan['titles'][number] {
+  return {
+    title: manga.name,
+    inputPath: manga.input_path,
+    status: manga.status,
+    draft: mappingDraftFromMangabindReport(report, { mangaIndex: index, seed: 'empty' }),
+    volumes: manga.volumes
+      .slice()
+      .sort((left, right) => left.number - right.number)
+      .map((volume) => ({
+        name: path.basename(checkedChildPath(volumesPath, volume.output_path)),
+        pageCount: volume.page_count,
+      })),
+    issues: manga.issues.map(toPipelineIssue),
+  };
 }
 
 function assertSuccessful(result: MangabindRunResult): void {

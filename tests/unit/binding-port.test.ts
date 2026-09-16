@@ -61,6 +61,45 @@ function fakeFiles(rootPath: string): WorkspaceFileSystem & {
   };
 }
 
+function batchReport(volumesPath: string): MangabindRunResult['report'] {
+  const good = structuredClone(fixture.manga[0]!);
+  good.name = 'Good Manga';
+  good.input_path = '/library/Good Manga';
+  good.status = 'completed_with_warnings';
+  good.volumes = [
+    {
+      number: 1,
+      output_path: path.join(volumesPath, 'Good Manga - Vol.01.cbz'),
+      page_count: 2,
+      chapters: ['Chapter 1'],
+      written: true,
+    },
+  ];
+
+  const broken = structuredClone(fixture.manga[0]!);
+  broken.name = 'Broken Manga';
+  broken.input_path = '/library/Broken Manga';
+  broken.status = 'failed';
+  broken.volumes = [];
+  broken.issues = [
+    {
+      tool: 'mangabind',
+      severity: 'error',
+      code: 'metadata_load_failed',
+      stage: 'group',
+      manga: 'Broken Manga',
+      recoverable: true,
+      message: 'mangabind.json could not be parsed.',
+    },
+  ];
+
+  const report = structuredClone(fixture);
+  report.batch = true;
+  report.status = 'failed';
+  report.manga = [good, broken];
+  return report;
+}
+
 function completeMapping() {
   return createMappingDraft({
     mangaTitle: 'Mangá São José',
@@ -416,5 +455,115 @@ describe('mangabind binding port', () => {
     });
     expect((await fs.promises.readdir(input)).filter((name) => name.endsWith('.tmp'))).toEqual([]);
     await adapter.release('atomic-failure');
+  });
+
+  it('surfaces per-title status from a batch plan without gating on the top-level status', async () => {
+    const root = path.join(os.tmpdir(), 'mangabound-batch-plan');
+    const files = fakeFiles(root);
+    const adapter = new MangabindBindingAdapter(
+      {
+        run: () =>
+          Promise.resolve(result({ report: batchReport(path.join(root, 'volumes')), exitCode: 1 })),
+      },
+      files,
+      os.tmpdir(),
+      () => 'batch-plan',
+    );
+
+    const plan = await adapter.planBatch('/library');
+
+    expect(plan.titles).toHaveLength(2);
+    expect(plan.titles[0]).toMatchObject({
+      title: 'Good Manga',
+      inputPath: '/library/Good Manga',
+      status: 'completed_with_warnings',
+      volumes: [{ name: 'Good Manga - Vol.01.cbz', pageCount: 2 }],
+    });
+    expect(plan.titles[1]).toMatchObject({
+      title: 'Broken Manga',
+      inputPath: '/library/Broken Manga',
+      status: 'failed',
+      volumes: [],
+    });
+    expect(plan.titles[1]!.issues[0]).toMatchObject({ code: 'metadata_load_failed' });
+    // Cleans up its own scratch workspace regardless of the top-level status.
+    expect(files.removeDirectory).toHaveBeenCalledWith(path.resolve(root));
+  });
+
+  it('returns volume paths for a successful batch title and isolates a failed one', async () => {
+    const root = path.join(os.tmpdir(), 'mangabound-batch-bind');
+    const files = fakeFiles(root);
+    const report = batchReport(path.join(root, 'volumes'));
+    report.mode = 'execute';
+    const adapter = new MangabindBindingAdapter(
+      { run: () => Promise.resolve(result({ report, exitCode: 1 })) },
+      files,
+      os.tmpdir(),
+      () => 'batch-workspace',
+    );
+
+    const bound = await adapter.bindBatch('/library');
+
+    expect(bound.workspaceId).toBe('batch-workspace');
+    expect(bound.titles[0]).toMatchObject({
+      title: 'Good Manga',
+      status: 'completed_with_warnings',
+    });
+    expect(bound.titles[0]!.volumePaths.map((volumePath) => path.basename(volumePath))).toEqual([
+      'Good Manga - Vol.01.cbz',
+    ]);
+    expect(bound.titles[1]).toMatchObject({ title: 'Broken Manga', status: 'failed' });
+    expect(bound.titles[1]!.volumePaths).toEqual([]);
+    // The workspace stays alive after a successful call — the caller releases it once done.
+    expect(files.removeDirectory).not.toHaveBeenCalled();
+    await adapter.release(bound.workspaceId);
+    expect(files.removeDirectory).toHaveBeenCalledWith(path.resolve(root));
+  });
+
+  it('releases the batch workspace when the process itself fails', async () => {
+    const root = path.join(os.tmpdir(), 'mangabound-batch-crash');
+    const files = fakeFiles(root);
+    const adapter = new MangabindBindingAdapter(
+      { run: () => Promise.reject(new Error('spawn failed')) },
+      files,
+      os.tmpdir(),
+      () => 'batch-crash',
+    );
+
+    await expect(adapter.bindBatch('/library')).rejects.toThrow('spawn failed');
+    expect(files.removeDirectory).toHaveBeenCalledWith(path.resolve(root));
+  });
+
+  it('writes a title mapping directly into the manga folder without invoking the CLI', async () => {
+    const files = fakeFiles(path.join(os.tmpdir(), 'unused'));
+    const cli = { run: vi.fn<MangabindCliAdapter['run']>() };
+    const adapter = new MangabindBindingAdapter(cli, files, os.tmpdir(), () => 'unused');
+
+    await adapter.writeTitleMapping('/library/Good Manga', completeMapping());
+
+    expect(cli.run).not.toHaveBeenCalled();
+    expect(files.writeTextAtomically).toHaveBeenCalledWith(
+      path.join('/library/Good Manga', 'mangabind.json'),
+      expect.stringContaining('"schema_version": 1'),
+    );
+  });
+
+  it('reports an actionable error when a title mapping cannot be persisted', async () => {
+    const files = fakeFiles(path.join(os.tmpdir(), 'unused'));
+    files.writeTextAtomically.mockRejectedValue(new Error('read only'));
+    const adapter = new MangabindBindingAdapter(
+      { run: () => Promise.resolve(result()) },
+      files,
+      os.tmpdir(),
+      () => 'unused',
+    );
+
+    await expect(
+      adapter.writeTitleMapping('/library/Good Manga', completeMapping()),
+    ).rejects.toMatchObject({
+      code: 'mapping_save_failed',
+      message:
+        "Couldn't save mangabind.json in the source folder. Check that the folder is writable and try again.",
+    });
   });
 });
