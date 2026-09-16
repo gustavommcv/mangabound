@@ -131,6 +131,11 @@ describe('packaged conversion pipeline', () => {
     await chooseOutputFolder.waitForClickable({ timeout: 30_000 });
     await chooseOutputFolder.click();
     await $('button=Start batch conversion').click();
+    // DEBUG: capture the UI state shortly after starting, before the full wait below.
+    await new Promise((resolve) => setTimeout(resolve, 15_000));
+    console.log('DEBUG main text 15s after start:', await $('main').getText());
+    console.log('DEBUG entries 15s after start:', await readdir(outputLibraryPath));
+
     // Two real, sequential conversions run here -- the other specs budget 120s per single
     // conversion, so this needs comfortably more than double that.
     try {
@@ -141,6 +146,7 @@ describe('packaged conversion pipeline', () => {
     } catch (error) {
       const currentEntries = await readdir(outputLibraryPath);
       console.log('DEBUG outputLibraryPath entries at timeout:', currentEntries);
+      console.log('DEBUG main text at timeout:', await $('main').getText());
       if (currentEntries.includes('.mangabound')) {
         const manifest = await readFile(
           path.join(outputLibraryPath, '.mangabound', 'library.json'),
