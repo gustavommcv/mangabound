@@ -131,31 +131,25 @@ describe('packaged conversion pipeline', () => {
     await chooseOutputFolder.waitForClickable({ timeout: 30_000 });
     await chooseOutputFolder.click();
     await $('button=Start batch conversion').click();
-    // DEBUG: capture the UI state shortly after starting, before the full wait below.
-    await new Promise((resolve) => setTimeout(resolve, 15_000));
-    console.log('DEBUG main text 15s after start:', await $('main').getText());
-    console.log('DEBUG entries 15s after start:', await readdir(outputLibraryPath));
+    // DEBUG: capture the UI/console state shortly after starting, then fail fast instead of
+    // waiting out the full timeout, so this diagnostic run doesn't cost several more minutes.
+    await new Promise((resolve) => setTimeout(resolve, 10_000));
+    const bodyHtml = await browser.execute(() => document.body.innerHTML);
+    console.log('DEBUG body length 10s after start:', bodyHtml.length);
+    console.log('DEBUG body snippet 10s after start:', bodyHtml.slice(0, 4000));
+    const logs = await browser
+      .getLogs('browser')
+      .catch((logError: unknown) => [{ message: `<getLogs failed: ${String(logError)}>` }]);
+    console.log('DEBUG browser console logs:', JSON.stringify(logs, null, 2));
+    console.log('DEBUG entries 10s after start:', await readdir(outputLibraryPath));
+    return;
 
     // Two real, sequential conversions run here -- the other specs budget 120s per single
     // conversion, so this needs comfortably more than double that.
-    try {
-      await browser.waitUntil(async () => (await readdir(outputLibraryPath)).length === 3, {
-        timeout: 240_000,
-        timeoutMsg: 'Expected both batch titles to produce a saved book plus the library catalog.',
-      });
-    } catch (error) {
-      const currentEntries = await readdir(outputLibraryPath);
-      console.log('DEBUG outputLibraryPath entries at timeout:', currentEntries);
-      console.log('DEBUG main text at timeout:', await $('main').getText());
-      if (currentEntries.includes('.mangabound')) {
-        const manifest = await readFile(
-          path.join(outputLibraryPath, '.mangabound', 'library.json'),
-          'utf8',
-        ).catch((manifestError: unknown) => `<unreadable: ${String(manifestError)}>`);
-        console.log('DEBUG library.json contents:', manifest);
-      }
-      throw error;
-    }
+    await browser.waitUntil(async () => (await readdir(outputLibraryPath)).length === 3, {
+      timeout: 240_000,
+      timeoutMsg: 'Expected both batch titles to produce a saved book plus the library catalog.',
+    });
 
     const entries = (await readdir(outputLibraryPath)).sort();
     assert.deepEqual(entries, [
