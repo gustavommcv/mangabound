@@ -145,12 +145,14 @@ async function publishArtifacts(
   libraryPath: string,
   artifacts: readonly ConversionArtifact[],
 ): Promise<void> {
-  const results = await Promise.allSettled(
-    artifacts.map((artifact) => libraryPublisher.publish(libraryPath, artifact)),
-  );
-  for (const result of results) {
-    if (result.status === 'rejected') {
-      console.error('Failed to publish a saved book to the library catalog.', result.reason);
+  // Sequential, not Promise.all: FsLibraryStore.publish() reads, merges, and rewrites the
+  // whole manifest file, so concurrent calls for the same library would race and could
+  // silently drop an entry.
+  for (const artifact of artifacts) {
+    try {
+      await libraryPublisher.publish(libraryPath, artifact);
+    } catch (error) {
+      console.error('Failed to publish a saved book to the library catalog.', error);
     }
   }
 }
