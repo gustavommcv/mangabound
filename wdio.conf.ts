@@ -51,11 +51,7 @@ export const config: WebdriverIO.Config = {
   logLevel: 'warn',
   maxInstances: 1,
   mochaOpts: {
-    // The batch spec runs two real, sequential manga-to-book conversions inside one test
-    // (mangabind -batch, then mangapress per volume) -- real per-conversion budgets elsewhere
-    // in this suite are already 120s each, so this global ceiling must comfortably exceed
-    // 2x that plus the batch discovery/mapping steps that precede it.
-    timeout: 300_000,
+    timeout: 180_000,
   },
   reporters: ['spec'],
   runner: 'local',

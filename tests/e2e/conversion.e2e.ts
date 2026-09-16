@@ -15,6 +15,22 @@ after(async () => {
   );
 });
 
+// A plain poll loop, not browser.waitUntil: a real run showed the target directory state
+// (both books plus the library catalog) landing within ~10s, while browser.waitUntil against
+// the exact same condition ran out its full timeout without ever resolving -- polling this
+// directly from Node, independent of whatever browser.waitUntil was doing internally, is both
+// simpler and, empirically, actually reliable.
+async function waitForEntryCount(dirPath: string, count: number, timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    if ((await readdir(dirPath)).length === count) return;
+    if (Date.now() >= deadline) {
+      throw new Error(`Timed out waiting for ${String(count)} entries in ${dirPath}.`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+}
+
 describe('packaged conversion pipeline', () => {
   it('converts a real HakuNeko folder and direct CBZ with the pinned tools', async () => {
     const testRoot = await mkdtemp(path.join(os.tmpdir(), 'mangabound-packaged-e2e-'));
@@ -131,25 +147,7 @@ describe('packaged conversion pipeline', () => {
     await chooseOutputFolder.waitForClickable({ timeout: 30_000 });
     await chooseOutputFolder.click();
     await $('button=Start batch conversion').click();
-    // DEBUG: capture the UI/console state shortly after starting, then fail fast instead of
-    // waiting out the full timeout, so this diagnostic run doesn't cost several more minutes.
-    await new Promise((resolve) => setTimeout(resolve, 10_000));
-    const bodyHtml = await browser.execute(() => document.body.innerHTML);
-    console.log('DEBUG body length 10s after start:', bodyHtml.length);
-    console.log('DEBUG body snippet 10s after start:', bodyHtml.slice(0, 4000));
-    const logs = await browser
-      .getLogs('browser')
-      .catch((logError: unknown) => [{ message: `<getLogs failed: ${String(logError)}>` }]);
-    console.log('DEBUG browser console logs:', JSON.stringify(logs, null, 2));
-    console.log('DEBUG entries 10s after start:', await readdir(outputLibraryPath));
-    return;
-
-    // Two real, sequential conversions run here -- the other specs budget 120s per single
-    // conversion, so this needs comfortably more than double that.
-    await browser.waitUntil(async () => (await readdir(outputLibraryPath)).length === 3, {
-      timeout: 240_000,
-      timeoutMsg: 'Expected both batch titles to produce a saved book plus the library catalog.',
-    });
+    await waitForEntryCount(outputLibraryPath, 3, 120_000);
 
     const entries = (await readdir(outputLibraryPath)).sort();
     assert.deepEqual(entries, [
