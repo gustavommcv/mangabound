@@ -17,6 +17,8 @@ import { ZodError } from 'zod';
 import { MangabindBindingAdapter } from '@/adapters/mangabind/binding-port';
 import { MangabindCliAdapter } from '@/adapters/mangabind/cli';
 import { CliProtocolError } from '@/adapters/cli-protocol-error';
+import { MangaDexMetadataProvider } from '@/adapters/mangadex/metadata-provider';
+import { MetadataProviderError } from '@/adapters/mangadex/protocol';
 import { MangapressCliAdapter } from '@/adapters/mangapress/cli';
 import { MangapressConversionAdapter } from '@/adapters/mangapress/conversion-port';
 import { createNodeProcessRunner } from '@/adapters/process/node-process-runner';
@@ -39,10 +41,14 @@ import {
   identifierSchema,
   inputKindSchema,
   type InspectedInputPayload,
+  type MetadataSearchResult,
   planBatchCommandSchema,
   type PlanSummary,
+  searchMetadataCommandSchema,
   type SelectedInput,
   type SelectedLibrary,
+  suggestVolumesCommandSchema,
+  type VolumeSuggestion,
   type WorkflowFailure,
   type WorkflowResult,
   writeTitleMappingCommandSchema,
@@ -54,6 +60,7 @@ const selectedInputs = new Map<string, InputSelection>();
 const selectedLibraries = new Map<string, string>();
 const artifactPaths = new Map<string, string>();
 const activeJobs = new Map<string, AbortController>();
+const metadataProvider = new MangaDexMetadataProvider();
 let workflow: SingleInputWorkflow | undefined;
 let mangapressCli: MangapressCliAdapter | undefined;
 let cleanupStarted = false;
@@ -68,7 +75,13 @@ function toFailure(error: unknown): WorkflowFailure {
   if (error instanceof ProcessCancelledError) {
     return { code: 'cancelled', message: 'Conversion cancelled.' };
   }
+  if (error instanceof Error && error.name === 'AbortError') {
+    return { code: 'cancelled', message: 'Cancelled.' };
+  }
   if (error instanceof ConversionWorkflowError) {
+    return { code: error.code, message: error.message };
+  }
+  if (error instanceof MetadataProviderError) {
     return { code: error.code, message: error.message };
   }
   if (error instanceof CliProtocolError) {
@@ -355,6 +368,54 @@ function registerWorkflowHandlers(): void {
         const command = writeTitleMappingCommandSchema.parse(rawCommand);
         await requireWorkflow().writeTitleMapping(command.inputPath, command.mapping);
         return ok(undefined);
+      } catch (error) {
+        return failed(toFailure(error));
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'workflow:search-metadata',
+    async (
+      _event,
+      rawCommand: unknown,
+    ): Promise<WorkflowResult<readonly MetadataSearchResult[]>> => {
+      try {
+        const command = searchMetadataCommandSchema.parse(rawCommand);
+        if (activeJobs.has(command.jobId)) {
+          return failed({ code: 'job_exists', message: 'That search is already running.' });
+        }
+        const controller = new AbortController();
+        activeJobs.set(command.jobId, controller);
+        try {
+          return ok(await metadataProvider.search(command.title, controller.signal));
+        } finally {
+          activeJobs.delete(command.jobId);
+        }
+      } catch (error) {
+        return failed(toFailure(error));
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'workflow:suggest-volumes',
+    async (
+      _event,
+      rawCommand: unknown,
+    ): Promise<WorkflowResult<{ volumes: readonly VolumeSuggestion[] }>> => {
+      try {
+        const command = suggestVolumesCommandSchema.parse(rawCommand);
+        if (activeJobs.has(command.jobId)) {
+          return failed({ code: 'job_exists', message: 'That lookup is already running.' });
+        }
+        const controller = new AbortController();
+        activeJobs.set(command.jobId, controller);
+        try {
+          return ok(await metadataProvider.suggestVolumes(command.providerId, controller.signal));
+        } finally {
+          activeJobs.delete(command.jobId);
+        }
       } catch (error) {
         return failed(toFailure(error));
       }

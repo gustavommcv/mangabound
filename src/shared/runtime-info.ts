@@ -8,9 +8,11 @@ import type {
   ConversionProgressPayload,
   DeviceProfileSummary,
   InspectedInputPayload,
+  MetadataSearchResult,
   PlanSummary,
   SelectedInput,
   SelectedLibrary,
+  VolumeSuggestion,
   WorkflowResult,
 } from './workflow-contract';
 
@@ -49,6 +51,14 @@ export interface MangaboundBridge {
   readonly convertBatch: (
     command: BatchConversionCommand,
   ) => Promise<WorkflowResult<readonly BatchTitleResult[]>>;
+  readonly searchMetadata: (
+    jobId: string,
+    title: string,
+  ) => Promise<WorkflowResult<readonly MetadataSearchResult[]>>;
+  readonly suggestVolumes: (
+    jobId: string,
+    providerId: string,
+  ) => Promise<WorkflowResult<{ volumes: readonly VolumeSuggestion[] }>>;
   readonly openArtifact: (artifactId: string) => Promise<WorkflowResult<undefined>>;
   readonly showArtifactInFolder: (artifactId: string) => Promise<WorkflowResult<undefined>>;
   readonly onConversionProgress: (
