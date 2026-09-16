@@ -58,14 +58,14 @@ describe('manual mapping draft', () => {
     const draft = createMappingDraft({
       chapters,
       mangaTitle: 'Example Manga',
-      source: { provider: 'mangadex', id: 'work-123' },
+      source: { provider: 'external', id: 'work-123' },
       volumes: [
         { id: 'suggested-1', number: '01.0', chapterIds: ['c2', 'c1'] },
         { id: 'suggested-2', number: '2', chapterIds: ['c3'] },
       ],
     });
 
-    expect(draft.source).toEqual({ provider: 'mangadex', id: 'work-123' });
+    expect(draft.source).toEqual({ provider: 'external', id: 'work-123' });
     expect(draft.volumes).toMatchObject([
       { id: 'suggested-1', number: '1', chapterIds: ['c1', 'c2'] },
       { id: 'suggested-2', number: '2', chapterIds: ['c3'] },
@@ -211,14 +211,14 @@ describe('mapping operations', () => {
     const applied = applyVolumeSuggestion(
       draft,
       [{ id: 'suggested-1', number: '1', chapterNumbers: [1, 2] }],
-      { provider: 'MangaDex', id: 'work-123' },
+      { provider: 'external', id: 'work-123' },
     );
 
     // c2x1 is a special chapter that also carries chapter number 2, so it's swept in too.
     expect(applied.volumes).toMatchObject([
       { id: 'suggested-1', number: '1', chapterIds: ['c1', 'c2', 'c2x1'] },
     ]);
-    expect(applied.source).toEqual({ provider: 'MangaDex', id: 'work-123' });
+    expect(applied.source).toEqual({ provider: 'external', id: 'work-123' });
   });
 
   it('skips a suggestion that matches no locally discovered chapter', () => {
@@ -227,7 +227,7 @@ describe('mapping operations', () => {
     const applied = applyVolumeSuggestion(
       draft,
       [{ id: 'suggested-1', number: '1', chapterNumbers: [99] }],
-      { provider: 'MangaDex', id: 'work-123' },
+      { provider: 'external', id: 'work-123' },
     );
 
     expect(applied.volumes).toEqual([]);
@@ -239,7 +239,7 @@ describe('mapping operations', () => {
     const applied = applyVolumeSuggestion(
       draft,
       [{ id: 'suggested-1', number: '1', chapterNumbers: [1] }],
-      { provider: 'MangaDex', id: 'work-123' },
+      { provider: 'external', id: 'work-123' },
     );
 
     expect(applied.volumes).toMatchObject([{ id: 'v1', number: '1', chapterIds: ['c1', 'c3'] }]);
@@ -251,7 +251,7 @@ describe('mapping operations', () => {
     const applied = applyVolumeSuggestion(
       draft,
       [{ id: 'suggested-2', number: '2', chapterNumbers: [1] }],
-      { provider: 'MangaDex', id: 'work-123' },
+      { provider: 'external', id: 'work-123' },
     );
 
     expect(applied.volumes).toMatchObject([
@@ -324,7 +324,7 @@ describe('mapping validation and serialization', () => {
     const draft = createMappingDraft({
       chapters,
       mangaTitle: '  Mangá São José  ',
-      source: { provider: 'mangadex', id: 'abc-123' },
+      source: { provider: 'external', id: 'abc-123' },
       volumes: [
         { id: 'v2', number: '2', chapterIds: ['c3'] },
         { id: 'v1', number: '1', chapterIds: ['c2x1', 'c1', 'c2'] },
@@ -338,7 +338,7 @@ describe('mapping validation and serialization', () => {
         { number: '1', chapters: ['1', '2', '2x1'] },
         { number: '2', chapters: ['3'] },
       ],
-      source: { provider: 'mangadex', id: 'abc-123' },
+      source: { provider: 'external', id: 'abc-123' },
     });
     expect(serializeMangabindMetadata(draft)).toBe(
       `${JSON.stringify(toMangabindMetadata(draft), null, 2)}\n`,

@@ -64,7 +64,7 @@ describe('mapping editor', () => {
         initialDraft={createMappingDraft({
           mangaTitle: 'Suggested Work',
           chapters,
-          source: { provider: 'MangaDex', id: 'work-id' },
+          source: { provider: 'External API', id: 'work-id' },
           volumes: [
             { id: 'volume-1', number: '1', chapterIds: ['chapter-1', 'chapter-2'] },
             { id: 'volume-2', number: '2', chapterIds: ['chapter-3'] },
@@ -73,7 +73,7 @@ describe('mapping editor', () => {
       />,
     );
 
-    expect(screen.getByText('Suggested by MangaDex')).toBeVisible();
+    expect(screen.getByText('Suggested by External API')).toBeVisible();
     await user.click(screen.getByRole('checkbox', { name: 'Select Chapter 2' }));
     await user.selectOptions(screen.getByLabelText('Move selected chapters to'), 'volume-2');
     await user.click(screen.getByRole('button', { name: 'Assign selected' }));
@@ -115,10 +115,10 @@ describe('mapping editor', () => {
     expect(screen.getByRole('button', { name: 'Confirm mapping' })).toBeDisabled();
   });
 
-  it('applies a MangaDex suggestion as an undoable edit without requiring it', async () => {
+  it('applies an external API suggestion as an undoable edit without requiring it', async () => {
     const user = userEvent.setup();
     const onSearchMetadata = vi.fn(() =>
-      Promise.resolve([{ id: 'work-1', title: 'A Quiet Journey', provider: 'MangaDex' }]),
+      Promise.resolve([{ id: 'work-1', title: 'A Quiet Journey', provider: 'External API' }]),
     );
     const onSuggestVolumes = vi.fn(() =>
       Promise.resolve({ volumes: [{ number: '1', chapterNumbers: [1, 2] }] }),
@@ -134,7 +134,7 @@ describe('mapping editor', () => {
     expect(await screen.findByText('A Quiet Journey')).toBeVisible();
     await user.click(screen.getByRole('button', { name: 'Use this' }));
 
-    expect(await screen.findByText('Suggested by MangaDex')).toBeVisible();
+    expect(await screen.findByText('Suggested by External API')).toBeVisible();
     const chapterOneRow = screen.getByRole('checkbox', { name: 'Select Chapter 1' }).closest('div');
     const chapterThreeRow = screen
       .getByRole('checkbox', { name: 'Select Chapter 3' })
@@ -147,9 +147,9 @@ describe('mapping editor', () => {
     expect(within(chapterOneRow!).getByText('Unassigned')).toBeVisible();
   });
 
-  it('keeps every manual control operable when a MangaDex lookup fails', async () => {
+  it('keeps every manual control operable when an external API lookup fails', async () => {
     const user = userEvent.setup();
-    const onSearchMetadata = vi.fn(() => Promise.reject(new Error('MangaDex is unreachable.')));
+    const onSearchMetadata = vi.fn(() => Promise.reject(new Error('External metadata service is unreachable.')));
     render(
       <MappingEditor
         initialDraft={createMappingDraft({ mangaTitle: 'Offline Work', chapters })}
@@ -158,7 +158,7 @@ describe('mapping editor', () => {
       />,
     );
 
-    expect(await screen.findByText('MangaDex is unreachable.')).toBeVisible();
+    expect(await screen.findByText('External metadata service is unreachable.')).toBeVisible();
     expect(screen.getByText('Manual mapping · Offline')).toBeVisible();
 
     await user.click(screen.getByRole('button', { name: 'Add volume' }));
@@ -173,6 +173,6 @@ describe('mapping editor', () => {
       <MappingEditor initialDraft={createMappingDraft({ mangaTitle: 'Offline Work', chapters })} />,
     );
 
-    expect(screen.queryByText('Suggest from MangaDex')).not.toBeInTheDocument();
+    expect(screen.queryByText('Suggest from external API')).not.toBeInTheDocument();
   });
 });

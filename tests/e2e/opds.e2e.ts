@@ -30,7 +30,7 @@ describe('packaged OPDS delivery', () => {
   it('serves real converted books newest-first over a real HTTP server', async () => {
     const testRoot = await mkdtemp(path.join(os.tmpdir(), 'mangabound-opds-e2e-'));
     temporaryDirectories.push(testRoot);
-    const sourceFixture = path.resolve('tests', 'fixtures', 'e2e', 'hakuneko', 'Mangabound E2E');
+    const sourceFixture = path.resolve('tests', 'fixtures', 'e2e', 'manga-folder', 'Mangabound E2E');
     const inputPath = path.join(testRoot, 'Mangabound E2E');
     const directCbzPath = path.resolve('tests', 'fixtures', 'e2e', 'cbz', 'Mangabound Direct.cbz');
     const libraryPath = path.join(testRoot, 'library');

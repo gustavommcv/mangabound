@@ -31,10 +31,10 @@ describe('mangabind report to mapping draft', () => {
   it('can seed the exact same draft from effective suggested assignments', () => {
     const draft = mappingDraftFromMangabindReport(report, {
       seed: 'effective-volumes',
-      source: { provider: 'mangadex', id: 'api-work-id' },
+      source: { provider: 'external', id: 'api-work-id' },
     });
 
-    expect(draft.source).toEqual({ provider: 'mangadex', id: 'api-work-id' });
+    expect(draft.source).toEqual({ provider: 'external', id: 'api-work-id' });
     expect(draft.volumes).toMatchObject([
       {
         id: 'effective-volume-1',

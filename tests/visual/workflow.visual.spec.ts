@@ -35,7 +35,7 @@ test('batch review remains visually consistent', async ({ page }) => {
   await expect(page.locator('#storybook-root')).toHaveScreenshot('batch-review.png');
 });
 
-test('MangaDex suggestions remain visually consistent', async ({ page }) => {
+test('External API suggestions remain visually consistent', async ({ page }) => {
   await page.goto(
     '/iframe.html?id=workflows-mapping-editor--with-metadata-suggestions&viewMode=story',
   );

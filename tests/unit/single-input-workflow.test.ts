@@ -197,7 +197,7 @@ describe('single-input workflow', () => {
         ...chapter,
         path: '/renderer/cannot-replace-trusted-path',
       })),
-      source: { provider: 'mangadex', id: 'suggestion-id' },
+      source: { provider: 'external', id: 'suggestion-id' },
     });
     const artifacts = await workflow.convert(
       {
@@ -219,7 +219,7 @@ describe('single-input workflow', () => {
     ]);
     expect(ports.bind.mock.calls[0]?.[1].chapters[0]?.path).toBe('/trusted/c1');
     expect(ports.bind.mock.calls[0]?.[1].source).toEqual({
-      provider: 'mangadex',
+      provider: 'external',
       id: 'suggestion-id',
     });
     expect(artifacts).toHaveLength(2);

@@ -159,12 +159,12 @@ describe('single-input application workflow', () => {
     expect(releaseInput).toHaveBeenCalledWith('session');
   });
 
-  it('wires the mapping editor to real MangaDex bridge calls with fresh job ids', async () => {
+  it('wires the mapping editor to real external metadata bridge calls with fresh job ids', async () => {
     const user = userEvent.setup();
     const searchMetadata = vi.fn<MangaboundBridge['searchMetadata']>(() =>
       Promise.resolve({
         ok: true,
-        value: [{ id: 'work-1', title: 'A Quiet Journey', provider: 'MangaDex' }],
+        value: [{ id: 'work-1', title: 'A Quiet Journey', provider: 'External API' }],
       }),
     );
     const suggestVolumes = vi.fn<MangaboundBridge['suggestVolumes']>(() =>
@@ -178,7 +178,7 @@ describe('single-input application workflow', () => {
     expect(searchMetadata.mock.calls[0]?.[1]).toBe('Offline Work');
 
     await user.click(screen.getByRole('button', { name: 'Use this' }));
-    expect(await screen.findByText('Suggested by MangaDex')).toBeVisible();
+    expect(await screen.findByText('Suggested by External API')).toBeVisible();
     expect(suggestVolumes).toHaveBeenCalledWith(expect.any(String), 'work-1');
   });
 
