@@ -78,4 +78,22 @@ describe('mapping editor history', () => {
       applyMappingCommand(draft, { type: 'add-volume', id: 'standalone', number: '1' }).volumes,
     ).toHaveLength(1);
   });
+
+  it('applies a suggestion as one undoable, redoable command', () => {
+    const applied = dispatchMappingCommand(createMappingHistory(draft), {
+      type: 'apply-suggestion',
+      suggestions: [{ id: 'suggested-1', number: '1', chapterNumbers: [1, 2] }],
+      source: { provider: 'MangaDex', id: 'work-123' },
+    });
+
+    expect(applied.present.volumes).toMatchObject([
+      { id: 'suggested-1', number: '1', chapterIds: ['c1', 'c2'] },
+    ]);
+    expect(applied.present.source).toEqual({ provider: 'MangaDex', id: 'work-123' });
+
+    const undone = undoMappingCommand(applied);
+    expect(undone.present).toEqual(draft);
+    const redone = redoMappingCommand(undone);
+    expect(redone.present).toEqual(applied.present);
+  });
 });

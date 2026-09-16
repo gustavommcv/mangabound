@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   addVolume,
+  applyVolumeSuggestion,
   assignedVolumeId,
   assignChapterRange,
   assignChapters,
@@ -202,6 +203,61 @@ describe('mapping operations', () => {
     expect(() => mergeVolumes(draft, 'v1', 'missing')).toThrowError(
       expect.objectContaining({ code: 'volume_not_found' }),
     );
+  });
+
+  it('applies a volume suggestion by matching local chapters by number and sets the source', () => {
+    const draft = manualDraft();
+
+    const applied = applyVolumeSuggestion(
+      draft,
+      [{ id: 'suggested-1', number: '1', chapterNumbers: [1, 2] }],
+      { provider: 'MangaDex', id: 'work-123' },
+    );
+
+    // c2x1 is a special chapter that also carries chapter number 2, so it's swept in too.
+    expect(applied.volumes).toMatchObject([
+      { id: 'suggested-1', number: '1', chapterIds: ['c1', 'c2', 'c2x1'] },
+    ]);
+    expect(applied.source).toEqual({ provider: 'MangaDex', id: 'work-123' });
+  });
+
+  it('skips a suggestion that matches no locally discovered chapter', () => {
+    const draft = manualDraft();
+
+    const applied = applyVolumeSuggestion(
+      draft,
+      [{ id: 'suggested-1', number: '1', chapterNumbers: [99] }],
+      { provider: 'MangaDex', id: 'work-123' },
+    );
+
+    expect(applied.volumes).toEqual([]);
+  });
+
+  it('reuses an existing volume with a matching canonical number instead of duplicating it', () => {
+    const draft = assignChapters(addVolume(manualDraft(), 'v1', '01.0'), 'v1', ['c3']);
+
+    const applied = applyVolumeSuggestion(
+      draft,
+      [{ id: 'suggested-1', number: '1', chapterNumbers: [1] }],
+      { provider: 'MangaDex', id: 'work-123' },
+    );
+
+    expect(applied.volumes).toMatchObject([{ id: 'v1', number: '1', chapterIds: ['c1', 'c3'] }]);
+  });
+
+  it('reassigns a chapter suggested into a different volume than its current one', () => {
+    const draft = assignChapters(addVolume(manualDraft(), 'v1', '1'), 'v1', ['c1']);
+
+    const applied = applyVolumeSuggestion(
+      draft,
+      [{ id: 'suggested-2', number: '2', chapterNumbers: [1] }],
+      { provider: 'MangaDex', id: 'work-123' },
+    );
+
+    expect(applied.volumes).toMatchObject([
+      { id: 'v1', chapterIds: [] },
+      { id: 'suggested-2', number: '2', chapterIds: ['c1'] },
+    ]);
   });
 });
 

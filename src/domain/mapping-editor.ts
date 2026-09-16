@@ -1,13 +1,16 @@
 import {
   addVolume,
+  applyVolumeSuggestion,
   assignChapterRange,
   assignChapters,
   mergeVolumes,
   type MappingDraft,
+  type MappingSource,
   removeVolume,
   renumberVolume,
   splitVolume,
   unassignChapters,
+  type VolumeSuggestion,
 } from './mapping';
 
 export type MappingCommand =
@@ -37,6 +40,11 @@ export type MappingCommand =
       readonly type: 'merge-volumes';
       readonly targetVolumeId: string;
       readonly sourceVolumeId: string;
+    }
+  | {
+      readonly type: 'apply-suggestion';
+      readonly suggestions: readonly (VolumeSuggestion & { readonly id: string })[];
+      readonly source: MappingSource;
     };
 
 export interface MappingEditorHistory {
@@ -78,6 +86,8 @@ export function applyMappingCommand(draft: MappingDraft, command: MappingCommand
       );
     case 'merge-volumes':
       return mergeVolumes(draft, command.targetVolumeId, command.sourceVolumeId);
+    case 'apply-suggestion':
+      return applyVolumeSuggestion(draft, command.suggestions, command.source);
   }
 }
 

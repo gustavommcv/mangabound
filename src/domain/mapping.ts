@@ -328,6 +328,34 @@ export function mergeVolumes(
   };
 }
 
+export interface VolumeSuggestion {
+  readonly number: string;
+  readonly chapterNumbers: readonly number[];
+}
+
+export function applyVolumeSuggestion(
+  draft: MappingDraft,
+  suggestions: readonly (VolumeSuggestion & { readonly id: string })[],
+  source: MappingSource,
+): MappingDraft {
+  let next: MappingDraft = draft;
+  for (const suggestion of suggestions) {
+    const matchedChapterIds = draft.chapters
+      .filter(
+        (chapter) =>
+          chapter.chapter !== undefined && suggestion.chapterNumbers.includes(chapter.chapter),
+      )
+      .map((chapter) => chapter.id);
+    if (matchedChapterIds.length === 0) continue;
+    const canonicalNumber = canonicalVolumeNumber(suggestion.number);
+    const existingVolume = next.volumes.find((volume) => volume.number === canonicalNumber);
+    const volumeId = existingVolume?.id ?? suggestion.id;
+    if (existingVolume === undefined) next = addVolume(next, volumeId, suggestion.number);
+    next = assignChapters(next, volumeId, matchedChapterIds);
+  }
+  return { ...next, source };
+}
+
 export function assignedVolumeId(draft: MappingDraft, chapterId: string): string | undefined {
   chapterById(draft, chapterId);
   return draft.volumes.find((volume) => volume.chapterIds.includes(chapterId))?.id;
