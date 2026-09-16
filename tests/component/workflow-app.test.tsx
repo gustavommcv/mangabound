@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -85,6 +85,10 @@ function bridge(overrides: Partial<MangaboundBridge> = {}): MangaboundBridge {
         },
       }),
     cancelConversion: () => Promise.resolve({ ok: true, value: undefined }),
+    chooseInputBatch: () => Promise.resolve({ ok: true, value: null }),
+    planBatch: () => Promise.resolve({ ok: true, value: { titles: [], issues: [] } }),
+    writeTitleMapping: () => Promise.resolve({ ok: true, value: undefined }),
+    convertBatch: () => Promise.resolve({ ok: true, value: [] }),
     openArtifact: () => Promise.resolve({ ok: true, value: undefined }),
     showArtifactInFolder: () => Promise.resolve({ ok: true, value: undefined }),
     onConversionProgress: () => () => undefined,
@@ -275,6 +279,180 @@ describe('single-input application workflow', () => {
     await user.click(screen.getByRole('button', { name: 'Choose output folder' }));
     await user.click(await screen.findByRole('button', { name: 'Start conversion' }));
     await user.click(await screen.findByRole('button', { name: 'Cancel conversion' }));
+
+    expect(cancelConversion).toHaveBeenCalledOnce();
+  });
+});
+
+const goodTitleDraft = createMappingDraft({
+  mangaTitle: 'Good Manga',
+  chapters: [
+    {
+      id: 'g1',
+      name: 'Chapter 1',
+      path: 'C:\\Library\\Good Manga\\Chapter 1',
+      pageCount: 2,
+      chapter: 1,
+    },
+  ],
+  volumes: [{ id: 'gv1', number: '1', chapterIds: ['g1'] }],
+});
+const brokenTitleDraft = createMappingDraft({
+  mangaTitle: 'Broken Manga',
+  chapters: [
+    {
+      id: 'b1',
+      name: 'Chapter 1',
+      path: 'C:\\Library\\Broken Manga\\Chapter 1',
+      pageCount: 1,
+      chapter: 1,
+    },
+  ],
+  volumes: [{ id: 'bv1', number: '1', chapterIds: ['b1'] }],
+});
+
+function batchPlan(brokenStatus: 'completed' | 'failed') {
+  return {
+    titles: [
+      {
+        title: 'Good Manga',
+        inputPath: 'C:\\Library\\Good Manga',
+        status: 'completed' as const,
+        draft: goodTitleDraft,
+        volumes: [{ name: 'Good Manga - Vol.01.cbz', pageCount: 2 }],
+        issues: [],
+      },
+      {
+        title: 'Broken Manga',
+        inputPath: 'C:\\Library\\Broken Manga',
+        status: brokenStatus,
+        draft: brokenTitleDraft,
+        volumes:
+          brokenStatus === 'completed' ? [{ name: 'Broken Manga - Vol.01.cbz', pageCount: 1 }] : [],
+        issues:
+          brokenStatus === 'failed'
+            ? [
+                {
+                  tool: 'mangabind' as const,
+                  severity: 'error' as const,
+                  code: 'metadata_load_failed',
+                  stage: 'group',
+                  recoverable: true,
+                  message: 'mangabind.json could not be parsed.',
+                },
+              ]
+            : [],
+      },
+    ],
+    issues: [],
+  };
+}
+
+describe('batch application workflow', () => {
+  it('reviews a discovered library, fixes a mapping, converts, and retries a failure', async () => {
+    const user = userEvent.setup();
+    const planBatch = vi
+      .fn<MangaboundBridge['planBatch']>()
+      .mockResolvedValueOnce({ ok: true, value: batchPlan('failed') })
+      .mockResolvedValue({ ok: true, value: batchPlan('completed') });
+    const writeTitleMapping = vi.fn<MangaboundBridge['writeTitleMapping']>(() =>
+      Promise.resolve({ ok: true, value: undefined }),
+    );
+    const convertBatch = vi
+      .fn<MangaboundBridge['convertBatch']>()
+      .mockResolvedValueOnce({
+        ok: true,
+        value: [
+          {
+            title: 'Good Manga',
+            status: 'done',
+            artifacts: [{ id: 'good-1', name: 'Good Manga.epub', bytes: 2048, format: 'epub' }],
+          },
+          {
+            title: 'Broken Manga',
+            status: 'failed',
+            artifacts: [],
+            failure: { code: 'process_failed', message: 'mangapress crashed.' },
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        value: [
+          {
+            title: 'Broken Manga',
+            status: 'done',
+            artifacts: [{ id: 'broken-1', name: 'Broken Manga.epub', bytes: 1024, format: 'epub' }],
+          },
+        ],
+      });
+    installBridge(
+      bridge({
+        chooseInputBatch: () =>
+          Promise.resolve({
+            ok: true,
+            value: { parentPath: 'C:\\Library', displayName: 'My Library' },
+          }),
+        planBatch,
+        writeTitleMapping,
+        convertBatch,
+      }),
+    );
+    render(<App />);
+
+    await user.click(await screen.findByRole('button', { name: /Manga library \(batch\)/i }));
+    expect(await screen.findByRole('heading', { name: 'Convert My Library' })).toBeVisible();
+    expect(screen.getByText(/No volumes could be assigned automatically/i)).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Fix mapping' }));
+    await user.click(await screen.findByRole('button', { name: 'Confirm mapping' }));
+    expect(writeTitleMapping).toHaveBeenCalledWith('C:\\Library\\Broken Manga', brokenTitleDraft);
+    expect(await screen.findByRole('heading', { name: 'Convert My Library' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Fix mapping' })).not.toBeInTheDocument();
+    expect(planBatch).toHaveBeenCalledTimes(2);
+
+    await user.click(screen.getByRole('button', { name: 'Choose output folder' }));
+    await user.click(await screen.findByRole('button', { name: 'Start batch conversion' }));
+
+    expect(await screen.findByText('mangapress crashed.')).toBeVisible();
+    expect(convertBatch.mock.calls[0]?.[0]).toMatchObject({
+      parentPath: 'C:\\Library',
+      libraryId: 'library',
+    });
+    expect(convertBatch.mock.calls[0]?.[0].titles).toBeUndefined();
+
+    await user.click(await screen.findByRole('button', { name: 'Retry' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
+    });
+    expect(screen.queryByText('mangapress crashed.')).not.toBeInTheDocument();
+    expect(convertBatch.mock.calls[1]?.[0]).toMatchObject({ titles: ['Broken Manga'] });
+  });
+
+  it('stops the queue before the next title once the batch is cancelled', async () => {
+    const user = userEvent.setup();
+    const cancelConversion = vi.fn<MangaboundBridge['cancelConversion']>(() =>
+      Promise.resolve({ ok: true, value: undefined }),
+    );
+    installBridge(
+      bridge({
+        chooseInputBatch: () =>
+          Promise.resolve({
+            ok: true,
+            value: { parentPath: 'C:\\Library', displayName: 'My Library' },
+          }),
+        planBatch: () => Promise.resolve({ ok: true, value: batchPlan('completed') }),
+        convertBatch: () => new Promise(() => undefined),
+        cancelConversion,
+      }),
+    );
+    render(<App />);
+
+    await user.click(await screen.findByRole('button', { name: /Manga library \(batch\)/i }));
+    await screen.findByRole('heading', { name: 'Convert My Library' });
+    await user.click(screen.getByRole('button', { name: 'Choose output folder' }));
+    await user.click(await screen.findByRole('button', { name: 'Start batch conversion' }));
+    await user.click(await screen.findByRole('button', { name: 'Cancel batch' }));
 
     expect(cancelConversion).toHaveBeenCalledOnce();
   });

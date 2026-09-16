@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { defaultMangapressSettings } from '@/domain/output-profile';
 
 import {
+  BatchReview,
   Complete,
   ConversionSettings,
   Home,
@@ -31,11 +32,11 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Start: Story = {
-  args: { disabled: false, onChoose: () => undefined },
+  args: { disabled: false, onChoose: () => undefined, onChooseBatch: () => undefined },
 };
 
 export const Disabled: Story = {
-  args: { disabled: true, onChoose: () => undefined },
+  args: { disabled: true, onChoose: () => undefined, onChooseBatch: () => undefined },
 };
 
 export const Loading: Story = {
@@ -151,6 +152,95 @@ export const Success: Story = {
       onOpen={() => undefined}
       onShow={() => undefined}
       onStartOver={() => undefined}
+    />
+  ),
+};
+
+export const BatchReviewStory: Story = {
+  args: { disabled: false, onChoose: () => undefined },
+  render: () => (
+    <BatchReview
+      batch={{
+        titles: [
+          {
+            title: 'A Quiet Journey',
+            inputPath: '/Library/A Quiet Journey',
+            status: 'done',
+            draft: { mangaTitle: 'A Quiet Journey', chapters: [], volumes: [] },
+            volumes: [{ name: 'A Quiet Journey - Vol.01.cbz', pageCount: 46 }],
+            issues: [],
+            artifacts: [
+              {
+                id: 'aqj-1',
+                name: 'A Quiet Journey - Vol.01.epub',
+                bytes: 8_400_000,
+                format: 'epub',
+              },
+            ],
+          },
+          {
+            title: 'Broken Manga',
+            inputPath: '/Library/Broken Manga',
+            status: 'needsMapping',
+            draft: { mangaTitle: 'Broken Manga', chapters: [], volumes: [] },
+            volumes: [],
+            issues: [
+              {
+                tool: 'mangabind',
+                severity: 'error',
+                code: 'metadata_load_failed',
+                stage: 'group',
+                recoverable: true,
+                message: 'mangabind.json could not be parsed.',
+              },
+            ],
+          },
+          {
+            title: 'Late Bloomer',
+            inputPath: '/Library/Late Bloomer',
+            status: 'failed',
+            draft: { mangaTitle: 'Late Bloomer', chapters: [], volumes: [] },
+            volumes: [{ name: 'Late Bloomer - Vol.01.cbz', pageCount: 32 }],
+            issues: [],
+            artifacts: [],
+            failure: {
+              code: 'process_failed',
+              message: 'mangapress crashed while processing pages.',
+            },
+          },
+          {
+            title: 'Wandering Star',
+            inputPath: '/Library/Wandering Star',
+            status: 'ready',
+            draft: { mangaTitle: 'Wandering Star', chapters: [], volumes: [] },
+            volumes: [{ name: 'Wandering Star - Vol.01.cbz', pageCount: 40 }],
+            issues: [],
+          },
+        ],
+      }}
+      displayName="Winter Reading Library"
+      format="epub"
+      library={{ libraryId: 'library', displayPath: '/Books/Manga' }}
+      onCancel={() => undefined}
+      onChooseLibrary={() => undefined}
+      onFixMapping={() => undefined}
+      onFormat={() => undefined}
+      onRetry={() => undefined}
+      onSettings={() => undefined}
+      onStart={() => undefined}
+      onStartOver={() => undefined}
+      profiles={[
+        {
+          code: 'KV',
+          name: 'Kindle Voyage',
+          width: 1072,
+          height: 1448,
+          grayLevels: 16,
+          family: 'kindle',
+        },
+      ]}
+      running={false}
+      settings={defaultMangapressSettings}
     />
   ),
 };
