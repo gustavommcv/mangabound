@@ -1,0 +1,22 @@
+# ADR 0007: Library indexing and OPDS delivery
+
+- Status: Accepted
+- Date: 2026-09-16
+
+## Context
+
+M7 (`docs/milestones.md`) asks for deterministic library indexing, configurable output locations, atomic publication, collision handling, and an OPDS 1.2 catalog that KOReader and other e-reader clients can browse and acquire from — already scoped at a high level by ADR 0001 (the `library`/`opds` module boundaries) and ADR 0005 (OPDS behavior, LAN-only binding, token or Basic authentication, Calibre push deferred). Several concrete choices remain unresolved by those ADRs and must be settled before implementation: where the index lives, whether the server persists across restarts, which authentication mode is the default, how much of OPDS's browsing surface to serve for v1, and how a LAN interface is chosen. A live check against the vendored `mangapress.exe` (ADR 0006 discipline) confirmed it deterministically reuses the same output path for the same input and settings and silently overwrites on reconversion — collision handling is therefore an indexing concern, not a file-naming problem mangabound needs to solve.
+
+## Decision
+
+- **Index location.** The library index is a JSON manifest at `<libraryPath>/.mangabound/library.json`, keyed by each book's output path relative to the library root. The library is self-describing per folder: no new global application-settings store is introduced, and re-selecting a previously used folder recovers its full history. Writes are atomic — a temp file followed by a rename in the same directory. This atomicity covers only mangabound's own manifest, never the book file itself, which mangapress writes and owns per ADR 0006.
+- **Collision handling.** Publishing an artifact whose relative path already has an index entry replaces that entry in place (refreshed metadata and timestamp, same catalog identity) rather than appending a duplicate. No file-level dedup or versioning is implemented, since mangapress already deterministically reuses the same path for the same input and settings.
+- **Server lifecycle.** "Follows the app lifecycle" (ADR 0005) is a bound, not a mandate: the OPDS server never outlives the Mangabound process, but it does not have to auto-start on launch. Sharing is an explicit, per-session toggle, reusing the same session-scoped selection model already used for the output library (`selectedLibraries`). Persisted, auto-resuming sharing is deferred; it would need its own application-settings persistence design and its own ADR.
+- **Authentication.** A random token, generated per sharing session and carried as a `?token=` query parameter on every link the feed itself emits, is the default and always-on mode. Basic authentication is an alternate mode selectable per session, not layered on top of the token. Token-in-URL is required because OPDS clients, including KOReader, cannot attach custom request headers.
+- **Feed shape.** v1 serves exactly one OPDS navigation feed linking to exactly one acquisition feed — the entire index, sorted newest-converted-first. There is no browsing by series or title, no search, and no pagination beyond what a single feed trivially needs. This keeps the milestone's exit bar ("today's conversion is the first item in the feed") a direct, testable property instead of growing into a library browser.
+- **Network interface.** The server binds to one address the user selects, never `0.0.0.0`. `os.networkInterfaces()` (non-internal IPv4) is offered in the UI as a convenience list, but the underlying command accepts any syntactically valid address, so a loopback address can be exercised in automated tests without a real LAN.
+- **No new runtime dependency.** Consistent with the MangaDex metadata integration, which used Node's built-in `fetch` rather than adding an HTTP client, OPDS serving uses Node's built-in `http` module and hand-rolled, escaped XML/Atom templates rather than an HTTP framework or an XML-builder library.
+
+## Consequences
+
+Mangabound gains its first on-disk persistence (the per-folder library manifest) and its first long-lived network listener, both scoped tightly: the manifest only ever reflects what mangabound itself has published, and the server only ever serves what the manifest lists, bound to one explicit address with mandatory authentication. A richer catalog — browsing, search, cover art, Calibre push, remembered or auto-started sharing — remains open for a future milestone and ADR; none of it is implied or blocked by this decision.

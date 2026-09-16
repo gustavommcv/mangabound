@@ -39,6 +39,8 @@ export interface ConversionArtifact {
   readonly path: string;
   readonly bytes: number;
   readonly format: BookFormat;
+  readonly title: string;
+  readonly author: string;
 }
 
 export interface PlannedBook {

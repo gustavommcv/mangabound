@@ -142,6 +142,8 @@ describe('mangapress conversion port', () => {
       path: path.resolve('/library', 'Book.epub'),
       bytes: 512,
       format: 'epub',
+      title: 'Book',
+      author: 'Unknown',
     });
     expect(onProgress).toHaveBeenCalledWith({
       stage: 'processing',
@@ -168,6 +170,26 @@ describe('mangapress conversion port', () => {
       outputPath: request.outputDirectory,
     });
     expect(run.mock.calls[0]?.[1]?.signal).toBeUndefined();
+  });
+
+  it('falls back to the output filename and Unknown when mangapress omits title and author', async () => {
+    const adapter = new MangapressConversionAdapter({
+      run: () =>
+        Promise.resolve(
+          runResult({
+            result: resultEvent({
+              manga: undefined,
+              author: undefined,
+              output_path: path.resolve('/library', 'Custom Name.epub'),
+            }),
+          }),
+        ),
+    });
+
+    const artifact = await adapter.convert(request, { onProgress: vi.fn() });
+
+    expect(artifact.title).toBe('Custom Name');
+    expect(artifact.author).toBe('Unknown');
   });
 
   it('passes cancellation through and reports complete structured failure context', async () => {

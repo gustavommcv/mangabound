@@ -114,6 +114,8 @@ export class MangapressConversionAdapter implements ConversionPort {
       path: outputPath,
       bytes: result.bytes,
       format: result.format,
+      title: result.manga ?? path.basename(outputPath, path.extname(outputPath)),
+      author: result.author ?? 'Unknown',
     };
   }
 }

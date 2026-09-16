@@ -56,6 +56,8 @@ function dependencies({ volumePaths = ['/work/volume-1.cbz', '/work/volume-2.cbz
       path: `${request.outputDirectory}/book.${request.format}`,
       bytes: 100,
       format: request.format,
+      title: 'Standalone',
+      author: 'Unknown',
     };
     return Promise.resolve(artifact);
   });
@@ -183,6 +185,8 @@ describe('single-input workflow', () => {
         path: `/library/${request.inputPath.split('/').at(-1)}.epub`,
         bytes: 100,
         format: 'epub',
+        title: 'Standalone',
+        author: 'Unknown',
       };
     });
     const workflow = new SingleInputWorkflow(ports.binding, ports.conversion, () => 'session');
