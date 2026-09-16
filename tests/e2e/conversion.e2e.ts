@@ -121,7 +121,9 @@ describe('packaged conversion pipeline', () => {
     assert.equal(savedMetadata.schema_version, 1);
     await assert.rejects(readFile(path.join(autoResolvedInputPath, 'mangabind.json'), 'utf8'));
 
-    const chooseOutputFolder = $('button=Choose output folder');
+    // The prior spec already chose a library, so this reads "Change output folder" here —
+    // either label opens the same picker and this spec supplies its own fresh directory.
+    const chooseOutputFolder = $('button*=output folder');
     await chooseOutputFolder.waitForClickable({ timeout: 30_000 });
     await chooseOutputFolder.click();
     await $('button=Start batch conversion').click();
