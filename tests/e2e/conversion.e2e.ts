@@ -133,10 +133,23 @@ describe('packaged conversion pipeline', () => {
     await $('button=Start batch conversion').click();
     // Two real, sequential conversions run here -- the other specs budget 120s per single
     // conversion, so this needs comfortably more than double that.
-    await browser.waitUntil(async () => (await readdir(outputLibraryPath)).length === 3, {
-      timeout: 240_000,
-      timeoutMsg: 'Expected both batch titles to produce a saved book plus the library catalog.',
-    });
+    try {
+      await browser.waitUntil(async () => (await readdir(outputLibraryPath)).length === 3, {
+        timeout: 240_000,
+        timeoutMsg: 'Expected both batch titles to produce a saved book plus the library catalog.',
+      });
+    } catch (error) {
+      const currentEntries = await readdir(outputLibraryPath);
+      console.log('DEBUG outputLibraryPath entries at timeout:', currentEntries);
+      if (currentEntries.includes('.mangabound')) {
+        const manifest = await readFile(
+          path.join(outputLibraryPath, '.mangabound', 'library.json'),
+          'utf8',
+        ).catch((manifestError: unknown) => `<unreadable: ${String(manifestError)}>`);
+        console.log('DEBUG library.json contents:', manifest);
+      }
+      throw error;
+    }
 
     const entries = (await readdir(outputLibraryPath)).sort();
     assert.deepEqual(entries, [
