@@ -34,8 +34,14 @@ import {
 } from '@/domain/output-profile';
 import { MappingEditor } from '@/renderer/components/mapping/mapping-editor';
 import { MangapressSettingsEditor } from '@/renderer/components/settings/mangapress-settings';
+import { SharePanel } from '@/renderer/components/sharing/share-panel';
 import { Button } from '@/renderer/components/ui/button';
 import { Label } from '@/renderer/components/ui/label';
+import type {
+  NetworkInterfaceOption,
+  OpdsAuthConfig,
+  OpdsSharingStatus,
+} from '@/shared/opds-contract';
 import type { ToolchainStatus } from '@/shared/toolchain-status';
 import type {
   ArtifactSummary,
@@ -93,6 +99,10 @@ export function App(): React.JSX.Element {
   }>();
   const [batch, setBatch] = useState<BatchState>();
   const [correctingTitle, setCorrectingTitle] = useState<string>();
+  const [sharePanelOpen, setSharePanelOpen] = useState(false);
+  const [sharedLibrary, setSharedLibrary] = useState<SelectedLibrary>();
+  const [interfaces, setInterfaces] = useState<readonly NetworkInterfaceOption[]>([]);
+  const [sharingStatus, setSharingStatus] = useState<OpdsSharingStatus>({ active: false });
   const planTokenRef = useRef(0);
 
   const invalidatePlan = (): void => {
@@ -143,6 +153,23 @@ export function App(): React.JSX.Element {
       if (update.jobId === jobId) setProgress(update);
     });
   }, [bridge, jobId]);
+
+  useEffect(() => {
+    if (bridge?.listNetworkInterfaces === undefined || bridge.getSharingStatus === undefined) {
+      return;
+    }
+    let current = true;
+    void Promise.all([bridge.listNetworkInterfaces(), bridge.getSharingStatus()]).then(
+      ([interfacesResult, statusResult]) => {
+        if (!current) return;
+        if (interfacesResult.ok) setInterfaces(interfacesResult.value);
+        if (statusResult.ok) setSharingStatus(statusResult.value);
+      },
+    );
+    return () => {
+      current = false;
+    };
+  }, [bridge]);
 
   const chooseInput = async (kind: InputKind): Promise<void> => {
     if (bridge === undefined) return;
@@ -411,6 +438,27 @@ export function App(): React.JSX.Element {
     return result.value;
   };
 
+  const chooseSharedLibrary = async (): Promise<void> => {
+    if (bridge === undefined) return;
+    const result = await bridge.chooseLibrary();
+    if (!result.ok) setFailure(result.error);
+    else if (result.value !== null) setSharedLibrary(result.value);
+  };
+
+  const startSharing = async (interfaceAddress: string, auth: OpdsAuthConfig): Promise<void> => {
+    if (bridge === undefined || sharedLibrary === undefined) return;
+    const result = await bridge.startSharing(sharedLibrary.libraryId, interfaceAddress, auth);
+    if (!result.ok) setFailure(result.error);
+    else setSharingStatus(result.value);
+  };
+
+  const stopSharing = async (): Promise<void> => {
+    if (bridge === undefined) return;
+    const result = await bridge.stopSharing();
+    if (!result.ok) setFailure(result.error);
+    else setSharingStatus({ active: false });
+  };
+
   return (
     <div className="bg-background text-foreground min-h-screen">
       <Titlebar runtime={bridge?.runtime} />
@@ -419,6 +467,35 @@ export function App(): React.JSX.Element {
       ) : (
         <main className="mx-auto max-w-6xl px-8 py-10">
           <ToolchainBanner toolchain={toolchain} />
+          <div className="mb-8 space-y-3">
+            <div className="flex justify-end">
+              <Button
+                onClick={() => {
+                  setSharePanelOpen((open) => !open);
+                }}
+                size="sm"
+                variant="outline"
+              >
+                <RadioTower /> {sharingStatus.active ? 'Sharing active' : 'Share'}
+              </Button>
+            </div>
+            {sharePanelOpen && (
+              <SharePanel
+                interfaces={interfaces}
+                library={sharedLibrary}
+                onChooseLibrary={() => {
+                  void chooseSharedLibrary();
+                }}
+                onStart={(interfaceAddress, auth) => {
+                  void startSharing(interfaceAddress, auth);
+                }}
+                onStop={() => {
+                  void stopSharing();
+                }}
+                status={sharingStatus}
+              />
+            )}
+          </div>
           {failure !== undefined && <IssueCallout failure={failure} />}
           {step === 'home' && (
             <Home

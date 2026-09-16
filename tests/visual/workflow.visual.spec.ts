@@ -43,3 +43,10 @@ test('MangaDex suggestions remain visually consistent', async ({ page }) => {
   await page.evaluate(async () => document.fonts.ready);
   await expect(page.locator('#storybook-root')).toHaveScreenshot('mapping-editor-suggestions.png');
 });
+
+test('the share panel remains visually consistent', async ({ page }) => {
+  await page.goto('/iframe.html?id=workflows-share-panel--ready-to-start&viewMode=story');
+  await expect(page.getByRole('heading', { name: 'Share via OPDS' })).toBeVisible();
+  await page.evaluate(async () => document.fonts.ready);
+  await expect(page.locator('#storybook-root')).toHaveScreenshot('share-panel.png');
+});
