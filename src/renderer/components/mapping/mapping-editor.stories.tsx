@@ -78,6 +78,27 @@ export const ProviderSuggested: Story = {
   },
 };
 
+export const WithMetadataSuggestions: Story = {
+  args: {
+    initialDraft: createMappingDraft({
+      mangaTitle: 'A Quiet Journey',
+      chapters,
+    }),
+    onSearchMetadata: () =>
+      Promise.resolve([
+        { id: 'work-1', title: 'A Quiet Journey', provider: 'MangaDex' },
+        { id: 'work-2', title: 'A Quiet Journey (Omnibus)', provider: 'MangaDex' },
+      ]),
+    onSuggestVolumes: () =>
+      Promise.resolve({
+        volumes: [
+          { number: '1', chapterNumbers: [1, 2] },
+          { number: '2', chapterNumbers: [3, 4] },
+        ],
+      }),
+  },
+};
+
 export const NeedsAttention: Story = {
   args: {
     initialDraft: createMappingDraft({

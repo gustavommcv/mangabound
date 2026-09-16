@@ -89,6 +89,8 @@ function bridge(overrides: Partial<MangaboundBridge> = {}): MangaboundBridge {
     planBatch: () => Promise.resolve({ ok: true, value: { titles: [], issues: [] } }),
     writeTitleMapping: () => Promise.resolve({ ok: true, value: undefined }),
     convertBatch: () => Promise.resolve({ ok: true, value: [] }),
+    searchMetadata: () => Promise.resolve({ ok: true, value: [] }),
+    suggestVolumes: () => Promise.resolve({ ok: true, value: { volumes: [] } }),
     openArtifact: () => Promise.resolve({ ok: true, value: undefined }),
     showArtifactInFolder: () => Promise.resolve({ ok: true, value: undefined }),
     onConversionProgress: () => () => undefined,
@@ -150,6 +152,29 @@ describe('single-input application workflow', () => {
     await user.click(screen.getByRole('button', { name: 'Convert something else' }));
     expect(await screen.findByRole('heading', { name: 'What are you bringing in?' })).toBeVisible();
     expect(releaseInput).toHaveBeenCalledWith('session');
+  });
+
+  it('wires the mapping editor to real MangaDex bridge calls with fresh job ids', async () => {
+    const user = userEvent.setup();
+    const searchMetadata = vi.fn<MangaboundBridge['searchMetadata']>(() =>
+      Promise.resolve({
+        ok: true,
+        value: [{ id: 'work-1', title: 'A Quiet Journey', provider: 'MangaDex' }],
+      }),
+    );
+    const suggestVolumes = vi.fn<MangaboundBridge['suggestVolumes']>(() =>
+      Promise.resolve({ ok: true, value: { volumes: [{ number: '1', chapterNumbers: [1, 2] }] } }),
+    );
+    installBridge(bridge({ searchMetadata, suggestVolumes }));
+    render(<App />);
+
+    await user.click(await screen.findByRole('button', { name: /Manga folder/i }));
+    expect(await screen.findByText('A Quiet Journey')).toBeVisible();
+    expect(searchMetadata.mock.calls[0]?.[1]).toBe('Offline Work');
+
+    await user.click(screen.getByRole('button', { name: 'Use this' }));
+    expect(await screen.findByText('Suggested by MangaDex')).toBeVisible();
+    expect(suggestVolumes).toHaveBeenCalledWith(expect.any(String), 'work-1');
   });
 
   it('takes a direct CBZ to output settings without showing the mapping editor', async () => {

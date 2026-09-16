@@ -41,9 +41,11 @@ import type {
   ArtifactSummary,
   DeviceProfileSummary,
   InspectedInputPayload,
+  MetadataSearchResult,
   PlanSummary,
   SelectedInput,
   SelectedLibrary,
+  VolumeSuggestion,
   WorkflowFailure,
 } from '@/shared/workflow-contract';
 
@@ -386,6 +388,29 @@ export function App(): React.JSX.Element {
     setStep('home');
   };
 
+  const searchMetadata = async (
+    title: string,
+    signal: AbortSignal,
+  ): Promise<readonly MetadataSearchResult[]> => {
+    if (bridge === undefined) return [];
+    const jobId = crypto.randomUUID();
+    signal.addEventListener('abort', () => {
+      void bridge.cancelConversion(jobId);
+    });
+    const result = await bridge.searchMetadata(jobId, title);
+    if (!result.ok) throw new Error(result.error.message);
+    return result.value;
+  };
+
+  const suggestVolumes = async (
+    id: string,
+  ): Promise<{ readonly volumes: readonly VolumeSuggestion[] }> => {
+    if (bridge === undefined) return { volumes: [] };
+    const result = await bridge.suggestVolumes(crypto.randomUUID(), id);
+    if (!result.ok) throw new Error(result.error.message);
+    return result.value;
+  };
+
   return (
     <div className="bg-background text-foreground min-h-screen">
       <Titlebar runtime={bridge?.runtime} />
@@ -447,6 +472,8 @@ export function App(): React.JSX.Element {
               onConfirm={(_metadata, draft) => {
                 void confirmTitleMapping(correctingTitle, draft);
               }}
+              onSearchMetadata={searchMetadata}
+              onSuggestVolumes={suggestVolumes}
             />
           )}
           {step === 'mapping' && inspection?.mapping !== undefined && (
@@ -457,6 +484,8 @@ export function App(): React.JSX.Element {
                 invalidatePlan();
                 setStep('settings');
               }}
+              onSearchMetadata={searchMetadata}
+              onSuggestVolumes={suggestVolumes}
             />
           )}
           {step === 'settings' && inspection !== undefined && (

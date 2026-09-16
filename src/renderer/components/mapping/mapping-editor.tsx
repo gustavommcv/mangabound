@@ -7,10 +7,11 @@ import {
   Redo2,
   RotateCcw,
   Scissors,
+  Search,
   Trash2,
   Undo2,
 } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   createMappingHistory,
@@ -25,6 +26,7 @@ import {
   type MappingDraft,
   MappingOperationError,
   serializeMangabindMetadata,
+  type VolumeSuggestion,
   validateMapping,
 } from '@/domain/mapping';
 import { Button } from '@/renderer/components/ui/button';
@@ -32,10 +34,18 @@ import { Checkbox } from '@/renderer/components/ui/checkbox';
 import { Input } from '@/renderer/components/ui/input';
 import { Label } from '@/renderer/components/ui/label';
 import { NativeSelect } from '@/renderer/components/ui/native-select';
+import type { MetadataSearchResult } from '@/shared/workflow-contract';
 
 export interface MappingEditorProps {
   readonly initialDraft: MappingDraft;
   readonly onConfirm?: (metadata: string, draft: MappingDraft) => void;
+  readonly onSearchMetadata?: (
+    title: string,
+    signal: AbortSignal,
+  ) => Promise<readonly MetadataSearchResult[]>;
+  readonly onSuggestVolumes?: (
+    id: string,
+  ) => Promise<{ readonly volumes: readonly VolumeSuggestion[] }>;
 }
 
 function nextVolumeNumber(draft: MappingDraft): string {
@@ -52,7 +62,137 @@ function volumeName(draft: MappingDraft, volumeId: string | undefined): string {
   return volume === undefined ? 'Unassigned' : `Volume ${volume.number}`;
 }
 
-export function MappingEditor({ initialDraft, onConfirm }: MappingEditorProps): React.JSX.Element {
+interface MetadataSuggestionPanelProps {
+  readonly mangaTitle: string;
+  readonly onSearchMetadata: (
+    title: string,
+    signal: AbortSignal,
+  ) => Promise<readonly MetadataSearchResult[]>;
+  readonly onSuggestVolumes: (
+    id: string,
+  ) => Promise<{ readonly volumes: readonly VolumeSuggestion[] }>;
+  readonly onApply: (result: MetadataSearchResult, volumes: readonly VolumeSuggestion[]) => void;
+}
+
+function MetadataSuggestionPanel({
+  mangaTitle,
+  onApply,
+  onSearchMetadata,
+  onSuggestVolumes,
+}: MetadataSuggestionPanelProps): React.JSX.Element {
+  const [query, setQuery] = useState(mangaTitle);
+  const [results, setResults] = useState<readonly MetadataSearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [applyingId, setApplyingId] = useState<string>();
+  const [panelError, setPanelError] = useState<string>();
+
+  useEffect(() => {
+    if (query.trim() === '') return;
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      setSearching(true);
+      setPanelError(undefined);
+      onSearchMetadata(query, controller.signal)
+        .then((found) => {
+          if (!controller.signal.aborted) setResults(found);
+        })
+        .catch((error: unknown) => {
+          if (controller.signal.aborted) return;
+          setPanelError(
+            error instanceof Error ? error.message : 'The search could not be completed.',
+          );
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setSearching(false);
+        });
+    }, 400);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [query, onSearchMetadata]);
+
+  const applyResult = (result: MetadataSearchResult): void => {
+    setApplyingId(result.id);
+    setPanelError(undefined);
+    onSuggestVolumes(result.id)
+      .then((suggestion) => {
+        onApply(result, suggestion.volumes);
+      })
+      .catch((error: unknown) => {
+        setPanelError(
+          error instanceof Error ? error.message : 'The suggestion could not be applied.',
+        );
+      })
+      .finally(() => {
+        setApplyingId(undefined);
+      });
+  };
+
+  return (
+    <section
+      aria-labelledby="suggestions-title"
+      className="border-border bg-surface shadow-card rounded-xl border p-5"
+    >
+      <h2 className="text-sm font-semibold" id="suggestions-title">
+        Suggest from MangaDex
+      </h2>
+      <p className="text-muted-foreground mt-1 text-xs">
+        Optional — search a title to suggest which chapters belong in each volume. You can still
+        edit anything afterward.
+      </p>
+      <div className="mt-3 flex items-center gap-2">
+        <Search aria-hidden="true" className="text-muted-foreground size-4 shrink-0" />
+        <Label className="sr-only" htmlFor="metadata-search">
+          Search MangaDex
+        </Label>
+        <Input
+          id="metadata-search"
+          onChange={(event) => {
+            setQuery(event.target.value);
+          }}
+          placeholder="Manga title"
+          value={query}
+        />
+      </div>
+      {searching && <p className="text-muted-foreground mt-3 text-xs">Searching…</p>}
+      {panelError !== undefined && (
+        <p className="text-status-failed mt-3 text-xs" role="alert">
+          {panelError}
+        </p>
+      )}
+      {!searching && query.trim() !== '' && results.length > 0 && (
+        <ul className="mt-3 space-y-2">
+          {results.map((result) => (
+            <li
+              className="border-border flex items-center justify-between gap-3 rounded-lg border px-3 py-2"
+              key={result.id}
+            >
+              <span className="min-w-0 flex-1 truncate text-sm">{result.title}</span>
+              <Button
+                disabled={applyingId !== undefined}
+                onClick={() => {
+                  applyResult(result);
+                }}
+                size="sm"
+                variant="outline"
+              >
+                {applyingId === result.id ? 'Applying…' : 'Use this'}
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+export function MappingEditor({
+  initialDraft,
+  onConfirm,
+  onSearchMetadata,
+  onSuggestVolumes,
+}: MappingEditorProps): React.JSX.Element {
   const [history, setHistory] = useState<MappingEditorHistory>(() =>
     createMappingHistory(initialDraft),
   );
@@ -203,6 +343,21 @@ export function MappingEditor({ initialDraft, onConfirm }: MappingEditorProps): 
           </Button>
         </div>
       </header>
+
+      {onSearchMetadata !== undefined && onSuggestVolumes !== undefined && (
+        <MetadataSuggestionPanel
+          mangaTitle={draft.mangaTitle}
+          onApply={(result, volumes) => {
+            dispatch({
+              type: 'apply-suggestion',
+              suggestions: volumes.map((volume) => ({ ...volume, id: createVolumeId() })),
+              source: { provider: result.provider, id: result.id },
+            });
+          }}
+          onSearchMetadata={onSearchMetadata}
+          onSuggestVolumes={onSuggestVolumes}
+        />
+      )}
 
       {operationMessage !== undefined && (
         <div

@@ -34,3 +34,12 @@ test('batch review remains visually consistent', async ({ page }) => {
   await page.evaluate(async () => document.fonts.ready);
   await expect(page.locator('#storybook-root')).toHaveScreenshot('batch-review.png');
 });
+
+test('MangaDex suggestions remain visually consistent', async ({ page }) => {
+  await page.goto(
+    '/iframe.html?id=workflows-mapping-editor--with-metadata-suggestions&viewMode=story',
+  );
+  await expect(page.getByRole('button', { name: 'Use this' }).first()).toBeVisible();
+  await page.evaluate(async () => document.fonts.ready);
+  await expect(page.locator('#storybook-root')).toHaveScreenshot('mapping-editor-suggestions.png');
+});

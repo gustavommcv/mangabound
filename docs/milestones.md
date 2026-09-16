@@ -59,6 +59,12 @@ Exit: no supported CLI capability is available only from a hidden command line.
 - Add MangaDex suggestions behind the metadata-provider port.
 - Keep manual input and correction identical whether suggestions exist, fail, or are skipped.
 
+A suggestion matches MangaDex's volume/chapter-number groupings against chapters already
+discovered locally (by number, since ids differ) and applies as one more undoable command in the
+mapping editor's existing history — never a special, non-reversible state. Metadata search/lookup
+reuses the existing IPC job-cancellation mechanism; no chapter content is ever fetched, matching
+ADR 0005's anti-goal against acquisition.
+
 Exit: disabling the network does not reduce manual mapping capability.
 
 ## M7 — Library and OPDS delivery

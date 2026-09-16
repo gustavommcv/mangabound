@@ -114,4 +114,65 @@ describe('mapping editor', () => {
     );
     expect(screen.getByRole('button', { name: 'Confirm mapping' })).toBeDisabled();
   });
+
+  it('applies a MangaDex suggestion as an undoable edit without requiring it', async () => {
+    const user = userEvent.setup();
+    const onSearchMetadata = vi.fn(() =>
+      Promise.resolve([{ id: 'work-1', title: 'A Quiet Journey', provider: 'MangaDex' }]),
+    );
+    const onSuggestVolumes = vi.fn(() =>
+      Promise.resolve({ volumes: [{ number: '1', chapterNumbers: [1, 2] }] }),
+    );
+    render(
+      <MappingEditor
+        initialDraft={createMappingDraft({ mangaTitle: 'Offline Work', chapters })}
+        onSearchMetadata={onSearchMetadata}
+        onSuggestVolumes={onSuggestVolumes}
+      />,
+    );
+
+    expect(await screen.findByText('A Quiet Journey')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Use this' }));
+
+    expect(await screen.findByText('Suggested by MangaDex')).toBeVisible();
+    const chapterOneRow = screen.getByRole('checkbox', { name: 'Select Chapter 1' }).closest('div');
+    const chapterThreeRow = screen
+      .getByRole('checkbox', { name: 'Select Chapter 3' })
+      .closest('div');
+    expect(within(chapterOneRow!).getByText('Volume 1')).toBeVisible();
+    expect(within(chapterThreeRow!).getByText('Unassigned')).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Undo last mapping edit' }));
+    expect(screen.getByText('Manual mapping · Offline')).toBeVisible();
+    expect(within(chapterOneRow!).getByText('Unassigned')).toBeVisible();
+  });
+
+  it('keeps every manual control operable when a MangaDex lookup fails', async () => {
+    const user = userEvent.setup();
+    const onSearchMetadata = vi.fn(() => Promise.reject(new Error('MangaDex is unreachable.')));
+    render(
+      <MappingEditor
+        initialDraft={createMappingDraft({ mangaTitle: 'Offline Work', chapters })}
+        onSearchMetadata={onSearchMetadata}
+        onSuggestVolumes={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByText('MangaDex is unreachable.')).toBeVisible();
+    expect(screen.getByText('Manual mapping · Offline')).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Add volume' }));
+    await user.click(screen.getByRole('button', { name: 'Select all' }));
+    await user.click(screen.getByRole('button', { name: 'Assign selected' }));
+
+    expect(screen.getByText('All chapters are ready to bind.')).toBeVisible();
+  });
+
+  it('renders identically to today when no metadata callbacks are supplied', () => {
+    render(
+      <MappingEditor initialDraft={createMappingDraft({ mangaTitle: 'Offline Work', chapters })} />,
+    );
+
+    expect(screen.queryByText('Suggest from MangaDex')).not.toBeInTheDocument();
+  });
 });
