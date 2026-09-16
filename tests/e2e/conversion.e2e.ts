@@ -121,7 +121,9 @@ describe('packaged conversion pipeline', () => {
     assert.equal(savedMetadata.schema_version, 1);
     await assert.rejects(readFile(path.join(autoResolvedInputPath, 'mangabind.json'), 'utf8'));
 
-    await $('button=Choose output folder').click();
+    const chooseOutputFolder = $('button=Choose output folder');
+    await chooseOutputFolder.waitForClickable({ timeout: 30_000 });
+    await chooseOutputFolder.click();
     await $('button=Start batch conversion').click();
     await browser.waitUntil(async () => (await readdir(outputLibraryPath)).length === 2, {
       timeout: 120_000,
