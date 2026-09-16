@@ -530,6 +530,24 @@ describe('single-input workflow', () => {
     ).rejects.toThrow(/does not support/u);
   });
 
+  it('rejects invalid output settings before invoking batch binding', async () => {
+    const ports = dependencies();
+    const workflow = new SingleInputWorkflow(ports.binding, ports.conversion, () => 'id');
+
+    await expect(
+      workflow.convertBatch(
+        {
+          parentPath: '/library',
+          libraryPath: '/output',
+          settings: { ...defaultMangapressSettings, jpegQuality: 101 },
+          format: 'epub',
+        },
+        { onProgress: vi.fn() },
+      ),
+    ).rejects.toMatchObject({ code: 'invalid_settings' });
+    expect(ports.bindBatch).not.toHaveBeenCalled();
+  });
+
   it('converts every volume of a successful batch title and isolates a bind-phase failure', async () => {
     const ports = dependencies();
     const onProgress = vi.fn();

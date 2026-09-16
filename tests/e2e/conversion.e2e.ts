@@ -98,6 +98,9 @@ describe('packaged conversion pipeline', () => {
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [libraryParentPath] });
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [outputLibraryPath] });
 
+    // The previous spec left the app on its "book saved" screen — return to Home first.
+    await $('button=Convert something else').click();
+    await $('h1=What are you bringing in?').waitForDisplayed({ timeout: 30_000 });
     await $('button*=Manga library (batch)').click();
     await $('h1=Convert Library').waitForDisplayed({ timeout: 30_000 });
     assert.match(await $('main').getText(), /No volumes could be assigned automatically/u);

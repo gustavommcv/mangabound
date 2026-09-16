@@ -121,7 +121,7 @@ export function retryTitle(state: BatchState, title: string): BatchState {
         draft: candidate.draft,
         volumes: candidate.volumes,
         issues: candidate.issues,
-        ...(candidate.artifacts === undefined ? {} : { artifacts: candidate.artifacts }),
+        artifacts: candidate.artifacts,
       };
     }),
   };

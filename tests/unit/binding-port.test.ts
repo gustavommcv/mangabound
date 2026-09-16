@@ -68,6 +68,13 @@ function batchReport(volumesPath: string): MangabindRunResult['report'] {
   good.status = 'completed_with_warnings';
   good.volumes = [
     {
+      number: 2,
+      output_path: path.join(volumesPath, 'Good Manga - Vol.02.cbz'),
+      page_count: 1,
+      chapters: ['Chapter 2'],
+      written: true,
+    },
+    {
       number: 1,
       output_path: path.join(volumesPath, 'Good Manga - Vol.01.cbz'),
       page_count: 2,
@@ -460,24 +467,30 @@ describe('mangabind binding port', () => {
   it('surfaces per-title status from a batch plan without gating on the top-level status', async () => {
     const root = path.join(os.tmpdir(), 'mangabound-batch-plan');
     const files = fakeFiles(root);
-    const adapter = new MangabindBindingAdapter(
-      {
-        run: () =>
-          Promise.resolve(result({ report: batchReport(path.join(root, 'volumes')), exitCode: 1 })),
-      },
-      files,
-      os.tmpdir(),
-      () => 'batch-plan',
-    );
+    const cli = {
+      run: vi.fn<MangabindCliAdapter['run']>(() =>
+        Promise.resolve(result({ report: batchReport(path.join(root, 'volumes')), exitCode: 1 })),
+      ),
+    };
+    const adapter = new MangabindBindingAdapter(cli, files, os.tmpdir(), () => 'batch-plan');
+    const controller = new AbortController();
 
-    const plan = await adapter.planBatch('/library');
+    const plan = await adapter.planBatch('/library', controller.signal);
+
+    expect(cli.run).toHaveBeenCalledWith(
+      expect.objectContaining({ inputPath: '/library', batch: true, dryRun: true }),
+      { signal: controller.signal },
+    );
 
     expect(plan.titles).toHaveLength(2);
     expect(plan.titles[0]).toMatchObject({
       title: 'Good Manga',
       inputPath: '/library/Good Manga',
       status: 'completed_with_warnings',
-      volumes: [{ name: 'Good Manga - Vol.01.cbz', pageCount: 2 }],
+      volumes: [
+        { name: 'Good Manga - Vol.01.cbz', pageCount: 2 },
+        { name: 'Good Manga - Vol.02.cbz', pageCount: 1 },
+      ],
     });
     expect(plan.titles[1]).toMatchObject({
       title: 'Broken Manga',
@@ -488,6 +501,12 @@ describe('mangabind binding port', () => {
     expect(plan.titles[1]!.issues[0]).toMatchObject({ code: 'metadata_load_failed' });
     // Cleans up its own scratch workspace regardless of the top-level status.
     expect(files.removeDirectory).toHaveBeenCalledWith(path.resolve(root));
+
+    await adapter.planBatch('/library');
+    expect(cli.run).toHaveBeenLastCalledWith(
+      expect.objectContaining({ inputPath: '/library' }),
+      {},
+    );
   });
 
   it('returns volume paths for a successful batch title and isolates a failed one', async () => {
@@ -495,14 +514,20 @@ describe('mangabind binding port', () => {
     const files = fakeFiles(root);
     const report = batchReport(path.join(root, 'volumes'));
     report.mode = 'execute';
-    const adapter = new MangabindBindingAdapter(
-      { run: () => Promise.resolve(result({ report, exitCode: 1 })) },
-      files,
-      os.tmpdir(),
-      () => 'batch-workspace',
-    );
+    const cli = {
+      run: vi.fn<MangabindCliAdapter['run']>(() =>
+        Promise.resolve(result({ report, exitCode: 1 })),
+      ),
+    };
+    const adapter = new MangabindBindingAdapter(cli, files, os.tmpdir(), () => 'batch-workspace');
+    const controller = new AbortController();
 
-    const bound = await adapter.bindBatch('/library');
+    const bound = await adapter.bindBatch('/library', controller.signal);
+
+    expect(cli.run).toHaveBeenCalledWith(
+      expect.objectContaining({ inputPath: '/library', batch: true, dryRun: false }),
+      { signal: controller.signal },
+    );
 
     expect(bound.workspaceId).toBe('batch-workspace');
     expect(bound.titles[0]).toMatchObject({
@@ -511,6 +536,7 @@ describe('mangabind binding port', () => {
     });
     expect(bound.titles[0]!.volumePaths.map((volumePath) => path.basename(volumePath))).toEqual([
       'Good Manga - Vol.01.cbz',
+      'Good Manga - Vol.02.cbz',
     ]);
     expect(bound.titles[1]).toMatchObject({ title: 'Broken Manga', status: 'failed' });
     expect(bound.titles[1]!.volumePaths).toEqual([]);
