@@ -73,6 +73,13 @@ Exit: disabling the network does not reduce manual mapping capability.
 - Serve OPDS 1.2 navigation and acquisition feeds, including newest-first and recently converted views.
 - Add KOReader-oriented E2E checks for ordering, links, MIME types, and acquisition.
 
+Every successful conversion publishes into a per-folder catalog at `<library>/.mangabound/library.json`
+(ADR 0007), written atomically and keyed by output path so a reconversion replaces its existing
+entry instead of duplicating it — the collision handling the milestone asks for. A single OPDS 1.2
+acquisition feed, always sorted newest-first, is the "recently converted" view; sharing itself is an
+explicit per-session toggle bound to one user-chosen network interface, authenticated by a random
+token or Basic credentials, and stopped whenever the app quits.
+
 Exit: today's conversion is the first item in the dedicated feed and can be acquired without paging through the library.
 
 ## M8 — Release hardening
