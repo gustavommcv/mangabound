@@ -68,10 +68,11 @@ describe('packaged OPDS delivery', () => {
     await $('button=Start conversion').click();
     await $('h1=1 book saved').waitForDisplayed({ timeout: 120_000 });
 
-    assert.deepEqual(
-      (await readdir(libraryPath)).sort(),
-      ['Mangabound Direct.epub', 'Mangabound E2E - Vol.01.epub'].sort(),
-    );
+    assert.deepEqual((await readdir(libraryPath)).sort(), [
+      '.mangabound',
+      'Mangabound Direct.epub',
+      'Mangabound E2E - Vol.01.epub',
+    ]);
 
     // The Share panel's interface picker only ever lists real, non-loopback LAN
     // addresses (by design, see ADR 0007) -- a CI sandbox may have none. Sharing

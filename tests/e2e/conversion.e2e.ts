@@ -68,7 +68,10 @@ describe('packaged conversion pipeline', () => {
     assert.match(await $('main').getText(), /directly to mangapress/u);
     await $('button=Validate plan').click();
     await $('h2=Plan validated').waitForDisplayed({ timeout: 30_000 });
-    assert.deepEqual(await readdir(libraryPath), ['Mangabound E2E - Vol.01.epub']);
+    assert.deepEqual((await readdir(libraryPath)).sort(), [
+      '.mangabound',
+      'Mangabound E2E - Vol.01.epub',
+    ]);
     await $('button=Start conversion').click();
     await $('h1=1 book saved').waitForDisplayed({ timeout: 120_000 });
 
@@ -76,10 +79,11 @@ describe('packaged conversion pipeline', () => {
     const directBytes = await readFile(directBook);
     assert.ok(directBytes.length > 1_024);
     assert.equal(directBytes.subarray(0, 2).toString('ascii'), 'PK');
-    assert.deepEqual(
-      (await readdir(libraryPath)).sort(),
-      ['Mangabound Direct.epub', 'Mangabound E2E - Vol.01.epub'].sort(),
-    );
+    assert.deepEqual((await readdir(libraryPath)).sort(), [
+      '.mangabound',
+      'Mangabound Direct.epub',
+      'Mangabound E2E - Vol.01.epub',
+    ]);
     assert.equal(openDialog.mock.calls.length, 3);
   });
 
@@ -127,16 +131,18 @@ describe('packaged conversion pipeline', () => {
     await chooseOutputFolder.waitForClickable({ timeout: 30_000 });
     await chooseOutputFolder.click();
     await $('button=Start batch conversion').click();
-    await browser.waitUntil(async () => (await readdir(outputLibraryPath)).length === 2, {
+    await browser.waitUntil(async () => (await readdir(outputLibraryPath)).length === 3, {
       timeout: 120_000,
-      timeoutMsg: 'Expected both batch titles to produce a saved book.',
+      timeoutMsg: 'Expected both batch titles to produce a saved book plus the library catalog.',
     });
 
-    const savedBooks = (await readdir(outputLibraryPath)).sort();
-    assert.deepEqual(savedBooks, [
+    const entries = (await readdir(outputLibraryPath)).sort();
+    assert.deepEqual(entries, [
+      '.mangabound',
       'Auto-Resolved Manga - Vol.01.epub',
       'Needs Mapping Manga - Vol.01.epub',
     ]);
+    const savedBooks = entries.filter((name) => name !== '.mangabound');
     for (const name of savedBooks) {
       const bytes = await readFile(path.join(outputLibraryPath, name));
       assert.ok(bytes.length > 1_024);
