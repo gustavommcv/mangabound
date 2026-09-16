@@ -1,3 +1,4 @@
+import type { NetworkInterfaceOption, OpdsAuthConfig, OpdsSharingStatus } from './opds-contract';
 import type { ToolchainStatus } from './toolchain-status';
 import type {
   ArtifactSummary,
@@ -64,4 +65,12 @@ export interface MangaboundBridge {
   readonly onConversionProgress: (
     listener: (progress: ConversionProgressPayload) => void,
   ) => () => void;
+  readonly listNetworkInterfaces: () => Promise<WorkflowResult<readonly NetworkInterfaceOption[]>>;
+  readonly startSharing: (
+    libraryId: string,
+    interfaceAddress: string,
+    auth: OpdsAuthConfig,
+  ) => Promise<WorkflowResult<OpdsSharingStatus>>;
+  readonly stopSharing: () => Promise<WorkflowResult<undefined>>;
+  readonly getSharingStatus: () => Promise<WorkflowResult<OpdsSharingStatus>>;
 }

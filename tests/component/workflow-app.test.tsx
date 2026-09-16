@@ -94,6 +94,11 @@ function bridge(overrides: Partial<MangaboundBridge> = {}): MangaboundBridge {
     openArtifact: () => Promise.resolve({ ok: true, value: undefined }),
     showArtifactInFolder: () => Promise.resolve({ ok: true, value: undefined }),
     onConversionProgress: () => () => undefined,
+    listNetworkInterfaces: () => Promise.resolve({ ok: true, value: [] }),
+    startSharing: () =>
+      Promise.resolve({ ok: true, value: { active: true, authMode: 'token' as const } }),
+    stopSharing: () => Promise.resolve({ ok: true, value: undefined }),
+    getSharingStatus: () => Promise.resolve({ ok: true, value: { active: false } }),
     ...overrides,
   };
 }

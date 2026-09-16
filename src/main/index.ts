@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { stat } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -17,19 +17,31 @@ import { ZodError } from 'zod';
 import { MangabindBindingAdapter } from '@/adapters/mangabind/binding-port';
 import { MangabindCliAdapter } from '@/adapters/mangabind/cli';
 import { CliProtocolError } from '@/adapters/cli-protocol-error';
+import { FsLibraryStore } from '@/adapters/library/fs-library-store';
 import { MangaDexMetadataProvider } from '@/adapters/mangadex/metadata-provider';
 import { MetadataProviderError } from '@/adapters/mangadex/protocol';
 import { MangapressCliAdapter } from '@/adapters/mangapress/cli';
 import { MangapressConversionAdapter } from '@/adapters/mangapress/conversion-port';
+import { OsNetworkInterfaces } from '@/adapters/network/os-network-interfaces';
+import { NodeOpdsServer } from '@/adapters/opds/http-server';
 import { createNodeProcessRunner } from '@/adapters/process/node-process-runner';
 import { verifyBundledToolchain } from '@/adapters/toolchain/verification';
+import type { OpdsServerHandle } from '@/application/ports/opds-server';
 import { ProcessCancelledError } from '@/application/ports/process-runner';
+import { LibraryPublisher } from '@/application/workflows/library-publisher';
 import { SingleInputWorkflow } from '@/application/workflows/single-input';
 import {
   ConversionWorkflowError,
+  type ConversionArtifact,
   type InputSelection,
   ToolExecutionError,
 } from '@/domain/conversion';
+import { LibraryIndexError } from '@/library/manifest';
+import {
+  type NetworkInterfaceOption,
+  type OpdsSharingStatus,
+  startSharingCommandSchema,
+} from '@/shared/opds-contract';
 import type { ToolchainStatus, ToolchainTarget } from '@/shared/toolchain-status';
 import {
   type ArtifactSummary,
@@ -61,6 +73,11 @@ const selectedLibraries = new Map<string, string>();
 const artifactPaths = new Map<string, string>();
 const activeJobs = new Map<string, AbortController>();
 const metadataProvider = new MangaDexMetadataProvider();
+const libraryStore = new FsLibraryStore();
+const libraryPublisher = new LibraryPublisher(libraryStore);
+const opdsServer = new NodeOpdsServer(libraryStore);
+const networkInterfaces = new OsNetworkInterfaces();
+let activeSharing: OpdsServerHandle | undefined;
 let workflow: SingleInputWorkflow | undefined;
 let mangapressCli: MangapressCliAdapter | undefined;
 let cleanupStarted = false;
@@ -83,6 +100,19 @@ function toFailure(error: unknown): WorkflowFailure {
   }
   if (error instanceof MetadataProviderError) {
     return { code: error.code, message: error.message };
+  }
+  if (error instanceof LibraryIndexError) {
+    return { code: error.code, message: 'The output library catalog could not be read.' };
+  }
+  if (
+    error instanceof Error &&
+    'code' in error &&
+    (error.code === 'EADDRNOTAVAIL' || error.code === 'EADDRINUSE' || error.code === 'EACCES')
+  ) {
+    return {
+      code: 'sharing_failed',
+      message: 'The sharing server could not be started on that network address.',
+    };
   }
   if (error instanceof CliProtocolError) {
     return {
@@ -109,6 +139,87 @@ function executablePath(
 function requireWorkflow(): SingleInputWorkflow {
   if (workflow === undefined) throw new Error('The bundled conversion tools are not ready.');
   return workflow;
+}
+
+async function publishArtifacts(
+  libraryPath: string,
+  artifacts: readonly ConversionArtifact[],
+): Promise<void> {
+  const results = await Promise.allSettled(
+    artifacts.map((artifact) => libraryPublisher.publish(libraryPath, artifact)),
+  );
+  for (const result of results) {
+    if (result.status === 'rejected') {
+      console.error('Failed to publish a saved book to the library catalog.', result.reason);
+    }
+  }
+}
+
+function toSharingStatus(handle: OpdsServerHandle | undefined): OpdsSharingStatus {
+  if (handle === undefined) return { active: false };
+  return {
+    active: true,
+    url: handle.url,
+    interfaceAddress: handle.interfaceAddress,
+    port: handle.port,
+    authMode: handle.authMode,
+    ...(handle.token === undefined ? {} : { token: handle.token }),
+  };
+}
+
+function registerOpdsHandlers(): void {
+  ipcMain.handle(
+    'opds:list-network-interfaces',
+    (): WorkflowResult<readonly NetworkInterfaceOption[]> => ok(networkInterfaces.list()),
+  );
+
+  ipcMain.handle(
+    'opds:start-sharing',
+    async (_event, rawCommand: unknown): Promise<WorkflowResult<OpdsSharingStatus>> => {
+      try {
+        const command = startSharingCommandSchema.parse(rawCommand);
+        const libraryPath = selectedLibraries.get(command.libraryId);
+        if (libraryPath === undefined) {
+          return failed({ code: 'library_not_found', message: 'Choose the output folder again.' });
+        }
+        if (activeSharing !== undefined) {
+          return failed({
+            code: 'sharing_already_active',
+            message: 'Sharing is already running.',
+          });
+        }
+        activeSharing = await opdsServer.start({
+          libraryPath,
+          libraryTitle: path.basename(libraryPath),
+          interfaceAddress: command.interfaceAddress,
+          auth:
+            command.auth.mode === 'token'
+              ? { mode: 'token', token: randomBytes(32).toString('base64url') }
+              : command.auth,
+        });
+        return ok(toSharingStatus(activeSharing));
+      } catch (error) {
+        return failed(toFailure(error));
+      }
+    },
+  );
+
+  ipcMain.handle('opds:stop-sharing', async (): Promise<WorkflowResult<undefined>> => {
+    try {
+      if (activeSharing === undefined) {
+        return failed({ code: 'sharing_not_active', message: 'Sharing is not running.' });
+      }
+      await activeSharing.stop();
+      activeSharing = undefined;
+      return ok(undefined);
+    } catch (error) {
+      return failed(toFailure(error));
+    }
+  });
+
+  ipcMain.handle('opds:get-status', (): WorkflowResult<OpdsSharingStatus> =>
+    ok(toSharingStatus(activeSharing)),
+  );
 }
 
 function registerWorkflowHandlers(): void {
@@ -330,6 +441,7 @@ function registerWorkflowHandlers(): void {
             },
           );
           for (const artifact of artifacts) artifactPaths.set(artifact.id, artifact.path);
+          await publishArtifacts(libraryPath, artifacts);
           return ok(artifacts.map(({ bytes, format, id, name }) => ({ bytes, format, id, name })));
         } finally {
           activeJobs.delete(command.jobId);
@@ -458,6 +570,10 @@ function registerWorkflowHandlers(): void {
           for (const outcome of outcomes) {
             for (const artifact of outcome.artifacts) artifactPaths.set(artifact.id, artifact.path);
           }
+          await publishArtifacts(
+            libraryPath,
+            outcomes.flatMap((outcome) => outcome.artifacts),
+          );
           return ok(
             outcomes.map((outcome) => ({
               title: outcome.title,
@@ -613,6 +729,7 @@ void app.whenReady().then(async () => {
   }
   ipcMain.handle('toolchain:get-status', () => toolchainStatus);
   registerWorkflowHandlers();
+  registerOpdsHandlers();
   createMainWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
@@ -620,11 +737,11 @@ void app.whenReady().then(async () => {
 });
 
 app.on('before-quit', (event) => {
-  if (cleanupStarted || workflow === undefined) return;
+  if (cleanupStarted || (workflow === undefined && activeSharing === undefined)) return;
   event.preventDefault();
   cleanupStarted = true;
   for (const controller of activeJobs.values()) controller.abort();
-  void workflow.releaseAll().finally(() => {
+  void Promise.allSettled([workflow?.releaseAll(), activeSharing?.stop()]).finally(() => {
     app.quit();
   });
 });

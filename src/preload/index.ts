@@ -2,6 +2,11 @@ import { contextBridge, ipcRenderer } from 'electron';
 
 import type { InputKind } from '../domain/conversion';
 import type { MappingDraft } from '../domain/mapping';
+import type {
+  NetworkInterfaceOption,
+  OpdsAuthConfig,
+  OpdsSharingStatus,
+} from '../shared/opds-contract';
 import type { MangaboundBridge } from '../shared/runtime-info';
 import type { ToolchainStatus } from '../shared/toolchain-status';
 import type {
@@ -70,6 +75,12 @@ const bridge: MangaboundBridge = Object.freeze({
       ipcRenderer.removeListener('workflow:progress', handler);
     };
   },
+  listNetworkInterfaces: () =>
+    invoke<readonly NetworkInterfaceOption[]>('opds:list-network-interfaces'),
+  startSharing: (libraryId: string, interfaceAddress: string, auth: OpdsAuthConfig) =>
+    invoke<OpdsSharingStatus>('opds:start-sharing', { libraryId, interfaceAddress, auth }),
+  stopSharing: () => invoke<undefined>('opds:stop-sharing'),
+  getSharingStatus: () => invoke<OpdsSharingStatus>('opds:get-status'),
   runtime: Object.freeze({
     electron: process.versions.electron,
     platform: process.platform,
