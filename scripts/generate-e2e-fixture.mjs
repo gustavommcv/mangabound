@@ -114,4 +114,38 @@ await writeFile(
   ]),
 );
 
+const batchLibraryRoot = path.resolve('tests', 'fixtures', 'e2e', 'hakuneko-batch', 'Library');
+// Volume-in-name chapters: mangabind auto-resolves these into one volume, even under --batch.
+for (let chapter = 1; chapter <= 2; chapter += 1) {
+  const chapterPath = path.join(
+    batchLibraryRoot,
+    'Auto-Resolved Manga',
+    `Volume 1 Chapter ${String(chapter)}`,
+  );
+  await mkdir(chapterPath, { recursive: true });
+  for (let page = 1; page <= 2; page += 1) {
+    await writeFile(
+      path.join(chapterPath, `${String(page).padStart(3, '0')}.png`),
+      image(chapter * 2 + page + 10),
+    );
+  }
+}
+// Plain chapter-only names: mangabind can't infer a volume without a mangabind.json,
+// even under --batch, so this manga needs the "Fix mapping" flow.
+for (let chapter = 1; chapter <= 2; chapter += 1) {
+  const chapterPath = path.join(
+    batchLibraryRoot,
+    'Needs Mapping Manga',
+    `Chapter ${String(chapter)}`,
+  );
+  await mkdir(chapterPath, { recursive: true });
+  for (let page = 1; page <= 2; page += 1) {
+    await writeFile(
+      path.join(chapterPath, `${String(page).padStart(3, '0')}.png`),
+      image(chapter * 2 + page + 20),
+    );
+  }
+}
+
 console.log(`Generated copyright-safe E2E fixture at ${fixtureRoot}`);
+console.log(`Generated copyright-safe batch E2E fixture at ${batchLibraryRoot}`);

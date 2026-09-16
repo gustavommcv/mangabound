@@ -48,7 +48,7 @@ Exit: the packaged-app E2E covers a real input through a saved output on all thr
 
 ## M5 — Batch and full capability exposure
 
-- Add multi-manga batch planning, per-title review, sequential default execution, retry, dry-run, and metadata-file workflows.
+- Add multi-manga batch planning, per-title review, sequential default execution, retry, dry-run, and metadata-file workflows. Batch uses mangabind's native `-batch` end to end (one discovery call, one bind call over the whole library); per-title manual chapter-to-volume correction goes through the existing single-input `mangabind.json`-per-folder convention rather than a batch-specific mechanism — see [ADR 0006](adr/0006-cli-first-tool-boundary.md).
 - Complete the organized basic/advanced/diagnostic controls for every supported flag in both CLIs.
 - Add generated contract coverage that fails when a CLI advertises an unrepresented option.
 

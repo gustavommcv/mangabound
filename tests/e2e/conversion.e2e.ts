@@ -82,4 +82,59 @@ describe('packaged conversion pipeline', () => {
     );
     assert.equal(openDialog.mock.calls.length, 3);
   });
+
+  it('discovers a real library in batch, fixes one title, and converts both with the pinned tools', async () => {
+    const testRoot = await mkdtemp(path.join(os.tmpdir(), 'mangabound-batch-e2e-'));
+    temporaryDirectories.push(testRoot);
+    const sourceLibrary = path.resolve('tests', 'fixtures', 'e2e', 'hakuneko-batch', 'Library');
+    const libraryParentPath = path.join(testRoot, 'Library');
+    const outputLibraryPath = path.join(testRoot, 'output');
+    await cp(sourceLibrary, libraryParentPath, { recursive: true });
+    await mkdir(outputLibraryPath);
+    const needsMappingInputPath = path.join(libraryParentPath, 'Needs Mapping Manga');
+    const autoResolvedInputPath = path.join(libraryParentPath, 'Auto-Resolved Manga');
+
+    const openDialog = await browser.electron.mock('dialog', 'showOpenDialog');
+    await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [libraryParentPath] });
+    await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [outputLibraryPath] });
+
+    await $('button*=Manga library (batch)').click();
+    await $('h1=Convert Library').waitForDisplayed({ timeout: 30_000 });
+    assert.match(await $('main').getText(), /No volumes could be assigned automatically/u);
+    await assert.rejects(readFile(path.join(needsMappingInputPath, 'mangabind.json'), 'utf8'));
+
+    await $('button=Fix mapping').click();
+    await $('h1=Organize Needs Mapping Manga into volumes').waitForDisplayed({ timeout: 30_000 });
+    await $('button=Select all').click();
+    await $('button[aria-label="Add volume"]').click();
+    await $('button=Assign selected').click();
+    await $('button=Confirm mapping').click();
+    await $('h1=Convert Library').waitForDisplayed({ timeout: 30_000 });
+    assert.doesNotMatch(await $('main').getText(), /No volumes could be assigned automatically/u);
+
+    const savedMetadata = JSON.parse(
+      await readFile(path.join(needsMappingInputPath, 'mangabind.json'), 'utf8'),
+    ) as { schema_version: number };
+    assert.equal(savedMetadata.schema_version, 1);
+    await assert.rejects(readFile(path.join(autoResolvedInputPath, 'mangabind.json'), 'utf8'));
+
+    await $('button=Choose output folder').click();
+    await $('button=Start batch conversion').click();
+    await browser.waitUntil(async () => (await readdir(outputLibraryPath)).length === 2, {
+      timeout: 120_000,
+      timeoutMsg: 'Expected both batch titles to produce a saved book.',
+    });
+
+    const savedBooks = (await readdir(outputLibraryPath)).sort();
+    assert.deepEqual(savedBooks, [
+      'Auto-Resolved Manga - Vol.01.epub',
+      'Needs Mapping Manga - Vol.01.epub',
+    ]);
+    for (const name of savedBooks) {
+      const bytes = await readFile(path.join(outputLibraryPath, name));
+      assert.ok(bytes.length > 1_024);
+      assert.equal(bytes.subarray(0, 2).toString('ascii'), 'PK');
+    }
+    assert.equal(openDialog.mock.calls.length, 2);
+  });
 });

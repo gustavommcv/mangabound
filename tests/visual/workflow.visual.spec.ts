@@ -27,3 +27,10 @@ test('validated plan remains visually consistent', async ({ page }) => {
   await page.evaluate(async () => document.fonts.ready);
   await expect(page.locator('#storybook-root')).toHaveScreenshot('validated-plan.png');
 });
+
+test('batch review remains visually consistent', async ({ page }) => {
+  await page.goto('/iframe.html?id=workflows-single-input--batch-review-story&viewMode=story');
+  await expect(page.getByRole('heading', { name: 'Convert Winter Reading Library' })).toBeVisible();
+  await page.evaluate(async () => document.fonts.ready);
+  await expect(page.locator('#storybook-root')).toHaveScreenshot('batch-review.png');
+});
