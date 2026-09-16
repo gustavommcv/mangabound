@@ -1,10 +1,14 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
 import type { InputKind } from '../domain/conversion';
+import type { MappingDraft } from '../domain/mapping';
 import type { MangaboundBridge } from '../shared/runtime-info';
 import type { ToolchainStatus } from '../shared/toolchain-status';
 import type {
   ArtifactSummary,
+  BatchConversionCommand,
+  BatchPlanSummary,
+  BatchTitleResult,
   ConversionCommand,
   ConversionProgressPayload,
   DeviceProfileSummary,
@@ -34,6 +38,14 @@ const bridge: MangaboundBridge = Object.freeze({
     invoke<readonly ArtifactSummary[]>('workflow:convert', command),
   planConversion: (command: ConversionCommand) => invoke<PlanSummary>('workflow:plan', command),
   cancelConversion: (jobId: string) => invoke<undefined>('workflow:cancel', jobId),
+  chooseInputBatch: () =>
+    invoke<{ parentPath: string; displayName: string } | null>('workflow:choose-input-batch'),
+  planBatch: (jobId: string, parentPath: string) =>
+    invoke<BatchPlanSummary>('workflow:plan-batch', { jobId, parentPath }),
+  writeTitleMapping: (inputPath: string, mapping: MappingDraft) =>
+    invoke<undefined>('workflow:write-title-mapping', { inputPath, mapping }),
+  convertBatch: (command: BatchConversionCommand) =>
+    invoke<readonly BatchTitleResult[]>('workflow:convert-batch', command),
   openArtifact: (artifactId: string) => invoke<undefined>('artifact:open', artifactId),
   showArtifactInFolder: (artifactId: string) =>
     invoke<undefined>('artifact:show-in-folder', artifactId),

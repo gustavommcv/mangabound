@@ -31,16 +31,21 @@ import {
 import type { ToolchainStatus, ToolchainTarget } from '@/shared/toolchain-status';
 import {
   type ArtifactSummary,
+  batchConversionCommandSchema,
+  type BatchPlanSummary,
+  type BatchTitleResult,
   conversionCommandSchema,
   type DeviceProfileSummary,
   identifierSchema,
   inputKindSchema,
   type InspectedInputPayload,
+  planBatchCommandSchema,
   type PlanSummary,
   type SelectedInput,
   type SelectedLibrary,
   type WorkflowFailure,
   type WorkflowResult,
+  writeTitleMappingCommandSchema,
 } from '@/shared/workflow-contract';
 
 if (started) app.quit();
@@ -175,6 +180,29 @@ function registerWorkflowHandlers(): void {
   );
 
   ipcMain.handle(
+    'workflow:choose-input-batch',
+    async (): Promise<WorkflowResult<{ parentPath: string; displayName: string } | null>> => {
+      try {
+        const result = await dialog.showOpenDialog({
+          title: 'Choose a folder containing multiple manga',
+          properties: ['openDirectory'],
+        });
+        const parentPath = result.filePaths[0];
+        if (result.canceled || parentPath === undefined) return ok(null);
+        if (!(await stat(parentPath)).isDirectory()) {
+          return failed({
+            code: 'invalid_input',
+            message: 'Choose a folder containing manga subfolders.',
+          });
+        }
+        return ok({ parentPath, displayName: path.basename(parentPath) });
+      } catch (error) {
+        return failed(toFailure(error));
+      }
+    },
+  );
+
+  ipcMain.handle(
     'workflow:choose-library',
     async (): Promise<WorkflowResult<SelectedLibrary | null>> => {
       try {
@@ -290,6 +318,98 @@ function registerWorkflowHandlers(): void {
           );
           for (const artifact of artifacts) artifactPaths.set(artifact.id, artifact.path);
           return ok(artifacts.map(({ bytes, format, id, name }) => ({ bytes, format, id, name })));
+        } finally {
+          activeJobs.delete(command.jobId);
+        }
+      } catch (error) {
+        return failed(toFailure(error));
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'workflow:plan-batch',
+    async (_event, rawCommand: unknown): Promise<WorkflowResult<BatchPlanSummary>> => {
+      try {
+        const command = planBatchCommandSchema.parse(rawCommand);
+        if (activeJobs.has(command.jobId)) {
+          return failed({ code: 'job_exists', message: 'That discovery is already running.' });
+        }
+        const controller = new AbortController();
+        activeJobs.set(command.jobId, controller);
+        try {
+          return ok(await requireWorkflow().planBatch(command.parentPath, controller.signal));
+        } finally {
+          activeJobs.delete(command.jobId);
+        }
+      } catch (error) {
+        return failed(toFailure(error));
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'workflow:write-title-mapping',
+    async (_event, rawCommand: unknown): Promise<WorkflowResult<undefined>> => {
+      try {
+        const command = writeTitleMappingCommandSchema.parse(rawCommand);
+        await requireWorkflow().writeTitleMapping(command.inputPath, command.mapping);
+        return ok(undefined);
+      } catch (error) {
+        return failed(toFailure(error));
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'workflow:convert-batch',
+    async (
+      event: IpcMainInvokeEvent,
+      rawCommand: unknown,
+    ): Promise<WorkflowResult<readonly BatchTitleResult[]>> => {
+      try {
+        const command = batchConversionCommandSchema.parse(rawCommand);
+        const libraryPath = selectedLibraries.get(command.libraryId);
+        if (libraryPath === undefined) {
+          return failed({ code: 'library_not_found', message: 'Choose the output folder again.' });
+        }
+        if (activeJobs.has(command.jobId)) {
+          return failed({ code: 'job_exists', message: 'That conversion is already running.' });
+        }
+        const controller = new AbortController();
+        activeJobs.set(command.jobId, controller);
+        try {
+          const outcomes = await requireWorkflow().convertBatch(
+            {
+              parentPath: command.parentPath,
+              libraryPath,
+              settings: command.settings,
+              format: command.format,
+              ...(command.titles === undefined ? {} : { titles: command.titles }),
+            },
+            {
+              signal: controller.signal,
+              onProgress: (progress) => {
+                event.sender.send('workflow:progress', { jobId: command.jobId, ...progress });
+              },
+            },
+          );
+          for (const outcome of outcomes) {
+            for (const artifact of outcome.artifacts) artifactPaths.set(artifact.id, artifact.path);
+          }
+          return ok(
+            outcomes.map((outcome) => ({
+              title: outcome.title,
+              status: outcome.status,
+              artifacts: outcome.artifacts.map(({ bytes, format, id, name }) => ({
+                bytes,
+                format,
+                id,
+                name,
+              })),
+              ...(outcome.error === undefined ? {} : { failure: toFailure(outcome.error) }),
+            })),
+          );
         } finally {
           activeJobs.delete(command.jobId);
         }

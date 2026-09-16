@@ -1,5 +1,11 @@
-import type { BindingPort, ConversionPort } from '@/application/ports/conversion-tools';
+import type {
+  BindingBatchPlan,
+  BindingPort,
+  ConversionPort,
+} from '@/application/ports/conversion-tools';
 import {
+  type BatchTitleOutcome,
+  type BookFormat,
   type ConversionArtifact,
   type ConversionProgress,
   type ConversionRequest,
@@ -9,7 +15,7 @@ import {
   type WorkflowPlan,
 } from '@/domain/conversion';
 import { createMappingDraft, type MappingDraft, validateMapping } from '@/domain/mapping';
-import { validateMangapressSettings } from '@/domain/output-profile';
+import { type MangapressSettings, validateMangapressSettings } from '@/domain/output-profile';
 
 interface ActiveSession {
   readonly selection: InputSelection;
@@ -189,6 +195,105 @@ export class SingleInputWorkflow {
       books: plan.volumes,
       issues: plan.issues,
     };
+  }
+
+  async planBatch(parentPath: string, signal?: AbortSignal): Promise<BindingBatchPlan> {
+    if (this.binding.planBatch === undefined) {
+      throw new Error('This binding port does not support batch planning.');
+    }
+    return this.binding.planBatch(parentPath, signal);
+  }
+
+  async writeTitleMapping(inputPath: string, mapping: MappingDraft): Promise<void> {
+    if (this.binding.writeTitleMapping === undefined) {
+      throw new Error('This binding port does not support writing title mappings.');
+    }
+    await this.binding.writeTitleMapping(inputPath, mapping);
+  }
+
+  async convertBatch(
+    request: {
+      readonly parentPath: string;
+      readonly libraryPath: string;
+      readonly settings: MangapressSettings;
+      readonly format: BookFormat;
+      readonly titles?: readonly string[];
+    },
+    {
+      onProgress,
+      signal,
+    }: {
+      readonly onProgress: (progress: ConversionProgress) => void;
+      readonly signal?: AbortSignal;
+    },
+  ): Promise<readonly BatchTitleOutcome[]> {
+    if (validateMangapressSettings(request.settings).length > 0) {
+      throw new ConversionWorkflowError(
+        'invalid_settings',
+        'Review the output settings before converting.',
+      );
+    }
+    if (this.binding.bindBatch === undefined) {
+      throw new Error('This binding port does not support batch binding.');
+    }
+    const bound = await this.binding.bindBatch(request.parentPath, signal);
+    const titles =
+      request.titles === undefined
+        ? bound.titles
+        : bound.titles.filter((title) => request.titles?.includes(title.title) === true);
+
+    const outcomes: BatchTitleOutcome[] = [];
+    try {
+      for (const title of titles) {
+        if (signal?.aborted === true) break;
+        if (title.status === 'failed' || title.volumePaths.length === 0) {
+          outcomes.push({
+            title: title.title,
+            status: 'failed',
+            artifacts: [],
+            error: new ConversionWorkflowError(
+              'binding_failed',
+              'No volume files were produced. Review the chapter mapping and try again.',
+            ),
+          });
+          continue;
+        }
+        const artifacts: ConversionArtifact[] = [];
+        try {
+          for (const [index, volumePath] of title.volumePaths.entries()) {
+            const volume = `${String(index + 1)} of ${String(title.volumePaths.length)}`;
+            onProgress({
+              stage: 'processing',
+              title: title.title,
+              volume,
+              message: `Converting ${title.title} · volume ${volume}…`,
+            });
+            artifacts.push(
+              await this.conversion.convert(
+                {
+                  inputPath: volumePath,
+                  outputDirectory: request.libraryPath,
+                  settings: request.settings,
+                  format: request.format,
+                },
+                {
+                  ...(signal === undefined ? {} : { signal }),
+                  onProgress: (progress) => {
+                    onProgress({ ...progress, title: title.title, volume });
+                  },
+                },
+              ),
+            );
+          }
+          outcomes.push({ title: title.title, status: 'done', artifacts });
+        } catch (error) {
+          outcomes.push({ title: title.title, status: 'failed', artifacts, error });
+        }
+      }
+    } finally {
+      await this.binding.release(bound.workspaceId);
+    }
+    return outcomes;
   }
 
   async release(sessionId: string): Promise<void> {

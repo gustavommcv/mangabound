@@ -54,9 +54,17 @@ export interface WorkflowPlan {
   readonly issues: readonly PipelineIssue[];
 }
 
+export interface BatchTitleOutcome {
+  readonly title: string;
+  readonly status: 'done' | 'failed';
+  readonly artifacts: readonly ConversionArtifact[];
+  readonly error?: unknown;
+}
+
 export interface ConversionProgress {
   readonly stage: 'binding' | 'processing' | 'saving';
   readonly message: string;
+  readonly title?: string;
   readonly volume?: string;
   readonly chapter?: string;
   readonly page?: number;

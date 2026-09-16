@@ -72,6 +72,25 @@ export const conversionCommandSchema = z.object({
   mapping: mappingDraftSchema.optional(),
 });
 
+export const planBatchCommandSchema = z.object({
+  jobId: identifierSchema,
+  parentPath: z.string().min(1),
+});
+
+export const batchConversionCommandSchema = z.object({
+  jobId: identifierSchema,
+  parentPath: z.string().min(1),
+  libraryId: identifierSchema,
+  settings: mangapressSettingsSchema,
+  format: z.enum(['epub', 'cbz', 'pdf']),
+  titles: z.array(z.string().min(1)).optional(),
+});
+
+export const writeTitleMappingCommandSchema = z.object({
+  inputPath: z.string().min(1),
+  mapping: mappingDraftSchema,
+});
+
 export interface SelectedInput {
   readonly selectionId: string;
   readonly displayName: string;
@@ -130,6 +149,41 @@ export interface ConversionCommand {
 
 export interface ConversionProgressPayload extends ConversionProgress {
   readonly jobId: string;
+}
+
+export type BatchTitleStatus = 'completed' | 'completed_with_warnings' | 'failed';
+
+export interface BatchPlanTitle {
+  readonly title: string;
+  readonly inputPath: string;
+  readonly status: BatchTitleStatus;
+  readonly draft: MappingDraft;
+  readonly volumes: readonly {
+    readonly name: string;
+    readonly pageCount: number;
+  }[];
+  readonly issues: readonly PipelineIssue[];
+}
+
+export interface BatchPlanSummary {
+  readonly titles: readonly BatchPlanTitle[];
+  readonly issues: readonly PipelineIssue[];
+}
+
+export interface BatchConversionCommand {
+  readonly jobId: string;
+  readonly parentPath: string;
+  readonly libraryId: string;
+  readonly settings: MangapressSettings;
+  readonly format: BookFormat;
+  readonly titles?: readonly string[];
+}
+
+export interface BatchTitleResult {
+  readonly title: string;
+  readonly status: 'done' | 'failed';
+  readonly artifacts: readonly ArtifactSummary[];
+  readonly failure?: WorkflowFailure;
 }
 
 export interface WorkflowFailure {

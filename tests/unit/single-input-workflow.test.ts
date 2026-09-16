@@ -69,8 +69,54 @@ function dependencies({ volumePaths = ['/work/volume-1.cbz', '/work/volume-2.cbz
       height: 1448,
     }),
   );
+  const planBatch = vi.fn<NonNullable<BindingPort['planBatch']>>(() =>
+    Promise.resolve({
+      titles: [
+        {
+          title: 'Good Manga',
+          inputPath: '/library/Good Manga',
+          status: 'completed',
+          draft: trustedDraft,
+          volumes: [{ name: 'Good Manga - Vol.01.cbz', pageCount: 2 }],
+          issues: [],
+        },
+      ],
+      issues: [],
+    }),
+  );
+  const bindBatch = vi.fn<NonNullable<BindingPort['bindBatch']>>(() =>
+    Promise.resolve({
+      workspaceId: 'batch-workspace',
+      titles: [
+        {
+          title: 'Good Manga',
+          status: 'completed',
+          volumePaths: ['/work/batch/good-vol-1.cbz', '/work/batch/good-vol-2.cbz'],
+          issues: [],
+        },
+        {
+          title: 'Broken Manga',
+          status: 'failed',
+          volumePaths: [],
+          issues: [],
+        },
+      ],
+      issues: [],
+    }),
+  );
+  const writeTitleMapping = vi.fn<NonNullable<BindingPort['writeTitleMapping']>>(() =>
+    Promise.resolve(),
+  );
   return {
-    binding: { bind, inspect, plan: bindingPlan, release } satisfies BindingPort,
+    binding: {
+      bind,
+      inspect,
+      plan: bindingPlan,
+      release,
+      planBatch,
+      bindBatch,
+      writeTitleMapping,
+    } satisfies BindingPort,
     conversion: { convert, plan: conversionPlan } satisfies ConversionPort,
     bind,
     bindingPlan,
@@ -78,6 +124,9 @@ function dependencies({ volumePaths = ['/work/volume-1.cbz', '/work/volume-2.cbz
     release,
     convert,
     conversionPlan,
+    planBatch,
+    bindBatch,
+    writeTitleMapping,
   };
 }
 
@@ -438,5 +487,149 @@ describe('single-input workflow', () => {
     await workflow.releaseAll();
 
     expect(ports.release).toHaveBeenCalledExactlyOnceWith('workspace-1');
+  });
+
+  it('delegates batch planning and title-mapping writes to the binding port', async () => {
+    const ports = dependencies();
+    const workflow = new SingleInputWorkflow(ports.binding, ports.conversion, () => 'id');
+    const controller = new AbortController();
+
+    await expect(workflow.planBatch('/library', controller.signal)).resolves.toMatchObject({
+      titles: [{ title: 'Good Manga' }],
+    });
+    expect(ports.planBatch).toHaveBeenCalledWith('/library', controller.signal);
+
+    await workflow.writeTitleMapping('/library/Good Manga', mappedDraft());
+    expect(ports.writeTitleMapping).toHaveBeenCalledWith('/library/Good Manga', mappedDraft());
+  });
+
+  it('rejects batch operations when the binding port does not support them', async () => {
+    const ports = dependencies();
+    const bindingWithoutBatch: BindingPort = {
+      bind: ports.bind,
+      inspect: ports.inspect,
+      plan: ports.bindingPlan,
+      release: ports.release,
+    };
+    const workflow = new SingleInputWorkflow(bindingWithoutBatch, ports.conversion, () => 'id');
+
+    await expect(workflow.planBatch('/library')).rejects.toThrow(/does not support/u);
+    await expect(workflow.writeTitleMapping('/library/Manga', mappedDraft())).rejects.toThrow(
+      /does not support/u,
+    );
+    await expect(
+      workflow.convertBatch(
+        {
+          parentPath: '/library',
+          libraryPath: '/output',
+          settings: defaultMangapressSettings,
+          format: 'epub',
+        },
+        { onProgress: vi.fn() },
+      ),
+    ).rejects.toThrow(/does not support/u);
+  });
+
+  it('converts every volume of a successful batch title and isolates a bind-phase failure', async () => {
+    const ports = dependencies();
+    const onProgress = vi.fn();
+    const workflow = new SingleInputWorkflow(ports.binding, ports.conversion, () => 'id');
+
+    const outcomes = await workflow.convertBatch(
+      {
+        parentPath: '/library',
+        libraryPath: '/output',
+        settings: defaultMangapressSettings,
+        format: 'epub',
+      },
+      { onProgress },
+    );
+
+    expect(ports.convert).toHaveBeenCalledTimes(2);
+    expect(outcomes).toMatchObject([
+      {
+        title: 'Good Manga',
+        status: 'done',
+        artifacts: [
+          { id: 'artifact-/work/batch/good-vol-1.cbz' },
+          { id: 'artifact-/work/batch/good-vol-2.cbz' },
+        ],
+      },
+      { title: 'Broken Manga', status: 'failed', artifacts: [] },
+    ]);
+    expect(outcomes[1]!.error).toMatchObject({ code: 'binding_failed' });
+    expect(onProgress).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Good Manga', stage: 'processing' }),
+    );
+    expect(ports.release).toHaveBeenCalledExactlyOnceWith('batch-workspace');
+  });
+
+  it('isolates a mangapress-phase failure to its own title and keeps converting the rest', async () => {
+    const ports = dependencies();
+    ports.convert.mockImplementationOnce(() => Promise.reject(new Error('mangapress crashed')));
+    const workflow = new SingleInputWorkflow(ports.binding, ports.conversion, () => 'id');
+
+    const outcomes = await workflow.convertBatch(
+      {
+        parentPath: '/library',
+        libraryPath: '/output',
+        settings: defaultMangapressSettings,
+        format: 'epub',
+      },
+      { onProgress: vi.fn() },
+    );
+
+    expect(outcomes[0]).toMatchObject({ title: 'Good Manga', status: 'failed', artifacts: [] });
+    expect(outcomes[0]!.error).toMatchObject({ message: 'mangapress crashed' });
+    // The bind-phase failure for the other title is still reported, not skipped.
+    expect(outcomes[1]).toMatchObject({ title: 'Broken Manga', status: 'failed' });
+    expect(ports.release).toHaveBeenCalledExactlyOnceWith('batch-workspace');
+  });
+
+  it('stops before starting the next title once cancelled, and still releases the workspace', async () => {
+    const ports = dependencies();
+    const controller = new AbortController();
+    // Simulates the real subprocess adapter: an in-flight convert() rejects once its signal aborts.
+    ports.convert.mockImplementationOnce(() => {
+      controller.abort();
+      return Promise.reject(new Error('aborted'));
+    });
+    const workflow = new SingleInputWorkflow(ports.binding, ports.conversion, () => 'id');
+
+    const outcomes = await workflow.convertBatch(
+      {
+        parentPath: '/library',
+        libraryPath: '/output',
+        settings: defaultMangapressSettings,
+        format: 'epub',
+      },
+      { onProgress: vi.fn(), signal: controller.signal },
+    );
+
+    // The interrupted title is reported as failed, and the loop stops before "Broken Manga".
+    expect(ports.convert).toHaveBeenCalledTimes(1);
+    expect(outcomes).toMatchObject([{ title: 'Good Manga', status: 'failed', artifacts: [] }]);
+    expect(outcomes[0]!.error).toMatchObject({ message: 'aborted' });
+    expect(ports.release).toHaveBeenCalledExactlyOnceWith('batch-workspace');
+  });
+
+  it('restricts conversion to the requested titles when retrying one after a partial run', async () => {
+    const ports = dependencies();
+    const workflow = new SingleInputWorkflow(ports.binding, ports.conversion, () => 'id');
+
+    const outcomes = await workflow.convertBatch(
+      {
+        parentPath: '/library',
+        libraryPath: '/output',
+        settings: defaultMangapressSettings,
+        format: 'epub',
+        titles: ['Good Manga'],
+      },
+      { onProgress: vi.fn() },
+    );
+
+    expect(outcomes).toHaveLength(1);
+    expect(outcomes[0]).toMatchObject({ title: 'Good Manga', status: 'done' });
+    expect(ports.convert).toHaveBeenCalledTimes(2);
   });
 });
