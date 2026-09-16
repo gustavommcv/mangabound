@@ -131,8 +131,10 @@ describe('packaged conversion pipeline', () => {
     await chooseOutputFolder.waitForClickable({ timeout: 30_000 });
     await chooseOutputFolder.click();
     await $('button=Start batch conversion').click();
+    // Two real, sequential conversions run here -- the other specs budget 120s per single
+    // conversion, so this needs comfortably more than double that.
     await browser.waitUntil(async () => (await readdir(outputLibraryPath)).length === 3, {
-      timeout: 120_000,
+      timeout: 240_000,
       timeoutMsg: 'Expected both batch titles to produce a saved book plus the library catalog.',
     });
 
