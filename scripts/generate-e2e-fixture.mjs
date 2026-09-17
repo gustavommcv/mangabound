@@ -2,7 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { deflateSync } from 'node:zlib';
 
-const fixtureRoot = path.resolve('tests', 'fixtures', 'e2e', 'hakuneko', 'Mangabound E2E');
+const fixtureRoot = path.resolve('tests', 'fixtures', 'e2e', 'manga-folder', 'Mangabound E2E');
 const width = 600;
 const height = 800;
 
@@ -114,7 +114,7 @@ await writeFile(
   ]),
 );
 
-const batchLibraryRoot = path.resolve('tests', 'fixtures', 'e2e', 'hakuneko-batch', 'Library');
+const batchLibraryRoot = path.resolve('tests', 'fixtures', 'e2e', 'manga-batch', 'Library');
 // Volume-in-name chapters: mangabind auto-resolves these into one volume, even under --batch.
 for (let chapter = 1; chapter <= 2; chapter += 1) {
   const chapterPath = path.join(

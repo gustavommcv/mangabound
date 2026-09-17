@@ -15,7 +15,7 @@ export class MetadataProviderError extends Error {
   }
 }
 
-// MangaDex represents an empty keyed collection as `[]` instead of `{}` on some endpoints.
+// Some API endpoints represent an empty keyed collection as `[]` instead of `{}`.
 function mapOrEmpty<T extends z.ZodTypeAny>(valueSchema: T) {
   return z.preprocess(
     (value) => (Array.isArray(value) ? {} : value),
@@ -59,9 +59,14 @@ function parseJson(input: string): unknown {
   try {
     return JSON.parse(input);
   } catch (error) {
-    throw new MetadataProviderError('malformed_json', 'MangaDex returned malformed JSON.', true, {
-      cause: error,
-    });
+    throw new MetadataProviderError(
+      'malformed_json',
+      'The external metadata service returned malformed JSON.',
+      true,
+      {
+        cause: error,
+      },
+    );
   }
 }
 
@@ -70,7 +75,7 @@ export function parseSearchResponse(input: string): SearchResponse {
   if (!result.success) {
     throw new MetadataProviderError(
       'invalid_payload',
-      'MangaDex returned an unexpected search response.',
+      'The external metadata service returned an unexpected search response.',
       true,
       { cause: result.error },
     );
@@ -83,7 +88,7 @@ export function parseAggregateResponse(input: string): AggregateResponse {
   if (!result.success) {
     throw new MetadataProviderError(
       'invalid_payload',
-      'MangaDex returned an unexpected aggregate response.',
+      'The external metadata service returned an unexpected aggregate response.',
       true,
       { cause: result.error },
     );

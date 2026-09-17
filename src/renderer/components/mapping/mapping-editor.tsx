@@ -135,7 +135,7 @@ function MetadataSuggestionPanel({
       className="border-border bg-surface shadow-card rounded-xl border p-5"
     >
       <h2 className="text-sm font-semibold" id="suggestions-title">
-        Suggest from MangaDex
+        Suggest from external API
       </h2>
       <p className="text-muted-foreground mt-1 text-xs">
         Optional — search a title to suggest which chapters belong in each volume. You can still
@@ -144,7 +144,7 @@ function MetadataSuggestionPanel({
       <div className="mt-3 flex items-center gap-2">
         <Search aria-hidden="true" className="text-muted-foreground size-4 shrink-0" />
         <Label className="sr-only" htmlFor="metadata-search">
-          Search MangaDex
+          Search external metadata
         </Label>
         <Input
           id="metadata-search"

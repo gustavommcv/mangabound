@@ -69,7 +69,7 @@ export const ProviderSuggested: Story = {
     initialDraft: createMappingDraft({
       mangaTitle: 'A Quiet Journey',
       chapters,
-      source: { provider: 'MangaDex', id: 'f1c4c2ef-13ad-4a8d-9d72-28b6a4f38d22' },
+      source: { provider: 'External API', id: 'f1c4c2ef-13ad-4a8d-9d72-28b6a4f38d22' },
       volumes: [
         { id: 'volume-1', number: '1', chapterIds: ['chapter-1', 'chapter-2'] },
         { id: 'volume-2', number: '2', chapterIds: ['chapter-3', 'chapter-4'] },
@@ -86,8 +86,8 @@ export const WithMetadataSuggestions: Story = {
     }),
     onSearchMetadata: () =>
       Promise.resolve([
-        { id: 'work-1', title: 'A Quiet Journey', provider: 'MangaDex' },
-        { id: 'work-2', title: 'A Quiet Journey (Omnibus)', provider: 'MangaDex' },
+        { id: 'work-1', title: 'A Quiet Journey', provider: 'External API' },
+        { id: 'work-2', title: 'A Quiet Journey (Omnibus)', provider: 'External API' },
       ]),
     onSuggestVolumes: () =>
       Promise.resolve({

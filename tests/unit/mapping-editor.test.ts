@@ -83,13 +83,13 @@ describe('mapping editor history', () => {
     const applied = dispatchMappingCommand(createMappingHistory(draft), {
       type: 'apply-suggestion',
       suggestions: [{ id: 'suggested-1', number: '1', chapterNumbers: [1, 2] }],
-      source: { provider: 'MangaDex', id: 'work-123' },
+      source: { provider: 'External API', id: 'work-123' },
     });
 
     expect(applied.present.volumes).toMatchObject([
       { id: 'suggested-1', number: '1', chapterIds: ['c1', 'c2'] },
     ]);
-    expect(applied.present.source).toEqual({ provider: 'MangaDex', id: 'work-123' });
+    expect(applied.present.source).toEqual({ provider: 'External API', id: 'work-123' });
 
     const undone = undoMappingCommand(applied);
     expect(undone.present).toEqual(draft);

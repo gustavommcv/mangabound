@@ -32,10 +32,10 @@ async function waitForEntryCount(dirPath: string, count: number, timeoutMs: numb
 }
 
 describe('packaged conversion pipeline', () => {
-  it('converts a real HakuNeko folder and direct CBZ with the pinned tools', async () => {
+  it('converts a real manga folder and direct CBZ with the pinned tools', async () => {
     const testRoot = await mkdtemp(path.join(os.tmpdir(), 'mangabound-packaged-e2e-'));
     temporaryDirectories.push(testRoot);
-    const sourceFixture = path.resolve('tests', 'fixtures', 'e2e', 'hakuneko', 'Mangabound E2E');
+    const sourceFixture = path.resolve('tests', 'fixtures', 'e2e', 'manga-folder', 'Mangabound E2E');
     const inputPath = path.join(testRoot, 'Mangabound E2E');
     const directCbzPath = path.resolve('tests', 'fixtures', 'e2e', 'cbz', 'Mangabound Direct.cbz');
     const libraryPath = path.join(testRoot, 'library');
@@ -106,7 +106,7 @@ describe('packaged conversion pipeline', () => {
   it('discovers a real library in batch, fixes one title, and converts both with the pinned tools', async () => {
     const testRoot = await mkdtemp(path.join(os.tmpdir(), 'mangabound-batch-e2e-'));
     temporaryDirectories.push(testRoot);
-    const sourceLibrary = path.resolve('tests', 'fixtures', 'e2e', 'hakuneko-batch', 'Library');
+    const sourceLibrary = path.resolve('tests', 'fixtures', 'e2e', 'manga-batch', 'Library');
     const libraryParentPath = path.join(testRoot, 'Library');
     const outputLibraryPath = path.join(testRoot, 'output');
     await cp(sourceLibrary, libraryParentPath, { recursive: true });

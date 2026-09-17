@@ -35,7 +35,7 @@ Exit: a clean build obtains the same verified binaries, packages them, and rejec
 - Build the same editor state model for an empty manual start and an optional provider-suggested start.
 - Cover the logic with unit tests and accessible component states.
 
-Exit: fixtures can be mapped entirely offline without MangaDex and produce a validated plan.
+Exit: fixtures can be mapped entirely offline without an external metadata API and produce a validated plan.
 
 ## M4 — Single-input vertical slice
 
@@ -56,10 +56,10 @@ Exit: no supported CLI capability is available only from a hidden command line.
 
 ## M6 — Optional metadata providers
 
-- Add MangaDex suggestions behind the metadata-provider port.
+- Add external metadata API suggestions behind the metadata-provider port.
 - Keep manual input and correction identical whether suggestions exist, fail, or are skipped.
 
-A suggestion matches MangaDex's volume/chapter-number groupings against chapters already
+A suggestion matches an external metadata provider's volume/chapter-number groupings against chapters already
 discovered locally (by number, since ids differ) and applies as one more undoable command in the
 mapping editor's existing history — never a special, non-reversible state. Metadata search/lookup
 reuses the existing IPC job-cancellation mechanism; no chapter content is ever fetched, matching

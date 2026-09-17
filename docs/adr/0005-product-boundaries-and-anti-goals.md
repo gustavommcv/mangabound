@@ -11,13 +11,13 @@ Mangabound is a capable workflow application, not a general manga platform. Its 
 
 Mangabound accepts exactly three top-level input workflows:
 
-- one HakuNeko/user-produced manga folder;
+- one user-produced manga folder;
 - one CBZ file;
 - a batch of manga folders, exposing mangabind batch behavior.
 
 Batch and metadata-file modes retain mangabind's mutual-exclusion rule. Each manga in a batch is a separate job with independent progress and failure isolation.
 
-Manual chapter-to-volume editing is a first-class flow. It starts from raw parsed chapters and can build volumes without any provider lookup. MangaDex is an optional suggestion source using the same editor; its result is never required or authoritative.
+Manual chapter-to-volume editing is a first-class flow. It starts from raw parsed chapters and can build volumes without any provider lookup. An external metadata API is an optional suggestion source using the same editor; its result is never required or authoritative.
 
 Confirmed mappings serialize to mangabind's actual `mangabind.json` shape: `schema_version`, optional `manga.title`, and `volumes` containing a number and chapter assignments. `source` is an optional `{ provider, id }` object and is omitted for wholly manual mappings.
 
@@ -32,7 +32,7 @@ Opening a source or generated book delegates to Electron `shell.openPath`; locat
 ## Anti-goals
 
 - No integrated manga reader, page renderer, preview pane, or reader mode.
-- No integrated downloader, HakuNeko control, scraping, or chapter acquisition.
+- No integrated downloader, scraping, or chapter acquisition.
 - No theming system in v1.
 - No third-party plugin or script execution system.
 - No arbitrary user-programmable pipeline graph.
