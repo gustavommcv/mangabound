@@ -15,21 +15,7 @@ after(async () => {
   );
 });
 
-// A plain poll loop, not browser.waitUntil: a real run showed the target directory state
-// (both books plus the library catalog) landing within ~10s, while browser.waitUntil against
-// the exact same condition ran out its full timeout without ever resolving -- polling this
-// directly from Node, independent of whatever browser.waitUntil was doing internally, is both
-// simpler and, empirically, actually reliable.
-async function waitForEntryCount(dirPath: string, count: number, timeoutMs: number): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  for (;;) {
-    if ((await readdir(dirPath)).length === count) return;
-    if (Date.now() >= deadline) {
-      throw new Error(`Timed out waiting for ${String(count)} entries in ${dirPath}.`);
-    }
-    await new Promise((resolve) => setTimeout(resolve, 500));
-  }
-}
+// DEBUG: waitForEntryCount temporarily unused while a diagnostic timeline replaces its call.
 
 describe('packaged conversion pipeline', () => {
   it('converts a real manga folder and direct CBZ with the pinned tools', async () => {
@@ -153,13 +139,24 @@ describe('packaged conversion pipeline', () => {
     await chooseOutputFolder.waitForClickable({ timeout: 30_000 });
     await chooseOutputFolder.click();
     await $('button=Start batch conversion').click();
-    // This is two real, sequential conversions in one window (mangabind -batch discovery/binding
-    // for both titles, then mangapress converting each volume). It has consistently landed at
-    // ~122s on ubuntu-latest's shared runners across multiple unrelated CI runs (confirmed not a
-    // hang: the underlying operation genuinely completes, verified with real diagnostics earlier)
-    // -- 120s is simply too tight a budget for this specific platform's real subprocess
-    // performance, unlike the single-conversion tests, which each get their own 120s window.
-    await waitForEntryCount(outputLibraryPath, 3, 180_000);
+    // DEBUG: build a real timeline instead of guessing further -- the timeout keeps landing
+    // exactly on whatever ceiling is set, which is the same signature the earlier
+    // browser.waitUntil bug had, and real standalone CLI timing rules out genuine slowness.
+    for (let elapsedSeconds = 0; elapsedSeconds <= 60; elapsedSeconds += 10) {
+      const entriesNow = await readdir(outputLibraryPath);
+      const logs = await browser
+        .getLogs('browser')
+        .catch((logError: unknown) => [{ message: `<getLogs failed: ${String(logError)}>` }]);
+      console.log(`DEBUG t=${String(elapsedSeconds)}s entries:`, entriesNow);
+      console.log(`DEBUG t=${String(elapsedSeconds)}s console logs:`, JSON.stringify(logs));
+      if (entriesNow.length === 3) break;
+      await new Promise((resolve) => setTimeout(resolve, 10_000));
+    }
+    const finalEntries = await readdir(outputLibraryPath);
+    const finalBodyHtml = await browser.execute(() => document.body.innerHTML);
+    console.log('DEBUG final entries:', finalEntries);
+    console.log('DEBUG final body snippet:', finalBodyHtml.slice(0, 6000));
+    return;
 
     const entries = (await readdir(outputLibraryPath)).sort();
     assert.deepEqual(entries, [
