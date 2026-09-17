@@ -153,7 +153,13 @@ describe('packaged conversion pipeline', () => {
     await chooseOutputFolder.waitForClickable({ timeout: 30_000 });
     await chooseOutputFolder.click();
     await $('button=Start batch conversion').click();
-    await waitForEntryCount(outputLibraryPath, 3, 120_000);
+    // This is two real, sequential conversions in one window (mangabind -batch discovery/binding
+    // for both titles, then mangapress converting each volume). It has consistently landed at
+    // ~122s on ubuntu-latest's shared runners across multiple unrelated CI runs (confirmed not a
+    // hang: the underlying operation genuinely completes, verified with real diagnostics earlier)
+    // -- 120s is simply too tight a budget for this specific platform's real subprocess
+    // performance, unlike the single-conversion tests, which each get their own 120s window.
+    await waitForEntryCount(outputLibraryPath, 3, 180_000);
 
     const entries = (await readdir(outputLibraryPath)).sort();
     assert.deepEqual(entries, [
