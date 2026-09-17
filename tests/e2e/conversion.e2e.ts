@@ -137,7 +137,12 @@ describe('packaged conversion pipeline', () => {
     // either label opens the same picker and this spec supplies its own fresh directory.
     const chooseOutputFolder = $('button*=output folder');
     await chooseOutputFolder.waitForClickable({ timeout: 30_000 });
+    console.log('DEBUG button text before click:', await chooseOutputFolder.getText());
+    console.log('DEBUG dialog calls before click:', openDialog.mock.calls.length);
     await chooseOutputFolder.click();
+    console.log('DEBUG dialog calls after click:', openDialog.mock.calls.length);
+    console.log('DEBUG dialog results:', JSON.stringify(openDialog.mock.results));
+    console.log('DEBUG button text after click:', await $('button*=output folder').getText());
     await $('button=Start batch conversion').click();
     // DEBUG: build a real timeline instead of guessing further -- the timeout keeps landing
     // exactly on whatever ceiling is set, which is the same signature the earlier
