@@ -149,7 +149,9 @@ describe('mapping editor', () => {
 
   it('keeps every manual control operable when an external API lookup fails', async () => {
     const user = userEvent.setup();
-    const onSearchMetadata = vi.fn(() => Promise.reject(new Error('External metadata service is unreachable.')));
+    const onSearchMetadata = vi.fn(() =>
+      Promise.reject(new Error('External metadata service is unreachable.')),
+    );
     render(
       <MappingEditor
         initialDraft={createMappingDraft({ mangaTitle: 'Offline Work', chapters })}

@@ -6,8 +6,7 @@ import type {
 } from '@/application/ports/metadata-provider';
 import type { VolumeSuggestion } from '@/domain/mapping';
 
-const defaultBaseUrl =
-  process.env.METADATA_API_BASE_URL ?? 'https://api.external-metadata.org';
+const defaultBaseUrl = process.env.METADATA_API_BASE_URL ?? 'https://api.external-metadata.org';
 const userAgent = 'Mangabound (+https://github.com/gustavommcv/mangabound)';
 
 export class ExternalMetadataProvider implements MetadataProviderPort {

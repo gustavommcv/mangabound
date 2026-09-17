@@ -35,7 +35,13 @@ describe('packaged conversion pipeline', () => {
   it('converts a real manga folder and direct CBZ with the pinned tools', async () => {
     const testRoot = await mkdtemp(path.join(os.tmpdir(), 'mangabound-packaged-e2e-'));
     temporaryDirectories.push(testRoot);
-    const sourceFixture = path.resolve('tests', 'fixtures', 'e2e', 'manga-folder', 'Mangabound E2E');
+    const sourceFixture = path.resolve(
+      'tests',
+      'fixtures',
+      'e2e',
+      'manga-folder',
+      'Mangabound E2E',
+    );
     const inputPath = path.join(testRoot, 'Mangabound E2E');
     const directCbzPath = path.resolve('tests', 'fixtures', 'e2e', 'cbz', 'Mangabound Direct.cbz');
     const libraryPath = path.join(testRoot, 'library');
