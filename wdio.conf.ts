@@ -51,9 +51,7 @@ export const config: WebdriverIO.Config = {
   logLevel: 'warn',
   maxInstances: 1,
   mochaOpts: {
-    // Comfortably above the batch spec's own 180s wait (tests/e2e/conversion.e2e.ts), which
-    // needs that much headroom on its own, plus room for the UI steps preceding it.
-    timeout: 240_000,
+    timeout: 180_000,
   },
   reporters: ['spec'],
   runner: 'local',

@@ -15,7 +15,16 @@ after(async () => {
   );
 });
 
-// DEBUG: waitForEntryCount temporarily unused while a diagnostic timeline replaces its call.
+async function waitForEntryCount(dirPath: string, count: number, timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    if ((await readdir(dirPath)).length === count) return;
+    if (Date.now() >= deadline) {
+      throw new Error(`Timed out waiting for ${String(count)} entries in ${dirPath}.`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+}
 
 describe('packaged conversion pipeline', () => {
   it('converts a real manga folder and direct CBZ with the pinned tools', async () => {
@@ -47,6 +56,10 @@ describe('packaged conversion pipeline', () => {
     await $('button=Confirm mapping').click();
     await $('h1=Convert Mangabound E2E').waitForDisplayed();
     await $('button=Choose output folder').click();
+    // See the batch spec below for why this wait matters: chooseLibrary() is async, and
+    // clicking the button only confirms the event dispatched, not that the library state
+    // (and this shared OutputSettingsPanel's displayed path) actually updated yet.
+    await $(`p*=${path.basename(libraryPath)}`).waitForDisplayed({ timeout: 10_000 });
     await $('button=Validate plan').click();
     await $('h2=Plan validated').waitForDisplayed({ timeout: 30_000 });
     assert.deepEqual(await readdir(libraryPath), []);
@@ -135,33 +148,16 @@ describe('packaged conversion pipeline', () => {
 
     // The prior spec already chose a library, so this reads "Change output folder" here —
     // either label opens the same picker and this spec supplies its own fresh directory.
-    const chooseOutputFolder = $('button*=output folder');
-    await chooseOutputFolder.waitForClickable({ timeout: 30_000 });
-    console.log('DEBUG button text before click:', await chooseOutputFolder.getText());
-    console.log('DEBUG dialog calls before click:', openDialog.mock.calls.length);
-    await chooseOutputFolder.click();
-    console.log('DEBUG dialog calls after click:', openDialog.mock.calls.length);
-    console.log('DEBUG dialog results:', JSON.stringify(openDialog.mock.results));
-    console.log('DEBUG button text after click:', await $('button*=output folder').getText());
+    await $('button*=output folder').click();
+    // chooseLibrary() is async (an IPC round trip through the mocked dialog before setLibrary()
+    // runs) -- WebdriverIO's click() only confirms the click event dispatched, not that this
+    // finished. Without waiting for the new path to actually render, "Start batch conversion"
+    // can fire against the still-stale library from the previous spec: real diagnostics showed
+    // the app reporting both titles converted successfully while the *new* output folder stayed
+    // completely empty, because the batch quietly ran against the old one instead.
+    await $(`p*=${path.basename(outputLibraryPath)}`).waitForDisplayed({ timeout: 10_000 });
     await $('button=Start batch conversion').click();
-    // DEBUG: build a real timeline instead of guessing further -- the timeout keeps landing
-    // exactly on whatever ceiling is set, which is the same signature the earlier
-    // browser.waitUntil bug had, and real standalone CLI timing rules out genuine slowness.
-    for (let elapsedSeconds = 0; elapsedSeconds <= 60; elapsedSeconds += 10) {
-      const entriesNow = await readdir(outputLibraryPath);
-      const logs = await browser
-        .getLogs('browser')
-        .catch((logError: unknown) => [{ message: `<getLogs failed: ${String(logError)}>` }]);
-      console.log(`DEBUG t=${String(elapsedSeconds)}s entries:`, entriesNow);
-      console.log(`DEBUG t=${String(elapsedSeconds)}s console logs:`, JSON.stringify(logs));
-      if (entriesNow.length === 3) break;
-      await new Promise((resolve) => setTimeout(resolve, 10_000));
-    }
-    const finalEntries = await readdir(outputLibraryPath);
-    const finalBodyHtml = await browser.execute(() => document.body.innerHTML);
-    console.log('DEBUG final entries:', finalEntries);
-    console.log('DEBUG final body snippet:', finalBodyHtml.slice(0, 6000));
-    return;
+    await waitForEntryCount(outputLibraryPath, 3, 120_000);
 
     const entries = (await readdir(outputLibraryPath)).sort();
     assert.deepEqual(entries, [
