@@ -5,6 +5,8 @@ import path from 'node:path';
 
 import { $, $$, browser } from '@wdio/globals';
 
+import { chooseOutputFolder } from './support';
+
 const temporaryDirectories: string[] = [];
 
 after(async () => {
@@ -45,9 +47,7 @@ describe('packaged folder whose names carry the volumes', () => {
 
     await $('button=Confirm mapping').click();
     await $('h1=Convert Named Volumes').waitForDisplayed();
-    await $('button=Choose output folder').click();
-    // chooseLibrary() is async: wait for the chosen path to render before starting.
-    await $(`p*=${path.basename(libraryPath)}`).waitForDisplayed({ timeout: 10_000 });
+    await chooseOutputFolder('button=Choose output folder', libraryPath);
     await $('button=Start conversion').click();
     await $('h1=2 books saved').waitForDisplayed({ timeout: 120_000 });
 
