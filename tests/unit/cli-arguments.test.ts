@@ -166,18 +166,35 @@ describe('CLI argument builders', () => {
     ]);
   });
 
-  it('keeps GUI defaults aligned with mangapress defaults', () => {
+  it('keeps the settings that are not on by default aligned with mangapress defaults', () => {
+    // Manga order, both spread modes and upscaling start on, as in Kindle Comic Converter's window
+    // (ADR 0011); every value mangapress has a default for besides those is left at it.
     expect(defaultMangapressSettings).toMatchObject({
       deviceProfile: 'KV',
       cropping: 'margins-and-page-numbers',
       croppingPower: 1,
       croppingMinimum: 0,
       preserveMargin: 0,
-      splitter: 'split',
       interPanelCrop: 'disabled',
       metadataTitle: 'series-only',
       language: 'en-US',
     });
     expect(Object.isFrozen(defaultMangapressSettings)).toBe(true);
+  });
+
+  it('sends the on-by-default options to mangapress when a run uses the defaults', () => {
+    const args = buildMangapressArguments({
+      inputPath: 'C:\\Manga\\Work',
+      outputPath: 'C:\\Out',
+      profile: defaultMangapressSettings.deviceProfile,
+      format: 'epub',
+      dryRun: false,
+      mangaStyle: defaultMangapressSettings.mangaStyle,
+      splitter: defaultMangapressSettings.splitter,
+      upscale: defaultMangapressSettings.upscale,
+    });
+
+    expect(args).toEqual(expect.arrayContaining(['--manga-style', '--upscale']));
+    expect(args.join(' ')).toContain('--splitter both');
   });
 });

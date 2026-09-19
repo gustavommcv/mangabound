@@ -1,4 +1,44 @@
+import { readFile } from 'node:fs/promises';
+import { inflateRawSync } from 'node:zlib';
+
 import { $, browser } from '@wdio/globals';
+
+/**
+ * Reads the first entry of a zip file (an EPUB or CBZ is one) whose name satisfies `matches`, as
+ * text. The end-to-end suite has no zip library, and the entries it looks at are small.
+ */
+export async function readZipEntry(
+  filePath: string,
+  matches: (name: string) => boolean,
+): Promise<string> {
+  const zip = await readFile(filePath);
+  // The end-of-central-directory record is the last 22 bytes unless a comment follows it.
+  let end = zip.length - 22;
+  while (end >= 0 && zip.readUInt32LE(end) !== 0x06054b50) end -= 1;
+  if (end < 0) throw new Error(`${filePath} is not a zip file.`);
+  const count = zip.readUInt16LE(end + 10);
+  let offset = zip.readUInt32LE(end + 16);
+  for (let index = 0; index < count; index += 1) {
+    if (zip.readUInt32LE(offset) !== 0x02014b50) throw new Error(`${filePath} is corrupt.`);
+    const method = zip.readUInt16LE(offset + 10);
+    const compressedSize = zip.readUInt32LE(offset + 20);
+    const nameLength = zip.readUInt16LE(offset + 28);
+    const extraLength = zip.readUInt16LE(offset + 30);
+    const commentLength = zip.readUInt16LE(offset + 32);
+    const localOffset = zip.readUInt32LE(offset + 42);
+    const name = zip.toString('utf8', offset + 46, offset + 46 + nameLength);
+    offset += 46 + nameLength + extraLength + commentLength;
+    if (!matches(name)) continue;
+    const localNameLength = zip.readUInt16LE(localOffset + 26);
+    const localExtraLength = zip.readUInt16LE(localOffset + 28);
+    const start = localOffset + 30 + localNameLength + localExtraLength;
+    const data = zip.subarray(start, start + compressedSize);
+    if (method === 0) return data.toString('utf8');
+    if (method === 8) return inflateRawSync(data).toString('utf8');
+    throw new Error(`${name} uses compression method ${String(method)}, which is not supported.`);
+  }
+  throw new Error(`${filePath} has no entry that matched.`);
+}
 
 /**
  * The output-folder button on the queue screen, however it is labelled at the time ("Choose" before

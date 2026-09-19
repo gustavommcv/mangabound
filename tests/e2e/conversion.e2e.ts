@@ -5,7 +5,7 @@ import path from 'node:path';
 
 import { $, browser } from '@wdio/globals';
 
-import { chooseOutputFolder, queueOutputFolderButton, resetQueue } from './support';
+import { chooseOutputFolder, queueOutputFolderButton, readZipEntry, resetQueue } from './support';
 
 const temporaryDirectories: string[] = [];
 
@@ -97,6 +97,12 @@ describe('packaged conversion pipeline', () => {
     const folderBytes = await readFile(folderBook);
     assert.ok(folderBytes.length > 1_024);
     assert.equal(folderBytes.subarray(0, 2).toString('ascii'), 'PK');
+    // No option was touched, so the book is made the way Kindle Comic Converter's own window makes
+    // it (ADR 0011): manga reading order, which turns the pages right to left.
+    assert.match(
+      await readZipEntry(folderBook, (name) => name.endsWith('.opf')),
+      /page-progression-direction="rtl"/u,
+    );
 
     // The saved folder left the queue; the CBZ is added next, on its own.
     await $('button=Convert more').click();
@@ -118,6 +124,10 @@ describe('packaged conversion pipeline', () => {
     const directBytes = await readFile(directBook);
     assert.ok(directBytes.length > 1_024);
     assert.equal(directBytes.subarray(0, 2).toString('ascii'), 'PK');
+    assert.match(
+      await readZipEntry(directBook, (name) => name.endsWith('.opf')),
+      /page-progression-direction="rtl"/u,
+    );
     assert.deepEqual((await readdir(libraryPath)).sort(), [
       '.mangabound',
       'Mangabound Direct.epub',

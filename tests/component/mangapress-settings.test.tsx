@@ -99,9 +99,12 @@ describe('mangapress settings editor', () => {
     const onChange = vi.fn();
     render(<StatefulEditor onChange={onChange} />);
 
-    expect(screen.getByLabelText('Rotate clockwise')).toBeDisabled();
     expect(screen.getByLabelText('Force white borders')).toBeDisabled();
     expect(screen.getByLabelText('Keep ComicInfo.xml')).toBeDisabled();
+    // Spreads start both split and rotated, so rotating clockwise is available until they are split.
+    expect(screen.getByLabelText('Rotate clockwise')).toBeEnabled();
+    await user.selectOptions(screen.getByLabelText('Double-page spreads'), 'split');
+    expect(screen.getByLabelText('Rotate clockwise')).toBeDisabled();
 
     await user.selectOptions(screen.getByLabelText('Double-page spreads'), 'rotate');
     await user.click(screen.getByLabelText('Rotate clockwise'));
@@ -115,6 +118,44 @@ describe('mangapress settings editor', () => {
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({ forcePng: true, keepComicInfo: true, rotateRight: true }),
     );
+  });
+
+  it('starts with the options Kindle Comic Converter has on, and the rest off', () => {
+    render(<StatefulEditor />);
+
+    expect(screen.getByLabelText('Manga reading order')).toBeChecked();
+    expect(screen.getByLabelText('Double-page spreads')).toHaveValue('both');
+    expect(screen.getByLabelText('Upscale small pages')).toBeChecked();
+    expect(screen.getByLabelText('Page cropping')).toHaveValue('margins-and-page-numbers');
+    for (const label of [
+      'Stretch to fit',
+      'Crop to fill',
+      'Dithered grayscale PNG',
+      'Disable auto contrast',
+      'Auto-level black point',
+      'Reduce rainbow effect',
+      'Quiet mode',
+    ]) {
+      expect(screen.getByLabelText(label)).not.toBeChecked();
+    }
+  });
+
+  it('puts upscaling back to the new device’s own default when the device changes', async () => {
+    const user = userEvent.setup();
+    render(<StatefulEditor />);
+
+    // The custom profile starts without upscaling, a Kindle Voyage with it.
+    await user.selectOptions(screen.getByLabelText('Device profile'), 'OTHER');
+    expect(screen.getByLabelText('Upscale small pages')).not.toBeChecked();
+    await user.selectOptions(screen.getByLabelText('Device profile'), 'KV');
+    expect(screen.getByLabelText('Upscale small pages')).toBeChecked();
+
+    // A choice made by hand lasts until the device changes again, as in KCC.
+    await user.click(screen.getByLabelText('Upscale small pages'));
+    expect(screen.getByLabelText('Upscale small pages')).not.toBeChecked();
+    await user.selectOptions(screen.getByLabelText('Device profile'), 'OTHER');
+    await user.selectOptions(screen.getByLabelText('Device profile'), 'KV');
+    expect(screen.getByLabelText('Upscale small pages')).toBeChecked();
   });
 
   it('shows actionable validation beside a custom profile missing dimensions', async () => {
