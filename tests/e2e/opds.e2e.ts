@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { cp, mkdir, mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -137,6 +137,85 @@ describe('packaged OPDS delivery', () => {
       const downloaded = Buffer.from(await acquisitionResponse.arrayBuffer());
       const onDisk = await readFile(path.join(libraryPath, 'Mangabound Direct.epub'));
       assert.ok(downloaded.equals(onDisk));
+    } finally {
+      await browser.execute(async () => {
+        await window.mangabound?.stopSharing();
+      });
+    }
+  });
+
+  it('refuses to start sharing a library whose catalog is corrupt, with a readable message', async () => {
+    const testRoot = await mkdtemp(path.join(os.tmpdir(), 'mangabound-opds-corrupt-start-'));
+    temporaryDirectories.push(testRoot);
+    const libraryPath = path.join(testRoot, 'library');
+    await mkdir(path.join(libraryPath, '.mangabound'), { recursive: true });
+    await writeFile(path.join(libraryPath, '.mangabound', 'library.json'), '{not valid json');
+
+    const openDialog = await browser.electron.mock('dialog', 'showOpenDialog');
+    await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [libraryPath] });
+
+    // The result is returned as a JSON string, not an object: WebdriverIO's client reads a
+    // script result carrying a top-level `error` key ({ ok: false, error: {...} } is exactly
+    // the shape of a failed WorkflowResult) as a WebDriver error response, fails the command
+    // with "[object Object]", and retries it -- by which point the one-shot dialog mock is spent.
+    const raw = await browser.execute(async () => {
+      const bridge = window.mangabound;
+      if (bridge === undefined) throw new Error('window.mangabound is unavailable.');
+      const chosen = await bridge.chooseLibrary();
+      if (!chosen.ok || chosen.value === null) {
+        throw new Error('Could not choose a library to share.');
+      }
+      const started = await bridge.startSharing(chosen.value.libraryId, '127.0.0.1', {
+        mode: 'token',
+      });
+      return JSON.stringify(started);
+    });
+
+    const result = JSON.parse(raw) as { ok: boolean; error?: { code: string; message: string } };
+    assert.equal(result.ok, false, 'Expected sharing to be refused for a corrupt catalog.');
+    assert.equal(result.error?.code, 'malformed_json');
+    assert.equal(result.error.message, 'The output library catalog could not be read.');
+    const status = await browser.execute(async () => window.mangabound?.getSharingStatus());
+    assert.ok(status?.ok === true && !status.value.active, 'Expected no sharing to be running.');
+  });
+
+  it('answers a generic error, not parser text, when the catalog corrupts while sharing', async () => {
+    const testRoot = await mkdtemp(path.join(os.tmpdir(), 'mangabound-opds-corrupt-live-'));
+    temporaryDirectories.push(testRoot);
+    const libraryPath = path.join(testRoot, 'library');
+    await mkdir(libraryPath);
+
+    const openDialog = await browser.electron.mock('dialog', 'showOpenDialog');
+    await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [libraryPath] });
+
+    // A library with no catalog yet is valid (it reads as empty), so sharing starts fine.
+    const sharingStatus = await browser.execute(async () => {
+      const bridge = window.mangabound;
+      if (bridge === undefined) throw new Error('window.mangabound is unavailable.');
+      const chosen = await bridge.chooseLibrary();
+      if (!chosen.ok || chosen.value === null) {
+        throw new Error('Could not choose a library to share.');
+      }
+      const started = await bridge.startSharing(chosen.value.libraryId, '127.0.0.1', {
+        mode: 'token',
+      });
+      if (!started.ok) throw new Error(started.error.message);
+      return started.value;
+    });
+
+    try {
+      assert.ok(sharingStatus.url !== undefined);
+      assert.ok(sharingStatus.token !== undefined);
+      const { url, token } = sharingStatus;
+
+      await mkdir(path.join(libraryPath, '.mangabound'), { recursive: true });
+      await writeFile(path.join(libraryPath, '.mangabound', 'library.json'), '{not valid json');
+
+      const response = await fetch(`${url}/recent?token=${token}`);
+      assert.equal(response.status, 500);
+      const body = await response.text();
+      assert.equal(body, 'The catalog could not be read.');
+      assert.doesNotMatch(body, /JSON/u);
     } finally {
       await browser.execute(async () => {
         await window.mangabound?.stopSharing();
