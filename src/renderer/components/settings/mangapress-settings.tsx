@@ -466,9 +466,9 @@ function SettingsSection({
   readonly title: string;
 }): React.JSX.Element {
   return (
-    <section className="border-border bg-surface shadow-card rounded-xl border p-6">
+    <section className="border-border bg-surface rounded-xl border p-6">
       <div className="mb-5">
-        <p className="tracking-label text-accent text-xs font-semibold uppercase">{eyebrow}</p>
+        <p className="text-muted-foreground text-xs font-medium">{eyebrow}</p>
         <h2 className="mt-1 text-lg font-semibold">{title}</h2>
         <p className="text-muted-foreground mt-1 text-sm">{description}</p>
       </div>
