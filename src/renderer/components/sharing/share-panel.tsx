@@ -50,7 +50,7 @@ export function SharePanel({
   return (
     <section
       aria-labelledby="share-title"
-      className="border-border bg-surface shadow-card rounded-xl border p-5"
+      className="border-border bg-surface rounded-xl border p-5"
     >
       <div className="flex items-center gap-2">
         <RadioTower aria-hidden="true" className="text-accent size-4 shrink-0" />

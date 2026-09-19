@@ -132,7 +132,7 @@ function MetadataSuggestionPanel({
   return (
     <section
       aria-labelledby="suggestions-title"
-      className="border-border bg-surface shadow-card rounded-xl border p-5"
+      className="border-border bg-surface rounded-xl border p-5"
     >
       <h2 className="text-sm font-semibold" id="suggestions-title">
         Suggest from external API
@@ -288,9 +288,7 @@ export function MappingEditor({
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="tracking-label text-accent text-xs font-semibold uppercase">
-              Chapter mapping
-            </p>
+            <p className="text-muted-foreground text-xs font-medium">Chapter mapping</p>
             <span className="border-border bg-muted text-muted-foreground rounded-full border px-2 py-0.5 text-xs">
               {draft.source === undefined
                 ? 'Manual mapping · Offline'
@@ -376,7 +374,7 @@ export function MappingEditor({
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(20rem,1fr)]">
         <section
           aria-labelledby="chapters-title"
-          className="border-border bg-surface shadow-card overflow-hidden rounded-xl border"
+          className="border-border bg-surface overflow-hidden rounded-xl border"
         >
           <div className="border-border flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4">
             <div>
@@ -550,7 +548,7 @@ export function MappingEditor({
         <div className="space-y-6">
           <section
             aria-labelledby="volumes-title"
-            className="border-border bg-surface shadow-card rounded-xl border p-5"
+            className="border-border bg-surface rounded-xl border p-5"
           >
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -689,7 +687,7 @@ export function MappingEditor({
 
           <section
             aria-labelledby="validation-title"
-            className="border-border bg-surface shadow-card rounded-xl border p-5"
+            className="border-border bg-surface rounded-xl border p-5"
           >
             <h2 id="validation-title" className="text-sm font-semibold">
               Ready check
@@ -703,9 +701,7 @@ export function MappingEditor({
               <div className="mt-4 space-y-4">
                 {errors.length > 0 && (
                   <div aria-label="Mapping errors" role="alert">
-                    <p className="text-status-failed text-xs font-semibold tracking-wide uppercase">
-                      Fix before continuing
-                    </p>
+                    <p className="text-status-failed text-xs font-medium">Fix before continuing</p>
                     <ul className="mt-2 space-y-2">
                       {errors.map((issue, index) => (
                         <li
@@ -720,9 +716,7 @@ export function MappingEditor({
                 )}
                 {warnings.length > 0 && (
                   <div aria-label="Mapping warnings">
-                    <p className="text-status-warning text-xs font-semibold tracking-wide uppercase">
-                      Check these chapters
-                    </p>
+                    <p className="text-status-warning text-xs font-medium">Check these chapters</p>
                     <ul className="mt-2 space-y-2">
                       {warnings.map((issue, index) => (
                         <li
