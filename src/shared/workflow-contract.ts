@@ -32,6 +32,10 @@ export const mappingDraftSchema = z.object({
 });
 
 export const inputKindSchema = z.enum(['folder', 'cbz']);
+export const chooseInputsKindSchema = z.enum(['files', 'folders']);
+export const registerInputsCommandSchema = z.object({
+  paths: z.array(z.string()).max(1000),
+});
 export const identifierSchema = z.string().min(1).max(200);
 const mangapressSettingsSchema = z
   .object({
@@ -117,6 +121,12 @@ export interface SelectedInput {
   readonly displayName: string;
   readonly displayPath: string;
   readonly kind: InputKind;
+}
+
+/** What one add (a dialog, or files dropped on the window) turned into. */
+export interface RegisteredInputs {
+  readonly inputs: readonly SelectedInput[];
+  readonly rejected: readonly { readonly name: string; readonly reason: string }[];
 }
 
 export interface SelectedLibrary {

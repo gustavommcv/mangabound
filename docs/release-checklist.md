@@ -9,6 +9,7 @@ CI automates the repeatable launch and rendering checks. Compositor policy and r
 - Sharing a library whose `.mangabound/library.json` is corrupt fails with a readable message instead of starting (covered by e2e), and a catalog that corrupts while sharing is answered with a generic error, never parser text or file paths (covered by e2e).
 - Custom title bar retains native close/minimize/maximize behavior, keyboard focus, scaling, and reduced motion.
 - Opening and locating an artifact delegates to the registered OS application/folder without exposing arbitrary-path IPC.
+- Dragging a manga _folder_ from the file manager onto the queue adds it as a folder row, and dragging a `.cbz` adds a file row. A native drag cannot be scripted, so the e2e suite covers the path resolution with real files and synthetic drag events; the directory case is only checked here (ADR 0010).
 
 ## Windows
 

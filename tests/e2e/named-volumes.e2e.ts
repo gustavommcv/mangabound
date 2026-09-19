@@ -5,7 +5,7 @@ import path from 'node:path';
 
 import { $, $$, browser } from '@wdio/globals';
 
-import { chooseOutputFolder } from './support';
+import { chooseOutputFolder, queueOutputFolderButton, resetQueue } from './support';
 
 const temporaryDirectories: string[] = [];
 
@@ -18,7 +18,7 @@ after(async () => {
 });
 
 describe('packaged folder whose names carry the volumes', () => {
-  it('opens already grouped, converts without touching the source folder, and offers no lookup', async () => {
+  it('arrives already grouped, converts without touching the source folder, and offers no lookup', async () => {
     const testRoot = await mkdtemp(path.join(os.tmpdir(), 'mangabound-named-volumes-e2e-'));
     temporaryDirectories.push(testRoot);
     const inputPath = path.join(testRoot, 'Named Volumes');
@@ -34,10 +34,15 @@ describe('packaged folder whose names carry the volumes', () => {
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [inputPath] });
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [libraryPath] });
 
-    await $('button*=Manga folder').click();
-    await $('h1=Organize Named Volumes into volumes').waitForDisplayed({ timeout: 30_000 });
+    await resetQueue();
+    await $('button=Folder').click();
 
-    // mangabind already grouped it: nothing is assigned by hand, and there is nothing to fix.
+    // mangabind already grouped it: the row says so, and nothing has to be assigned by hand.
+    await $('span=2 volumes').waitForDisplayed({ timeout: 30_000 });
+    assert.match(await $('main').getText(), /grouped from names/u);
+
+    await $('button[aria-label="Edit volumes for Named Volumes"]').click();
+    await $('h1=Organize Named Volumes into volumes').waitForDisplayed({ timeout: 30_000 });
     const editor = await $('main').getText();
     assert.match(editor, /Grouped by mangabind/u);
     assert.doesNotMatch(editor, /Unassigned/u);
@@ -46,9 +51,9 @@ describe('packaged folder whose names carry the volumes', () => {
     assert.equal(await $$('[role="alert"]').length, 0);
 
     await $('button=Confirm mapping').click();
-    await $('h1=Convert Named Volumes').waitForDisplayed();
-    await chooseOutputFolder('button=Choose output folder', libraryPath);
-    await $('button=Start conversion').click();
+    await $('h1=Queue').waitForDisplayed();
+    await chooseOutputFolder(queueOutputFolderButton, libraryPath);
+    await $('button=Convert 1 item').click();
     await $('h1=2 books saved').waitForDisplayed({ timeout: 120_000 });
 
     assert.deepEqual((await readdir(libraryPath)).sort(), [

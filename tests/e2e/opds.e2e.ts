@@ -5,7 +5,7 @@ import path from 'node:path';
 
 import { $, browser } from '@wdio/globals';
 
-import { chooseOutputFolder } from './support';
+import { chooseOutputFolder, queueOutputFolderButton, resetQueue } from './support';
 
 const temporaryDirectories: string[] = [];
 
@@ -16,17 +16,6 @@ after(async () => {
       .map((directory) => rm(directory, { recursive: true, force: true })),
   );
 });
-
-async function returnToHome(): Promise<void> {
-  const convertSomethingElse = $('button=Convert something else');
-  const back = $('button=Back');
-  if (await convertSomethingElse.isExisting()) {
-    await convertSomethingElse.click();
-  } else if (await back.isExisting()) {
-    await back.click();
-  }
-  await $('h1=What are you bringing in?').waitForDisplayed({ timeout: 30_000 });
-}
 
 describe('packaged OPDS delivery', () => {
   it('serves real converted books newest-first over a real HTTP server', async () => {
@@ -51,29 +40,32 @@ describe('packaged OPDS delivery', () => {
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [directCbzPath] });
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [libraryPath] });
 
-    await returnToHome();
+    await resetQueue();
 
     // Convert the folder fixture first, then the CBZ fixture second, so the CBZ's
     // conversion timestamp is deterministically the newest of the two.
-    await $('button*=Manga folder').click();
+    await $('button=Folder').click();
+    await $('span=Needs volumes').waitForDisplayed({ timeout: 30_000 });
+    await $('button[aria-label="Edit volumes for Mangabound E2E"]').click();
     await $('h1=Organize Mangabound E2E into volumes').waitForDisplayed({ timeout: 30_000 });
     await $('button=Select all').click();
     await $('button[aria-label="Add volume"]').click();
     await $('button=Assign selected').click();
     await $('button=Confirm mapping').click();
-    await $('h1=Convert Mangabound E2E').waitForDisplayed();
-    await chooseOutputFolder('button=Choose output folder', libraryPath);
+    await $('span=1 volume').waitForDisplayed({ timeout: 10_000 });
+    await chooseOutputFolder(queueOutputFolderButton, libraryPath);
     await $('button=Validate plan').click();
     await $('h2=Plan validated').waitForDisplayed({ timeout: 30_000 });
-    await $('button=Start conversion').click();
+    await $('button=Convert 1 item').click();
     await $('h1=1 book saved').waitForDisplayed({ timeout: 120_000 });
 
-    await $('button=Convert something else').click();
-    await $('button*=One CBZ file').click();
-    await $('h1=Convert Mangabound Direct.cbz').waitForDisplayed({ timeout: 30_000 });
+    await $('button=Convert more').click();
+    await $('h1=Queue').waitForDisplayed();
+    await $('button=Files').click();
+    await $('span=Ready').waitForDisplayed({ timeout: 30_000 });
     await $('button=Validate plan').click();
     await $('h2=Plan validated').waitForDisplayed({ timeout: 30_000 });
-    await $('button=Start conversion').click();
+    await $('button=Convert 1 item').click();
     await $('h1=1 book saved').waitForDisplayed({ timeout: 120_000 });
 
     assert.deepEqual((await readdir(libraryPath)).sort(), [

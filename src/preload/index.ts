@@ -1,6 +1,5 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 
-import type { InputKind } from '../domain/conversion';
 import type { MappingDraft } from '../domain/mapping';
 import type {
   NetworkInterfaceOption,
@@ -21,7 +20,7 @@ import type {
   MetadataProviderDescriptor,
   MetadataSearchResult,
   PlanSummary,
-  SelectedInput,
+  RegisteredInputs,
   SelectedLibrary,
   VolumeSuggestion,
   WorkflowResult,
@@ -31,12 +30,30 @@ function invoke<T>(channel: string, payload?: unknown): Promise<WorkflowResult<T
   return ipcRenderer.invoke(channel, payload) as Promise<WorkflowResult<T>>;
 }
 
+/**
+ * The location of a dropped file on disk. Something that is not a File throws, and a File that has
+ * no place on disk (dragged out of a web page) gives an empty string. Either way an empty path is
+ * handed on, which the main process reports as one item that could not be read.
+ */
+function droppedFilePath(file: File): string {
+  try {
+    return webUtils.getPathForFile(file);
+  } catch {
+    return '';
+  }
+}
+
 const bridge: MangaboundBridge = Object.freeze({
   getToolchainStatus: async () => {
     const status: unknown = await ipcRenderer.invoke('toolchain:get-status');
     return status as ToolchainStatus;
   },
-  chooseInput: (kind: InputKind) => invoke<SelectedInput | null>('workflow:choose-input', kind),
+  chooseInputs: (kind: 'files' | 'folders') =>
+    invoke<RegisteredInputs>('workflow:choose-inputs', kind),
+  registerDroppedFiles: (files: readonly File[]) =>
+    invoke<RegisteredInputs>('workflow:register-inputs', {
+      paths: files.map(droppedFilePath),
+    }),
   inspectInput: (selectionId: string) =>
     invoke<InspectedInputPayload>('workflow:inspect-input', selectionId),
   releaseInput: (sessionId: string) => invoke<undefined>('workflow:release-input', sessionId),

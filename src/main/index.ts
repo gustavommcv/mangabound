@@ -17,6 +17,7 @@ import { ZodError } from 'zod';
 import { MangabindBindingAdapter } from '@/adapters/mangabind/binding-port';
 import { MangabindCliAdapter } from '@/adapters/mangabind/cli';
 import { CliProtocolError } from '@/adapters/cli-protocol-error';
+import { classifyInputPaths } from '@/adapters/input/classify-input-paths';
 import { FsBookFileStore } from '@/adapters/library/fs-book-file-store';
 import { FsLibraryStore } from '@/adapters/library/fs-library-store';
 import { MetadataProviderError } from '@/adapters/external-metadata/protocol';
@@ -51,15 +52,16 @@ import {
   type BatchTitleResult,
   conversionCommandSchema,
   type DeviceProfileSummary,
+  chooseInputsKindSchema,
   identifierSchema,
-  inputKindSchema,
   type InspectedInputPayload,
   type MetadataProviderDescriptor,
   type MetadataSearchResult,
   planBatchCommandSchema,
   type PlanSummary,
+  type RegisteredInputs,
+  registerInputsCommandSchema,
   searchMetadataCommandSchema,
-  type SelectedInput,
   type SelectedLibrary,
   suggestVolumesCommandSchema,
   type VolumeSuggestion,
@@ -254,48 +256,51 @@ function registerOpdsHandlers(): void {
   );
 }
 
+/**
+ * Turns paths into inputs the renderer can refer to by id. The paths come from a native dialog or
+ * from files dropped on the window (read by the preload from the dropped files themselves), and
+ * each is checked against the disk before it is accepted.
+ */
+async function registerInputPaths(paths: readonly string[]): Promise<RegisteredInputs> {
+  const { accepted, rejected } = await classifyInputPaths(paths);
+  const inputs = accepted.map(({ path: inputPath, kind }) => {
+    const selectionId = randomUUID();
+    const selection = { inputPath, displayName: path.basename(inputPath), kind };
+    selectedInputs.set(selectionId, selection);
+    return { selectionId, displayName: selection.displayName, displayPath: inputPath, kind };
+  });
+  return { inputs, rejected };
+}
+
 function registerWorkflowHandlers(): void {
   ipcMain.handle(
-    'workflow:choose-input',
-    async (_event, rawKind: unknown): Promise<WorkflowResult<SelectedInput | null>> => {
+    'workflow:choose-inputs',
+    async (_event, rawKind: unknown): Promise<WorkflowResult<RegisteredInputs>> => {
       try {
-        const kind = inputKindSchema.parse(rawKind);
+        const kind = chooseInputsKindSchema.parse(rawKind);
         const result = await dialog.showOpenDialog({
-          title: kind === 'folder' ? 'Choose a manga folder' : 'Choose a CBZ file',
-          properties: kind === 'folder' ? ['openDirectory'] : ['openFile'],
-          ...(kind === 'cbz'
+          title: kind === 'folders' ? 'Choose manga folders' : 'Choose comic files',
+          properties:
+            kind === 'folders'
+              ? ['openDirectory', 'multiSelections']
+              : ['openFile', 'multiSelections'],
+          ...(kind === 'files'
             ? { filters: [{ name: 'Comic book archive', extensions: ['cbz'] }] }
             : {}),
         });
-        const inputPath = result.filePaths[0];
-        if (result.canceled || inputPath === undefined) return ok(null);
-        const inputStats = await stat(inputPath);
-        const validInput =
-          kind === 'folder'
-            ? inputStats.isDirectory()
-            : inputStats.isFile() && path.extname(inputPath).toLowerCase() === '.cbz';
-        if (!validInput) {
-          return failed({
-            code: 'invalid_input',
-            message:
-              kind === 'folder'
-                ? 'Choose a folder containing manga chapters.'
-                : 'Choose a valid .cbz file.',
-          });
-        }
-        const selectionId = randomUUID();
-        const selection = {
-          inputPath,
-          displayName: path.basename(inputPath),
-          kind,
-        };
-        selectedInputs.set(selectionId, selection);
-        return ok({
-          selectionId,
-          displayName: selection.displayName,
-          displayPath: inputPath,
-          kind,
-        });
+        return ok(await registerInputPaths(result.canceled ? [] : result.filePaths));
+      } catch (error) {
+        return failed(toFailure(error));
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'workflow:register-inputs',
+    async (_event, rawCommand: unknown): Promise<WorkflowResult<RegisteredInputs>> => {
+      try {
+        const command = registerInputsCommandSchema.parse(rawCommand);
+        return ok(await registerInputPaths(command.paths));
       } catch (error) {
         return failed(toFailure(error));
       }

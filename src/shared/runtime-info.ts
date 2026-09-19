@@ -12,13 +12,12 @@ import type {
   MetadataProviderDescriptor,
   MetadataSearchResult,
   PlanSummary,
-  SelectedInput,
+  RegisteredInputs,
   SelectedLibrary,
   VolumeSuggestion,
   WorkflowResult,
 } from './workflow-contract';
 
-import type { InputKind } from '@/domain/conversion';
 import type { MappingDraft } from '@/domain/mapping';
 
 export interface RuntimeInfo {
@@ -29,7 +28,12 @@ export interface RuntimeInfo {
 export interface MangaboundBridge {
   readonly runtime: RuntimeInfo;
   readonly getToolchainStatus: () => Promise<ToolchainStatus>;
-  readonly chooseInput: (kind: InputKind) => Promise<WorkflowResult<SelectedInput | null>>;
+  /** Opens a native picker for several comic files or several manga folders. */
+  readonly chooseInputs: (kind: 'files' | 'folders') => Promise<WorkflowResult<RegisteredInputs>>;
+  /** Registers files dropped on the window; the paths are read from the files, not typed in. */
+  readonly registerDroppedFiles: (
+    files: readonly File[],
+  ) => Promise<WorkflowResult<RegisteredInputs>>;
   readonly inspectInput: (selectionId: string) => Promise<WorkflowResult<InspectedInputPayload>>;
   readonly releaseInput: (sessionId: string) => Promise<WorkflowResult<undefined>>;
   readonly chooseLibrary: () => Promise<WorkflowResult<SelectedLibrary | null>>;
