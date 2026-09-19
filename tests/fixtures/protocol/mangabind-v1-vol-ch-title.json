@@ -1,0 +1,138 @@
+{
+  "protocol_version": 1,
+  "tool": "mangabind",
+  "tool_version": "0.4.0",
+  "kind": "report",
+  "mode": "plan",
+  "status": "completed",
+  "input_path": "/fixtures/Chainsaw Man",
+  "output_path": "/fixtures/Output Library",
+  "batch": false,
+  "manga": [
+    {
+      "name": "Chainsaw Man",
+      "input_path": "/fixtures/Chainsaw Man",
+      "status": "completed",
+      "units": [
+        {
+          "name": "Vol.01 Ch.0001 - Cachorro & Motosserra (pt-br) [Morro dos Scans, Power Scans]",
+          "path": "/fixtures/Chainsaw Man/Vol.01 Ch.0001 - Cachorro & Motosserra (pt-br) [Morro dos Scans, Power Scans]",
+          "kind": "folder",
+          "page_count": 2,
+          "parser": {
+            "matched": true,
+            "name": "vol-ch-title",
+            "volume": 1,
+            "chapter": 1,
+            "title": "Cachorro & Motosserra",
+            "group": "Morro dos Scans, Power Scans",
+            "language": "pt-br"
+          },
+          "metadata_assignment": {
+            "status": "not_requested"
+          },
+          "effective_volume": 1,
+          "disposition": "included"
+        },
+        {
+          "name": "Vol.01 Ch.0002 - O Cachorro Que Foi ao Encontro (pt-br) [Morro dos Scans]",
+          "path": "/fixtures/Chainsaw Man/Vol.01 Ch.0002 - O Cachorro Que Foi ao Encontro (pt-br) [Morro dos Scans]",
+          "kind": "folder",
+          "page_count": 2,
+          "parser": {
+            "matched": true,
+            "name": "vol-ch-title",
+            "volume": 1,
+            "chapter": 2,
+            "title": "O Cachorro Que Foi ao Encontro",
+            "group": "Morro dos Scans",
+            "language": "pt-br"
+          },
+          "metadata_assignment": {
+            "status": "not_requested"
+          },
+          "effective_volume": 1,
+          "disposition": "included"
+        },
+        {
+          "name": "Vol.02 Ch.0008 - Titulo Qualquer (pt-br) [Morro dos Scans]",
+          "path": "/fixtures/Chainsaw Man/Vol.02 Ch.0008 - Titulo Qualquer (pt-br) [Morro dos Scans]",
+          "kind": "folder",
+          "page_count": 2,
+          "parser": {
+            "matched": true,
+            "name": "vol-ch-title",
+            "volume": 2,
+            "chapter": 8,
+            "title": "Titulo Qualquer",
+            "group": "Morro dos Scans",
+            "language": "pt-br"
+          },
+          "metadata_assignment": {
+            "status": "not_requested"
+          },
+          "effective_volume": 2,
+          "disposition": "included"
+        },
+        {
+          "name": "Vol.02 Ch.0009 - Outro Titulo (pt-br) [Power Scans]",
+          "path": "/fixtures/Chainsaw Man/Vol.02 Ch.0009 - Outro Titulo (pt-br) [Power Scans]",
+          "kind": "folder",
+          "page_count": 2,
+          "parser": {
+            "matched": true,
+            "name": "vol-ch-title",
+            "volume": 2,
+            "chapter": 9,
+            "title": "Outro Titulo",
+            "group": "Power Scans",
+            "language": "pt-br"
+          },
+          "metadata_assignment": {
+            "status": "not_requested"
+          },
+          "effective_volume": 2,
+          "disposition": "included"
+        }
+      ],
+      "volumes": [
+        {
+          "number": 1,
+          "output_path": "/fixtures/Output Library/Chainsaw Man - Vol.01.cbz",
+          "page_count": 4,
+          "chapters": [
+            "Vol.01 Ch.0001 - Cachorro & Motosserra (pt-br) [Morro dos Scans, Power Scans]",
+            "Vol.01 Ch.0002 - O Cachorro Que Foi ao Encontro (pt-br) [Morro dos Scans]"
+          ],
+          "written": false
+        },
+        {
+          "number": 2,
+          "output_path": "/fixtures/Output Library/Chainsaw Man - Vol.02.cbz",
+          "page_count": 4,
+          "chapters": [
+            "Vol.02 Ch.0008 - Titulo Qualquer (pt-br) [Morro dos Scans]",
+            "Vol.02 Ch.0009 - Outro Titulo (pt-br) [Power Scans]"
+          ],
+          "written": false
+        }
+      ],
+      "issues": [],
+      "summary": {
+        "units": 4,
+        "volumes": 2,
+        "pages": 8,
+        "warnings": 0,
+        "errors": 0
+      }
+    }
+  ],
+  "issues": [],
+  "summary": {
+    "manga": 1,
+    "volumes": 2,
+    "pages": 8,
+    "errors": 0,
+    "warnings": 0
+  }
+}

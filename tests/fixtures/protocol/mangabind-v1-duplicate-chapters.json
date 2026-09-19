@@ -1,0 +1,121 @@
+{
+  "protocol_version": 1,
+  "tool": "mangabind",
+  "tool_version": "0.4.0",
+  "kind": "report",
+  "mode": "plan",
+  "status": "completed_with_warnings",
+  "input_path": "/fixtures/Dupes Manga",
+  "output_path": "/fixtures/Output Library",
+  "batch": false,
+  "manga": [
+    {
+      "name": "Dupes Manga",
+      "input_path": "/fixtures/Dupes Manga",
+      "status": "completed_with_warnings",
+      "units": [
+        {
+          "name": "Vol.01 Ch.0001 - Same (en) [GroupA]",
+          "path": "/fixtures/Dupes Manga/Vol.01 Ch.0001 - Same (en) [GroupA]",
+          "kind": "folder",
+          "page_count": 2,
+          "parser": {
+            "matched": true,
+            "name": "vol-ch-title",
+            "volume": 1,
+            "chapter": 1,
+            "title": "Same",
+            "group": "GroupA",
+            "language": "en"
+          },
+          "metadata_assignment": {
+            "status": "not_requested"
+          },
+          "effective_volume": 1,
+          "disposition": "conflict"
+        },
+        {
+          "name": "Vol.01 Ch.0001 - Same (en) [GroupB]",
+          "path": "/fixtures/Dupes Manga/Vol.01 Ch.0001 - Same (en) [GroupB]",
+          "kind": "folder",
+          "page_count": 2,
+          "parser": {
+            "matched": true,
+            "name": "vol-ch-title",
+            "volume": 1,
+            "chapter": 1,
+            "title": "Same",
+            "group": "GroupB",
+            "language": "en"
+          },
+          "metadata_assignment": {
+            "status": "not_requested"
+          },
+          "effective_volume": 1,
+          "disposition": "conflict"
+        },
+        {
+          "name": "Vol.01 Ch.0002 - Next (en) [GroupA]",
+          "path": "/fixtures/Dupes Manga/Vol.01 Ch.0002 - Next (en) [GroupA]",
+          "kind": "folder",
+          "page_count": 2,
+          "parser": {
+            "matched": true,
+            "name": "vol-ch-title",
+            "volume": 1,
+            "chapter": 2,
+            "title": "Next",
+            "group": "GroupA",
+            "language": "en"
+          },
+          "metadata_assignment": {
+            "status": "not_requested"
+          },
+          "effective_volume": 1,
+          "disposition": "included"
+        }
+      ],
+      "volumes": [
+        {
+          "number": 1,
+          "output_path": "/fixtures/Output Library/Dupes Manga - Vol.01.cbz",
+          "page_count": 2,
+          "chapters": ["Vol.01 Ch.0002 - Next (en) [GroupA]"],
+          "written": false
+        }
+      ],
+      "issues": [
+        {
+          "tool": "mangabind",
+          "severity": "warning",
+          "code": "chapter_conflict",
+          "stage": "group",
+          "manga": "Dupes Manga",
+          "volume": 1,
+          "chapter": 1,
+          "related_paths": [
+            "/fixtures/Dupes Manga/Vol.01 Ch.0001 - Same (en) [GroupA]",
+            "/fixtures/Dupes Manga/Vol.01 Ch.0001 - Same (en) [GroupB]"
+          ],
+          "recoverable": true,
+          "message": "Volume 1 chapter 1 has 2 conflicting sources; all were skipped."
+        }
+      ],
+      "summary": {
+        "units": 3,
+        "volumes": 1,
+        "pages": 2,
+        "warnings": 1,
+        "errors": 0
+      }
+    }
+  ],
+  "issues": [],
+  "summary": {
+    "manga": 1,
+    "volumes": 1,
+    "pages": 2,
+    "errors": 0,
+    "warnings": 1
+  }
+}

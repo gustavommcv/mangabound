@@ -25,6 +25,7 @@ import {
   assignedVolumeId,
   type MappingDraft,
   MappingOperationError,
+  mappingSignature,
   serializeMangabindMetadata,
   type VolumeSuggestion,
   validateMapping,
@@ -34,17 +35,23 @@ import { Checkbox } from '@/renderer/components/ui/checkbox';
 import { Input } from '@/renderer/components/ui/input';
 import { Label } from '@/renderer/components/ui/label';
 import { NativeSelect } from '@/renderer/components/ui/native-select';
-import type { MetadataSearchResult } from '@/shared/workflow-contract';
+import type { MetadataProviderDescriptor, MetadataSearchResult } from '@/shared/workflow-contract';
 
 export interface MappingEditorProps {
   readonly initialDraft: MappingDraft;
+  /** Set when `initialDraft` already carries mangabind's own grouping (volumes read from names). */
+  readonly startedFrom?: 'mangabind' | undefined;
   readonly onConfirm?: (metadata: string, draft: MappingDraft) => void;
+  /** Online sources that can suggest volumes. The suggestion panel only appears when there is one. */
+  readonly metadataProviders?: readonly MetadataProviderDescriptor[];
   readonly onSearchMetadata?: (
+    providerId: string,
     title: string,
     signal: AbortSignal,
   ) => Promise<readonly MetadataSearchResult[]>;
   readonly onSuggestVolumes?: (
-    id: string,
+    providerId: string,
+    workId: string,
   ) => Promise<{ readonly volumes: readonly VolumeSuggestion[] }>;
 }
 
@@ -56,6 +63,19 @@ function nextVolumeNumber(draft: MappingDraft): string {
   return String(Math.floor(greatest) + 1);
 }
 
+function mappingOriginLabel(
+  draft: MappingDraft,
+  initialDraft: MappingDraft,
+  startedFrom: MappingEditorProps['startedFrom'],
+): string {
+  if (draft.source !== undefined) return `Suggested by ${draft.source.provider}`;
+  // Only claim mangabind's grouping while the draft still says exactly what mangabind proposed.
+  if (startedFrom === 'mangabind' && mappingSignature(draft) === mappingSignature(initialDraft)) {
+    return 'Grouped by mangabind · Offline';
+  }
+  return 'Manual mapping · Offline';
+}
+
 function volumeName(draft: MappingDraft, volumeId: string | undefined): string {
   if (volumeId === undefined) return 'Unassigned';
   const volume = draft.volumes.find((candidate) => candidate.id === volumeId);
@@ -64,12 +84,15 @@ function volumeName(draft: MappingDraft, volumeId: string | undefined): string {
 
 interface MetadataSuggestionPanelProps {
   readonly mangaTitle: string;
+  readonly providers: readonly [MetadataProviderDescriptor, ...MetadataProviderDescriptor[]];
   readonly onSearchMetadata: (
+    providerId: string,
     title: string,
     signal: AbortSignal,
   ) => Promise<readonly MetadataSearchResult[]>;
   readonly onSuggestVolumes: (
-    id: string,
+    providerId: string,
+    workId: string,
   ) => Promise<{ readonly volumes: readonly VolumeSuggestion[] }>;
   readonly onApply: (result: MetadataSearchResult, volumes: readonly VolumeSuggestion[]) => void;
 }
@@ -79,43 +102,56 @@ function MetadataSuggestionPanel({
   onApply,
   onSearchMetadata,
   onSuggestVolumes,
+  providers,
 }: MetadataSuggestionPanelProps): React.JSX.Element {
   const [query, setQuery] = useState(mangaTitle);
+  const [providerId, setProviderId] = useState(providers[0].id);
   const [results, setResults] = useState<readonly MetadataSearchResult[]>([]);
+  const [searched, setSearched] = useState(false);
   const [searching, setSearching] = useState(false);
   const [applyingId, setApplyingId] = useState<string>();
   const [panelError, setPanelError] = useState<string>();
+  const searchController = useRef<AbortController>(undefined);
+  const provider = providers.find((candidate) => candidate.id === providerId) ?? providers[0];
 
-  useEffect(() => {
-    if (query.trim() === '') return;
+  // A search only ever starts from the Search button (or Enter). Nothing is sent on open or
+  // while typing, so the title never leaves the machine without an explicit action.
+  useEffect(
+    () => () => {
+      searchController.current?.abort();
+    },
+    [],
+  );
+
+  const search = (): void => {
+    const title = query.trim();
+    if (title === '') return;
+    searchController.current?.abort();
     const controller = new AbortController();
-    const timer = setTimeout(() => {
-      setSearching(true);
-      setPanelError(undefined);
-      onSearchMetadata(query, controller.signal)
-        .then((found) => {
-          if (!controller.signal.aborted) setResults(found);
-        })
-        .catch((error: unknown) => {
-          if (controller.signal.aborted) return;
-          setPanelError(
-            error instanceof Error ? error.message : 'The search could not be completed.',
-          );
-        })
-        .finally(() => {
-          if (!controller.signal.aborted) setSearching(false);
-        });
-    }, 400);
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-    };
-  }, [query, onSearchMetadata]);
+    searchController.current = controller;
+    setSearching(true);
+    setPanelError(undefined);
+    onSearchMetadata(provider.id, title, controller.signal)
+      .then((found) => {
+        if (controller.signal.aborted) return;
+        setResults(found);
+        setSearched(true);
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
+        setPanelError(
+          error instanceof Error ? error.message : 'The search could not be completed.',
+        );
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setSearching(false);
+      });
+  };
 
   const applyResult = (result: MetadataSearchResult): void => {
     setApplyingId(result.id);
     setPanelError(undefined);
-    onSuggestVolumes(result.id)
+    onSuggestVolumes(provider.id, result.id)
       .then((suggestion) => {
         onApply(result, suggestion.volumes);
       })
@@ -141,12 +177,42 @@ function MetadataSuggestionPanel({
         Optional — search a title to suggest which chapters belong in each volume. You can still
         edit anything afterward.
       </p>
-      <div className="mt-3 flex items-center gap-2">
+      <form
+        className="mt-3 flex flex-wrap items-center gap-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          search();
+        }}
+      >
+        {providers.length > 1 && (
+          <>
+            <Label className="sr-only" htmlFor="metadata-provider">
+              Source
+            </Label>
+            <NativeSelect
+              id="metadata-provider"
+              onChange={(event) => {
+                setProviderId(event.target.value);
+                setResults([]);
+                setSearched(false);
+                setPanelError(undefined);
+              }}
+              value={provider.id}
+            >
+              {providers.map((candidate) => (
+                <option key={candidate.id} value={candidate.id}>
+                  {candidate.displayName}
+                </option>
+              ))}
+            </NativeSelect>
+          </>
+        )}
         <Search aria-hidden="true" className="text-muted-foreground size-4 shrink-0" />
         <Label className="sr-only" htmlFor="metadata-search">
           Search external metadata
         </Label>
         <Input
+          className="min-w-48 flex-1"
           id="metadata-search"
           onChange={(event) => {
             setQuery(event.target.value);
@@ -154,14 +220,23 @@ function MetadataSuggestionPanel({
           placeholder="Manga title"
           value={query}
         />
-      </div>
+        <Button disabled={query.trim() === ''} size="sm" type="submit" variant="outline">
+          Search
+        </Button>
+      </form>
+      <p className="text-muted-foreground mt-2 text-xs">
+        Searching sends the title to {provider.displayName}.
+      </p>
       {searching && <p className="text-muted-foreground mt-3 text-xs">Searching…</p>}
       {panelError !== undefined && (
         <p className="text-status-failed mt-3 text-xs" role="alert">
           {panelError}
         </p>
       )}
-      {!searching && query.trim() !== '' && results.length > 0 && (
+      {!searching && searched && panelError === undefined && results.length === 0 && (
+        <p className="text-muted-foreground mt-3 text-xs">No matches found.</p>
+      )}
+      {!searching && results.length > 0 && (
         <ul className="mt-3 space-y-2">
           {results.map((result) => (
             <li
@@ -189,7 +264,9 @@ function MetadataSuggestionPanel({
 
 export function MappingEditor({
   initialDraft,
+  startedFrom,
   onConfirm,
+  metadataProviders,
   onSearchMetadata,
   onSuggestVolumes,
 }: MappingEditorProps): React.JSX.Element {
@@ -204,6 +281,7 @@ export function MappingEditor({
   const [operationMessage, setOperationMessage] = useState<string>();
   const generatedId = useRef(0);
   const draft = history.present;
+  const [firstProvider, ...otherProviders] = metadataProviders ?? [];
   const effectiveTargetVolumeId = draft.volumes.some((volume) => volume.id === targetVolumeId)
     ? targetVolumeId
     : (draft.volumes[0]?.id ?? '');
@@ -290,9 +368,7 @@ export function MappingEditor({
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-muted-foreground text-xs font-medium">Chapter mapping</p>
             <span className="border-border bg-muted text-muted-foreground rounded-full border px-2 py-0.5 text-xs">
-              {draft.source === undefined
-                ? 'Manual mapping · Offline'
-                : `Suggested by ${draft.source.provider}`}
+              {mappingOriginLabel(draft, initialDraft, startedFrom)}
             </span>
           </div>
           <h1 id="mapping-title" className="text-2xl font-semibold tracking-tight">
@@ -342,20 +418,23 @@ export function MappingEditor({
         </div>
       </header>
 
-      {onSearchMetadata !== undefined && onSuggestVolumes !== undefined && (
-        <MetadataSuggestionPanel
-          mangaTitle={draft.mangaTitle}
-          onApply={(result, volumes) => {
-            dispatch({
-              type: 'apply-suggestion',
-              suggestions: volumes.map((volume) => ({ ...volume, id: createVolumeId() })),
-              source: { provider: result.provider, id: result.id },
-            });
-          }}
-          onSearchMetadata={onSearchMetadata}
-          onSuggestVolumes={onSuggestVolumes}
-        />
-      )}
+      {firstProvider !== undefined &&
+        onSearchMetadata !== undefined &&
+        onSuggestVolumes !== undefined && (
+          <MetadataSuggestionPanel
+            mangaTitle={draft.mangaTitle}
+            providers={[firstProvider, ...otherProviders]}
+            onApply={(result, volumes) => {
+              dispatch({
+                type: 'apply-suggestion',
+                suggestions: volumes.map((volume) => ({ ...volume, id: createVolumeId() })),
+                source: { provider: result.provider, id: result.id },
+              });
+            }}
+            onSearchMetadata={onSearchMetadata}
+            onSuggestVolumes={onSuggestVolumes}
+          />
+        )}
 
       {operationMessage !== undefined && (
         <div

@@ -19,6 +19,13 @@ function textResponse(status: number, body: string): Response {
 }
 
 describe('External metadata provider', () => {
+  it('identifies itself by a stable id and a display name', () => {
+    expect(new ExternalMetadataProvider(vi.fn<typeof fetch>()).descriptor).toEqual({
+      id: 'external',
+      displayName: 'External API',
+    });
+  });
+
   it('searches by title with a real user-agent header and maps results, preferring English titles', async () => {
     const fetchImpl = vi.fn<typeof fetch>(() =>
       Promise.resolve(

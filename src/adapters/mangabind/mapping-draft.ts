@@ -2,6 +2,7 @@ import type { MangabindReport } from './protocol';
 
 import {
   createMappingDraft,
+  isMappableChapter,
   type MappingDraft,
   type MappingSource,
   type MappingVolume,
@@ -34,9 +35,23 @@ export function mappingDraftFromMangabindReport(
 
   const volumes: MappingVolume[] = [];
   if (options.seed === 'effective-volumes') {
+    // Start from mangabind's own grouping (volumes named in the folder names, or already
+    // mapped by an existing mangabind.json). Only units mangabind actually includes qualify:
+    // a duplicate chapter reports `conflict` even though it carries an effective volume, and
+    // mangabind skips every copy. A unit with no usable chapter number would open the editor
+    // with an error the user can't explain, so it stays unassigned instead.
+    const chapterByPath = new Map(chapters.map((chapter) => [chapter.path, chapter]));
     const volumeByNumber = new Map<number, { id: string; chapterIds: string[] }>();
     for (const unit of manga.units) {
-      if (!unit.parser.matched || unit.effective_volume === undefined) continue;
+      const chapter = chapterByPath.get(unit.path);
+      if (
+        chapter === undefined ||
+        unit.disposition !== 'included' ||
+        unit.effective_volume === undefined ||
+        !isMappableChapter(chapter)
+      ) {
+        continue;
+      }
       const existing = volumeByNumber.get(unit.effective_volume) ?? {
         id: `effective-volume-${String(unit.effective_volume)}`,
         chapterIds: [],
@@ -44,7 +59,8 @@ export function mappingDraftFromMangabindReport(
       existing.chapterIds.push(unit.path);
       volumeByNumber.set(unit.effective_volume, existing);
     }
-    for (const [number, volume] of volumeByNumber) {
+    // Numeric order: "Merge into volume N-1" in the editor follows array order.
+    for (const [number, volume] of [...volumeByNumber].sort(([left], [right]) => left - right)) {
       volumes.push({ ...volume, number: String(number) });
     }
   }

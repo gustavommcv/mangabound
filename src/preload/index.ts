@@ -18,6 +18,7 @@ import type {
   ConversionProgressPayload,
   DeviceProfileSummary,
   InspectedInputPayload,
+  MetadataProviderDescriptor,
   MetadataSearchResult,
   PlanSummary,
   SelectedInput,
@@ -53,12 +54,19 @@ const bridge: MangaboundBridge = Object.freeze({
     invoke<undefined>('workflow:write-title-mapping', { inputPath, mapping }),
   convertBatch: (command: BatchConversionCommand) =>
     invoke<readonly BatchTitleResult[]>('workflow:convert-batch', command),
-  searchMetadata: (jobId: string, title: string) =>
-    invoke<readonly MetadataSearchResult[]>('workflow:search-metadata', { jobId, title }),
-  suggestVolumes: (jobId: string, providerId: string) =>
+  listMetadataProviders: () =>
+    invoke<readonly MetadataProviderDescriptor[]>('workflow:list-metadata-providers'),
+  searchMetadata: (jobId: string, providerId: string, title: string) =>
+    invoke<readonly MetadataSearchResult[]>('workflow:search-metadata', {
+      jobId,
+      providerId,
+      title,
+    }),
+  suggestVolumes: (jobId: string, providerId: string, workId: string) =>
     invoke<{ volumes: readonly VolumeSuggestion[] }>('workflow:suggest-volumes', {
       jobId,
       providerId,
+      workId,
     }),
   openArtifact: (artifactId: string) => invoke<undefined>('artifact:open', artifactId),
   showArtifactInFolder: (artifactId: string) =>

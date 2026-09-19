@@ -105,6 +105,35 @@ function chapterToken(chapter: MappingChapter): string {
   return `${String(chapter.chapter)}${chapter.special ?? ''}`;
 }
 
+/**
+ * Whether mangabind.json can represent this chapter: it needs a usable chapter number and, if
+ * it is a special chapter, a suffix mangabind understands. validateMapping reports the same
+ * chapters as unparseable, so a draft must not start with one assigned to a volume.
+ */
+export function isMappableChapter(chapter: MappingChapter): boolean {
+  try {
+    chapterToken(chapter);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * A stable identity for what a draft says, ignoring volume ids: two drafts with the same
+ * signature have the same title, source, and volume-to-chapter assignment.
+ */
+export function mappingSignature(draft: MappingDraft): string {
+  const volumes = draft.volumes
+    .map((volume) => ({ number: volume.number, chapterIds: [...volume.chapterIds].sort() }))
+    .sort((left, right) => Number(left.number) - Number(right.number));
+  return JSON.stringify({
+    title: draft.mangaTitle.trim(),
+    source: draft.source ?? null,
+    volumes,
+  });
+}
+
 function compareChapters(left: MappingChapter, right: MappingChapter): number {
   const leftNumber = left.chapter ?? Number.POSITIVE_INFINITY;
   const rightNumber = right.chapter ?? Number.POSITIVE_INFINITY;

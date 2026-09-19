@@ -7,7 +7,9 @@ import {
   assignChapterRange,
   assignChapters,
   createMappingDraft,
+  isMappableChapter,
   MappingOperationError,
+  mappingSignature,
   MappingValidationError,
   mergeVolumes,
   removeVolume,
@@ -356,5 +358,55 @@ describe('mapping validation and serialization', () => {
       schema_version: 1,
       volumes: [{ number: '1', chapters: ['1'] }],
     });
+  });
+});
+
+describe('isMappableChapter', () => {
+  it('accepts a chapter with a number, with or without a known special suffix', () => {
+    expect(isMappableChapter(chapters[1]!)).toBe(true);
+    expect(isMappableChapter(chapters[2]!)).toBe(true);
+  });
+
+  it('rejects a chapter mangabind.json cannot represent, matching what validation reports', () => {
+    const numberless: MappingChapter = { id: 'n', name: 'Vol 3', path: '/n', pageCount: 1 };
+    const badSuffix: MappingChapter = { ...chapters[1]!, id: 's', special: 'not-a-suffix' };
+
+    expect(isMappableChapter(numberless)).toBe(false);
+    expect(isMappableChapter(badSuffix)).toBe(false);
+  });
+});
+
+describe('mappingSignature', () => {
+  const grouped = () =>
+    createMappingDraft({
+      chapters,
+      mangaTitle: 'Example Manga',
+      volumes: [
+        { id: 'a', number: '2', chapterIds: ['c3'] },
+        { id: 'b', number: '1', chapterIds: ['c2', 'c1'] },
+      ],
+    });
+
+  it('ignores volume ids, volume order and chapter order', () => {
+    const renamed = createMappingDraft({
+      chapters,
+      mangaTitle: ' Example Manga ',
+      volumes: [
+        { id: 'x', number: '1', chapterIds: ['c1', 'c2'] },
+        { id: 'y', number: '2.0', chapterIds: ['c3'] },
+      ],
+    });
+
+    expect(mappingSignature(renamed)).toBe(mappingSignature(grouped()));
+  });
+
+  it('changes with the assignment, the title, or the source', () => {
+    const base = mappingSignature(grouped());
+
+    expect(mappingSignature(unassignChapters(grouped(), ['c3'])) === base).toBe(false);
+    expect(mappingSignature({ ...grouped(), mangaTitle: 'Other' }) === base).toBe(false);
+    expect(
+      mappingSignature({ ...grouped(), source: { provider: 'external', id: 'w1' } }) === base,
+    ).toBe(false);
   });
 });

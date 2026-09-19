@@ -6,10 +6,14 @@ import type {
 } from '@/application/ports/metadata-provider';
 import type { VolumeSuggestion } from '@/domain/mapping';
 
-const defaultBaseUrl = process.env.METADATA_API_BASE_URL ?? 'https://api.external-metadata.org';
+// A placeholder that only tests rely on: the app registers a provider only when a real base URL
+// is configured (see registry.ts), so this default is never contacted at runtime.
+const defaultBaseUrl = 'https://api.external-metadata.org';
 const userAgent = 'Mangabound (+https://github.com/gustavommcv/mangabound)';
 
 export class ExternalMetadataProvider implements MetadataProviderPort {
+  readonly descriptor = { id: 'external', displayName: 'External API' } as const;
+
   constructor(
     private readonly fetchImpl: typeof globalThis.fetch = globalThis.fetch,
     private readonly baseUrl: string = defaultBaseUrl,
