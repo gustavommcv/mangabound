@@ -5,7 +5,7 @@ import path from 'node:path';
 
 import { $, browser } from '@wdio/globals';
 
-import { chooseOutputFolder } from './support';
+import { chooseOutputFolder, queueOutputFolderButton, resetQueue, setSteps } from './support';
 
 const temporaryDirectories: string[] = [];
 
@@ -39,23 +39,22 @@ describe('packaged process control', () => {
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [inputPath] });
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [libraryPath] });
 
-    await $('button*=Manga folder').click();
-    await $('h1=Organize Named Volumes into volumes').waitForDisplayed({ timeout: 30_000 });
-    await $('button=Confirm mapping').click();
-    await $('h1=Convert Named Volumes').waitForDisplayed();
+    await resetQueue();
+    await $('button=Folder').click();
+    await $('span=2 volumes').waitForDisplayed({ timeout: 30_000 });
 
     // Turn the conversion step off: only the joining remains.
-    await $('#step-convert').click();
-    await $('h1=Join Named Volumes').waitForDisplayed();
-    assert.match(await $('main').getText(), /mangapress is not run when you only join volumes/u);
+    await setSteps({ group: true, convert: false });
+    await $('button=Join 1 item').waitForExist({ timeout: 10_000 });
+    assert.equal(await $('button*=mangapress options').isExisting(), false);
 
-    await chooseOutputFolder('button=Choose output folder', libraryPath);
+    await chooseOutputFolder(queueOutputFolderButton, libraryPath);
     await $('button=Validate plan').click();
     await $('h2=Plan validated').waitForDisplayed({ timeout: 30_000 });
     assert.match(await $('main').getText(), /saved as CBZ files, mangapress not run/u);
     assert.deepEqual(await readdir(libraryPath), []);
 
-    await $('button=Save volumes').click();
+    await $('button=Join 1 item').click();
     await $('h1=2 books saved').waitForDisplayed({ timeout: 120_000 });
 
     assert.deepEqual((await readdir(libraryPath)).sort(), [
@@ -96,27 +95,25 @@ describe('packaged process control', () => {
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [inputPath] });
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [libraryPath] });
 
-    await $('button=Convert something else').click();
-    await $('h1=What are you bringing in?').waitForDisplayed({ timeout: 30_000 });
-    await $('button*=Manga folder').click();
-    await $('h1=Organize Mangabound E2E into volumes').waitForDisplayed({ timeout: 30_000 });
+    await resetQueue();
+    await $('button=Folder').click();
+    // Nothing groups this folder, so it waits for volumes until grouping is turned off.
+    await $('span=Needs volumes').waitForDisplayed({ timeout: 30_000 });
 
-    await $('button=Skip grouping').click();
-    await $('h1=Convert Mangabound E2E').waitForDisplayed();
-    assert.match(
-      await $('main').getText(),
-      /goes straight to mangapress as one book named Mangabound E2E/u,
-    );
+    // The join-only choice of the test before is still in force: only converting remains.
+    await setSteps({ group: false, convert: true });
+    await $('span=One book').waitForDisplayed({ timeout: 10_000 });
+    assert.match(await $('main').getText(), /not grouped/u);
 
     // The earlier test already chose a library, so this reads "Change output folder" here: either
     // label opens the same picker and this test supplies its own fresh directory.
-    await chooseOutputFolder('button*=output folder', libraryPath);
+    await chooseOutputFolder(queueOutputFolderButton, libraryPath);
     await $('button=Validate plan').click();
     await $('h2=Plan validated').waitForDisplayed({ timeout: 30_000 });
     assert.match(await $('main').getText(), /one book, chapters not grouped/u);
     assert.deepEqual(await readdir(libraryPath), []);
 
-    await $('button=Start conversion').click();
+    await $('button=Convert 1 item').click();
     await $('h1=1 book saved').waitForDisplayed({ timeout: 120_000 });
 
     assert.deepEqual((await readdir(libraryPath)).sort(), ['.mangabound', 'Mangabound E2E.epub']);

@@ -1,8 +1,8 @@
 import {
   ArrowLeft,
-  BookCheck,
   Boxes,
   CheckCircle2,
+  ChevronLeft,
   CircleAlert,
   FileArchive,
   FolderOpen,
@@ -13,7 +13,7 @@ import {
   RotateCcw,
   Square,
 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useReducer, useRef, useState } from 'react';
 
 import {
   applyCorrectedMapping,
@@ -25,8 +25,17 @@ import {
   type BatchTitle,
   type BatchTitleStatus,
 } from '@/domain/batch';
-import type { BookFormat, ConversionProgress, InputKind } from '@/domain/conversion';
-import type { MappingDraft } from '@/domain/mapping';
+import type { BookFormat, ConversionProgress } from '@/domain/conversion';
+import {
+  describeRow,
+  emptyQueue,
+  type InspectedRow,
+  type QueueInput,
+  queueReducer,
+  runnableRows,
+  sessionIds,
+} from '@/domain/input-queue';
+import { type MappingDraft, mappingSignature } from '@/domain/mapping';
 import {
   defaultMangapressSettings,
   type MangapressSettings,
@@ -42,9 +51,13 @@ import {
 import { MappingEditor } from '@/renderer/components/mapping/mapping-editor';
 import { MangapressSettingsEditor } from '@/renderer/components/settings/mangapress-settings';
 import { ProcessSteps } from '@/renderer/components/settings/process-steps';
+import { KoreaderCard } from '@/renderer/components/sharing/koreader-card';
 import { SharePanel } from '@/renderer/components/sharing/share-panel';
 import { Button } from '@/renderer/components/ui/button';
 import { Label } from '@/renderer/components/ui/label';
+import { QueueScreen, type RowPlan } from '@/renderer/screens/queue-screen';
+import { ResultsScreen, type RunOutcome } from '@/renderer/screens/results-screen';
+import { RunningScreen } from '@/renderer/screens/running-screen';
 import type {
   NetworkInterfaceOption,
   OpdsAuthConfig,
@@ -52,12 +65,11 @@ import type {
 } from '@/shared/opds-contract';
 import type { ToolchainStatus } from '@/shared/toolchain-status';
 import type {
-  ArtifactSummary,
+  ConversionCommand,
   DeviceProfileSummary,
-  InspectedInputPayload,
   MetadataProviderDescriptor,
   MetadataSearchResult,
-  PlanSummary,
+  RegisteredInputs,
   SelectedInput,
   SelectedLibrary,
   VolumeSuggestion,
@@ -65,7 +77,7 @@ import type {
 } from '@/shared/workflow-contract';
 
 type WorkflowStep =
-  'home' | 'inspecting' | 'mapping' | 'settings' | 'running' | 'complete' | 'batch-review';
+  'queue' | 'editing' | 'options' | 'running' | 'results' | 'inspecting' | 'batch-review';
 
 const foundations = [
   {
@@ -85,23 +97,40 @@ const foundations = [
   },
 ] as const;
 
+const toQueueInput = (input: SelectedInput): QueueInput => ({
+  id: input.selectionId,
+  kind: input.kind,
+  displayName: input.displayName,
+  displayPath: input.displayPath,
+});
+
 export function App(): React.JSX.Element {
   const bridge = window.mangabound;
   const [toolchain, setToolchain] = useState<ToolchainStatus>();
   const [profiles, setProfiles] = useState<readonly DeviceProfileSummary[]>([]);
-  const [step, setStep] = useState<WorkflowStep>('home');
-  const [selection, setSelection] = useState<SelectedInput>();
-  const [inspection, setInspection] = useState<InspectedInputPayload>();
-  const [mapping, setMapping] = useState<MappingDraft>();
+  const [step, setStep] = useState<WorkflowStep>('queue');
+  const [rows, dispatch] = useReducer(queueReducer, emptyQueue);
+  const [rejected, setRejected] = useState<
+    readonly { readonly name: string; readonly reason: string }[]
+  >([]);
+  const [editingId, setEditingId] = useState<string>();
   const [library, setLibrary] = useState<SelectedLibrary>();
   const [settings, setSettings] = useState<MangapressSettings>(defaultMangapressSettings);
   const [format, setFormat] = useState<BookFormat>('epub');
   const [mode, setMode] = useState<ProcessMode>(defaultProcessMode);
   const [jobId, setJobId] = useState<string>();
   const [progress, setProgress] = useState<ConversionProgress>();
-  const [artifacts, setArtifacts] = useState<readonly ArtifactSummary[]>([]);
-  const [plan, setPlan] = useState<PlanSummary>();
-  const [planning, setPlanning] = useState(false);
+  const [runPosition, setRunPosition] = useState<{
+    readonly name: string;
+    readonly index: number;
+    readonly total: number;
+  }>();
+  const [outcomes, setOutcomes] = useState<readonly RunOutcome[]>([]);
+  const [validated, setValidated] = useState<{
+    readonly key: string;
+    readonly plans: readonly RowPlan[];
+  }>();
+  const [validating, setValidating] = useState(false);
   const [failure, setFailure] = useState<WorkflowFailure>();
   const [batchParent, setBatchParent] = useState<{
     readonly parentPath: string;
@@ -116,12 +145,9 @@ export function App(): React.JSX.Element {
   const [metadataProviders, setMetadataProviders] = useState<readonly MetadataProviderDescriptor[]>(
     [],
   );
-  const planTokenRef = useRef(0);
-
-  const invalidatePlan = (): void => {
-    planTokenRef.current += 1;
-    setPlan(undefined);
-  };
+  const rowsRef = useRef(rows);
+  const attemptedInspection = useRef(new Set<string>());
+  const cancelRequested = useRef(false);
 
   useEffect(() => {
     if (bridge === undefined) return;
@@ -199,36 +225,94 @@ export function App(): React.JSX.Element {
     };
   }, [bridge]);
 
-  const chooseInput = async (kind: InputKind): Promise<void> => {
+  useEffect(() => {
+    rowsRef.current = rows;
+  });
+
+  // Each new row is read once: a scan of the folder (or a check of the file) that leaves a scratch
+  // session behind. One add reads its rows one after another; a later add starts its own pass.
+  useEffect(() => {
+    if (bridge === undefined) return;
+    const fresh = rows.filter(
+      (row) => row.state === 'inspecting' && !attemptedInspection.current.has(row.id),
+    );
+    if (fresh.length === 0) return;
+    for (const row of fresh) attemptedInspection.current.add(row.id);
+    void (async () => {
+      for (const row of fresh) {
+        const result = await bridge.inspectInput(row.id);
+        if (!result.ok) {
+          dispatch({ type: 'inspect-failed', id: row.id, message: result.error.message });
+          continue;
+        }
+        if (!rowsRef.current.some((candidate) => candidate.id === row.id)) {
+          // Removed while it was being read: nothing is waiting for this session.
+          void bridge.releaseInput(result.value.sessionId);
+          continue;
+        }
+        dispatch({
+          type: 'inspected',
+          id: row.id,
+          sessionId: result.value.sessionId,
+          ...(result.value.mapping === undefined ? {} : { mapping: result.value.mapping }),
+        });
+      }
+    })();
+  }, [bridge, rows]);
+
+  // A file dropped anywhere but on the queue would make the window try to open it. The queue
+  // handles its own drops; everywhere else they are ignored.
+  useEffect(() => {
+    const ignore = (event: DragEvent): void => {
+      event.preventDefault();
+    };
+    window.addEventListener('dragover', ignore);
+    window.addEventListener('drop', ignore);
+    return () => {
+      window.removeEventListener('dragover', ignore);
+      window.removeEventListener('drop', ignore);
+    };
+  }, []);
+
+  const releaseSessions = (ids: readonly string[]): void => {
+    if (bridge === undefined) return;
+    for (const id of ids) void bridge.releaseInput(id);
+  };
+
+  const removeRows = (ids: readonly string[]): void => {
+    const gone = rows.filter((row) => ids.includes(row.id));
+    dispatch({ type: 'remove', ids });
+    releaseSessions(sessionIds(gone));
+  };
+
+  const addRegistered = (registered: RegisteredInputs): void => {
+    setRejected(registered.rejected);
+    if (registered.inputs.length > 0) {
+      dispatch({ type: 'add', inputs: registered.inputs.map(toQueueInput) });
+    }
+  };
+
+  const addFromDialog = async (kind: 'files' | 'folders'): Promise<void> => {
     if (bridge === undefined) return;
     setFailure(undefined);
-    const chosen = await bridge.chooseInput(kind);
-    if (!chosen.ok) {
-      setFailure(chosen.error);
-      return;
-    }
-    if (chosen.value === null) return;
-    setSelection(chosen.value);
-    setStep('inspecting');
-    const inspected = await bridge.inspectInput(chosen.value.selectionId);
-    if (!inspected.ok) {
-      setFailure(inspected.error);
-      setStep('home');
-      return;
-    }
-    setInspection(inspected.value);
-    setMapping(inspected.value.mapping);
-    setStep(inspected.value.kind === 'folder' ? 'mapping' : 'settings');
+    const result = await bridge.chooseInputs(kind);
+    if (!result.ok) setFailure(result.error);
+    else addRegistered(result.value);
+  };
+
+  const addDropped = async (files: readonly File[]): Promise<void> => {
+    if (bridge === undefined) return;
+    setFailure(undefined);
+    const result = await bridge.registerDroppedFiles(files);
+    if (!result.ok) setFailure(result.error);
+    else addRegistered(result.value);
   };
 
   const chooseLibrary = async (): Promise<void> => {
     if (bridge === undefined) return;
     const result = await bridge.chooseLibrary();
     if (!result.ok) setFailure(result.error);
-    else if (result.value !== null) {
-      setLibrary(result.value);
-      invalidatePlan();
-    }
+    else if (result.value !== null) setLibrary(result.value);
   };
 
   /**
@@ -242,66 +326,134 @@ export function App(): React.JSX.Element {
     usesMangapress(resolved)
       ? { mode: resolved, settings, format }
       : { mode: resolved, settings: defaultMangapressSettings, format: 'cbz' };
-  const runOptions = (input: InputKind): ReturnType<typeof withRunSettings<ProcessMode>> =>
-    withRunSettings(resolveMode(input, mode));
   const batchRunOptions = (): ReturnType<typeof withRunSettings<BatchProcessMode>> =>
     withRunSettings(resolveMode('library', mode));
+  /** The command for one queue row. A folder sent straight to mangapress carries no volumes. */
+  const commandFor = (
+    row: InspectedRow,
+    rowProcess: ProcessMode,
+    libraryId: string,
+    commandJobId: string,
+  ): ConversionCommand => ({
+    jobId: commandJobId,
+    sessionId: row.sessionId,
+    libraryId,
+    ...withRunSettings(rowProcess),
+    ...(row.mapping === undefined || rowProcess === 'convert-only' ? {} : { mapping: row.mapping }),
+  });
 
-  const validatePlan = async (): Promise<void> => {
-    if (
-      bridge === undefined ||
-      bridge.planConversion === undefined ||
-      inspection === undefined ||
-      library === undefined
-    ) {
-      return;
-    }
+  // A validated plan only describes the queue, process and settings it was made for.
+  const planKey = JSON.stringify([
+    mode,
+    format,
+    settings,
+    library?.libraryId,
+    rows.map((row) => [
+      row.id,
+      row.state,
+      row.state === 'inspected' && row.mapping !== undefined ? mappingSignature(row.mapping) : '',
+      row.state === 'inspected' ? row.confirmed : false,
+    ]),
+  ]);
+  const plans = validated?.key === planKey ? validated.plans : undefined;
+
+  const validatePlans = async (): Promise<void> => {
+    if (bridge === undefined || library === undefined) return;
     setFailure(undefined);
-    invalidatePlan();
-    const token = planTokenRef.current;
-    setPlanning(true);
+    setValidating(true);
+    const collected: RowPlan[] = [];
     try {
-      const result = await bridge.planConversion({
-        jobId: crypto.randomUUID(),
-        sessionId: inspection.sessionId,
-        libraryId: library.libraryId,
-        ...runOptions(inspection.kind),
-        ...(mapping === undefined ? {} : { mapping }),
-      });
-      if (!result.ok) setFailure(result.error);
-      else if (planTokenRef.current === token) setPlan(result.value);
+      for (const { row, mode: rowProcess } of runnableRows(rows, mode)) {
+        const result = await bridge.planConversion(
+          commandFor(row, rowProcess, library.libraryId, crypto.randomUUID()),
+        );
+        if (!result.ok) {
+          setFailure(result.error);
+          return;
+        }
+        collected.push({ name: row.displayName, plan: result.value });
+      }
+      setValidated({ key: planKey, plans: collected });
     } finally {
-      setPlanning(false);
+      setValidating(false);
     }
   };
 
-  const startConversion = async (): Promise<void> => {
-    if (bridge === undefined || inspection === undefined || library === undefined) return;
-    const nextJobId = crypto.randomUUID();
-    setJobId(nextJobId);
+  const startRun = async (): Promise<void> => {
+    if (bridge === undefined || library === undefined) return;
+    const items = runnableRows(rows, mode);
+    if (items.length === 0) return;
     setFailure(undefined);
-    setProgress({ stage: 'processing', message: 'Preparing conversion…' });
+    cancelRequested.current = false;
     setStep('running');
-    const result = await bridge.convert({
-      jobId: nextJobId,
-      sessionId: inspection.sessionId,
-      libraryId: library.libraryId,
-      ...runOptions(inspection.kind),
-      ...(mapping === undefined ? {} : { mapping }),
-    });
-    if (!result.ok) {
-      setFailure(result.error);
-      setStep('settings');
+    const settled: RunOutcome[] = [];
+    for (const [index, { row, mode: rowProcess }] of items.entries()) {
+      if (cancelRequested.current) break;
+      const nextJobId = crypto.randomUUID();
+      setJobId(nextJobId);
+      setRunPosition({ name: row.displayName, index: index + 1, total: items.length });
+      setProgress({ stage: 'processing', message: 'Preparing…' });
+      const result = await bridge.convert(
+        commandFor(row, rowProcess, library.libraryId, nextJobId),
+      );
+      if (result.ok) {
+        settled.push({
+          rowId: row.id,
+          name: row.displayName,
+          status: 'done',
+          artifacts: result.value,
+        });
+      } else {
+        settled.push({
+          rowId: row.id,
+          name: row.displayName,
+          status: 'failed',
+          artifacts: [],
+          message: result.error.message,
+        });
+        if (result.error.code === 'cancelled') cancelRequested.current = true;
+      }
+    }
+    setJobId(undefined);
+    setProgress(undefined);
+    setRunPosition(undefined);
+    // Everything that was left out is reported with the reason and, when it can be fixed, a way to.
+    const ranIds = new Set(settled.map((outcome) => outcome.rowId));
+    for (const row of rows) {
+      if (ranIds.has(row.id) || row.state === 'inspecting') continue;
+      const view = describeRow(row, mode);
+      if (view.runnable) continue;
+      settled.push({
+        rowId: row.id,
+        name: row.displayName,
+        status: 'skipped',
+        artifacts: [],
+        message: view.note ?? view.chip,
+        fixable: row.state === 'inspected' && row.kind === 'folder' && mode !== 'convert-only',
+      });
+    }
+    // Books that were saved leave the queue; the rest stay so they can be fixed and run again.
+    removeRows(
+      settled.filter((outcome) => outcome.status === 'done').map((outcome) => outcome.rowId),
+    );
+    if (settled.length === 0) {
+      setStep('queue');
       return;
     }
-    setArtifacts(result.value);
-    setStep('complete');
+    setOutcomes(settled);
+    setStep('results');
   };
 
   const cancelConversion = async (): Promise<void> => {
     if (bridge === undefined || jobId === undefined) return;
+    cancelRequested.current = true;
     const result = await bridge.cancelConversion(jobId);
     if (!result.ok) setFailure(result.error);
+  };
+
+  const openEditor = (rowId: string): void => {
+    setEditingId(rowId);
+    setStep('editing');
   };
 
   const runArtifactAction = async (
@@ -317,23 +469,6 @@ export function App(): React.JSX.Element {
     if (!result.ok) setFailure(result.error);
   };
 
-  const startOver = async (): Promise<void> => {
-    const sessionId = inspection?.sessionId;
-    setSelection(undefined);
-    setInspection(undefined);
-    setMapping(undefined);
-    setArtifacts([]);
-    setFailure(undefined);
-    setProgress(undefined);
-    invalidatePlan();
-    setJobId(undefined);
-    setStep('home');
-    if (sessionId !== undefined && bridge?.releaseInput !== undefined) {
-      const result = await bridge.releaseInput(sessionId);
-      if (!result.ok) setFailure(result.error);
-    }
-  };
-
   const loadBatchPlan = async (parentPath: string): Promise<void> => {
     if (bridge === undefined) return;
     setFailure(undefined);
@@ -341,7 +476,7 @@ export function App(): React.JSX.Element {
     const result = await bridge.planBatch(crypto.randomUUID(), parentPath);
     if (!result.ok) {
       setFailure(result.error);
-      setStep(batch === undefined ? 'home' : 'batch-review');
+      setStep(batch === undefined ? 'queue' : 'batch-review');
       return;
     }
     setBatch(createBatchState(result.value));
@@ -452,7 +587,7 @@ export function App(): React.JSX.Element {
     setFailure(undefined);
     setProgress(undefined);
     setJobId(undefined);
-    setStep('home');
+    setStep('queue');
   };
 
   const searchMetadata = async (
@@ -461,11 +596,11 @@ export function App(): React.JSX.Element {
     signal: AbortSignal,
   ): Promise<readonly MetadataSearchResult[]> => {
     if (bridge === undefined) return [];
-    const jobId = crypto.randomUUID();
+    const searchJobId = crypto.randomUUID();
     signal.addEventListener('abort', () => {
-      void bridge.cancelConversion(jobId);
+      void bridge.cancelConversion(searchJobId);
     });
-    const result = await bridge.searchMetadata(jobId, providerId, title);
+    const result = await bridge.searchMetadata(searchJobId, providerId, title);
     if (!result.ok) throw new Error(result.error.message);
     return result.value;
   };
@@ -487,9 +622,13 @@ export function App(): React.JSX.Element {
     else if (result.value !== null) setSharedLibrary(result.value);
   };
 
-  const startSharing = async (interfaceAddress: string, auth: OpdsAuthConfig): Promise<void> => {
-    if (bridge === undefined || sharedLibrary === undefined) return;
-    const result = await bridge.startSharing(sharedLibrary.libraryId, interfaceAddress, auth);
+  const startSharing = async (
+    interfaceAddress: string,
+    auth: OpdsAuthConfig,
+    target: SelectedLibrary | undefined = sharedLibrary,
+  ): Promise<void> => {
+    if (bridge === undefined || target === undefined) return;
+    const result = await bridge.startSharing(target.libraryId, interfaceAddress, auth);
     if (!result.ok) setFailure(result.error);
     else setSharingStatus(result.value);
   };
@@ -509,6 +648,11 @@ export function App(): React.JSX.Element {
           chapters: [],
           volumes: [],
         });
+
+  const editingRow = rows.find((row) => row.id === editingId);
+  const deviceName =
+    profiles.find((profile) => profile.code === settings.deviceProfile)?.name ??
+    settings.deviceProfile;
 
   return (
     <div className="bg-background text-foreground min-h-screen">
@@ -548,18 +692,176 @@ export function App(): React.JSX.Element {
             )}
           </div>
           {failure !== undefined && <IssueCallout failure={failure} />}
-          {step === 'home' && (
-            <Home
+          {step === 'queue' && (
+            <QueueScreen
               disabled={toolchain?.state !== 'ready'}
-              onChoose={(kind) => {
-                void chooseInput(kind);
+              format={format}
+              {...(library === undefined ? {} : { library })}
+              mode={mode}
+              onAddFiles={() => {
+                void addFromDialog('files');
               }}
-              onChooseBatch={() => {
+              onAddFolders={() => {
+                void addFromDialog('folders');
+              }}
+              onAddLibrary={() => {
                 void chooseBatch();
               }}
+              onChooseLibrary={() => {
+                void chooseLibrary();
+              }}
+              onClear={() => {
+                removeRows(rows.map((row) => row.id));
+              }}
+              onConvert={() => {
+                void startRun();
+              }}
+              onDeviceProfile={(code) => {
+                setSettings((current) => ({ ...current, deviceProfile: code }));
+              }}
+              onDismissRejected={() => {
+                setRejected([]);
+              }}
+              onDropFiles={(files) => {
+                void addDropped(files);
+              }}
+              onEdit={openEditor}
+              onFormat={setFormat}
+              onMode={setMode}
+              onOpenOptions={() => {
+                setStep('options');
+              }}
+              onRemove={(id) => {
+                removeRows([id]);
+              }}
+              onValidate={() => {
+                void validatePlans();
+              }}
+              {...(plans === undefined ? {} : { plans })}
+              profiles={profiles}
+              rejected={rejected}
+              rows={rows}
+              settings={settings}
+              validating={validating}
             />
           )}
-          {step === 'inspecting' && <Inspecting selection={selection} />}
+          {step === 'options' && (
+            <section className="mx-auto max-w-5xl space-y-6" aria-labelledby="options-title">
+              <Button
+                onClick={() => {
+                  setStep('queue');
+                }}
+                variant="ghost"
+              >
+                <ArrowLeft /> Back
+              </Button>
+              <div>
+                <p className="text-muted-foreground text-xs font-medium">Advanced</p>
+                <h1 className="mt-2 text-3xl font-semibold tracking-tight" id="options-title">
+                  mangapress options
+                </h1>
+                <p className="text-muted-foreground mt-3 text-sm">
+                  Every setting mangapress supports. They apply to everything in the queue.
+                </p>
+              </div>
+              <MangapressSettingsEditor
+                format={format}
+                onFormat={setFormat}
+                onSettings={setSettings}
+                profiles={profiles}
+                settings={settings}
+              />
+            </section>
+          )}
+          {step === 'editing' &&
+            editingRow?.state === 'inspected' &&
+            editingRow.mapping !== undefined && (
+              <div className="space-y-4">
+                <Button
+                  onClick={() => {
+                    setStep('queue');
+                  }}
+                  variant="ghost"
+                >
+                  <ChevronLeft /> Queue
+                </Button>
+                <MappingEditor
+                  initialDraft={editingRow.mapping}
+                  metadataProviders={metadataProviders}
+                  onConfirm={(_metadata, draft) => {
+                    dispatch({ type: 'confirm-mapping', id: editingRow.id, mapping: draft });
+                    setStep('queue');
+                  }}
+                  onSearchMetadata={searchMetadata}
+                  onSkipGrouping={() => {
+                    setMode('convert-only');
+                    setStep('queue');
+                  }}
+                  onSuggestVolumes={suggestVolumes}
+                  startedFrom={
+                    editingRow.proposedSignature !== undefined &&
+                    editingRow.mapping.volumes.length > 0 &&
+                    mappingSignature(editingRow.mapping) === editingRow.proposedSignature
+                      ? 'mangabind'
+                      : undefined
+                  }
+                />
+              </div>
+            )}
+          {step === 'running' && (
+            <RunningScreen
+              onCancel={() => {
+                void cancelConversion();
+              }}
+              {...(progress === undefined ? {} : { progress })}
+              {...(runPosition === undefined ? {} : { position: runPosition })}
+            />
+          )}
+          {step === 'results' && (
+            <ResultsScreen
+              aside={
+                outcomes.some((outcome) => outcome.artifacts.length > 0) &&
+                library !== undefined ? (
+                  <KoreaderCard
+                    interfaces={interfaces}
+                    onStart={(interfaceAddress) => {
+                      setSharedLibrary(library);
+                      void startSharing(interfaceAddress, { mode: 'token' }, library);
+                    }}
+                    onStop={() => {
+                      void stopSharing();
+                    }}
+                    status={sharingStatus}
+                  />
+                ) : undefined
+              }
+              onBack={() => {
+                setOutcomes([]);
+                setStep('queue');
+              }}
+              onFix={(rowId) => {
+                setOutcomes([]);
+                openEditor(rowId);
+              }}
+              onOpen={(artifactId) => {
+                if (bridge.openArtifact !== undefined) {
+                  void runArtifactAction(bridge.openArtifact, artifactId);
+                }
+              }}
+              onShow={(artifactId) => {
+                if (bridge.showArtifactInFolder !== undefined) {
+                  void runArtifactAction(bridge.showArtifactInFolder, artifactId);
+                }
+              }}
+              outcomes={outcomes}
+              summary={
+                mode === 'bind-only'
+                  ? `Joined volumes · CBZ · ${library?.displayPath ?? ''}`
+                  : `${deviceName} · ${format.toUpperCase()} · ${library?.displayPath ?? ''}`
+              }
+            />
+          )}
+          {step === 'inspecting' && <Inspecting />}
           {step === 'batch-review' && batch !== undefined && correctingTitle === undefined && (
             <BatchReview
               batch={batch}
@@ -605,90 +907,6 @@ export function App(): React.JSX.Element {
                 onSuggestVolumes={suggestVolumes}
               />
             )}
-          {step === 'mapping' && inspection?.mapping !== undefined && (
-            <MappingEditor
-              initialDraft={inspection.mapping}
-              startedFrom={inspection.mapping.volumes.length > 0 ? 'mangabind' : undefined}
-              onConfirm={(_metadata, draft) => {
-                setMapping(draft);
-                invalidatePlan();
-                setStep('settings');
-              }}
-              onSkipGrouping={() => {
-                setMode('convert-only');
-                invalidatePlan();
-                setStep('settings');
-              }}
-              metadataProviders={metadataProviders}
-              onSearchMetadata={searchMetadata}
-              onSuggestVolumes={suggestVolumes}
-            />
-          )}
-          {step === 'settings' && inspection !== undefined && (
-            <ConversionSettings
-              format={format}
-              inspection={inspection}
-              library={library}
-              mapping={mapping}
-              mode={mode}
-              onMode={(nextMode) => {
-                setMode(nextMode);
-                invalidatePlan();
-              }}
-              onBack={() => {
-                if (inspection.kind === 'folder') setStep('mapping');
-                else void startOver();
-              }}
-              onChooseLibrary={() => {
-                void chooseLibrary();
-              }}
-              onFormat={(nextFormat) => {
-                setFormat(nextFormat);
-                invalidatePlan();
-              }}
-              onPlan={() => {
-                void validatePlan();
-              }}
-              onSettings={(nextSettings) => {
-                setSettings(nextSettings);
-                invalidatePlan();
-              }}
-              onStart={() => {
-                void startConversion();
-              }}
-              plan={plan}
-              planning={planning}
-              settings={settings}
-              profiles={profiles}
-            />
-          )}
-          {step === 'running' && (
-            <Running
-              progress={progress}
-              selection={selection}
-              onCancel={() => {
-                void cancelConversion();
-              }}
-            />
-          )}
-          {step === 'complete' && (
-            <Complete
-              artifacts={artifacts}
-              onOpen={(artifactId) => {
-                if (bridge.openArtifact !== undefined) {
-                  void runArtifactAction(bridge.openArtifact, artifactId);
-                }
-              }}
-              onShow={(artifactId) => {
-                if (bridge.showArtifactInFolder !== undefined) {
-                  void runArtifactAction(bridge.showArtifactInFolder, artifactId);
-                }
-              }}
-              onStartOver={() => {
-                void startOver();
-              }}
-            />
-          )}
         </main>
       )}
     </div>
@@ -746,75 +964,6 @@ function ToolchainBanner({
   );
 }
 
-export function Home({
-  disabled,
-  onChoose,
-  onChooseBatch,
-}: {
-  readonly disabled: boolean;
-  readonly onChoose: (kind: InputKind) => void;
-  readonly onChooseBatch?: () => void;
-}): React.JSX.Element {
-  return (
-    <section className="space-y-8" aria-labelledby="home-title">
-      <div className="max-w-2xl space-y-3">
-        <p className="text-muted-foreground text-xs font-medium">New conversion</p>
-        <h1 id="home-title" className="text-3xl font-semibold tracking-tight">
-          What are you bringing in?
-        </h1>
-        <p className="text-muted-foreground leading-7">
-          Choose something already downloaded. Mangabound never downloads chapters and never opens
-          pages in an integrated reader.
-        </p>
-      </div>
-      <div className="grid gap-4 md:grid-cols-3">
-        <button
-          className="border-border bg-surface hover:border-accent/60 focus-visible:ring-ring group rounded-xl border p-6 text-left transition-[border-color,transform] outline-none hover:-translate-y-0.5 focus-visible:ring-2"
-          disabled={disabled}
-          onClick={() => {
-            onChoose('folder');
-          }}
-          type="button"
-        >
-          <FolderOpen aria-hidden="true" className="text-accent size-6" />
-          <span className="mt-6 block text-base font-semibold">Manga folder</span>
-          <span className="text-muted-foreground mt-2 block text-sm leading-6">
-            Inspect parsed chapters and build or correct their volume mapping.
-          </span>
-        </button>
-        <button
-          className="border-border bg-surface hover:border-accent/60 focus-visible:ring-ring group rounded-xl border p-6 text-left transition-[border-color,transform] outline-none hover:-translate-y-0.5 focus-visible:ring-2"
-          disabled={disabled}
-          onClick={() => {
-            onChoose('cbz');
-          }}
-          type="button"
-        >
-          <FileArchive aria-hidden="true" className="text-accent size-6" />
-          <span className="mt-6 block text-base font-semibold">One CBZ file</span>
-          <span className="text-muted-foreground mt-2 block text-sm leading-6">
-            Convert an existing book directly with mangapress; mangabind is bypassed.
-          </span>
-        </button>
-        {onChooseBatch !== undefined && (
-          <button
-            className="border-border bg-surface hover:border-accent/60 focus-visible:ring-ring group rounded-xl border p-6 text-left transition-[border-color,transform] outline-none hover:-translate-y-0.5 focus-visible:ring-2"
-            disabled={disabled}
-            onClick={onChooseBatch}
-            type="button"
-          >
-            <Boxes aria-hidden="true" className="text-accent size-6" />
-            <span className="mt-6 block text-base font-semibold">Manga library (batch)</span>
-            <span className="text-muted-foreground mt-2 block text-sm leading-6">
-              Convert every manga in a chosen library, one after another.
-            </span>
-          </button>
-        )}
-      </div>
-    </section>
-  );
-}
-
 export function Inspecting({
   selection,
 }: {
@@ -830,113 +979,6 @@ export function Inspecting({
         Inspecting {selection?.displayName ?? 'input'}…
       </h1>
       <p className="text-muted-foreground mt-2 text-sm">Reading chapter names and page counts.</p>
-    </section>
-  );
-}
-
-export function ConversionSettings({
-  format,
-  inspection,
-  library,
-  mapping,
-  mode = defaultProcessMode,
-  onBack,
-  onChooseLibrary,
-  onFormat,
-  onMode,
-  onPlan,
-  onSettings,
-  onStart,
-  settings,
-  plan,
-  planning,
-  profiles,
-}: {
-  readonly format: BookFormat;
-  readonly inspection: InspectedInputPayload;
-  readonly library?: SelectedLibrary;
-  readonly mapping?: MappingDraft;
-  readonly mode?: ProcessMode;
-  readonly onBack: () => void;
-  readonly onChooseLibrary: () => void;
-  readonly onFormat: (format: BookFormat) => void;
-  readonly onMode?: (mode: ProcessMode) => void;
-  readonly onPlan: () => void;
-  readonly onSettings: (settings: MangapressSettings) => void;
-  readonly onStart: () => void;
-  readonly settings: MangapressSettings;
-  readonly plan?: PlanSummary;
-  readonly planning: boolean;
-  readonly profiles: readonly DeviceProfileSummary[];
-}): React.JSX.Element {
-  const resolved = resolveMode(inspection.kind, mode);
-  const runsMangapress = usesMangapress(resolved);
-  const settingIssues = runsMangapress ? validateMangapressSettings(settings) : [];
-  const volumeCount = mapping?.volumes.length ?? 0;
-  const volumes = `${String(volumeCount)} mapped volume${volumeCount === 1 ? '' : 's'}`;
-  return (
-    <section className="mx-auto max-w-5xl space-y-6" aria-labelledby="settings-title">
-      <Button onClick={onBack} variant="ghost">
-        <ArrowLeft /> Back
-      </Button>
-      <div>
-        <p className="text-muted-foreground text-xs font-medium">Output setup</p>
-        <h1 id="settings-title" className="mt-2 text-3xl font-semibold tracking-tight">
-          {resolved === 'bind-only' ? 'Join' : 'Convert'} {inspection.displayName}
-        </h1>
-        <p className="text-muted-foreground mt-3 text-sm">
-          {inspection.kind === 'cbz'
-            ? 'This CBZ will go directly to mangapress.'
-            : resolved === 'bind-only'
-              ? `${volumes} will be joined into CBZ files and saved; mangapress is not run.`
-              : resolved === 'convert-only'
-                ? `The folder goes straight to mangapress as one book named ${inspection.displayName}; chapters are not grouped into volumes.`
-                : `${volumes} will run sequentially.`}
-        </p>
-      </div>
-      {onMode !== undefined && (
-        <div className="border-border bg-surface rounded-xl border p-6">
-          <ProcessSteps input={inspection.kind} mode={mode} onMode={onMode} />
-        </div>
-      )}
-      <OutputSettingsPanel
-        format={format}
-        library={library}
-        mangapressDisabled={!runsMangapress}
-        onChooseLibrary={onChooseLibrary}
-        onFormat={onFormat}
-        onSettings={onSettings}
-        profiles={profiles}
-        settings={settings}
-      />
-      {settingIssues.length > 0 && (
-        <p className="text-status-failed text-sm" role="alert">
-          Review the highlighted output settings before converting.
-        </p>
-      )}
-      {plan !== undefined && <PlanResult plan={plan} />}
-      <div className="flex flex-wrap justify-end gap-3">
-        <Button
-          disabled={library === undefined || settingIssues.length > 0 || planning}
-          onClick={onPlan}
-          size="lg"
-          variant="outline"
-        >
-          {planning ? (
-            <LoaderCircle aria-hidden="true" className="animate-spin" />
-          ) : (
-            <CheckCircle2 />
-          )}
-          {planning ? 'Validating…' : 'Validate plan'}
-        </Button>
-        <Button
-          disabled={library === undefined || settingIssues.length > 0 || planning}
-          onClick={onStart}
-          size="lg"
-        >
-          <MonitorSmartphone /> {resolved === 'bind-only' ? 'Save volumes' : 'Start conversion'}
-        </Button>
-      </div>
     </section>
   );
 }
@@ -996,41 +1038,6 @@ export function OutputSettingsPanel({
         </div>
       </div>
     </>
-  );
-}
-
-export function PlanResult({ plan }: { readonly plan: PlanSummary }): React.JSX.Element {
-  return (
-    <section
-      aria-labelledby="plan-title"
-      className="border-status-complete/40 bg-status-complete/5 rounded-xl border p-5"
-    >
-      <div className="flex items-start gap-3">
-        <CheckCircle2 aria-hidden="true" className="text-status-complete mt-0.5 size-5" />
-        <div className="min-w-0 flex-1">
-          <h2 className="font-semibold" id="plan-title">
-            Plan validated
-          </h2>
-          <p className="text-muted-foreground mt-1 text-sm">{plan.message}</p>
-          <ul className="mt-3 space-y-1 text-sm">
-            {plan.books.map((book) => (
-              <li className="flex justify-between gap-4" key={book.name}>
-                <span className="truncate">{book.name}</span>
-                <span className="text-muted-foreground shrink-0">
-                  {String(book.pageCount)} page{book.pageCount === 1 ? '' : 's'}
-                </span>
-              </li>
-            ))}
-          </ul>
-          {plan.issues.length > 0 && (
-            <p className="text-status-warning mt-3 text-xs">
-              {String(plan.issues.length)} warning{plan.issues.length === 1 ? '' : 's'} reported by{' '}
-              {plan.tool}.
-            </p>
-          )}
-        </div>
-      </div>
-    </section>
   );
 }
 
@@ -1220,110 +1227,6 @@ function BatchStatusIcon({ status }: { readonly status: BatchTitleStatus }): Rea
   }
 }
 
-export function Running({
-  onCancel,
-  progress,
-  selection,
-}: {
-  readonly onCancel: () => void;
-  readonly progress?: ConversionProgress;
-  readonly selection?: SelectedInput;
-}): React.JSX.Element {
-  const percentage =
-    progress?.completed !== undefined && progress.total !== undefined
-      ? Math.round((progress.completed / progress.total) * 100)
-      : undefined;
-  return (
-    <section className="mx-auto flex min-h-96 max-w-xl flex-col justify-center" aria-live="polite">
-      <LoaderCircle aria-hidden="true" className="text-accent size-7 animate-spin" />
-      <p className="text-muted-foreground mt-6 text-xs font-medium">
-        {progress?.stage ?? 'Processing'}
-      </p>
-      <h1 className="mt-2 text-2xl font-semibold">Converting {selection?.displayName ?? 'book'}</h1>
-      <p className="text-muted-foreground mt-3 text-sm">{progress?.message}</p>
-      {percentage !== undefined && (
-        <div
-          className="mt-5"
-          aria-label={`${String(percentage)}% complete`}
-          role="progressbar"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={percentage}
-        >
-          <div className="bg-muted h-2 overflow-hidden rounded-full">
-            <div
-              className="bg-accent h-full rounded-full transition-[width]"
-              style={{ width: `${String(percentage)}%` }}
-            />
-          </div>
-        </div>
-      )}
-      <Button className="mt-8 self-start" onClick={onCancel} variant="outline">
-        <Square /> Cancel conversion
-      </Button>
-    </section>
-  );
-}
-
-export function Complete({
-  artifacts,
-  onOpen,
-  onShow,
-  onStartOver,
-}: {
-  readonly artifacts: readonly ArtifactSummary[];
-  readonly onOpen: (artifactId: string) => void;
-  readonly onShow: (artifactId: string) => void;
-  readonly onStartOver: () => void;
-}): React.JSX.Element {
-  return (
-    <section className="mx-auto max-w-3xl space-y-6" aria-labelledby="complete-title">
-      <BookCheck aria-hidden="true" className="text-status-complete size-8" />
-      <div>
-        <p className="text-status-complete text-xs font-medium">Complete</p>
-        <h1 id="complete-title" className="mt-2 text-3xl font-semibold tracking-tight">
-          {String(artifacts.length)} book{artifacts.length === 1 ? '' : 's'} saved
-        </h1>
-        <p className="text-muted-foreground mt-3 text-sm">
-          Open uses your operating system’s default app. Mangabound does not include a reader.
-        </p>
-      </div>
-      <div className="space-y-3">
-        {artifacts.map((artifact) => (
-          <article
-            className="border-border bg-surface flex flex-wrap items-center gap-4 rounded-xl border p-5"
-            key={artifact.id}
-          >
-            <FileArchive aria-hidden="true" className="text-accent size-5" />
-            <div className="min-w-0 flex-1">
-              <h2 className="truncate text-sm font-semibold">{artifact.name}</h2>
-              <p className="text-muted-foreground mt-1 text-xs">{formatBytes(artifact.bytes)}</p>
-            </div>
-            <Button
-              onClick={() => {
-                onOpen(artifact.id);
-              }}
-            >
-              Open
-            </Button>
-            <Button
-              onClick={() => {
-                onShow(artifact.id);
-              }}
-              variant="outline"
-            >
-              Show in folder
-            </Button>
-          </article>
-        ))}
-      </div>
-      <Button onClick={onStartOver} variant="ghost">
-        Convert something else
-      </Button>
-    </section>
-  );
-}
-
 export function IssueCallout({
   failure,
 }: {
@@ -1381,10 +1284,4 @@ function Foundation({ toolchain }: { readonly toolchain?: ToolchainStatus }): Re
       </section>
     </main>
   );
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${String(bytes)} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }

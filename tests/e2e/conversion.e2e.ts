@@ -5,7 +5,7 @@ import path from 'node:path';
 
 import { $, browser } from '@wdio/globals';
 
-import { chooseOutputFolder } from './support';
+import { chooseOutputFolder, queueOutputFolderButton, resetQueue } from './support';
 
 const temporaryDirectories: string[] = [];
 
@@ -62,19 +62,24 @@ describe('packaged conversion pipeline', () => {
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [libraryPath] });
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [directCbzPath] });
 
-    await $('button*=Manga folder').click();
+    await resetQueue();
+    await $('button=Folder').click();
+    // Nothing in the chapter names says which volume they belong to, so the folder waits for a
+    // grouping before it can run.
+    await $('span=Needs volumes').waitForDisplayed({ timeout: 30_000 });
+    await $('button[aria-label="Edit volumes for Mangabound E2E"]').click();
     await $('h1=Organize Mangabound E2E into volumes').waitForDisplayed({ timeout: 30_000 });
     await $('button=Select all').click();
     await $('button[aria-label="Add volume"]').click();
     await $('button=Assign selected').click();
     await $('button=Confirm mapping').click();
-    await $('h1=Convert Mangabound E2E').waitForDisplayed();
-    await chooseOutputFolder('button=Choose output folder', libraryPath);
+    await $('span=1 volume').waitForDisplayed({ timeout: 10_000 });
+    await chooseOutputFolder(queueOutputFolderButton, libraryPath);
     await $('button=Validate plan').click();
     await $('h2=Plan validated').waitForDisplayed({ timeout: 30_000 });
     assert.deepEqual(await readdir(libraryPath), []);
     await assert.rejects(readFile(path.join(inputPath, 'mangabind.json'), 'utf8'));
-    await $('button=Start conversion').click();
+    await $('button=Convert 1 item').click();
     await $('h1=1 book saved').waitForDisplayed({ timeout: 120_000 });
 
     const metadata = JSON.parse(await readFile(path.join(inputPath, 'mangabind.json'), 'utf8')) as {
@@ -93,17 +98,20 @@ describe('packaged conversion pipeline', () => {
     assert.ok(folderBytes.length > 1_024);
     assert.equal(folderBytes.subarray(0, 2).toString('ascii'), 'PK');
 
-    await $('button=Convert something else').click();
-    await $('button*=One CBZ file').click();
-    await $('h1=Convert Mangabound Direct.cbz').waitForDisplayed({ timeout: 30_000 });
-    assert.match(await $('main').getText(), /directly to mangapress/u);
+    // The saved folder left the queue; the CBZ is added next, on its own.
+    await $('button=Convert more').click();
+    await $('h1=Queue').waitForDisplayed();
+    assert.equal(await $('p=Mangabound E2E').isExisting(), false);
+    await $('button=Files').click();
+    await $('span=Ready').waitForDisplayed({ timeout: 30_000 });
+    assert.match(await $('main').getText(), /goes straight to the e-reader step/u);
     await $('button=Validate plan').click();
     await $('h2=Plan validated').waitForDisplayed({ timeout: 30_000 });
     assert.deepEqual((await readdir(libraryPath)).sort(), [
       '.mangabound',
       'Mangabound E2E - Vol.01.epub',
     ]);
-    await $('button=Start conversion').click();
+    await $('button=Convert 1 item').click();
     await $('h1=1 book saved').waitForDisplayed({ timeout: 120_000 });
 
     const directBook = path.join(libraryPath, 'Mangabound Direct.epub');
@@ -133,10 +141,9 @@ describe('packaged conversion pipeline', () => {
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [libraryParentPath] });
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [outputLibraryPath] });
 
-    // The previous spec left the app on its "book saved" screen — return to Home first.
-    await $('button=Convert something else').click();
-    await $('h1=What are you bringing in?').waitForDisplayed({ timeout: 30_000 });
-    await $('button*=Manga library (batch)').click();
+    // The previous test left the app on its "book saved" screen: return to the queue first.
+    await resetQueue();
+    await $('button=Library').click();
     await $('h1=Convert Library').waitForDisplayed({ timeout: 30_000 });
     assert.match(await $('main').getText(), /No volumes could be assigned automatically/u);
     await assert.rejects(readFile(path.join(needsMappingInputPath, 'mangabind.json'), 'utf8'));

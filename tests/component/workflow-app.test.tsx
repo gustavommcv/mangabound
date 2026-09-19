@@ -1,11 +1,25 @@
-import { render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import {
+  act,
+  createEvent,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
+import userEvent, { type UserEvent } from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createMappingDraft } from '@/domain/mapping';
 import { defaultMangapressSettings } from '@/domain/output-profile';
 import { App } from '@/renderer/app';
 import type { MangaboundBridge } from '@/shared/runtime-info';
+import type {
+  ConversionProgressPayload,
+  InspectedInputPayload,
+  SelectedInput,
+  WorkflowResult,
+} from '@/shared/workflow-contract';
 
 const readyToolchain = {
   state: 'ready' as const,
@@ -14,40 +28,73 @@ const readyToolchain = {
   message: 'Bundled conversion tools are verified and ready.',
 };
 
+const chapters = [
+  { id: 'c1', name: 'Chapter 1', path: 'C:\\input\\Chapter 1', pageCount: 2, chapter: 1 },
+  { id: 'c2', name: 'Chapter 2', path: 'C:\\input\\Chapter 2', pageCount: 2, chapter: 2 },
+] as const;
+
+/** Every chapter already has a volume, as mangabind leaves a folder named Vol.N Ch.N. */
 const mapping = createMappingDraft({
   mangaTitle: 'Offline Work',
-  chapters: [
-    { id: 'c1', name: 'Chapter 1', path: 'C:\\input\\Chapter 1', pageCount: 2, chapter: 1 },
-    { id: 'c2', name: 'Chapter 2', path: 'C:\\input\\Chapter 2', pageCount: 2, chapter: 2 },
-  ],
+  chapters,
   volumes: [{ id: 'v1', number: '1', chapterIds: ['c1', 'c2'] }],
 });
 
-function bridge(overrides: Partial<MangaboundBridge> = {}): MangaboundBridge {
-  return {
-    runtime: { electron: '44.3.0', platform: 'win32' },
-    getToolchainStatus: () => Promise.resolve(readyToolchain),
-    chooseInput: () =>
-      Promise.resolve({
+/** One chapter has no volume yet, so the folder needs a look before it can run. */
+const partialMapping = createMappingDraft({
+  mangaTitle: 'Offline Work',
+  chapters,
+  volumes: [{ id: 'v1', number: '1', chapterIds: ['c1'] }],
+});
+
+const folder = (name = 'Offline Work', id = 'selection'): SelectedInput => ({
+  selectionId: id,
+  displayName: name,
+  displayPath: `C:\\input\\${name}`,
+  kind: 'folder',
+});
+
+const cbz: SelectedInput = {
+  selectionId: 'cbz-selection',
+  displayName: 'Standalone.cbz',
+  displayPath: 'C:\\input\\Standalone.cbz',
+  kind: 'cbz',
+};
+
+function inspection(id: string): WorkflowResult<InspectedInputPayload> {
+  return id === cbz.selectionId
+    ? {
+        ok: true,
+        value: { sessionId: 'cbz-session', displayName: cbz.displayName, kind: 'cbz', issues: [] },
+      }
+    : {
         ok: true,
         value: {
-          selectionId: 'selection',
-          displayName: 'Offline Work',
-          displayPath: 'C:\\input\\Offline Work',
-          kind: 'folder',
-        },
-      }),
-    inspectInput: () =>
-      Promise.resolve({
-        ok: true,
-        value: {
-          sessionId: 'session',
+          sessionId: id === 'selection' ? 'session' : `session-${id}`,
           displayName: 'Offline Work',
           kind: 'folder',
           mapping,
           issues: [],
         },
-      }),
+      };
+}
+
+function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+  let resolve: (value: T) => void = () => undefined;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
+function bridge(overrides: Partial<MangaboundBridge> = {}): MangaboundBridge {
+  return {
+    runtime: { electron: '44.3.0', platform: 'win32' },
+    getToolchainStatus: () => Promise.resolve(readyToolchain),
+    chooseInputs: () => Promise.resolve({ ok: true, value: { inputs: [folder()], rejected: [] } }),
+    registerDroppedFiles: () =>
+      Promise.resolve({ ok: true, value: { inputs: [folder()], rejected: [] } }),
+    inspectInput: (id) => Promise.resolve(inspection(id)),
     releaseInput: () => Promise.resolve({ ok: true, value: undefined }),
     chooseLibrary: () =>
       Promise.resolve({
@@ -112,8 +159,24 @@ afterEach(() => {
   Reflect.deleteProperty(window, 'mangabound');
 });
 
-describe('single-input application workflow', () => {
-  it('runs a folder through mapping and settings to OS-delegated artifact actions', async () => {
+/** Adds what the bridge's dialog returns and waits until the tools have read every row. */
+async function addFolder(user: UserEvent): Promise<void> {
+  await user.click(await screen.findByRole('button', { name: 'Folder' }));
+  await waitFor(() => {
+    expect(screen.queryByText('Checking…')).not.toBeInTheDocument();
+  });
+}
+
+async function chooseOutputFolder(user: UserEvent): Promise<void> {
+  await user.click(screen.getByRole('button', { name: 'Choose output folder' }));
+  expect(await screen.findByText('C:\\Books')).toBeVisible();
+}
+
+const runButton = (label: string): Promise<HTMLElement> =>
+  screen.findByRole('button', { name: label });
+
+describe('queue application workflow', () => {
+  it('reads a folder into the queue, converts it and hands the books to the operating system', async () => {
     const user = userEvent.setup();
     const convert = vi.fn<MangaboundBridge['convert']>(() =>
       Promise.resolve({
@@ -133,31 +196,148 @@ describe('single-input application workflow', () => {
     installBridge(bridge({ convert, openArtifact, releaseInput, showArtifactInFolder }));
     render(<App />);
 
-    await user.click(await screen.findByRole('button', { name: /Manga folder/i }));
-    await user.click(await screen.findByRole('button', { name: 'Confirm mapping' }));
-    expect(await screen.findByRole('heading', { name: 'Convert Offline Work' })).toBeVisible();
-    expect(screen.getByLabelText('Device profile')).toHaveValue('KV');
+    expect(await screen.findByRole('heading', { name: 'Queue' })).toBeVisible();
+    expect(screen.getByText(/Drop manga folders or \.cbz files here/u)).toBeVisible();
+    // Nothing to run and nowhere to put it yet.
+    expect(screen.getByRole('button', { name: 'Convert' })).toBeDisabled();
+    await waitFor(() => {
+      expect(screen.getByLabelText('Device')).toHaveValue('KV');
+    });
 
-    await user.click(screen.getByRole('button', { name: 'Choose output folder' }));
-    expect(await screen.findByText('C:\\Books')).toBeVisible();
-    await user.click(screen.getByRole('button', { name: 'Start conversion' }));
+    await addFolder(user);
+    const list = screen.getByRole('list', { name: 'Queued items' });
+    expect(within(list).getByText('Offline Work')).toBeVisible();
+    expect(within(list).getByText('1 volume')).toBeVisible();
+    expect(screen.getByText('Choose an output folder to continue.')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Convert 1 item' })).toBeDisabled();
+
+    await chooseOutputFolder(user);
+    await user.click(await runButton('Convert 1 item'));
 
     expect(await screen.findByRole('heading', { name: '1 book saved' })).toBeVisible();
+    expect(screen.getByText('Kindle Voyage · EPUB · C:\\Books')).toBeVisible();
     expect(convert.mock.calls[0]?.[0]).toMatchObject({
       sessionId: 'session',
       libraryId: 'library',
+      mode: 'bind-and-convert',
       settings: defaultMangapressSettings,
       format: 'epub',
       mapping,
     });
-    await user.click(screen.getByRole('button', { name: 'Open' }));
-    await user.click(screen.getByRole('button', { name: 'Show in folder' }));
+    await user.click(screen.getByRole('button', { name: 'Open Offline Work.epub' }));
+    await user.click(screen.getByRole('button', { name: 'Show Offline Work.epub in its folder' }));
     expect(openArtifact).toHaveBeenCalledWith('artifact');
     expect(showArtifactInFolder).toHaveBeenCalledWith('artifact');
-    expect(screen.getByText(/operating system’s default app/i)).toBeVisible();
-    await user.click(screen.getByRole('button', { name: 'Convert something else' }));
-    expect(await screen.findByRole('heading', { name: 'What are you bringing in?' })).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Convert more' }));
+    expect(await screen.findByRole('heading', { name: 'Queue' })).toBeVisible();
+    // What was saved leaves the queue, and its scratch copy is released.
+    expect(screen.queryByRole('list', { name: 'Queued items' })).not.toBeInTheDocument();
     expect(releaseInput).toHaveBeenCalledWith('session');
+  });
+
+  it('shows a successful no-output plan before conversion and forgets it once anything changes', async () => {
+    const user = userEvent.setup();
+    const planConversion = vi.fn<MangaboundBridge['planConversion']>(() =>
+      Promise.resolve({
+        ok: true,
+        value: {
+          tool: 'mangabind',
+          title: 'Offline Work',
+          message: 'mangabind validated 1 volume · no library files written',
+          books: [{ name: 'Offline Work - Vol.01.cbz', pageCount: 4 }],
+          issues: [],
+        },
+      }),
+    );
+    installBridge(bridge({ planConversion }));
+    render(<App />);
+
+    await addFolder(user);
+    await chooseOutputFolder(user);
+    await user.click(screen.getByRole('button', { name: 'Validate plan' }));
+
+    expect(await screen.findByRole('heading', { name: 'Plan validated' })).toBeVisible();
+    expect(screen.getByText('Offline Work - Vol.01.cbz')).toBeVisible();
+    expect(screen.getByText('No library files were written.')).toBeVisible();
+    expect(planConversion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 'session',
+        libraryId: 'library',
+        settings: defaultMangapressSettings,
+      }),
+    );
+
+    await user.click(screen.getByRole('radio', { name: 'PDF' }));
+    expect(screen.queryByRole('heading', { name: 'Plan validated' })).not.toBeInTheDocument();
+  });
+
+  it('stops a failed plan and reports it', async () => {
+    const user = userEvent.setup();
+    installBridge(
+      bridge({
+        planConversion: () =>
+          Promise.resolve({
+            ok: false,
+            error: { code: 'plan_failed', message: 'mangabind could not plan this.' },
+          }),
+      }),
+    );
+    render(<App />);
+
+    await addFolder(user);
+    await chooseOutputFolder(user);
+    await user.click(screen.getByRole('button', { name: 'Validate plan' }));
+
+    expect(await screen.findByRole('alert', { name: 'Workflow error' })).toHaveTextContent(
+      'mangabind could not plan this.',
+    );
+    expect(screen.queryByRole('heading', { name: 'Plan validated' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Validate plan' })).toBeEnabled();
+  });
+
+  it('leaves out a folder that still needs volumes until the editor confirms them', async () => {
+    const user = userEvent.setup();
+    const convert = vi.fn<MangaboundBridge['convert']>(() =>
+      Promise.resolve({
+        ok: true,
+        value: [{ id: 'a1', name: 'Offline Work.epub', bytes: 2048, format: 'epub' }],
+      }),
+    );
+    installBridge(
+      bridge({
+        convert,
+        inspectInput: () =>
+          Promise.resolve({
+            ok: true,
+            value: {
+              sessionId: 'session',
+              displayName: 'Offline Work',
+              kind: 'folder',
+              mapping: partialMapping,
+              issues: [],
+            },
+          }),
+      }),
+    );
+    render(<App />);
+
+    await addFolder(user);
+    await chooseOutputFolder(user);
+    expect(screen.getByText('Needs volumes')).toBeVisible();
+    expect(screen.getByText(/1 chapter still has no volume/u)).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Convert' })).toBeDisabled();
+    expect(screen.getByText('Nothing here can run yet.')).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Edit volumes for Offline Work' }));
+    await user.click(await screen.findByRole('button', { name: 'Confirm mapping' }));
+
+    // Accepting the gap is a decision, so the folder runs with the chapter left out.
+    expect(await screen.findByText('1 volume')).toBeVisible();
+    expect(screen.getByText('1 chapter left out.')).toBeVisible();
+    await user.click(await runButton('Convert 1 item'));
+    expect(await screen.findByRole('heading', { name: '1 book saved' })).toBeVisible();
+    expect(convert.mock.calls[0]?.[0].mapping?.volumes).toHaveLength(1);
   });
 
   it('wires the mapping editor to the metadata bridge only when a source exists and Search is used', async () => {
@@ -181,7 +361,8 @@ describe('single-input application workflow', () => {
     );
     render(<App />);
 
-    await user.click(await screen.findByRole('button', { name: /Manga folder/i }));
+    await addFolder(user);
+    await user.click(screen.getByRole('button', { name: 'Edit volumes for Offline Work' }));
     expect(await screen.findByText('Suggest from external API')).toBeVisible();
     // Opening the editor sends nothing.
     expect(searchMetadata).not.toHaveBeenCalled();
@@ -213,7 +394,8 @@ describe('single-input application workflow', () => {
       installBridge(bridge({ listMetadataProviders }));
       render(<App />);
 
-      await user.click(await screen.findByRole('button', { name: /Manga folder/i }));
+      await addFolder(user);
+      await user.click(screen.getByRole('button', { name: 'Edit volumes for Offline Work' }));
 
       expect(await screen.findByRole('button', { name: 'Confirm mapping' })).toBeVisible();
       expect(screen.queryByText('Suggest from external API')).not.toBeInTheDocument();
@@ -221,85 +403,53 @@ describe('single-input application workflow', () => {
     },
   );
 
-  it('takes a direct CBZ to output settings without showing the mapping editor', async () => {
+  it('takes a CBZ straight to mangapress and explains that it is already one volume', async () => {
     const user = userEvent.setup();
-    installBridge(
-      bridge({
-        chooseInput: () =>
-          Promise.resolve({
-            ok: true,
-            value: {
-              selectionId: 'cbz-selection',
-              displayName: 'Standalone.cbz',
-              displayPath: 'C:\\input\\Standalone.cbz',
-              kind: 'cbz',
-            },
-          }),
-        inspectInput: () =>
-          Promise.resolve({
-            ok: true,
-            value: {
-              sessionId: 'cbz-session',
-              displayName: 'Standalone.cbz',
-              kind: 'cbz',
-              issues: [],
-            },
-          }),
-      }),
-    );
-    render(<App />);
-
-    await user.click(await screen.findByRole('button', { name: /One CBZ file/i }));
-
-    expect(await screen.findByRole('heading', { name: 'Convert Standalone.cbz' })).toBeVisible();
-    expect(screen.getByText('This CBZ will go directly to mangapress.')).toBeVisible();
-    expect(screen.queryByText('Chapter mapping')).not.toBeInTheDocument();
-  });
-
-  it('shows a successful no-output plan before conversion', async () => {
-    const user = userEvent.setup();
-    const planConversion = vi.fn<MangaboundBridge['planConversion']>(() =>
+    const convert = vi.fn<MangaboundBridge['convert']>(() =>
       Promise.resolve({
         ok: true,
-        value: {
-          tool: 'mangabind',
-          title: 'Offline Work',
-          message: 'mangabind validated 1 volume · no library files written',
-          books: [{ name: 'Offline Work - Vol.01.cbz', pageCount: 4 }],
-          issues: [
-            {
-              tool: 'mangabind',
-              severity: 'warning',
-              code: 'chapter_name_normalized',
-              stage: 'plan',
-              recoverable: true,
-              message: 'One chapter name was normalized.',
-            },
-          ],
-        },
+        value: [{ id: 'a1', name: 'Standalone.epub', bytes: 2048, format: 'epub' }],
       }),
     );
-    installBridge(bridge({ planConversion }));
+    installBridge(
+      bridge({
+        convert,
+        chooseInputs: () => Promise.resolve({ ok: true, value: { inputs: [cbz], rejected: [] } }),
+      }),
+    );
     render(<App />);
 
-    await user.click(await screen.findByRole('button', { name: /Manga folder/i }));
-    await user.click(await screen.findByRole('button', { name: 'Confirm mapping' }));
-    await user.click(screen.getByRole('button', { name: 'Choose output folder' }));
-    await user.click(screen.getByRole('button', { name: 'Validate plan' }));
+    await user.click(await screen.findByRole('button', { name: 'Files' }));
+    await waitFor(() => {
+      expect(screen.getByText('Ready')).toBeVisible();
+    });
 
-    expect(await screen.findByRole('heading', { name: 'Plan validated' })).toBeVisible();
-    expect(screen.getByText('Offline Work - Vol.01.cbz')).toBeVisible();
-    expect(screen.getByText('1 warning reported by mangabind.')).toBeVisible();
-    expect(planConversion).toHaveBeenCalledWith(
-      expect.objectContaining({ sessionId: 'session', settings: defaultMangapressSettings }),
-    );
+    expect(screen.getByText('Standalone.cbz')).toBeVisible();
+    expect(screen.getByRole('checkbox', { name: 'Group chapters into volumes' })).toBeDisabled();
+    expect(
+      screen.getByText('A CBZ is already one volume, so there is nothing to join.'),
+    ).toBeVisible();
+    // A CBZ has no volumes to edit.
+    expect(
+      screen.queryByRole('button', { name: 'Edit volumes for Standalone.cbz' }),
+    ).not.toBeInTheDocument();
+
+    await chooseOutputFolder(user);
+    await user.click(await runButton('Convert 1 item'));
+    expect(await screen.findByRole('heading', { name: '1 book saved' })).toBeVisible();
+    expect(convert.mock.calls[0]?.[0]).toMatchObject({
+      sessionId: 'cbz-session',
+      mode: 'convert-only',
+      format: 'epub',
+    });
+    expect(convert.mock.calls[0]?.[0].mapping).toBeUndefined();
   });
 
   it('keeps actionable failures persistent with collapsed technical details', async () => {
     const user = userEvent.setup();
     installBridge(
       bridge({
-        chooseInput: () =>
+        chooseInputs: () =>
           Promise.resolve({
             ok: false,
             error: {
@@ -320,7 +470,7 @@ describe('single-input application workflow', () => {
     );
     render(<App />);
 
-    await user.click(await screen.findByRole('button', { name: /Manga folder/i }));
+    await user.click(await screen.findByRole('button', { name: 'Folder' }));
 
     expect(screen.getByRole('alert', { name: 'Workflow error' })).toHaveTextContent(
       'Couldn’t read the selected folder.',
@@ -330,26 +480,630 @@ describe('single-input application workflow', () => {
     expect(details).toHaveTextContent('permission denied');
   });
 
-  it('offers cancellation while a conversion is running', async () => {
+  it('shows which item is running and how far it is, and offers cancellation', async () => {
     const user = userEvent.setup();
     const cancelConversion = vi.fn<MangaboundBridge['cancelConversion']>(() =>
       Promise.resolve({ ok: true, value: undefined }),
     );
+    const convert = vi.fn<MangaboundBridge['convert']>(() => new Promise(() => undefined));
+    let emit: (progress: ConversionProgressPayload) => void = () => undefined;
     installBridge(
       bridge({
         cancelConversion,
-        convert: () => new Promise(() => undefined),
+        convert,
+        onConversionProgress: (listener) => {
+          emit = listener;
+          return () => undefined;
+        },
       }),
     );
     render(<App />);
 
-    await user.click(await screen.findByRole('button', { name: /Manga folder/i }));
-    await user.click(await screen.findByRole('button', { name: 'Confirm mapping' }));
-    await user.click(screen.getByRole('button', { name: 'Choose output folder' }));
-    await user.click(await screen.findByRole('button', { name: 'Start conversion' }));
-    await user.click(await screen.findByRole('button', { name: 'Cancel conversion' }));
+    await addFolder(user);
+    await chooseOutputFolder(user);
+    await user.click(await runButton('Convert 1 item'));
 
-    expect(cancelConversion).toHaveBeenCalledOnce();
+    expect(await screen.findByRole('heading', { name: 'Converting Offline Work' })).toBeVisible();
+    expect(screen.getByText('Item 1 of 1')).toBeVisible();
+    const jobId = convert.mock.calls[0]?.[0].jobId ?? '';
+    act(() => {
+      // Updates for another job are not this run's business.
+      emit({ jobId: 'someone-else', stage: 'processing', message: 'Elsewhere.' });
+      emit({
+        jobId,
+        stage: 'processing',
+        message: 'Processed page 3 of 10.',
+        completed: 3,
+        total: 10,
+      });
+    });
+    expect(await screen.findByText('Processed page 3 of 10.')).toBeVisible();
+    expect(screen.getByRole('progressbar', { name: '30% complete' })).toBeVisible();
+    expect(screen.queryByText('Elsewhere.')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Cancel conversion' }));
+    expect(cancelConversion).toHaveBeenCalledWith(jobId);
+  });
+
+  it('says why an item was not added and lets the message be dismissed', async () => {
+    const user = userEvent.setup();
+    installBridge(
+      bridge({
+        chooseInputs: () =>
+          Promise.resolve({
+            ok: true,
+            value: {
+              inputs: [],
+              rejected: [
+                { name: 'notes.txt', reason: 'Only folders and .cbz files can be added.' },
+              ],
+            },
+          }),
+      }),
+    );
+    render(<App />);
+
+    await user.click(await screen.findByRole('button', { name: 'Files' }));
+
+    expect(await screen.findByText(/was not added\. Only folders and \.cbz files/u)).toBeVisible();
+    expect(screen.getByText('notes.txt')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Dismiss this message' }));
+    expect(screen.queryByText('notes.txt')).not.toBeInTheDocument();
+  });
+
+  it('says when an item cannot be read, keeps it out of the run and lets it be removed', async () => {
+    const user = userEvent.setup();
+    installBridge(
+      bridge({
+        inspectInput: () =>
+          Promise.resolve({
+            ok: false,
+            error: { code: 'input_read_failed', message: 'The folder could not be read.' },
+          }),
+      }),
+    );
+    render(<App />);
+
+    await addFolder(user);
+
+    expect(screen.getByText('Could not read')).toBeVisible();
+    expect(screen.getByText('The folder could not be read.')).toBeVisible();
+    await chooseOutputFolder(user);
+    expect(screen.getByRole('button', { name: 'Convert' })).toBeDisabled();
+
+    await user.click(screen.getByRole('button', { name: 'Remove Offline Work' }));
+    expect(screen.queryByRole('list', { name: 'Queued items' })).not.toBeInTheDocument();
+  });
+
+  it('releases what an item held when it is removed while the tools were still reading it', async () => {
+    const user = userEvent.setup();
+    const reading = deferred<WorkflowResult<InspectedInputPayload>>();
+    const releaseInput = vi.fn<MangaboundBridge['releaseInput']>(() =>
+      Promise.resolve({ ok: true, value: undefined }),
+    );
+    installBridge(bridge({ inspectInput: () => reading.promise, releaseInput }));
+    render(<App />);
+
+    await user.click(await screen.findByRole('button', { name: 'Folder' }));
+    expect(await screen.findByText('Checking…')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Remove Offline Work' }));
+    expect(releaseInput).not.toHaveBeenCalled();
+
+    await act(async () => {
+      reading.resolve(inspection('selection'));
+      await reading.promise;
+    });
+    await waitFor(() => {
+      expect(releaseInput).toHaveBeenCalledWith('session');
+    });
+    expect(screen.queryByRole('list', { name: 'Queued items' })).not.toBeInTheDocument();
+  });
+
+  it('clears the whole queue and releases every session it held', async () => {
+    const user = userEvent.setup();
+    const releaseInput = vi.fn<MangaboundBridge['releaseInput']>(() =>
+      Promise.resolve({ ok: true, value: undefined }),
+    );
+    installBridge(bridge({ releaseInput }));
+    render(<App />);
+
+    await addFolder(user);
+    await user.click(screen.getByRole('button', { name: 'Clear' }));
+
+    expect(screen.queryByRole('list', { name: 'Queued items' })).not.toBeInTheDocument();
+    expect(releaseInput).toHaveBeenCalledWith('session');
+  });
+
+  it('does not read the same folder twice when it is added again', async () => {
+    const user = userEvent.setup();
+    const inspectInput = vi.fn<MangaboundBridge['inspectInput']>((id) =>
+      Promise.resolve(inspection(id)),
+    );
+    installBridge(bridge({ inspectInput }));
+    render(<App />);
+
+    await addFolder(user);
+    await addFolder(user);
+
+    expect(screen.getAllByRole('listitem')).toHaveLength(1);
+    expect(inspectInput).toHaveBeenCalledTimes(1);
+  });
+
+  it('adds what is dropped on the queue by way of the bridge, and ignores drops anywhere else', async () => {
+    const registerDroppedFiles = vi.fn<MangaboundBridge['registerDroppedFiles']>(() =>
+      Promise.resolve({
+        ok: true,
+        value: { inputs: [folder('Dropped Work', 'dropped')], rejected: [] },
+      }),
+    );
+    installBridge(bridge({ registerDroppedFiles }));
+    render(<App />);
+    const target = await screen.findByTestId('drop-target');
+    const dropped = new File(['x'], 'Dropped Work');
+
+    // Dragging text or anything that is not a file does not light the target up.
+    fireEvent.dragEnter(target, { dataTransfer: { types: ['text/plain'], files: [] } });
+    expect(screen.queryByText('Release to add them')).not.toBeInTheDocument();
+
+    fireEvent.dragEnter(target, { dataTransfer: { types: ['Files'], files: [dropped] } });
+    expect(screen.getByText('Release to add them')).toBeVisible();
+    fireEvent.dragOver(target, { dataTransfer: { types: ['Files'], files: [dropped] } });
+    fireEvent.dragLeave(target);
+    expect(screen.queryByText('Release to add them')).not.toBeInTheDocument();
+
+    fireEvent.drop(target, { dataTransfer: { types: ['Files'], files: [dropped] } });
+    await waitFor(() => {
+      expect(registerDroppedFiles).toHaveBeenCalledWith([dropped]);
+    });
+    expect(await screen.findByText('Dropped Work')).toBeVisible();
+    expect(screen.queryByText('Release to add them')).not.toBeInTheDocument();
+
+    // A drop that carries no files registers nothing.
+    fireEvent.drop(target, { dataTransfer: { types: [], files: [] } });
+    expect(registerDroppedFiles).toHaveBeenCalledTimes(1);
+
+    // Anywhere else in the window a drop is swallowed instead of navigating to the file.
+    const stray = createEvent.drop(document.body);
+    fireEvent(document.body, stray);
+    expect(stray.defaultPrevented).toBe(true);
+    const strayOver = createEvent.dragOver(document.body);
+    fireEvent(document.body, strayOver);
+    expect(strayOver.defaultPrevented).toBe(true);
+  });
+
+  it('adds nothing from a drop while the conversion tools are not ready', async () => {
+    const registerDroppedFiles = vi.fn<MangaboundBridge['registerDroppedFiles']>(() =>
+      Promise.resolve({ ok: true, value: { inputs: [folder()], rejected: [] } }),
+    );
+    installBridge(
+      bridge({
+        registerDroppedFiles,
+        getToolchainStatus: () =>
+          Promise.resolve({ state: 'blocked', tools: [], message: 'A tool failed verification.' }),
+      }),
+    );
+    render(<App />);
+    expect(await screen.findByText('Conversion tools need attention')).toBeVisible();
+    const target = screen.getByTestId('drop-target');
+    const file = new File(['x'], 'Work');
+
+    fireEvent.dragEnter(target, { dataTransfer: { types: ['Files'], files: [file] } });
+    fireEvent.dragOver(target, { dataTransfer: { types: ['Files'], files: [file] } });
+    fireEvent.drop(target, { dataTransfer: { types: ['Files'], files: [file] } });
+
+    expect(screen.queryByText('Release to add them')).not.toBeInTheDocument();
+    expect(registerDroppedFiles).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Folder' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Files' })).toBeDisabled();
+  });
+
+  it('reports a failed drop registration', async () => {
+    installBridge(
+      bridge({
+        registerDroppedFiles: () =>
+          Promise.resolve({
+            ok: false,
+            error: { code: 'invalid_request', message: 'That drop could not be read.' },
+          }),
+      }),
+    );
+    render(<App />);
+
+    fireEvent.drop(await screen.findByTestId('drop-target'), {
+      dataTransfer: { types: ['Files'], files: [new File(['x'], 'Work')] },
+    });
+
+    expect(await screen.findByRole('alert', { name: 'Workflow error' })).toHaveTextContent(
+      'That drop could not be read.',
+    );
+  });
+
+  it('shows the mangapress options for the whole queue and comes back to it', async () => {
+    const user = userEvent.setup();
+    installBridge(bridge());
+    render(<App />);
+
+    await addFolder(user);
+    await user.click(screen.getByRole('button', { name: /mangapress options/u }));
+    expect(await screen.findByRole('heading', { name: 'mangapress options' })).toBeVisible();
+    expect(screen.getByText(/They apply to everything in the queue\./u)).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: /Back/u }));
+    expect(await screen.findByRole('heading', { name: 'Queue' })).toBeVisible();
+    expect(screen.getByText('Offline Work')).toBeVisible();
+  });
+});
+
+describe('process control in the queue', () => {
+  it('joins the volumes only: mangapress is not run, its controls lock, and only defaults are sent', async () => {
+    const user = userEvent.setup();
+    const convert = vi.fn<MangaboundBridge['convert']>(() =>
+      Promise.resolve({
+        ok: true,
+        value: [{ id: 'a1', name: 'Offline Work - Vol.01.cbz', bytes: 4096, format: 'cbz' }],
+      }),
+    );
+    installBridge(bridge({ convert }));
+    render(<App />);
+    await addFolder(user);
+    await user.click(screen.getByRole('radio', { name: 'PDF' }));
+
+    await user.click(screen.getByRole('checkbox', { name: 'Convert for e-reader' }));
+
+    expect(screen.getByLabelText('Device')).toBeDisabled();
+    expect(screen.getByRole('radio', { name: 'PDF' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: /mangapress options/u })).not.toBeInTheDocument();
+    await chooseOutputFolder(user);
+    await user.click(await runButton('Join 1 item'));
+
+    expect(await screen.findByRole('heading', { name: '1 book saved' })).toBeVisible();
+    expect(screen.getByText('Joined volumes · CBZ · C:\\Books')).toBeVisible();
+    // The PDF choice was for mangapress, which did not run.
+    expect(convert.mock.calls[0]?.[0]).toMatchObject({
+      sessionId: 'session',
+      libraryId: 'library',
+      mode: 'bind-only',
+      settings: defaultMangapressSettings,
+      format: 'cbz',
+      mapping,
+    });
+  });
+
+  it('sends a folder straight to mangapress as one book, without its volumes', async () => {
+    const user = userEvent.setup();
+    const planConversion = vi.fn<MangaboundBridge['planConversion']>(() =>
+      Promise.resolve({
+        ok: true,
+        value: {
+          tool: 'mangapress',
+          title: 'Offline Work',
+          message: 'mangapress validated KV',
+          books: [{ name: 'Offline Work.epub', pageCount: 4 }],
+          issues: [],
+        },
+      }),
+    );
+    const convert = vi.fn<MangaboundBridge['convert']>(() =>
+      Promise.resolve({
+        ok: true,
+        value: [{ id: 'a1', name: 'Offline Work.epub', bytes: 2048, format: 'epub' }],
+      }),
+    );
+    installBridge(bridge({ convert, planConversion }));
+    render(<App />);
+    await addFolder(user);
+
+    await user.click(screen.getByRole('checkbox', { name: 'Group chapters into volumes' }));
+
+    expect(screen.getByText('One book')).toBeVisible();
+    expect(screen.getByText(/2 chapters · not grouped/u)).toBeVisible();
+    // No volumes are in play, so there is nothing to edit.
+    expect(
+      screen.queryByRole('button', { name: 'Edit volumes for Offline Work' }),
+    ).not.toBeInTheDocument();
+
+    await chooseOutputFolder(user);
+    await user.click(screen.getByRole('button', { name: 'Validate plan' }));
+    expect(await screen.findByRole('heading', { name: 'Plan validated' })).toBeVisible();
+    expect(planConversion.mock.calls[0]?.[0]).toMatchObject({ mode: 'convert-only' });
+    expect(planConversion.mock.calls[0]?.[0].mapping).toBeUndefined();
+
+    await user.click(await runButton('Convert 1 item'));
+    expect(await screen.findByRole('heading', { name: '1 book saved' })).toBeVisible();
+    expect(convert.mock.calls[0]?.[0]).toMatchObject({
+      mode: 'convert-only',
+      settings: defaultMangapressSettings,
+      format: 'epub',
+    });
+    expect(convert.mock.calls[0]?.[0].mapping).toBeUndefined();
+  });
+
+  it('skips grouping from the editor, which sends the queue straight to mangapress', async () => {
+    const user = userEvent.setup();
+    installBridge(bridge());
+    render(<App />);
+    await addFolder(user);
+
+    await user.click(screen.getByRole('button', { name: 'Edit volumes for Offline Work' }));
+    await user.click(await screen.findByRole('button', { name: 'Skip grouping' }));
+
+    expect(await screen.findByRole('heading', { name: 'Queue' })).toBeVisible();
+    expect(screen.getByRole('checkbox', { name: 'Group chapters into volumes' })).not.toBeChecked();
+    expect(screen.getByText('One book')).toBeVisible();
+  });
+
+  it('leaves a CBZ out of a join-only run and says so, with nothing to fix', async () => {
+    const user = userEvent.setup();
+    const convert = vi.fn<MangaboundBridge['convert']>(() =>
+      Promise.resolve({
+        ok: true,
+        value: [{ id: 'a1', name: 'Offline Work - Vol.01.cbz', bytes: 4096, format: 'cbz' }],
+      }),
+    );
+    installBridge(
+      bridge({
+        convert,
+        chooseInputs: () =>
+          Promise.resolve({ ok: true, value: { inputs: [folder(), cbz], rejected: [] } }),
+      }),
+    );
+    render(<App />);
+    await user.click(await screen.findByRole('button', { name: 'Folder' }));
+    await waitFor(() => {
+      expect(screen.queryByText('Checking…')).not.toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('checkbox', { name: 'Convert for e-reader' }));
+    expect(screen.getByText('Nothing to join')).toBeVisible();
+    await chooseOutputFolder(user);
+    expect(
+      screen.getByText('1 item will be left out. Use the pencil on a row to fix it.'),
+    ).toBeVisible();
+    await user.click(await runButton('Join 1 item'));
+
+    expect(await screen.findByRole('heading', { name: '1 book saved' })).toBeVisible();
+    expect(convert).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('Standalone.cbz was skipped')).toBeVisible();
+    expect(
+      screen.getByText('A CBZ is already one volume, so there is nothing to join.'),
+    ).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Fix Standalone.cbz' })).not.toBeInTheDocument();
+    // The CBZ stays in the queue: it was not processed.
+    await user.click(screen.getByRole('button', { name: 'Convert more' }));
+    expect(screen.getByText('Standalone.cbz')).toBeVisible();
+    expect(screen.queryByText('Offline Work')).not.toBeInTheDocument();
+  });
+
+  it('runs the queue one item at a time and keeps the ones that failed for another try', async () => {
+    const user = userEvent.setup();
+    const convert = vi
+      .fn<MangaboundBridge['convert']>()
+      .mockResolvedValueOnce({
+        ok: true,
+        value: [{ id: 'a1', name: 'First.epub', bytes: 2048, format: 'epub' }],
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        error: { code: 'process_failed', message: 'mangapress crashed.' },
+      });
+    installBridge(
+      bridge({
+        convert,
+        chooseInputs: () =>
+          Promise.resolve({
+            ok: true,
+            value: {
+              inputs: [folder('First', 'first'), folder('Second', 'second')],
+              rejected: [],
+            },
+          }),
+      }),
+    );
+    render(<App />);
+    await addFolder(user);
+    await chooseOutputFolder(user);
+
+    await user.click(await runButton('Convert 2 items'));
+
+    expect(await screen.findByRole('heading', { name: '1 book saved' })).toBeVisible();
+    expect(convert.mock.calls.map(([command]) => command.sessionId)).toEqual([
+      'session-first',
+      'session-second',
+    ]);
+    expect(screen.getByText('Second could not be converted')).toBeVisible();
+    expect(screen.getByText('mangapress crashed.')).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Convert more' }));
+    const list = screen.getByRole('list', { name: 'Queued items' });
+    expect(within(list).getAllByRole('listitem')).toHaveLength(1);
+    expect(within(list).getByText('Second')).toBeVisible();
+  });
+
+  it('stops the queue at the item that was cancelled', async () => {
+    const user = userEvent.setup();
+    const convert = vi.fn<MangaboundBridge['convert']>(() =>
+      Promise.resolve({
+        ok: false,
+        error: { code: 'cancelled', message: 'The conversion was cancelled.' },
+      }),
+    );
+    installBridge(
+      bridge({
+        convert,
+        chooseInputs: () =>
+          Promise.resolve({
+            ok: true,
+            value: {
+              inputs: [folder('First', 'first'), folder('Second', 'second')],
+              rejected: [],
+            },
+          }),
+      }),
+    );
+    render(<App />);
+    await addFolder(user);
+    await chooseOutputFolder(user);
+
+    await user.click(await runButton('Convert 2 items'));
+
+    expect(await screen.findByRole('heading', { name: 'Nothing was saved' })).toBeVisible();
+    expect(convert).toHaveBeenCalledOnce();
+    expect(screen.getByText('First could not be converted')).toBeVisible();
+  });
+
+  it('offers to fix a folder that was left out, and opens its volumes', async () => {
+    const user = userEvent.setup();
+    installBridge(
+      bridge({
+        chooseInputs: () =>
+          Promise.resolve({
+            ok: true,
+            value: {
+              inputs: [folder('Good', 'good'), folder('Loose', 'loose')],
+              rejected: [],
+            },
+          }),
+        inspectInput: (id) =>
+          Promise.resolve({
+            ok: true,
+            value: {
+              sessionId: `session-${id}`,
+              displayName: id,
+              kind: 'folder',
+              mapping:
+                id === 'loose' ? createMappingDraft({ mangaTitle: 'Loose', chapters }) : mapping,
+              issues: [],
+            },
+          }),
+      }),
+    );
+    render(<App />);
+    await addFolder(user);
+    await chooseOutputFolder(user);
+    expect(
+      screen.getByText('1 item will be left out. Use the pencil on a row to fix it.'),
+    ).toBeVisible();
+
+    await user.click(await runButton('Convert 1 item'));
+
+    expect(await screen.findByText('Loose was skipped')).toBeVisible();
+    expect(
+      screen.getByText('No volumes yet. Open Edit volumes to group the chapters.'),
+    ).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Fix Loose' }));
+    expect(await screen.findByRole('button', { name: 'Confirm mapping' })).toBeVisible();
+  });
+
+  it('keeps a queue of only CBZ files on its one process', async () => {
+    const user = userEvent.setup();
+    installBridge(
+      bridge({
+        chooseInputs: () => Promise.resolve({ ok: true, value: { inputs: [cbz], rejected: [] } }),
+      }),
+    );
+    render(<App />);
+    await user.click(await screen.findByRole('button', { name: 'Files' }));
+    await waitFor(() => {
+      expect(screen.getByText('Ready')).toBeVisible();
+    });
+
+    // Neither step can change: one is meaningless for a CBZ and the other is the only one left.
+    expect(screen.getByRole('checkbox', { name: 'Group chapters into volumes' })).toBeDisabled();
+    expect(screen.getByRole('checkbox', { name: 'Convert for e-reader' })).toBeDisabled();
+    expect(screen.getByRole('checkbox', { name: 'Convert for e-reader' })).toBeChecked();
+    expect(screen.getByText('Keep at least one step on.')).toBeVisible();
+  });
+});
+
+describe('sending the saved books to KOReader', () => {
+  const wifi = { name: 'Wi-Fi', address: '192.168.1.24' };
+
+  it('serves the output folder from the results screen and stops again on request', async () => {
+    const user = userEvent.setup();
+    const startSharing = vi.fn<MangaboundBridge['startSharing']>(() =>
+      Promise.resolve({
+        ok: true,
+        value: {
+          active: true,
+          url: 'http://192.168.1.24:8080/opds',
+          interfaceAddress: '192.168.1.24',
+          port: 8080,
+          authMode: 'token',
+          token: 'abc123',
+        },
+      }),
+    );
+    const stopSharing = vi.fn<MangaboundBridge['stopSharing']>(() =>
+      Promise.resolve({ ok: true, value: undefined }),
+    );
+    installBridge(
+      bridge({
+        listNetworkInterfaces: () => Promise.resolve({ ok: true, value: [wifi] }),
+        startSharing,
+        stopSharing,
+      }),
+    );
+    render(<App />);
+    await addFolder(user);
+    await chooseOutputFolder(user);
+    await user.click(await runButton('Convert 1 item'));
+    expect(await screen.findByRole('heading', { name: 'Send to KOReader' })).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Start sharing' }));
+
+    expect(startSharing).toHaveBeenCalledWith('library', '192.168.1.24', { mode: 'token' });
+    expect(await screen.findByLabelText('Address')).toHaveValue(
+      'http://192.168.1.24:8080/opds/?token=abc123',
+    );
+    expect(screen.getByText('Sharing')).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Stop sharing' }));
+    expect(stopSharing).toHaveBeenCalledOnce();
+    expect(await screen.findByRole('button', { name: 'Start sharing' })).toBeVisible();
+  });
+
+  it('reports a sharing failure instead of showing the address', async () => {
+    const user = userEvent.setup();
+    installBridge(
+      bridge({
+        listNetworkInterfaces: () => Promise.resolve({ ok: true, value: [wifi] }),
+        startSharing: () =>
+          Promise.resolve({
+            ok: false,
+            error: { code: 'sharing_failed', message: 'The port is already in use.' },
+          }),
+      }),
+    );
+    render(<App />);
+    await addFolder(user);
+    await chooseOutputFolder(user);
+    await user.click(await runButton('Convert 1 item'));
+    await user.click(await screen.findByRole('button', { name: 'Start sharing' }));
+
+    expect(await screen.findByRole('alert', { name: 'Workflow error' })).toHaveTextContent(
+      'The port is already in use.',
+    );
+    expect(screen.queryByLabelText('Address')).not.toBeInTheDocument();
+  });
+
+  it('offers the card only when something was saved', async () => {
+    const user = userEvent.setup();
+    installBridge(
+      bridge({
+        convert: () =>
+          Promise.resolve({
+            ok: false,
+            error: { code: 'process_failed', message: 'mangapress crashed.' },
+          }),
+      }),
+    );
+    render(<App />);
+    await addFolder(user);
+    await chooseOutputFolder(user);
+    await user.click(await runButton('Convert 1 item'));
+
+    expect(await screen.findByRole('heading', { name: 'Nothing was saved' })).toBeVisible();
+    expect(screen.queryByRole('heading', { name: 'Send to KOReader' })).not.toBeInTheDocument();
   });
 });
 
@@ -469,7 +1223,7 @@ describe('batch application workflow', () => {
     );
     render(<App />);
 
-    await user.click(await screen.findByRole('button', { name: /Manga library \(batch\)/i }));
+    await user.click(await screen.findByRole('button', { name: 'Library' }));
     expect(await screen.findByRole('heading', { name: 'Convert My Library' })).toBeVisible();
     expect(screen.getByText(/No volumes could be assigned automatically/i)).toBeVisible();
 
@@ -517,211 +1271,13 @@ describe('batch application workflow', () => {
     );
     render(<App />);
 
-    await user.click(await screen.findByRole('button', { name: /Manga library \(batch\)/i }));
+    await user.click(await screen.findByRole('button', { name: 'Library' }));
     await screen.findByRole('heading', { name: 'Convert My Library' });
     await user.click(screen.getByRole('button', { name: 'Choose output folder' }));
     await user.click(await screen.findByRole('button', { name: 'Start batch conversion' }));
     await user.click(await screen.findByRole('button', { name: 'Cancel batch' }));
 
     expect(cancelConversion).toHaveBeenCalledOnce();
-  });
-});
-
-describe('process control in the application workflow', () => {
-  const cbzBridge = {
-    chooseInput: () =>
-      Promise.resolve({
-        ok: true as const,
-        value: {
-          selectionId: 'cbz-selection',
-          displayName: 'Standalone.cbz',
-          displayPath: 'C:\\input\\Standalone.cbz',
-          kind: 'cbz' as const,
-        },
-      }),
-    inspectInput: () =>
-      Promise.resolve({
-        ok: true as const,
-        value: {
-          sessionId: 'cbz-session',
-          displayName: 'Standalone.cbz',
-          kind: 'cbz' as const,
-          issues: [],
-        },
-      }),
-  };
-
-  it('joins the volumes only: mangapress is not run, its settings stay visible but locked, and only defaults are sent', async () => {
-    const user = userEvent.setup();
-    const convert = vi.fn<MangaboundBridge['convert']>(() =>
-      Promise.resolve({
-        ok: true,
-        value: [{ id: 'a1', name: 'Offline Work - Vol.01.cbz', bytes: 4096, format: 'cbz' }],
-      }),
-    );
-    installBridge(bridge({ convert }));
-    render(<App />);
-
-    await user.click(await screen.findByRole('button', { name: /Manga folder/i }));
-    await user.click(await screen.findByRole('button', { name: 'Confirm mapping' }));
-    expect(await screen.findByRole('heading', { name: 'Convert Offline Work' })).toBeVisible();
-    expect(screen.getByLabelText('Book format')).toBeEnabled();
-
-    await user.click(screen.getByRole('checkbox', { name: 'Convert for e-reader' }));
-
-    expect(screen.getByRole('heading', { name: 'Join Offline Work' })).toBeVisible();
-    expect(
-      screen.getByText(/1 mapped volume will be joined into CBZ files and saved/u),
-    ).toBeVisible();
-    expect(screen.getByText(/mangapress is not run when you only join volumes/u)).toBeVisible();
-    // Visible, but not editable.
-    expect(screen.getByLabelText('Book format')).toBeDisabled();
-    expect(screen.getByLabelText('Device profile')).toBeDisabled();
-
-    await user.click(screen.getByRole('button', { name: 'Choose output folder' }));
-    expect(await screen.findByText('C:\\Books')).toBeVisible();
-    await user.click(screen.getByRole('button', { name: 'Save volumes' }));
-
-    expect(await screen.findByRole('heading', { name: '1 book saved' })).toBeVisible();
-    expect(convert.mock.calls[0]?.[0]).toMatchObject({
-      sessionId: 'session',
-      libraryId: 'library',
-      mode: 'bind-only',
-      settings: defaultMangapressSettings,
-      format: 'cbz',
-      mapping,
-    });
-  });
-
-  it('skips grouping from the mapping step and sends the folder straight to mangapress', async () => {
-    const user = userEvent.setup();
-    const planConversion = vi.fn<MangaboundBridge['planConversion']>(() =>
-      Promise.resolve({
-        ok: true,
-        value: {
-          tool: 'mangapress',
-          title: 'Offline Work',
-          message: 'mangapress validated KV',
-          books: [{ name: 'Offline Work.epub', pageCount: 4 }],
-          issues: [],
-        },
-      }),
-    );
-    const convert = vi.fn<MangaboundBridge['convert']>(() =>
-      Promise.resolve({
-        ok: true,
-        value: [{ id: 'a1', name: 'Offline Work.epub', bytes: 2048, format: 'epub' }],
-      }),
-    );
-    installBridge(bridge({ convert, planConversion }));
-    render(<App />);
-
-    await user.click(await screen.findByRole('button', { name: /Manga folder/i }));
-    await user.click(await screen.findByRole('button', { name: 'Skip grouping' }));
-
-    expect(await screen.findByRole('heading', { name: 'Convert Offline Work' })).toBeVisible();
-    expect(
-      screen.getByText(/goes straight to mangapress as one book named Offline Work/u),
-    ).toBeVisible();
-    expect(screen.getByRole('checkbox', { name: 'Group chapters into volumes' })).not.toBeChecked();
-
-    await user.click(screen.getByRole('button', { name: 'Choose output folder' }));
-    await user.click(await screen.findByRole('button', { name: 'Validate plan' }));
-    expect(await screen.findByText('Plan validated')).toBeVisible();
-    expect(planConversion.mock.calls[0]?.[0]).toMatchObject({ mode: 'convert-only' });
-
-    await user.click(screen.getByRole('button', { name: 'Start conversion' }));
-    expect(await screen.findByRole('heading', { name: '1 book saved' })).toBeVisible();
-    expect(convert.mock.calls[0]?.[0]).toMatchObject({
-      mode: 'convert-only',
-      settings: defaultMangapressSettings,
-      format: 'epub',
-    });
-  });
-
-  it('turns grouping back on from the settings step, and a fresh plan is needed after any change', async () => {
-    const user = userEvent.setup();
-    installBridge(bridge());
-    render(<App />);
-
-    await user.click(await screen.findByRole('button', { name: /Manga folder/i }));
-    await user.click(await screen.findByRole('button', { name: 'Skip grouping' }));
-    await user.click(await screen.findByRole('checkbox', { name: 'Group chapters into volumes' }));
-
-    expect(screen.getByRole('checkbox', { name: 'Group chapters into volumes' })).toBeChecked();
-    expect(screen.getByText(/1 mapped volume will run sequentially/u)).toBeVisible();
-
-    await user.click(screen.getByRole('button', { name: 'Choose output folder' }));
-    await user.click(await screen.findByRole('button', { name: 'Validate plan' }));
-    expect(await screen.findByText('Plan validated')).toBeVisible();
-
-    await user.click(screen.getByRole('checkbox', { name: 'Convert for e-reader' }));
-    expect(screen.queryByText('Plan validated')).not.toBeInTheDocument();
-  });
-
-  it('carries a joined-only choice over to a CBZ, which can only go straight to mangapress', async () => {
-    const user = userEvent.setup();
-    const chooseInput = vi
-      .fn<MangaboundBridge['chooseInput']>()
-      .mockResolvedValueOnce({
-        ok: true,
-        value: {
-          selectionId: 'selection',
-          displayName: 'Offline Work',
-          displayPath: 'C:\\input\\Offline Work',
-          kind: 'folder',
-        },
-      })
-      .mockImplementation(cbzBridge.chooseInput);
-    const inspectInput = vi
-      .fn<MangaboundBridge['inspectInput']>()
-      .mockResolvedValueOnce({
-        ok: true,
-        value: {
-          sessionId: 'session',
-          displayName: 'Offline Work',
-          kind: 'folder',
-          mapping,
-          issues: [],
-        },
-      })
-      .mockImplementation(cbzBridge.inspectInput);
-    const convert = vi.fn<MangaboundBridge['convert']>(() =>
-      Promise.resolve({
-        ok: true,
-        value: [{ id: 'a1', name: 'book', bytes: 1, format: 'epub' }],
-      }),
-    );
-    installBridge(bridge({ chooseInput, inspectInput, convert }));
-    render(<App />);
-
-    await user.click(await screen.findByRole('button', { name: /Manga folder/i }));
-    await user.click(await screen.findByRole('button', { name: 'Confirm mapping' }));
-    await user.click(await screen.findByRole('checkbox', { name: 'Convert for e-reader' }));
-    await user.click(screen.getByRole('button', { name: 'Choose output folder' }));
-    await user.click(await screen.findByRole('button', { name: 'Save volumes' }));
-    await user.click(await screen.findByRole('button', { name: 'Convert something else' }));
-
-    await user.click(await screen.findByRole('button', { name: /One CBZ file/i }));
-
-    expect(await screen.findByRole('heading', { name: 'Convert Standalone.cbz' })).toBeVisible();
-    expect(screen.getByRole('checkbox', { name: 'Group chapters into volumes' })).toBeDisabled();
-    expect(screen.getByText(/already one volume, so there is nothing to join/u)).toBeVisible();
-    await user.click(screen.getByRole('button', { name: 'Start conversion' }));
-    expect(await screen.findByRole('heading', { name: '1 book saved' })).toBeVisible();
-    expect(convert.mock.calls[1]?.[0]).toMatchObject({ mode: 'convert-only', format: 'epub' });
-  });
-
-  it('shows a CBZ its one process without offering the skip action', async () => {
-    const user = userEvent.setup();
-    installBridge(bridge(cbzBridge));
-    render(<App />);
-
-    await user.click(await screen.findByRole('button', { name: /One CBZ file/i }));
-
-    expect(await screen.findByRole('heading', { name: 'Convert Standalone.cbz' })).toBeVisible();
-    expect(screen.queryByRole('button', { name: 'Skip grouping' })).not.toBeInTheDocument();
-    expect(screen.getByRole('checkbox', { name: 'Convert for e-reader' })).toBeChecked();
   });
 
   it('lets a whole library be joined without converting, with defaults sent and the steps locked while it runs', async () => {
@@ -742,7 +1298,7 @@ describe('process control in the application workflow', () => {
     );
     render(<App />);
 
-    await user.click(await screen.findByRole('button', { name: /Manga library \(batch\)/i }));
+    await user.click(await screen.findByRole('button', { name: 'Library' }));
     expect(await screen.findByRole('heading', { name: 'Convert My Library' })).toBeVisible();
     // A library is always grouped: the reason is shown instead of hiding the option.
     expect(screen.getByRole('checkbox', { name: 'Group chapters into volumes' })).toBeDisabled();
@@ -765,5 +1321,26 @@ describe('process control in the application workflow', () => {
     // While it runs the process cannot be changed under it.
     expect(await screen.findByRole('button', { name: 'Cancel batch' })).toBeVisible();
     expect(screen.getByRole('checkbox', { name: 'Convert for e-reader' })).toBeDisabled();
+  });
+
+  it('goes back to the queue from a library review', async () => {
+    const user = userEvent.setup();
+    installBridge(
+      bridge({
+        chooseInputBatch: () =>
+          Promise.resolve({
+            ok: true,
+            value: { parentPath: 'C:\\Library', displayName: 'My Library' },
+          }),
+        planBatch: () => Promise.resolve({ ok: true, value: batchPlan('completed') }),
+      }),
+    );
+    render(<App />);
+
+    await user.click(await screen.findByRole('button', { name: 'Library' }));
+    await screen.findByRole('heading', { name: 'Convert My Library' });
+    await user.click(screen.getByRole('button', { name: /Back/u }));
+
+    expect(await screen.findByRole('heading', { name: 'Queue' })).toBeVisible();
   });
 });

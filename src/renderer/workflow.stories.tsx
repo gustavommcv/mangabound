@@ -2,16 +2,8 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 
 import { defaultMangapressSettings } from '@/domain/output-profile';
 
-import {
-  BatchReview,
-  Complete,
-  ConversionSettings,
-  Home,
-  Inspecting,
-  IssueCallout,
-  PlanResult,
-  Running,
-} from './app';
+import { BatchReview, Inspecting, IssueCallout } from './app';
+import { RunningScreen } from './screens/running-screen';
 
 const frame = (Story: React.ComponentType): React.JSX.Element => (
   <div className="bg-background text-foreground min-h-screen p-10">
@@ -23,24 +15,15 @@ const frame = (Story: React.ComponentType): React.JSX.Element => (
 
 const meta = {
   title: 'Workflows/Single input',
-  component: Home,
+  component: Inspecting,
   decorators: [frame],
   parameters: { layout: 'fullscreen' },
-} satisfies Meta<typeof Home>;
+} satisfies Meta<typeof Inspecting>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Start: Story = {
-  args: { disabled: false, onChoose: () => undefined, onChooseBatch: () => undefined },
-};
-
-export const Disabled: Story = {
-  args: { disabled: true, onChoose: () => undefined, onChooseBatch: () => undefined },
-};
-
 export const Loading: Story = {
-  args: { disabled: false, onChoose: () => undefined },
   render: () => (
     <Inspecting
       selection={{
@@ -53,94 +36,11 @@ export const Loading: Story = {
   ),
 };
 
-export const Settings: Story = {
-  args: { disabled: false, onChoose: () => undefined },
-  render: () => (
-    <ConversionSettings
-      format="epub"
-      inspection={{
-        sessionId: 'session',
-        displayName: 'A Quiet Journey',
-        kind: 'folder',
-        issues: [],
-      }}
-      library={{ libraryId: 'library', displayPath: '/Books/Manga' }}
-      mapping={{
-        mangaTitle: 'A Quiet Journey',
-        chapters: [],
-        volumes: [{ id: 'v1', number: '1', chapterIds: [] }],
-      }}
-      onBack={() => undefined}
-      onChooseLibrary={() => undefined}
-      onFormat={() => undefined}
-      onPlan={() => undefined}
-      onSettings={() => undefined}
-      onStart={() => undefined}
-      settings={defaultMangapressSettings}
-      planning={false}
-      profiles={[
-        {
-          code: 'KV',
-          name: 'Kindle Voyage',
-          width: 1072,
-          height: 1448,
-          grayLevels: 16,
-          family: 'kindle',
-        },
-      ]}
-    />
-  ),
-};
-
-export const JoinVolumesOnly: Story = {
-  args: { disabled: false, onChoose: () => undefined },
-  render: () => (
-    <ConversionSettings
-      format="epub"
-      inspection={{
-        sessionId: 'session',
-        displayName: 'A Quiet Journey',
-        kind: 'folder',
-        issues: [],
-      }}
-      library={{ libraryId: 'library', displayPath: '/Books/Manga' }}
-      mapping={{
-        mangaTitle: 'A Quiet Journey',
-        chapters: [],
-        volumes: [
-          { id: 'v1', number: '1', chapterIds: [] },
-          { id: 'v2', number: '2', chapterIds: [] },
-        ],
-      }}
-      mode="bind-only"
-      onBack={() => undefined}
-      onChooseLibrary={() => undefined}
-      onFormat={() => undefined}
-      onMode={() => undefined}
-      onPlan={() => undefined}
-      onSettings={() => undefined}
-      onStart={() => undefined}
-      settings={defaultMangapressSettings}
-      planning={false}
-      profiles={[
-        {
-          code: 'KV',
-          name: 'Kindle Voyage',
-          width: 1072,
-          height: 1448,
-          grayLevels: 16,
-          family: 'kindle',
-        },
-      ]}
-    />
-  ),
-};
-
 export const Progress: Story = {
-  args: { disabled: false, onChoose: () => undefined },
   render: () => (
-    <Running
+    <RunningScreen
       onCancel={() => undefined}
+      position={{ name: 'A Quiet Journey', index: 2, total: 5 }}
       progress={{
         stage: 'processing',
         message: 'Processed page 42 of 120.',
@@ -148,60 +48,11 @@ export const Progress: Story = {
         total: 120,
         volume: '1 of 2',
       }}
-      selection={{
-        selectionId: 'selection',
-        displayName: 'A Quiet Journey',
-        displayPath: '/Manga/A Quiet Journey',
-        kind: 'folder',
-      }}
-    />
-  ),
-};
-
-export const ValidatedPlan: Story = {
-  args: { disabled: false, onChoose: () => undefined },
-  render: () => (
-    <PlanResult
-      plan={{
-        tool: 'mangabind',
-        title: 'A Quiet Journey',
-        message: 'mangabind validated 2 volumes · no library files written',
-        books: [
-          { name: 'A Quiet Journey - Vol.01.cbz', pageCount: 46 },
-          { name: 'A Quiet Journey - Vol.02.cbz', pageCount: 51 },
-        ],
-        issues: [
-          {
-            tool: 'mangabind',
-            severity: 'warning',
-            code: 'chapter_name_normalized',
-            stage: 'plan',
-            recoverable: true,
-            message: 'One chapter name was normalized.',
-          },
-        ],
-      }}
-    />
-  ),
-};
-
-export const Success: Story = {
-  args: { disabled: false, onChoose: () => undefined },
-  render: () => (
-    <Complete
-      artifacts={[
-        { id: 'one', name: 'A Quiet Journey - Vol.01.epub', bytes: 8_400_000, format: 'epub' },
-        { id: 'two', name: 'A Quiet Journey - Vol.02.epub', bytes: 9_100_000, format: 'epub' },
-      ]}
-      onOpen={() => undefined}
-      onShow={() => undefined}
-      onStartOver={() => undefined}
     />
   ),
 };
 
 export const BatchReviewStory: Story = {
-  args: { disabled: false, onChoose: () => undefined },
   render: () => (
     <BatchReview
       batch={{
@@ -290,7 +141,6 @@ export const BatchReviewStory: Story = {
 };
 
 export const Error: Story = {
-  args: { disabled: false, onChoose: () => undefined },
   render: () => (
     <IssueCallout
       failure={{
