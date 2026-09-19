@@ -92,6 +92,50 @@ export const Settings: Story = {
   ),
 };
 
+export const JoinVolumesOnly: Story = {
+  args: { disabled: false, onChoose: () => undefined },
+  render: () => (
+    <ConversionSettings
+      format="epub"
+      inspection={{
+        sessionId: 'session',
+        displayName: 'A Quiet Journey',
+        kind: 'folder',
+        issues: [],
+      }}
+      library={{ libraryId: 'library', displayPath: '/Books/Manga' }}
+      mapping={{
+        mangaTitle: 'A Quiet Journey',
+        chapters: [],
+        volumes: [
+          { id: 'v1', number: '1', chapterIds: [] },
+          { id: 'v2', number: '2', chapterIds: [] },
+        ],
+      }}
+      mode="bind-only"
+      onBack={() => undefined}
+      onChooseLibrary={() => undefined}
+      onFormat={() => undefined}
+      onMode={() => undefined}
+      onPlan={() => undefined}
+      onSettings={() => undefined}
+      onStart={() => undefined}
+      settings={defaultMangapressSettings}
+      planning={false}
+      profiles={[
+        {
+          code: 'KV',
+          name: 'Kindle Voyage',
+          width: 1072,
+          height: 1448,
+          grayLevels: 16,
+          family: 'kindle',
+        },
+      ]}
+    />
+  ),
+};
+
 export const Progress: Story = {
   args: { disabled: false, onChoose: () => undefined },
   render: () => (

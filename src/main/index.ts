@@ -17,6 +17,7 @@ import { ZodError } from 'zod';
 import { MangabindBindingAdapter } from '@/adapters/mangabind/binding-port';
 import { MangabindCliAdapter } from '@/adapters/mangabind/cli';
 import { CliProtocolError } from '@/adapters/cli-protocol-error';
+import { FsBookFileStore } from '@/adapters/library/fs-book-file-store';
 import { FsLibraryStore } from '@/adapters/library/fs-library-store';
 import { MetadataProviderError } from '@/adapters/external-metadata/protocol';
 import { createMetadataProviders } from '@/adapters/external-metadata/registry';
@@ -146,20 +147,31 @@ function requireWorkflow(): SingleInputWorkflow {
   return workflow;
 }
 
-async function publishArtifacts(
-  libraryPath: string,
-  artifacts: readonly ConversionArtifact[],
-): Promise<void> {
-  // Sequential, not Promise.all: FsLibraryStore.publish() reads, merges, and rewrites the
-  // whole manifest file, so concurrent calls for the same library would race and could
-  // silently drop an entry.
-  for (const artifact of artifacts) {
-    try {
-      await libraryPublisher.publish(libraryPath, artifact);
-    } catch (error) {
-      console.error('Failed to publish a saved book to the library catalog.', error);
-    }
-  }
+/**
+ * Keeps the catalog in step with the books written to a library, as each one lands. A run that
+ * fails part-way still leaves earlier books on disk, and they belong in the catalog too.
+ */
+function trackArtifacts(libraryPath: string): {
+  readonly add: (artifact: ConversionArtifact) => void;
+  readonly settled: () => Promise<void>;
+} {
+  // Chained, not concurrent: FsLibraryStore.publish() reads, merges, and rewrites the whole
+  // manifest file, so overlapping calls for the same library would race and could silently
+  // drop an entry.
+  let chain: Promise<void> = Promise.resolve();
+  return {
+    add: (artifact) => {
+      artifactPaths.set(artifact.id, artifact.path);
+      chain = chain.then(async () => {
+        try {
+          await libraryPublisher.publish(libraryPath, artifact);
+        } catch (error) {
+          console.error('Failed to publish a saved book to the library catalog.', error);
+        }
+      });
+    },
+    settled: () => chain,
+  };
 }
 
 function toSharingStatus(handle: OpdsServerHandle | undefined): OpdsSharingStatus {
@@ -414,6 +426,7 @@ function registerWorkflowHandlers(): void {
                 settings: command.settings,
                 format: command.format,
                 ...(command.mapping === undefined ? {} : { mapping: command.mapping }),
+                ...(command.mode === undefined ? {} : { mode: command.mode }),
               },
               { signal: controller.signal },
             ),
@@ -444,6 +457,7 @@ function registerWorkflowHandlers(): void {
         }
         const controller = new AbortController();
         activeJobs.set(command.jobId, controller);
+        const tracked = trackArtifacts(libraryPath);
         try {
           const artifacts = await requireWorkflow().convert(
             {
@@ -452,18 +466,20 @@ function registerWorkflowHandlers(): void {
               settings: command.settings,
               format: command.format,
               ...(command.mapping === undefined ? {} : { mapping: command.mapping }),
+              ...(command.mode === undefined ? {} : { mode: command.mode }),
             },
             {
               signal: controller.signal,
+              onArtifact: tracked.add,
               onProgress: (progress) => {
                 event.sender.send('workflow:progress', { jobId: command.jobId, ...progress });
               },
             },
           );
-          for (const artifact of artifacts) artifactPaths.set(artifact.id, artifact.path);
-          await publishArtifacts(libraryPath, artifacts);
           return ok(artifacts.map(({ bytes, format, id, name }) => ({ bytes, format, id, name })));
         } finally {
+          // Even when the run failed: books it already wrote must not be missing from the catalog.
+          await tracked.settled();
           activeJobs.delete(command.jobId);
         }
       } catch (error) {
@@ -585,6 +601,7 @@ function registerWorkflowHandlers(): void {
         }
         const controller = new AbortController();
         activeJobs.set(command.jobId, controller);
+        const tracked = trackArtifacts(libraryPath);
         try {
           const outcomes = await requireWorkflow().convertBatch(
             {
@@ -593,20 +610,15 @@ function registerWorkflowHandlers(): void {
               settings: command.settings,
               format: command.format,
               ...(command.titles === undefined ? {} : { titles: command.titles }),
+              ...(command.mode === undefined ? {} : { mode: command.mode }),
             },
             {
               signal: controller.signal,
+              onArtifact: tracked.add,
               onProgress: (progress) => {
                 event.sender.send('workflow:progress', { jobId: command.jobId, ...progress });
               },
             },
-          );
-          for (const outcome of outcomes) {
-            for (const artifact of outcome.artifacts) artifactPaths.set(artifact.id, artifact.path);
-          }
-          await publishArtifacts(
-            libraryPath,
-            outcomes.flatMap((outcome) => outcome.artifacts),
           );
           return ok(
             outcomes.map((outcome) => ({
@@ -622,6 +634,7 @@ function registerWorkflowHandlers(): void {
             })),
           );
         } finally {
+          await tracked.settled();
           activeJobs.delete(command.jobId);
         }
       } catch (error) {
@@ -761,6 +774,7 @@ void app.whenReady().then(async () => {
       new MangabindBindingAdapter(mangabindCli),
       new MangapressConversionAdapter(mangapressCli),
       randomUUID,
+      new FsBookFileStore(),
     );
   }
   ipcMain.handle('toolchain:get-status', () => toolchainStatus);
