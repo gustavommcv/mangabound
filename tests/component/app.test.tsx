@@ -68,4 +68,40 @@ describe('application foundation', () => {
     expect(screen.getByText('The bundled conversion tools could not be checked.')).toBeVisible();
     expect(screen.queryByText(/internal detail/u)).not.toBeInTheDocument();
   });
+
+  it('shows the repair path when the bridge resolves with a blocked toolchain, not only when it rejects', async () => {
+    const message =
+      'A bundled conversion tool failed verification. Reinstall Mangabound to restore it.';
+    Object.defineProperty(window, 'mangabound', {
+      configurable: true,
+      value: {
+        getToolchainStatus: vi.fn().mockResolvedValue({
+          state: 'blocked',
+          target: 'win32-x64',
+          tools: [
+            {
+              name: 'mangabind',
+              releaseTag: 'v0.4.0',
+              state: 'failed',
+              message: 'mangabind failed verification. Reinstall Mangabound to restore it.',
+            },
+            {
+              name: 'mangapress',
+              releaseTag: 'v0.5.0',
+              state: 'ready',
+              message: 'mangapress v0.5.0 is verified.',
+            },
+          ],
+          message,
+        }),
+        runtime: { electron: '44.3.0', platform: 'win32' },
+      },
+    });
+
+    render(<App />);
+
+    expect(await screen.findByText('Conversion tools need attention')).toBeVisible();
+    expect(screen.getByText(message)).toBeVisible();
+    expect(screen.queryByText('Conversion tools ready')).not.toBeInTheDocument();
+  });
 });
