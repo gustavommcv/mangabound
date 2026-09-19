@@ -5,7 +5,8 @@ CI automates the repeatable launch and rendering checks. Compositor policy and r
 ## All targets
 
 - Installer is signed/notarized as applicable and contains the exact locked CLI binaries.
-- Startup verification accepts intact binaries and presents the repair path for a deliberately corrupted copy.
+- Startup verification accepts intact binaries and presents the repair path for a deliberately corrupted copy. The blocked-status rendering is component-tested; launching the packaged app against a pre-corrupted binary stays manual, because the e2e specs share one Electron session and verification runs once before any spec starts.
+- Sharing a library whose `.mangabound/library.json` is corrupt fails with a readable message instead of starting (covered by e2e), and a catalog that corrupts while sharing is answered with a generic error, never parser text or file paths (covered by e2e).
 - Custom title bar retains native close/minimize/maximize behavior, keyboard focus, scaling, and reduced motion.
 - Opening and locating an artifact delegates to the registered OS application/folder without exposing arbitrary-path IPC.
 

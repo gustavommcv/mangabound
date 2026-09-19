@@ -79,11 +79,14 @@ export class NodeOpdsServer implements OpdsServerPort {
   start(options: OpdsServerStartOptions): Promise<OpdsServerHandle> {
     let baseUrl = '';
     const server = http.createServer((req, res) => {
-      this.handleRequest(req, res, options, baseUrl).catch((error: Error) => {
+      this.handleRequest(req, res, options, baseUrl).catch((error: unknown) => {
+        // The real cause (a corrupt catalog, a missing book file) can carry filesystem paths
+        // or parser text, so it stays in the app's own log and never reaches the OPDS client.
+        console.error('OPDS request failed.', error);
         if (!res.headersSent) {
           res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
         }
-        res.end(error.message);
+        res.end('The catalog could not be read.');
       });
     });
 

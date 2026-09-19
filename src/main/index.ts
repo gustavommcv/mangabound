@@ -195,6 +195,19 @@ function registerOpdsHandlers(): void {
             message: 'Sharing is already running.',
           });
         }
+        // The listener never reads the catalog on start, so a corrupt one would otherwise only
+        // surface as a broken feed on the reader. A missing catalog is fine (read() returns an
+        // empty one); only unreadable content stops sharing here. Any read failure gets the same
+        // message: a permissions error must not fall through to toFailure()'s network-address
+        // wording.
+        try {
+          await libraryStore.read(libraryPath);
+        } catch (error) {
+          return failed({
+            code: error instanceof LibraryIndexError ? error.code : 'library_unreadable',
+            message: 'The output library catalog could not be read.',
+          });
+        }
         activeSharing = await opdsServer.start({
           libraryPath,
           libraryTitle: path.basename(libraryPath),
