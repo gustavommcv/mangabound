@@ -5,6 +5,8 @@ import path from 'node:path';
 
 import { $, browser } from '@wdio/globals';
 
+import { chooseOutputFolder } from './support';
+
 const temporaryDirectories: string[] = [];
 
 after(async () => {
@@ -60,7 +62,7 @@ describe('packaged OPDS delivery', () => {
     await $('button=Assign selected').click();
     await $('button=Confirm mapping').click();
     await $('h1=Convert Mangabound E2E').waitForDisplayed();
-    await $('button=Choose output folder').click();
+    await chooseOutputFolder('button=Choose output folder', libraryPath);
     await $('button=Validate plan').click();
     await $('h2=Plan validated').waitForDisplayed({ timeout: 30_000 });
     await $('button=Start conversion').click();
