@@ -666,9 +666,11 @@ const createMainWindow = (): BrowserWindow => {
   > =
     process.platform === 'darwin'
       ? { trafficLightPosition: { x: 16, y: 16 } }
-      : { titleBarOverlay: { color: '#111827', height: 48, symbolColor: '#e5e7eb' } };
+      : { titleBarOverlay: { color: '#121214', height: 48, symbolColor: '#e8e8eb' } };
   const window = new BrowserWindow({
-    backgroundColor: '#0b101b',
+    // Electron cannot read CSS variables: these hex values are the theme's --background and
+    // --foreground from src/renderer/styles.css. Keep them in step.
+    backgroundColor: '#121214',
     height: 760,
     minHeight: 600,
     minWidth: 900,

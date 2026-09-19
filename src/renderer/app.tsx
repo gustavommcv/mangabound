@@ -639,7 +639,7 @@ function Titlebar({
   return (
     <header className="window-titlebar border-border bg-titlebar border-b">
       <div className="window-titlebar-content flex items-center gap-3 px-4">
-        <span aria-hidden="true" className="bg-accent shadow-status size-2 rounded-full" />
+        <span aria-hidden="true" className="bg-accent size-2 rounded-full" />
         <span className="text-sm font-semibold tracking-tight">Mangabound</span>
         <span className="text-muted-foreground text-xs">
           {runtime === undefined ? 'Foundation' : 'Desktop'}
@@ -694,7 +694,7 @@ export function Home({
   return (
     <section className="space-y-8" aria-labelledby="home-title">
       <div className="max-w-2xl space-y-3">
-        <p className="tracking-label text-accent text-xs font-semibold uppercase">New conversion</p>
+        <p className="text-muted-foreground text-xs font-medium">New conversion</p>
         <h1 id="home-title" className="text-3xl font-semibold tracking-tight">
           What are you bringing in?
         </h1>
@@ -808,7 +808,7 @@ export function ConversionSettings({
         <ArrowLeft /> Back
       </Button>
       <div>
-        <p className="tracking-label text-accent text-xs font-semibold uppercase">Output setup</p>
+        <p className="text-muted-foreground text-xs font-medium">Output setup</p>
         <h1 id="settings-title" className="mt-2 text-3xl font-semibold tracking-tight">
           Convert {inspection.displayName}
         </h1>
@@ -885,7 +885,7 @@ export function OutputSettingsPanel({
         profiles={profiles}
         settings={settings}
       />
-      <div className="border-border bg-surface shadow-card rounded-xl border p-6">
+      <div className="border-border bg-surface rounded-xl border p-6">
         <div className="space-y-3">
           <div>
             <Label>Output library</Label>
@@ -980,7 +980,7 @@ export function BatchReview({
         <ArrowLeft /> Back
       </Button>
       <div>
-        <p className="tracking-label text-accent text-xs font-semibold uppercase">Batch setup</p>
+        <p className="text-muted-foreground text-xs font-medium">Batch setup</p>
         <h1 id="batch-title" className="mt-2 text-3xl font-semibold tracking-tight">
           Convert {displayName}
         </h1>
@@ -989,10 +989,7 @@ export function BatchReview({
         </p>
       </div>
       {running && progress !== undefined && (
-        <div
-          aria-live="polite"
-          className="border-border bg-surface shadow-card rounded-xl border p-4"
-        >
+        <div aria-live="polite" className="border-border bg-surface rounded-xl border p-4">
           <div className="flex items-center gap-3">
             <LoaderCircle aria-hidden="true" className="text-accent size-4 animate-spin" />
             <p className="text-sm">
@@ -1128,7 +1125,7 @@ export function Running({
   return (
     <section className="mx-auto flex min-h-96 max-w-xl flex-col justify-center" aria-live="polite">
       <LoaderCircle aria-hidden="true" className="text-accent size-7 animate-spin" />
-      <p className="tracking-label text-accent mt-6 text-xs font-semibold uppercase">
+      <p className="text-muted-foreground mt-6 text-xs font-medium">
         {progress?.stage ?? 'Processing'}
       </p>
       <h1 className="mt-2 text-2xl font-semibold">Converting {selection?.displayName ?? 'book'}</h1>
@@ -1172,9 +1169,7 @@ export function Complete({
     <section className="mx-auto max-w-3xl space-y-6" aria-labelledby="complete-title">
       <BookCheck aria-hidden="true" className="text-status-complete size-8" />
       <div>
-        <p className="tracking-label text-status-complete text-xs font-semibold uppercase">
-          Complete
-        </p>
+        <p className="text-status-complete text-xs font-medium">Complete</p>
         <h1 id="complete-title" className="mt-2 text-3xl font-semibold tracking-tight">
           {String(artifacts.length)} book{artifacts.length === 1 ? '' : 's'} saved
         </h1>
@@ -1254,9 +1249,7 @@ function Foundation({ toolchain }: { readonly toolchain?: ToolchainStatus }): Re
   return (
     <main className="mx-auto flex max-w-5xl flex-col gap-10 px-8 py-16">
       <section className="max-w-2xl space-y-4" aria-labelledby="foundation-title">
-        <p className="tracking-label text-accent text-xs font-semibold uppercase">
-          Architecture checkpoint
-        </p>
+        <p className="text-muted-foreground text-xs font-medium">Architecture checkpoint</p>
         <h1 id="foundation-title" className="text-4xl font-semibold tracking-tight">
           A deliberate foundation for the manga pipeline.
         </h1>
@@ -1268,10 +1261,7 @@ function Foundation({ toolchain }: { readonly toolchain?: ToolchainStatus }): Re
       <ToolchainBanner toolchain={toolchain} />
       <section className="grid gap-4 md:grid-cols-3" aria-label="Foundation boundaries">
         {foundations.map(({ description, icon: Icon, title }) => (
-          <article
-            key={title}
-            className="border-border bg-surface shadow-card rounded-xl border p-5"
-          >
+          <article key={title} className="border-border bg-surface rounded-xl border p-5">
             <Icon aria-hidden="true" className="text-accent mb-5 size-5" strokeWidth={1.75} />
             <h2 className="text-sm font-semibold">{title}</h2>
             <p className="text-muted-foreground mt-2 text-sm leading-6">{description}</p>
