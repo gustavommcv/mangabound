@@ -154,17 +154,26 @@ describe('packaged OPDS delivery', () => {
     const openDialog = await browser.electron.mock('dialog', 'showOpenDialog');
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [libraryPath] });
 
-    const result = await browser.execute(async () => {
+    // The result is returned as a JSON string, not an object: WebdriverIO's client reads a
+    // script result carrying a top-level `error` key ({ ok: false, error: {...} } is exactly
+    // the shape of a failed WorkflowResult) as a WebDriver error response, fails the command
+    // with "[object Object]", and retries it -- by which point the one-shot dialog mock is spent.
+    const raw = await browser.execute(async () => {
       const bridge = window.mangabound;
       if (bridge === undefined) throw new Error('window.mangabound is unavailable.');
       const chosen = await bridge.chooseLibrary();
       if (!chosen.ok || chosen.value === null) {
         throw new Error('Could not choose a library to share.');
       }
-      return bridge.startSharing(chosen.value.libraryId, '127.0.0.1', { mode: 'token' });
+      const started = await bridge.startSharing(chosen.value.libraryId, '127.0.0.1', {
+        mode: 'token',
+      });
+      return JSON.stringify(started);
     });
 
-    assert.ok(!result.ok, 'Expected sharing to be refused for a corrupt catalog.');
+    const result = JSON.parse(raw) as { ok: boolean; error?: { code: string; message: string } };
+    assert.equal(result.ok, false, 'Expected sharing to be refused for a corrupt catalog.');
+    assert.equal(result.error?.code, 'malformed_json');
     assert.equal(result.error.message, 'The output library catalog could not be read.');
     const status = await browser.execute(async () => window.mangabound?.getSharingStatus());
     assert.ok(status?.ok === true && !status.value.active, 'Expected no sharing to be running.');
