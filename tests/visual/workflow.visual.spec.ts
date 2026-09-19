@@ -50,3 +50,19 @@ test('the share panel remains visually consistent', async ({ page }) => {
   await page.evaluate(async () => document.fonts.ready);
   await expect(page.locator('#storybook-root')).toHaveScreenshot('share-panel.png');
 });
+
+test('joining volumes only remains visually consistent', async ({ page }) => {
+  await page.goto('/iframe.html?id=workflows-single-input--join-volumes-only&viewMode=story');
+  await expect(page.getByRole('heading', { name: 'Join A Quiet Journey' })).toBeVisible();
+  await page.evaluate(async () => document.fonts.ready);
+  await expect(page.locator('#storybook-root')).toHaveScreenshot('join-volumes-only.png');
+});
+
+test('the process steps remain visually consistent', async ({ page }) => {
+  await page.goto(
+    '/iframe.html?id=workflows-process-steps--library-is-always-grouped&viewMode=story',
+  );
+  await expect(page.getByRole('checkbox', { name: 'Group chapters into volumes' })).toBeVisible();
+  await page.evaluate(async () => document.fonts.ready);
+  await expect(page.locator('#storybook-root')).toHaveScreenshot('process-steps.png');
+});

@@ -3,6 +3,12 @@ import { z } from 'zod';
 import type { BookFormat, ConversionProgress, InputKind, PipelineIssue } from '@/domain/conversion';
 import type { MappingDraft } from '@/domain/mapping';
 import type { MangapressSettings } from '@/domain/output-profile';
+import {
+  batchProcessModes,
+  type BatchProcessMode,
+  processModes,
+  type ProcessMode,
+} from '@/domain/process-mode';
 
 const chapterSchema = z.object({
   id: z.string().min(1),
@@ -70,6 +76,7 @@ export const conversionCommandSchema = z.object({
   settings: mangapressSettingsSchema,
   format: z.enum(['epub', 'cbz', 'pdf']),
   mapping: mappingDraftSchema.optional(),
+  mode: z.enum(processModes).optional(),
 });
 
 export const planBatchCommandSchema = z.object({
@@ -84,6 +91,7 @@ export const batchConversionCommandSchema = z.object({
   settings: mangapressSettingsSchema,
   format: z.enum(['epub', 'cbz', 'pdf']),
   titles: z.array(z.string().min(1)).optional(),
+  mode: z.enum(batchProcessModes).optional(),
 });
 
 export const writeTitleMappingCommandSchema = z.object({
@@ -158,6 +166,7 @@ export interface ConversionCommand {
   readonly settings: MangapressSettings;
   readonly format: BookFormat;
   readonly mapping?: MappingDraft;
+  readonly mode?: ProcessMode;
 }
 
 export interface ConversionProgressPayload extends ConversionProgress {
@@ -190,6 +199,7 @@ export interface BatchConversionCommand {
   readonly settings: MangapressSettings;
   readonly format: BookFormat;
   readonly titles?: readonly string[];
+  readonly mode?: BatchProcessMode;
 }
 
 export interface BatchTitleResult {

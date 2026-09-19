@@ -42,6 +42,8 @@ export interface MappingEditorProps {
   /** Set when `initialDraft` already carries mangabind's own grouping (volumes read from names). */
   readonly startedFrom?: 'mangabind' | undefined;
   readonly onConfirm?: (metadata: string, draft: MappingDraft) => void;
+  /** Offered when the folder can skip grouping and go straight to mangapress as one book. */
+  readonly onSkipGrouping?: () => void;
   /** Online sources that can suggest volumes. The suggestion panel only appears when there is one. */
   readonly metadataProviders?: readonly MetadataProviderDescriptor[];
   readonly onSearchMetadata?: (
@@ -267,6 +269,7 @@ export function MappingEditor({
   startedFrom,
   onConfirm,
   metadataProviders,
+  onSkipGrouping,
   onSearchMetadata,
   onSuggestVolumes,
 }: MappingEditorProps): React.JSX.Element {
@@ -379,6 +382,20 @@ export function MappingEditor({
             Assigning an already placed chapter moves it.
           </p>
         </div>
+        {onSkipGrouping !== undefined && (
+          <div className="space-y-1">
+            <Button
+              aria-describedby="skip-grouping-detail"
+              onClick={onSkipGrouping}
+              variant="outline"
+            >
+              Skip grouping
+            </Button>
+            <p className="text-muted-foreground max-w-56 text-xs" id="skip-grouping-detail">
+              Send the folder to mangapress as one book, without grouping chapters into volumes.
+            </p>
+          </div>
+        )}
         <div className="flex items-center gap-1" aria-label="Edit history">
           <Button
             aria-label="Undo last mapping edit"

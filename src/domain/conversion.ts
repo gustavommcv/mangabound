@@ -1,5 +1,6 @@
 import type { MappingDraft } from './mapping';
 import type { MangapressSettings } from './output-profile';
+import type { ProcessMode } from './process-mode';
 
 export type InputKind = 'folder' | 'cbz';
 export type BookFormat = 'epub' | 'cbz' | 'pdf';
@@ -80,6 +81,8 @@ export interface ConversionRequest {
   readonly settings: MangapressSettings;
   readonly format: BookFormat;
   readonly mapping?: MappingDraft;
+  /** Defaults to running both tools when omitted. */
+  readonly mode?: ProcessMode;
 }
 
 export class ConversionWorkflowError extends Error {
@@ -91,7 +94,9 @@ export class ConversionWorkflowError extends Error {
       | 'mapping_save_failed'
       | 'mapping_required'
       | 'no_volumes'
-      | 'session_not_found',
+      | 'publish_failed'
+      | 'session_not_found'
+      | 'unsupported_mode',
     message: string,
     options?: ErrorOptions,
   ) {

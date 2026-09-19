@@ -32,8 +32,16 @@ import {
   type MangapressSettings,
   validateMangapressSettings,
 } from '@/domain/output-profile';
+import {
+  type BatchProcessMode,
+  defaultProcessMode,
+  type ProcessMode,
+  resolveMode,
+  usesMangapress,
+} from '@/domain/process-mode';
 import { MappingEditor } from '@/renderer/components/mapping/mapping-editor';
 import { MangapressSettingsEditor } from '@/renderer/components/settings/mangapress-settings';
+import { ProcessSteps } from '@/renderer/components/settings/process-steps';
 import { SharePanel } from '@/renderer/components/sharing/share-panel';
 import { Button } from '@/renderer/components/ui/button';
 import { Label } from '@/renderer/components/ui/label';
@@ -88,6 +96,7 @@ export function App(): React.JSX.Element {
   const [library, setLibrary] = useState<SelectedLibrary>();
   const [settings, setSettings] = useState<MangapressSettings>(defaultMangapressSettings);
   const [format, setFormat] = useState<BookFormat>('epub');
+  const [mode, setMode] = useState<ProcessMode>(defaultProcessMode);
   const [jobId, setJobId] = useState<string>();
   const [progress, setProgress] = useState<ConversionProgress>();
   const [artifacts, setArtifacts] = useState<readonly ArtifactSummary[]>([]);
@@ -222,6 +231,22 @@ export function App(): React.JSX.Element {
     }
   };
 
+  /**
+   * What a run sends for the chosen process. When mangapress is not run its settings are
+   * irrelevant, so defaults go instead of whatever half-edited values are on screen: they would
+   * otherwise fail validation for a step that never happens.
+   */
+  const withRunSettings = <M extends ProcessMode>(
+    resolved: M,
+  ): { readonly mode: M; readonly settings: MangapressSettings; readonly format: BookFormat } =>
+    usesMangapress(resolved)
+      ? { mode: resolved, settings, format }
+      : { mode: resolved, settings: defaultMangapressSettings, format: 'cbz' };
+  const runOptions = (input: InputKind): ReturnType<typeof withRunSettings<ProcessMode>> =>
+    withRunSettings(resolveMode(input, mode));
+  const batchRunOptions = (): ReturnType<typeof withRunSettings<BatchProcessMode>> =>
+    withRunSettings(resolveMode('library', mode));
+
   const validatePlan = async (): Promise<void> => {
     if (
       bridge === undefined ||
@@ -240,8 +265,7 @@ export function App(): React.JSX.Element {
         jobId: crypto.randomUUID(),
         sessionId: inspection.sessionId,
         libraryId: library.libraryId,
-        settings,
-        format,
+        ...runOptions(inspection.kind),
         ...(mapping === undefined ? {} : { mapping }),
       });
       if (!result.ok) setFailure(result.error);
@@ -262,8 +286,7 @@ export function App(): React.JSX.Element {
       jobId: nextJobId,
       sessionId: inspection.sessionId,
       libraryId: library.libraryId,
-      settings,
-      format,
+      ...runOptions(inspection.kind),
       ...(mapping === undefined ? {} : { mapping }),
     });
     if (!result.ok) {
@@ -371,8 +394,7 @@ export function App(): React.JSX.Element {
       jobId: nextJobId,
       parentPath: batchParent.parentPath,
       libraryId: library.libraryId,
-      settings,
-      format,
+      ...batchRunOptions(),
     });
     setJobId(undefined);
     setProgress(undefined);
@@ -406,8 +428,7 @@ export function App(): React.JSX.Element {
       jobId: nextJobId,
       parentPath: batchParent.parentPath,
       libraryId: library.libraryId,
-      settings,
-      format,
+      ...batchRunOptions(),
       titles: [title],
     });
     setJobId(undefined);
@@ -545,6 +566,8 @@ export function App(): React.JSX.Element {
               displayName={batchParent?.displayName ?? 'this library'}
               format={format}
               library={library}
+              mode={mode}
+              onMode={setMode}
               onCancel={() => {
                 void cancelConversion();
               }}
@@ -591,6 +614,11 @@ export function App(): React.JSX.Element {
                 invalidatePlan();
                 setStep('settings');
               }}
+              onSkipGrouping={() => {
+                setMode('convert-only');
+                invalidatePlan();
+                setStep('settings');
+              }}
               metadataProviders={metadataProviders}
               onSearchMetadata={searchMetadata}
               onSuggestVolumes={suggestVolumes}
@@ -602,6 +630,11 @@ export function App(): React.JSX.Element {
               inspection={inspection}
               library={library}
               mapping={mapping}
+              mode={mode}
+              onMode={(nextMode) => {
+                setMode(nextMode);
+                invalidatePlan();
+              }}
               onBack={() => {
                 if (inspection.kind === 'folder') setStep('mapping');
                 else void startOver();
@@ -806,9 +839,11 @@ export function ConversionSettings({
   inspection,
   library,
   mapping,
+  mode = defaultProcessMode,
   onBack,
   onChooseLibrary,
   onFormat,
+  onMode,
   onPlan,
   onSettings,
   onStart,
@@ -821,9 +856,11 @@ export function ConversionSettings({
   readonly inspection: InspectedInputPayload;
   readonly library?: SelectedLibrary;
   readonly mapping?: MappingDraft;
+  readonly mode?: ProcessMode;
   readonly onBack: () => void;
   readonly onChooseLibrary: () => void;
   readonly onFormat: (format: BookFormat) => void;
+  readonly onMode?: (mode: ProcessMode) => void;
   readonly onPlan: () => void;
   readonly onSettings: (settings: MangapressSettings) => void;
   readonly onStart: () => void;
@@ -832,7 +869,11 @@ export function ConversionSettings({
   readonly planning: boolean;
   readonly profiles: readonly DeviceProfileSummary[];
 }): React.JSX.Element {
-  const settingIssues = validateMangapressSettings(settings);
+  const resolved = resolveMode(inspection.kind, mode);
+  const runsMangapress = usesMangapress(resolved);
+  const settingIssues = runsMangapress ? validateMangapressSettings(settings) : [];
+  const volumeCount = mapping?.volumes.length ?? 0;
+  const volumes = `${String(volumeCount)} mapped volume${volumeCount === 1 ? '' : 's'}`;
   return (
     <section className="mx-auto max-w-5xl space-y-6" aria-labelledby="settings-title">
       <Button onClick={onBack} variant="ghost">
@@ -841,17 +882,27 @@ export function ConversionSettings({
       <div>
         <p className="text-muted-foreground text-xs font-medium">Output setup</p>
         <h1 id="settings-title" className="mt-2 text-3xl font-semibold tracking-tight">
-          Convert {inspection.displayName}
+          {resolved === 'bind-only' ? 'Join' : 'Convert'} {inspection.displayName}
         </h1>
         <p className="text-muted-foreground mt-3 text-sm">
-          {inspection.kind === 'folder'
-            ? `${String(mapping?.volumes.length ?? 0)} mapped volume${mapping?.volumes.length === 1 ? '' : 's'} will run sequentially.`
-            : 'This CBZ will go directly to mangapress.'}
+          {inspection.kind === 'cbz'
+            ? 'This CBZ will go directly to mangapress.'
+            : resolved === 'bind-only'
+              ? `${volumes} will be joined into CBZ files and saved; mangapress is not run.`
+              : resolved === 'convert-only'
+                ? `The folder goes straight to mangapress as one book named ${inspection.displayName}; chapters are not grouped into volumes.`
+                : `${volumes} will run sequentially.`}
         </p>
       </div>
+      {onMode !== undefined && (
+        <div className="border-border bg-surface rounded-xl border p-6">
+          <ProcessSteps input={inspection.kind} mode={mode} onMode={onMode} />
+        </div>
+      )}
       <OutputSettingsPanel
         format={format}
         library={library}
+        mangapressDisabled={!runsMangapress}
         onChooseLibrary={onChooseLibrary}
         onFormat={onFormat}
         onSettings={onSettings}
@@ -883,7 +934,7 @@ export function ConversionSettings({
           onClick={onStart}
           size="lg"
         >
-          <MonitorSmartphone /> Start conversion
+          <MonitorSmartphone /> {resolved === 'bind-only' ? 'Save volumes' : 'Start conversion'}
         </Button>
       </div>
     </section>
@@ -893,6 +944,7 @@ export function ConversionSettings({
 export function OutputSettingsPanel({
   format,
   library,
+  mangapressDisabled = false,
   onChooseLibrary,
   onFormat,
   onSettings,
@@ -901,21 +953,35 @@ export function OutputSettingsPanel({
 }: {
   readonly format: BookFormat;
   readonly library?: SelectedLibrary;
+  /** True when mangapress will not run, so its settings stay visible but cannot be edited. */
+  readonly mangapressDisabled?: boolean;
   readonly onChooseLibrary: () => void;
   readonly onFormat: (format: BookFormat) => void;
   readonly onSettings: (settings: MangapressSettings) => void;
   readonly profiles: readonly DeviceProfileSummary[];
   readonly settings: MangapressSettings;
 }): React.JSX.Element {
+  const editor = (
+    <MangapressSettingsEditor
+      format={format}
+      onFormat={onFormat}
+      onSettings={onSettings}
+      profiles={profiles}
+      settings={settings}
+    />
+  );
   return (
     <>
-      <MangapressSettingsEditor
-        format={format}
-        onFormat={onFormat}
-        onSettings={onSettings}
-        profiles={profiles}
-        settings={settings}
-      />
+      {mangapressDisabled ? (
+        <fieldset className="m-0 min-w-0 space-y-4 border-0 p-0" disabled>
+          <legend className="text-muted-foreground mb-3 text-sm">
+            mangapress is not run when you only join volumes, so these settings are not used.
+          </legend>
+          {editor}
+        </fieldset>
+      ) : (
+        editor
+      )}
       <div className="border-border bg-surface rounded-xl border p-6">
         <div className="space-y-3">
           <div>
@@ -973,10 +1039,12 @@ export function BatchReview({
   displayName,
   format,
   library,
+  mode = defaultProcessMode,
   onCancel,
   onChooseLibrary,
   onFixMapping,
   onFormat,
+  onMode,
   onRetry,
   onSettings,
   onStart,
@@ -990,10 +1058,12 @@ export function BatchReview({
   readonly displayName: string;
   readonly format: BookFormat;
   readonly library?: SelectedLibrary;
+  readonly mode?: ProcessMode;
   readonly onCancel: () => void;
   readonly onChooseLibrary: () => void;
   readonly onFixMapping: (title: string) => void;
   readonly onFormat: (format: BookFormat) => void;
+  readonly onMode?: (mode: ProcessMode) => void;
   readonly onRetry: (title: string) => void;
   readonly onSettings: (settings: MangapressSettings) => void;
   readonly onStart: () => void;
@@ -1003,7 +1073,9 @@ export function BatchReview({
   readonly running: boolean;
   readonly settings: MangapressSettings;
 }): React.JSX.Element {
-  const settingIssues = validateMangapressSettings(settings);
+  const resolved = resolveMode('library', mode);
+  const runsMangapress = usesMangapress(resolved);
+  const settingIssues = runsMangapress ? validateMangapressSettings(settings) : [];
   const doneCount = batch.titles.filter((title) => title.status === 'done').length;
   return (
     <section className="mx-auto max-w-5xl space-y-6" aria-labelledby="batch-title">
@@ -1013,12 +1085,18 @@ export function BatchReview({
       <div>
         <p className="text-muted-foreground text-xs font-medium">Batch setup</p>
         <h1 id="batch-title" className="mt-2 text-3xl font-semibold tracking-tight">
-          Convert {displayName}
+          {resolved === 'bind-only' ? 'Join' : 'Convert'} {displayName}
         </h1>
         <p className="text-muted-foreground mt-3 text-sm">
-          {String(batch.titles.length)} manga found · {String(doneCount)} converted so far
+          {String(batch.titles.length)} manga found · {String(doneCount)}{' '}
+          {resolved === 'bind-only' ? 'joined' : 'converted'} so far
         </p>
       </div>
+      {onMode !== undefined && (
+        <div className="border-border bg-surface rounded-xl border p-6">
+          <ProcessSteps disabled={running} input="library" mode={mode} onMode={onMode} />
+        </div>
+      )}
       {running && progress !== undefined && (
         <div aria-live="polite" className="border-border bg-surface rounded-xl border p-4">
           <div className="flex items-center gap-3">
@@ -1048,6 +1126,7 @@ export function BatchReview({
       <OutputSettingsPanel
         format={format}
         library={library}
+        mangapressDisabled={!runsMangapress}
         onChooseLibrary={onChooseLibrary}
         onFormat={onFormat}
         onSettings={onSettings}
@@ -1070,7 +1149,8 @@ export function BatchReview({
             onClick={onStart}
             size="lg"
           >
-            <MonitorSmartphone /> Start batch conversion
+            <MonitorSmartphone />{' '}
+            {resolved === 'bind-only' ? 'Start batch join' : 'Start batch conversion'}
           </Button>
         )}
       </div>
