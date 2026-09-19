@@ -15,12 +15,24 @@ after(async () => {
   );
 });
 
-async function waitForEntryCount(dirPath: string, count: number, timeoutMs: number): Promise<void> {
+async function waitForEntryCount(
+  dirPath: string,
+  count: number,
+  timeoutMs: number,
+  describeAppState: () => Promise<string>,
+): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
-    if ((await readdir(dirPath)).length === count) return;
+    const entries = await readdir(dirPath);
+    if (entries.length === count) return;
     if (Date.now() >= deadline) {
-      throw new Error(`Timed out waiting for ${String(count)} entries in ${dirPath}.`);
+      // A bare timeout says nothing about why. This once passed on a rerun with no trace of
+      // the cause, so the failure carries what the directory held and what the app showed.
+      const shown = await describeAppState().catch(() => '(the page text was unavailable)');
+      throw new Error(
+        `Timed out waiting for ${String(count)} entries in ${dirPath}. ` +
+          `Found: ${entries.join(', ') || '(nothing)'}.\nThe app showed:\n${shown}`,
+      );
     }
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
@@ -157,7 +169,7 @@ describe('packaged conversion pipeline', () => {
     // completely empty, because the batch quietly ran against the old one instead.
     await $(`p*=${path.basename(outputLibraryPath)}`).waitForDisplayed({ timeout: 10_000 });
     await $('button=Start batch conversion').click();
-    await waitForEntryCount(outputLibraryPath, 3, 120_000);
+    await waitForEntryCount(outputLibraryPath, 3, 120_000, () => $('main').getText());
 
     const entries = (await readdir(outputLibraryPath)).sort();
     assert.deepEqual(entries, [
