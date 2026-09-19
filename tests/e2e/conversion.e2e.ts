@@ -5,6 +5,8 @@ import path from 'node:path';
 
 import { $, browser } from '@wdio/globals';
 
+import { chooseOutputFolder } from './support';
+
 const temporaryDirectories: string[] = [];
 
 after(async () => {
@@ -15,12 +17,24 @@ after(async () => {
   );
 });
 
-async function waitForEntryCount(dirPath: string, count: number, timeoutMs: number): Promise<void> {
+async function waitForEntryCount(
+  dirPath: string,
+  count: number,
+  timeoutMs: number,
+  describeAppState: () => Promise<string>,
+): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
-    if ((await readdir(dirPath)).length === count) return;
+    const entries = await readdir(dirPath);
+    if (entries.length === count) return;
     if (Date.now() >= deadline) {
-      throw new Error(`Timed out waiting for ${String(count)} entries in ${dirPath}.`);
+      // A bare timeout says nothing about why. This once passed on a rerun with no trace of
+      // the cause, so the failure carries what the directory held and what the app showed.
+      const shown = await describeAppState().catch(() => '(the page text was unavailable)');
+      throw new Error(
+        `Timed out waiting for ${String(count)} entries in ${dirPath}. ` +
+          `Found: ${entries.join(', ') || '(nothing)'}.\nThe app showed:\n${shown}`,
+      );
     }
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
@@ -55,11 +69,7 @@ describe('packaged conversion pipeline', () => {
     await $('button=Assign selected').click();
     await $('button=Confirm mapping').click();
     await $('h1=Convert Mangabound E2E').waitForDisplayed();
-    await $('button=Choose output folder').click();
-    // See the batch spec below for why this wait matters: chooseLibrary() is async, and
-    // clicking the button only confirms the event dispatched, not that the library state
-    // (and this shared OutputSettingsPanel's displayed path) actually updated yet.
-    await $(`p*=${path.basename(libraryPath)}`).waitForDisplayed({ timeout: 10_000 });
+    await chooseOutputFolder('button=Choose output folder', libraryPath);
     await $('button=Validate plan').click();
     await $('h2=Plan validated').waitForDisplayed({ timeout: 30_000 });
     assert.deepEqual(await readdir(libraryPath), []);
@@ -148,16 +158,9 @@ describe('packaged conversion pipeline', () => {
 
     // The prior spec already chose a library, so this reads "Change output folder" here —
     // either label opens the same picker and this spec supplies its own fresh directory.
-    await $('button*=output folder').click();
-    // chooseLibrary() is async (an IPC round trip through the mocked dialog before setLibrary()
-    // runs) -- WebdriverIO's click() only confirms the click event dispatched, not that this
-    // finished. Without waiting for the new path to actually render, "Start batch conversion"
-    // can fire against the still-stale library from the previous spec: real diagnostics showed
-    // the app reporting both titles converted successfully while the *new* output folder stayed
-    // completely empty, because the batch quietly ran against the old one instead.
-    await $(`p*=${path.basename(outputLibraryPath)}`).waitForDisplayed({ timeout: 10_000 });
+    await chooseOutputFolder('button*=output folder', outputLibraryPath);
     await $('button=Start batch conversion').click();
-    await waitForEntryCount(outputLibraryPath, 3, 120_000);
+    await waitForEntryCount(outputLibraryPath, 3, 120_000, () => $('main').getText());
 
     const entries = (await readdir(outputLibraryPath)).sort();
     assert.deepEqual(entries, [
