@@ -10,13 +10,13 @@ import type { MangaboundBridge } from '../shared/runtime-info';
 import type { ToolchainStatus } from '../shared/toolchain-status';
 import type {
   ArtifactSummary,
-  BatchConversionCommand,
-  BatchPlanSummary,
-  BatchTitleResult,
   ConversionCommand,
   ConversionProgressPayload,
   DeviceProfileSummary,
   InspectedInputPayload,
+  LibraryConversionCommand,
+  LibraryPlanSummary,
+  LibraryTitleResult,
   MetadataProviderDescriptor,
   MetadataSearchResult,
   PlanSummary,
@@ -63,14 +63,12 @@ const bridge: MangaboundBridge = Object.freeze({
     invoke<readonly ArtifactSummary[]>('workflow:convert', command),
   planConversion: (command: ConversionCommand) => invoke<PlanSummary>('workflow:plan', command),
   cancelConversion: (jobId: string) => invoke<undefined>('workflow:cancel', jobId),
-  chooseInputBatch: () =>
-    invoke<{ parentPath: string; displayName: string } | null>('workflow:choose-input-batch'),
-  planBatch: (jobId: string, parentPath: string) =>
-    invoke<BatchPlanSummary>('workflow:plan-batch', { jobId, parentPath }),
-  writeTitleMapping: (inputPath: string, mapping: MappingDraft) =>
-    invoke<undefined>('workflow:write-title-mapping', { inputPath, mapping }),
-  convertBatch: (command: BatchConversionCommand) =>
-    invoke<readonly BatchTitleResult[]>('workflow:convert-batch', command),
+  planLibrary: (jobId: string, sessionId: string) =>
+    invoke<LibraryPlanSummary>('workflow:plan-library', { jobId, sessionId }),
+  writeTitleMapping: (sessionId: string, title: string, mapping: MappingDraft) =>
+    invoke<undefined>('workflow:write-title-mapping', { sessionId, title, mapping }),
+  convertLibrary: (command: LibraryConversionCommand) =>
+    invoke<readonly LibraryTitleResult[]>('workflow:convert-library', command),
   listMetadataProviders: () =>
     invoke<readonly MetadataProviderDescriptor[]>('workflow:list-metadata-providers'),
   searchMetadata: (jobId: string, providerId: string, title: string) =>

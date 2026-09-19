@@ -19,6 +19,13 @@ test.describe('at the size the window opens at', () => {
     await expect(page.locator('#storybook-root')).toHaveScreenshot('queue-with-items.png');
   });
 
+  test('a library in the queue remains visually consistent', async ({ page }) => {
+    await page.goto('/iframe.html?id=workflows-queue--with-library&viewMode=story');
+    await expect(page.getByText('Library · 3 titles · 3 volumes')).toBeVisible();
+    await page.evaluate(async () => document.fonts.ready);
+    await expect(page.locator('#storybook-root')).toHaveScreenshot('queue-with-library.png');
+  });
+
   test('joining volumes only remains visually consistent', async ({ page }) => {
     await page.goto('/iframe.html?id=workflows-queue--join-only&viewMode=story');
     await expect(page.getByRole('button', { name: /^Join \d+ items?$/ })).toBeVisible();
@@ -60,10 +67,17 @@ test('a queue that has stacked below the two-pane width remains visually consist
 });
 
 test('a running item remains visually consistent', async ({ page }) => {
-  await page.goto('/iframe.html?id=workflows-single-input--progress&viewMode=story');
+  await page.goto('/iframe.html?id=workflows-run-and-errors--progress&viewMode=story');
   await expect(page.getByRole('heading', { name: 'Converting A Quiet Journey' })).toBeVisible();
   await page.evaluate(async () => document.fonts.ready);
   await expect(page.locator('#storybook-root')).toHaveScreenshot('running.png');
+});
+
+test('the titles of a library remain visually consistent', async ({ page }) => {
+  await page.goto('/iframe.html?id=workflows-library-titles--every-state&viewMode=story');
+  await expect(page.getByRole('heading', { name: 'Manga Library' })).toBeVisible();
+  await page.evaluate(async () => document.fonts.ready);
+  await expect(page.locator('#storybook-root')).toHaveScreenshot('library-titles.png');
 });
 
 test('full output settings remain visually consistent', async ({ page }) => {
@@ -71,13 +85,6 @@ test('full output settings remain visually consistent', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Device & output' })).toBeVisible();
   await page.evaluate(async () => document.fonts.ready);
   await expect(page.locator('#storybook-root')).toHaveScreenshot('output-settings.png');
-});
-
-test('batch review remains visually consistent', async ({ page }) => {
-  await page.goto('/iframe.html?id=workflows-single-input--batch-review-story&viewMode=story');
-  await expect(page.getByRole('heading', { name: 'Convert Winter Reading Library' })).toBeVisible();
-  await page.evaluate(async () => document.fonts.ready);
-  await expect(page.locator('#storybook-root')).toHaveScreenshot('batch-review.png');
 });
 
 test('External API suggestions remain visually consistent', async ({ page }) => {

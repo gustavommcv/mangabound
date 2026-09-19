@@ -1,4 +1,4 @@
-import { FileArchive, Folder, LoaderCircle, Pencil, X } from 'lucide-react';
+import { FileArchive, Folder, Library, LoaderCircle, Pencil, X } from 'lucide-react';
 
 import { describeRow, type QueueRow, type RowTone } from '@/domain/input-queue';
 import type { ProcessMode } from '@/domain/process-mode';
@@ -25,9 +25,9 @@ export function QueueRowItem({
   readonly row: QueueRow;
 }): React.JSX.Element {
   const view = describeRow(row, mode);
-  const Icon = row.kind === 'folder' ? Folder : FileArchive;
-  // Only a folder that mangabind grouped has volumes to edit, and only while volumes are in play.
-  const editable = row.state === 'inspected' && row.kind === 'folder' && mode !== 'convert-only';
+  const Icon = row.kind === 'folder' ? Folder : row.kind === 'library' ? Library : FileArchive;
+  // A folder or a library has volumes to edit, and only while volumes are in play.
+  const editable = row.state === 'inspected' && row.kind !== 'cbz' && mode !== 'convert-only';
   return (
     <li className="hover:bg-muted/40 flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors">
       <span
@@ -59,7 +59,11 @@ export function QueueRowItem({
       </span>
       {editable && (
         <Button
-          aria-label={`Edit volumes for ${row.displayName}`}
+          aria-label={
+            row.kind === 'library'
+              ? `Edit titles of ${row.displayName}`
+              : `Edit volumes for ${row.displayName}`
+          }
           onClick={onEdit}
           size="icon"
           variant="ghost"

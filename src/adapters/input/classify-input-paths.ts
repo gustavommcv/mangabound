@@ -1,13 +1,13 @@
 import { stat } from 'node:fs/promises';
 import path from 'node:path';
 
-import type { QueueRowKind } from '@/domain/input-queue';
+import type { QueueInputKind } from '@/domain/input-queue';
 
 /** More than this in one go is almost certainly a mistake, and each row costs a scan. */
 export const maxInputsPerAdd = 100;
 
 export interface ClassifiedInputs {
-  readonly accepted: readonly { readonly path: string; readonly kind: QueueRowKind }[];
+  readonly accepted: readonly { readonly path: string; readonly kind: QueueInputKind }[];
   readonly rejected: readonly { readonly name: string; readonly reason: string }[];
 }
 
@@ -20,7 +20,7 @@ export async function classifyInputPaths(
   paths: readonly string[],
   deps: { readonly stat: typeof stat } = { stat },
 ): Promise<ClassifiedInputs> {
-  const accepted: { path: string; kind: QueueRowKind }[] = [];
+  const accepted: { path: string; kind: QueueInputKind }[] = [];
   const rejected: { name: string; reason: string }[] = [];
   for (const inputPath of paths.slice(0, maxInputsPerAdd)) {
     const name = path.basename(inputPath) || 'Item';

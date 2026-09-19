@@ -119,7 +119,7 @@ export function ResultsScreen({
                 ? 'border-status-failed/40 bg-status-failed/10 flex items-start gap-3 rounded-xl border p-4'
                 : 'border-status-warning/40 bg-status-warning/10 flex items-start gap-3 rounded-xl border p-4'
             }
-            key={outcome.rowId}
+            key={`${outcome.rowId}:${outcome.name}`}
             role="status"
           >
             {outcome.status === 'failed' ? (

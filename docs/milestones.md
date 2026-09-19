@@ -90,7 +90,7 @@ Hands-on testing showed the wizard was the wrong shape: the app should feel like
 - Phase 1 — the mapping editor starts from mangabind's own grouping; online lookups appear only when a provider exists and search only on request ([ADR 0008](adr/0008-mapping-starts-from-mangabind-grouping.md)).
 - Phase 2 — process control: join volumes only, convert only, or both ([ADR 0009](adr/0009-process-modes.md)).
 - Phase 3 — persisted settings, a built-in provider registry with a credited first provider, and a contributor guide for adding one.
-- Phase 4 — a KCC-style input queue for files and folders with drag-and-drop, results with "send to KOReader" through the M7 catalog ([ADR 0010](adr/0010-input-queue.md)). Libraries join the queue in a follow-up; until then a Library button opens the earlier batch review.
+- Phase 4 — a KCC-style input queue for files and folders with drag-and-drop, results with "send to KOReader" through the M7 catalog ([ADR 0010](adr/0010-input-queue.md)). A library is a row in the queue too, read as one and named by session, never by path ([ADR 0012](adr/0012-libraries-in-the-queue.md)).
 
 Exit: a folder whose names carry volumes converts without opening the mapping editor, and every supported process is reachable from the interface.
 

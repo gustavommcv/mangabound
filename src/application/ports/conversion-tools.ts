@@ -62,9 +62,12 @@ export interface BindingPort {
   plan(workspaceId: string, mapping: MappingDraft, signal?: AbortSignal): Promise<BindingPlan>;
   bind(workspaceId: string, mapping: MappingDraft, signal?: AbortSignal): Promise<BindingResult>;
   release(workspaceId: string): Promise<void>;
-  planBatch?(parentPath: string, signal?: AbortSignal): Promise<BindingBatchPlan>;
-  bindBatch?(parentPath: string, signal?: AbortSignal): Promise<BindingBatchResult>;
-  writeTitleMapping?(inputPath: string, mapping: MappingDraft): Promise<void>;
+  /** Reads a library (a folder of manga folders) with one mangabind `--batch` dry run. */
+  planBatch(parentPath: string, signal?: AbortSignal): Promise<BindingBatchPlan>;
+  /** Joins every title of a library with one mangabind `--batch` run. */
+  bindBatch(parentPath: string, signal?: AbortSignal): Promise<BindingBatchResult>;
+  /** Saves the mapping a user confirmed for one title as that title folder's mangabind.json. */
+  writeTitleMapping(inputPath: string, mapping: MappingDraft): Promise<void>;
 }
 
 export interface ConversionPort {

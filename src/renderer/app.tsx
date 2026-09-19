@@ -4,46 +4,32 @@ import {
   CheckCircle2,
   ChevronLeft,
   CircleAlert,
-  FileArchive,
-  FolderOpen,
   Library,
   LoaderCircle,
-  MonitorSmartphone,
   RadioTower,
-  RotateCcw,
-  Square,
 } from 'lucide-react';
 import { useEffect, useReducer, useRef, useState } from 'react';
 
-import {
-  applyCorrectedMapping,
-  applyTitleResult,
-  createBatchState,
-  retryTitle,
-  startConversion as markTitlesConverting,
-  type BatchState,
-  type BatchTitle,
-  type BatchTitleStatus,
-} from '@/domain/batch';
 import type { BookFormat, ConversionProgress } from '@/domain/conversion';
 import {
   describeRow,
   emptyQueue,
   type InspectedRow,
+  isPendingTitle,
+  isWaitingTitle,
   type QueueInput,
   queueReducer,
   runnableRows,
   sessionIds,
+  type TitleOutcome,
 } from '@/domain/input-queue';
 import { type MappingDraft, mappingSignature } from '@/domain/mapping';
 import {
   defaultMangapressSettings,
   type MangapressSettings,
-  validateMangapressSettings,
   withDeviceProfile,
 } from '@/domain/output-profile';
 import {
-  type BatchProcessMode,
   defaultProcessMode,
   type ProcessMode,
   resolveMode,
@@ -51,11 +37,10 @@ import {
 } from '@/domain/process-mode';
 import { MappingEditor } from '@/renderer/components/mapping/mapping-editor';
 import { MangapressSettingsEditor } from '@/renderer/components/settings/mangapress-settings';
-import { ProcessSteps } from '@/renderer/components/settings/process-steps';
 import { KoreaderCard } from '@/renderer/components/sharing/koreader-card';
 import { SharePanel } from '@/renderer/components/sharing/share-panel';
 import { Button } from '@/renderer/components/ui/button';
-import { Label } from '@/renderer/components/ui/label';
+import { LibraryScreen } from '@/renderer/screens/library-screen';
 import { QueueScreen, type RowPlan } from '@/renderer/screens/queue-screen';
 import { ResultsScreen, type RunOutcome } from '@/renderer/screens/results-screen';
 import { RunningScreen } from '@/renderer/screens/running-screen';
@@ -68,8 +53,11 @@ import type { ToolchainStatus } from '@/shared/toolchain-status';
 import type {
   ConversionCommand,
   DeviceProfileSummary,
+  LibraryPlanSummary,
+  LibraryTitleResult,
   MetadataProviderDescriptor,
   MetadataSearchResult,
+  PlanSummary,
   RegisteredInputs,
   SelectedInput,
   SelectedLibrary,
@@ -78,7 +66,33 @@ import type {
 } from '@/shared/workflow-contract';
 
 type WorkflowStep =
-  'queue' | 'editing' | 'options' | 'running' | 'results' | 'inspecting' | 'batch-review';
+  'queue' | 'editing' | 'library' | 'editing-title' | 'options' | 'running' | 'results';
+
+const plural = (count: number, word: string): string =>
+  `${String(count)} ${word}${count === 1 ? '' : 's'}`;
+
+const outcomeOf = (title: LibraryTitleResult): TitleOutcome =>
+  title.status === 'done'
+    ? { status: 'done' }
+    : { status: 'failed', message: title.failure?.message ?? 'It could not be converted.' };
+
+/** What validating a library shows: the books its ready titles would be joined into. */
+function libraryPlanSummary(
+  row: InspectedRow,
+  planned: LibraryPlanSummary,
+  process: ProcessMode,
+): PlanSummary {
+  const pending = new Set((row.titles ?? []).filter(isPendingTitle).map((title) => title.title));
+  const titles = planned.titles.filter((title) => pending.has(title.title));
+  const books = titles.flatMap((title) => title.volumes);
+  return {
+    tool: 'mangabind',
+    title: row.displayName,
+    message: `mangabind validated ${plural(titles.length, 'title')} · ${plural(books.length, 'volume')}${process === 'bind-only' ? ' · saved as CBZ files, mangapress not run' : ''} · no library files written`,
+    books,
+    issues: planned.issues,
+  };
+}
 
 const foundations = [
   {
@@ -133,12 +147,7 @@ export function App(): React.JSX.Element {
   }>();
   const [validating, setValidating] = useState(false);
   const [failure, setFailure] = useState<WorkflowFailure>();
-  const [batchParent, setBatchParent] = useState<{
-    readonly parentPath: string;
-    readonly displayName: string;
-  }>();
-  const [batch, setBatch] = useState<BatchState>();
-  const [correctingTitle, setCorrectingTitle] = useState<string>();
+  const [editingTitle, setEditingTitle] = useState<string>();
   const [sharePanelOpen, setSharePanelOpen] = useState(false);
   const [sharedLibrary, setSharedLibrary] = useState<SelectedLibrary>();
   const [interfaces, setInterfaces] = useState<readonly NetworkInterfaceOption[]>([]);
@@ -256,7 +265,10 @@ export function App(): React.JSX.Element {
           type: 'inspected',
           id: row.id,
           sessionId: result.value.sessionId,
+          // A folder may turn out to be a library once it has been read.
+          kind: result.value.kind,
           ...(result.value.mapping === undefined ? {} : { mapping: result.value.mapping }),
+          ...(result.value.titles === undefined ? {} : { titles: result.value.titles }),
         });
       }
     })();
@@ -328,8 +340,6 @@ export function App(): React.JSX.Element {
     usesMangapress(resolved)
       ? { mode: resolved, settings, format }
       : { mode: resolved, settings: defaultMangapressSettings, format: 'cbz' };
-  const batchRunOptions = (): ReturnType<typeof withRunSettings<BatchProcessMode>> =>
-    withRunSettings(resolveMode('library', mode));
   /** The command for one queue row. A folder sent straight to mangapress carries no volumes. */
   const commandFor = (
     row: InspectedRow,
@@ -355,6 +365,13 @@ export function App(): React.JSX.Element {
       row.state,
       row.state === 'inspected' && row.mapping !== undefined ? mappingSignature(row.mapping) : '',
       row.state === 'inspected' ? row.confirmed : false,
+      row.state === 'inspected'
+        ? (row.titles ?? []).map((title) => [
+            title.title,
+            title.volumes.length,
+            title.outcome?.status,
+          ])
+        : [],
     ]),
   ]);
   const plans = validated?.key === planKey ? validated.plans : undefined;
@@ -366,6 +383,18 @@ export function App(): React.JSX.Element {
     const collected: RowPlan[] = [];
     try {
       for (const { row, mode: rowProcess } of runnableRows(rows, mode)) {
+        if (row.kind === 'library') {
+          const planned = await bridge.planLibrary(crypto.randomUUID(), row.sessionId);
+          if (!planned.ok) {
+            setFailure(planned.error);
+            return;
+          }
+          collected.push({
+            name: row.displayName,
+            plan: libraryPlanSummary(row, planned.value, rowProcess),
+          });
+          continue;
+        }
         const result = await bridge.planConversion(
           commandFor(row, rowProcess, library.libraryId, crypto.randomUUID()),
         );
@@ -389,12 +418,58 @@ export function App(): React.JSX.Element {
     cancelRequested.current = false;
     setStep('running');
     const settled: RunOutcome[] = [];
+    // The titles of each library that were saved in this run, to tell when a library is finished.
+    const savedTitles = new Map<string, ReadonlySet<string>>();
+    // The rows a run got to; those it did not (it was cancelled first) are not reported as left out.
+    const attempted = new Set<string>();
     for (const [index, { row, mode: rowProcess }] of items.entries()) {
       if (cancelRequested.current) break;
+      attempted.add(row.id);
       const nextJobId = crypto.randomUUID();
       setJobId(nextJobId);
       setRunPosition({ name: row.displayName, index: index + 1, total: items.length });
       setProgress({ stage: 'processing', message: 'Preparing…' });
+      if (row.kind === 'library') {
+        const ran = await bridge.convertLibrary({
+          jobId: nextJobId,
+          sessionId: row.sessionId,
+          libraryId: library.libraryId,
+          ...withRunSettings(resolveMode('library', rowProcess)),
+          titles: (row.titles ?? []).filter(isPendingTitle).map((title) => title.title),
+        });
+        if (!ran.ok) {
+          settled.push({
+            rowId: row.id,
+            name: row.displayName,
+            status: 'failed',
+            artifacts: [],
+            message: ran.error.message,
+          });
+          if (ran.error.code === 'cancelled') cancelRequested.current = true;
+          continue;
+        }
+        // One outcome for each title, so a book saved and one that failed are told apart.
+        for (const title of ran.value) {
+          settled.push({
+            rowId: row.id,
+            name: `${row.displayName} · ${title.title}`,
+            status: title.status,
+            artifacts: title.artifacts,
+            ...(title.failure === undefined ? {} : { message: title.failure.message }),
+          });
+          if (title.failure?.code === 'cancelled') cancelRequested.current = true;
+        }
+        savedTitles.set(
+          row.id,
+          new Set(ran.value.filter((title) => title.status === 'done').map((title) => title.title)),
+        );
+        dispatch({
+          type: 'library-results',
+          id: row.id,
+          results: ran.value.map((title) => ({ title: title.title, outcome: outcomeOf(title) })),
+        });
+        continue;
+      }
       const result = await bridge.convert(
         commandFor(row, rowProcess, library.libraryId, nextJobId),
       );
@@ -420,9 +495,24 @@ export function App(): React.JSX.Element {
     setProgress(undefined);
     setRunPosition(undefined);
     // Everything that was left out is reported with the reason and, when it can be fixed, a way to.
-    const ranIds = new Set(settled.map((outcome) => outcome.rowId));
     for (const row of rows) {
-      if (ranIds.has(row.id) || row.state === 'inspecting') continue;
+      if (row.state === 'inspecting') continue;
+      if (row.state === 'inspected' && row.kind === 'library' && attempted.has(row.id)) {
+        // A library that ran can still have titles that wait for volumes.
+        const waiting = (row.titles ?? []).filter(isWaitingTitle).length;
+        if (waiting > 0) {
+          settled.push({
+            rowId: row.id,
+            name: row.displayName,
+            status: 'skipped',
+            artifacts: [],
+            message: `${plural(waiting, 'title')} left out until they have volumes.`,
+            fixable: true,
+          });
+        }
+        continue;
+      }
+      if (attempted.has(row.id)) continue;
       const view = describeRow(row, mode);
       if (view.runnable) continue;
       settled.push({
@@ -431,12 +521,27 @@ export function App(): React.JSX.Element {
         status: 'skipped',
         artifacts: [],
         message: view.note ?? view.chip,
-        fixable: row.state === 'inspected' && row.kind === 'folder' && mode !== 'convert-only',
+        fixable: row.state === 'inspected' && row.kind !== 'cbz' && mode !== 'convert-only',
       });
     }
-    // Books that were saved leave the queue; the rest stay so they can be fixed and run again.
+    // What was saved leaves the queue: a folder or file once it is, a library once every one of its
+    // titles is. The rest stays, so it can be fixed and run again.
     removeRows(
-      settled.filter((outcome) => outcome.status === 'done').map((outcome) => outcome.rowId),
+      rows
+        .filter((row) => {
+          if (row.state !== 'inspected') return false;
+          if (row.kind === 'library') {
+            const saved = savedTitles.get(row.id);
+            return (
+              saved !== undefined &&
+              (row.titles ?? []).every(
+                (title) => title.outcome?.status === 'done' || saved.has(title.title),
+              )
+            );
+          }
+          return settled.some((outcome) => outcome.rowId === row.id && outcome.status === 'done');
+        })
+        .map((row) => row.id),
     );
     if (settled.length === 0) {
       setStep('queue');
@@ -455,7 +560,29 @@ export function App(): React.JSX.Element {
 
   const openEditor = (rowId: string): void => {
     setEditingId(rowId);
-    setStep('editing');
+    setStep(rows.find((row) => row.id === rowId)?.kind === 'library' ? 'library' : 'editing');
+  };
+
+  const confirmTitleMapping = async (
+    row: InspectedRow,
+    title: string,
+    draft: MappingDraft,
+  ): Promise<void> => {
+    if (bridge === undefined) return;
+    setFailure(undefined);
+    const written = await bridge.writeTitleMapping(row.sessionId, title, draft);
+    if (!written.ok) {
+      setFailure(written.error);
+      return;
+    }
+    // The library is read again: the title now has its volumes, and the rest is as it was found.
+    const planned = await bridge.planLibrary(crypto.randomUUID(), row.sessionId);
+    if (!planned.ok) {
+      setFailure(planned.error);
+      return;
+    }
+    dispatch({ type: 'library-planned', id: row.id, titles: planned.value.titles });
+    setStep('library');
   };
 
   const runArtifactAction = async (
@@ -469,127 +596,6 @@ export function App(): React.JSX.Element {
   ): Promise<void> => {
     const result = await action(artifactId);
     if (!result.ok) setFailure(result.error);
-  };
-
-  const loadBatchPlan = async (parentPath: string): Promise<void> => {
-    if (bridge === undefined) return;
-    setFailure(undefined);
-    setStep('inspecting');
-    const result = await bridge.planBatch(crypto.randomUUID(), parentPath);
-    if (!result.ok) {
-      setFailure(result.error);
-      setStep(batch === undefined ? 'queue' : 'batch-review');
-      return;
-    }
-    setBatch(createBatchState(result.value));
-    setStep('batch-review');
-  };
-
-  const chooseBatch = async (): Promise<void> => {
-    if (bridge === undefined) return;
-    setFailure(undefined);
-    const chosen = await bridge.chooseInputBatch();
-    if (!chosen.ok) {
-      setFailure(chosen.error);
-      return;
-    }
-    if (chosen.value === null) return;
-    setBatchParent(chosen.value);
-    await loadBatchPlan(chosen.value.parentPath);
-  };
-
-  const confirmTitleMapping = async (title: string, draft: MappingDraft): Promise<void> => {
-    if (bridge === undefined) return;
-    const current = batch?.titles.find((candidate) => candidate.title === title);
-    if (current === undefined) return;
-    setFailure(undefined);
-    const result = await bridge.writeTitleMapping(current.inputPath, draft);
-    if (!result.ok) {
-      setFailure(result.error);
-      return;
-    }
-    setBatch((state) => (state === undefined ? state : applyCorrectedMapping(state, title, draft)));
-    setCorrectingTitle(undefined);
-    if (batchParent !== undefined) await loadBatchPlan(batchParent.parentPath);
-  };
-
-  const startBatchConversion = async (): Promise<void> => {
-    if (
-      bridge === undefined ||
-      batchParent === undefined ||
-      library === undefined ||
-      batch === undefined
-    ) {
-      return;
-    }
-    const nextJobId = crypto.randomUUID();
-    setJobId(nextJobId);
-    setFailure(undefined);
-    setProgress({ stage: 'processing', message: 'Preparing batch conversion…' });
-    setBatch(markTitlesConverting(batch));
-    const result = await bridge.convertBatch({
-      jobId: nextJobId,
-      parentPath: batchParent.parentPath,
-      libraryId: library.libraryId,
-      ...batchRunOptions(),
-    });
-    setJobId(undefined);
-    setProgress(undefined);
-    if (!result.ok) {
-      setFailure(result.error);
-      return;
-    }
-    setBatch((state) => {
-      if (state === undefined) return state;
-      let next = state;
-      for (const outcome of result.value) next = applyTitleResult(next, outcome);
-      return next;
-    });
-  };
-
-  const retryBatchTitle = async (title: string): Promise<void> => {
-    if (
-      bridge === undefined ||
-      batchParent === undefined ||
-      library === undefined ||
-      batch === undefined
-    ) {
-      return;
-    }
-    const nextJobId = crypto.randomUUID();
-    setJobId(nextJobId);
-    setFailure(undefined);
-    setProgress({ stage: 'processing', message: `Retrying ${title}…` });
-    setBatch(markTitlesConverting(retryTitle(batch, title), [title]));
-    const result = await bridge.convertBatch({
-      jobId: nextJobId,
-      parentPath: batchParent.parentPath,
-      libraryId: library.libraryId,
-      ...batchRunOptions(),
-      titles: [title],
-    });
-    setJobId(undefined);
-    setProgress(undefined);
-    if (!result.ok) {
-      setFailure(result.error);
-      return;
-    }
-    setBatch((state) => {
-      if (state === undefined) return state;
-      let next = state;
-      for (const outcome of result.value) next = applyTitleResult(next, outcome);
-      return next;
-    });
-  };
-
-  const startOverBatch = (): void => {
-    setBatchParent(undefined);
-    setBatch(undefined);
-    setCorrectingTitle(undefined);
-    setFailure(undefined);
-    setProgress(undefined);
-    setJobId(undefined);
-    setStep('queue');
   };
 
   const searchMetadata = async (
@@ -642,16 +648,11 @@ export function App(): React.JSX.Element {
     else setSharingStatus({ active: false });
   };
 
-  const correctingDraft: MappingDraft | undefined =
-    correctingTitle === undefined
-      ? undefined
-      : (batch?.titles.find((title) => title.title === correctingTitle)?.draft ?? {
-          mangaTitle: correctingTitle,
-          chapters: [],
-          volumes: [],
-        });
-
   const editingRow = rows.find((row) => row.id === editingId);
+  const editingTitleEntry =
+    editingRow?.state === 'inspected'
+      ? editingRow.titles?.find((title) => title.title === editingTitle)
+      : undefined;
   const deviceName =
     profiles.find((profile) => profile.code === settings.deviceProfile)?.name ??
     settings.deviceProfile;
@@ -705,9 +706,6 @@ export function App(): React.JSX.Element {
               }}
               onAddFolders={() => {
                 void addFromDialog('folders');
-              }}
-              onAddLibrary={() => {
-                void chooseBatch();
               }}
               onChooseLibrary={() => {
                 void chooseLibrary();
@@ -810,6 +808,46 @@ export function App(): React.JSX.Element {
                 />
               </div>
             )}
+          {step === 'library' &&
+            editingRow?.state === 'inspected' &&
+            editingRow.titles !== undefined && (
+              <LibraryScreen
+                name={editingRow.displayName}
+                onBack={() => {
+                  setStep('queue');
+                }}
+                onEdit={(title) => {
+                  setEditingTitle(title);
+                  setStep('editing-title');
+                }}
+                titles={editingRow.titles}
+              />
+            )}
+          {step === 'editing-title' &&
+            editingRow?.state === 'inspected' &&
+            editingTitleEntry !== undefined && (
+              <div className="space-y-4">
+                <Button
+                  onClick={() => {
+                    setStep('library');
+                  }}
+                  variant="ghost"
+                >
+                  <ChevronLeft /> {editingRow.displayName}
+                </Button>
+                <MappingEditor
+                  initialDraft={editingTitleEntry.draft}
+                  key={editingTitleEntry.title}
+                  metadataProviders={metadataProviders}
+                  onConfirm={(_metadata, draft) => {
+                    void confirmTitleMapping(editingRow, editingTitleEntry.title, draft);
+                  }}
+                  onSearchMetadata={searchMetadata}
+                  onSuggestVolumes={suggestVolumes}
+                  startedFrom={editingTitleEntry.draft.volumes.length > 0 ? 'mangabind' : undefined}
+                />
+              </div>
+            )}
           {step === 'running' && (
             <RunningScreen
               onCancel={() => {
@@ -863,52 +901,6 @@ export function App(): React.JSX.Element {
               }
             />
           )}
-          {step === 'inspecting' && <Inspecting />}
-          {step === 'batch-review' && batch !== undefined && correctingTitle === undefined && (
-            <BatchReview
-              batch={batch}
-              displayName={batchParent?.displayName ?? 'this library'}
-              format={format}
-              library={library}
-              mode={mode}
-              onMode={setMode}
-              onCancel={() => {
-                void cancelConversion();
-              }}
-              onChooseLibrary={() => {
-                void chooseLibrary();
-              }}
-              onFixMapping={setCorrectingTitle}
-              onFormat={setFormat}
-              onRetry={(title) => {
-                void retryBatchTitle(title);
-              }}
-              onSettings={setSettings}
-              onStart={() => {
-                void startBatchConversion();
-              }}
-              onStartOver={startOverBatch}
-              profiles={profiles}
-              progress={progress}
-              running={jobId !== undefined}
-              settings={settings}
-            />
-          )}
-          {step === 'batch-review' &&
-            batch !== undefined &&
-            correctingTitle !== undefined &&
-            correctingDraft !== undefined && (
-              <MappingEditor
-                initialDraft={correctingDraft}
-                startedFrom={correctingDraft.volumes.length > 0 ? 'mangabind' : undefined}
-                onConfirm={(_metadata, draft) => {
-                  void confirmTitleMapping(correctingTitle, draft);
-                }}
-                metadataProviders={metadataProviders}
-                onSearchMetadata={searchMetadata}
-                onSuggestVolumes={suggestVolumes}
-              />
-            )}
         </main>
       )}
     </div>
@@ -964,269 +956,6 @@ function ToolchainBanner({
       </div>
     </section>
   );
-}
-
-export function Inspecting({
-  selection,
-}: {
-  readonly selection?: SelectedInput;
-}): React.JSX.Element {
-  return (
-    <section
-      className="flex min-h-80 flex-col items-center justify-center text-center"
-      aria-live="polite"
-    >
-      <LoaderCircle aria-hidden="true" className="text-accent size-7 animate-spin" />
-      <h1 className="mt-5 text-xl font-semibold">
-        Inspecting {selection?.displayName ?? 'input'}…
-      </h1>
-      <p className="text-muted-foreground mt-2 text-sm">Reading chapter names and page counts.</p>
-    </section>
-  );
-}
-
-export function OutputSettingsPanel({
-  format,
-  library,
-  mangapressDisabled = false,
-  onChooseLibrary,
-  onFormat,
-  onSettings,
-  profiles,
-  settings,
-}: {
-  readonly format: BookFormat;
-  readonly library?: SelectedLibrary;
-  /** True when mangapress will not run, so its settings stay visible but cannot be edited. */
-  readonly mangapressDisabled?: boolean;
-  readonly onChooseLibrary: () => void;
-  readonly onFormat: (format: BookFormat) => void;
-  readonly onSettings: (settings: MangapressSettings) => void;
-  readonly profiles: readonly DeviceProfileSummary[];
-  readonly settings: MangapressSettings;
-}): React.JSX.Element {
-  const editor = (
-    <MangapressSettingsEditor
-      format={format}
-      onFormat={onFormat}
-      onSettings={onSettings}
-      profiles={profiles}
-      settings={settings}
-    />
-  );
-  return (
-    <>
-      {mangapressDisabled ? (
-        <fieldset className="m-0 min-w-0 space-y-4 border-0 p-0" disabled>
-          <legend className="text-muted-foreground mb-3 text-sm">
-            mangapress is not run when you only join volumes, so these settings are not used.
-          </legend>
-          {editor}
-        </fieldset>
-      ) : (
-        editor
-      )}
-      <div className="border-border bg-surface rounded-xl border p-6">
-        <div className="space-y-3">
-          <div>
-            <Label>Output library</Label>
-            <p className="text-muted-foreground mt-1 text-sm break-all">
-              {library?.displayPath ?? 'No folder selected'}
-            </p>
-          </div>
-          <Button onClick={onChooseLibrary} variant="outline">
-            <FolderOpen /> {library === undefined ? 'Choose output folder' : 'Change output folder'}
-          </Button>
-        </div>
-      </div>
-    </>
-  );
-}
-
-export function BatchReview({
-  batch,
-  displayName,
-  format,
-  library,
-  mode = defaultProcessMode,
-  onCancel,
-  onChooseLibrary,
-  onFixMapping,
-  onFormat,
-  onMode,
-  onRetry,
-  onSettings,
-  onStart,
-  onStartOver,
-  profiles,
-  progress,
-  running,
-  settings,
-}: {
-  readonly batch: BatchState;
-  readonly displayName: string;
-  readonly format: BookFormat;
-  readonly library?: SelectedLibrary;
-  readonly mode?: ProcessMode;
-  readonly onCancel: () => void;
-  readonly onChooseLibrary: () => void;
-  readonly onFixMapping: (title: string) => void;
-  readonly onFormat: (format: BookFormat) => void;
-  readonly onMode?: (mode: ProcessMode) => void;
-  readonly onRetry: (title: string) => void;
-  readonly onSettings: (settings: MangapressSettings) => void;
-  readonly onStart: () => void;
-  readonly onStartOver: () => void;
-  readonly profiles: readonly DeviceProfileSummary[];
-  readonly progress?: ConversionProgress;
-  readonly running: boolean;
-  readonly settings: MangapressSettings;
-}): React.JSX.Element {
-  const resolved = resolveMode('library', mode);
-  const runsMangapress = usesMangapress(resolved);
-  const settingIssues = runsMangapress ? validateMangapressSettings(settings) : [];
-  const doneCount = batch.titles.filter((title) => title.status === 'done').length;
-  return (
-    <section className="mx-auto max-w-5xl space-y-6" aria-labelledby="batch-title">
-      <Button disabled={running} onClick={onStartOver} variant="ghost">
-        <ArrowLeft /> Back
-      </Button>
-      <div>
-        <p className="text-muted-foreground text-xs font-medium">Batch setup</p>
-        <h1 id="batch-title" className="mt-2 text-3xl font-semibold tracking-tight">
-          {resolved === 'bind-only' ? 'Join' : 'Convert'} {displayName}
-        </h1>
-        <p className="text-muted-foreground mt-3 text-sm">
-          {String(batch.titles.length)} manga found · {String(doneCount)}{' '}
-          {resolved === 'bind-only' ? 'joined' : 'converted'} so far
-        </p>
-      </div>
-      {onMode !== undefined && (
-        <div className="border-border bg-surface rounded-xl border p-6">
-          <ProcessSteps disabled={running} input="library" mode={mode} onMode={onMode} />
-        </div>
-      )}
-      {running && progress !== undefined && (
-        <div aria-live="polite" className="border-border bg-surface rounded-xl border p-4">
-          <div className="flex items-center gap-3">
-            <LoaderCircle aria-hidden="true" className="text-accent size-4 animate-spin" />
-            <p className="text-sm">
-              {progress.title !== undefined ? `${progress.title} · ` : ''}
-              {progress.message}
-            </p>
-          </div>
-        </div>
-      )}
-      <ul className="space-y-3">
-        {batch.titles.map((title) => (
-          <BatchTitleRow
-            key={title.title}
-            onFixMapping={() => {
-              onFixMapping(title.title);
-            }}
-            onRetry={() => {
-              onRetry(title.title);
-            }}
-            running={running}
-            title={title}
-          />
-        ))}
-      </ul>
-      <OutputSettingsPanel
-        format={format}
-        library={library}
-        mangapressDisabled={!runsMangapress}
-        onChooseLibrary={onChooseLibrary}
-        onFormat={onFormat}
-        onSettings={onSettings}
-        profiles={profiles}
-        settings={settings}
-      />
-      {settingIssues.length > 0 && (
-        <p className="text-status-failed text-sm" role="alert">
-          Review the highlighted output settings before converting.
-        </p>
-      )}
-      <div className="flex flex-wrap justify-end gap-3">
-        {running ? (
-          <Button onClick={onCancel} size="lg" variant="outline">
-            <Square /> Cancel batch
-          </Button>
-        ) : (
-          <Button
-            disabled={library === undefined || settingIssues.length > 0}
-            onClick={onStart}
-            size="lg"
-          >
-            <MonitorSmartphone />{' '}
-            {resolved === 'bind-only' ? 'Start batch join' : 'Start batch conversion'}
-          </Button>
-        )}
-      </div>
-    </section>
-  );
-}
-
-function BatchTitleRow({
-  onFixMapping,
-  onRetry,
-  running,
-  title,
-}: {
-  readonly onFixMapping: () => void;
-  readonly onRetry: () => void;
-  readonly running: boolean;
-  readonly title: BatchTitle;
-}): React.JSX.Element {
-  return (
-    <li className="border-border bg-surface flex flex-wrap items-center gap-4 rounded-xl border p-5">
-      <BatchStatusIcon status={title.status} />
-      <div className="min-w-0 flex-1">
-        <h2 className="truncate text-sm font-semibold">{title.title}</h2>
-        {title.status === 'needsMapping' ? (
-          <p className="text-status-warning mt-1 text-xs">
-            No volumes could be assigned automatically. Use "Fix mapping" or convert it individually
-            from the manga folder flow.
-          </p>
-        ) : (
-          <p className="text-muted-foreground mt-1 text-xs">
-            {String(title.volumes.length)} volume{title.volumes.length === 1 ? '' : 's'}
-            {title.artifacts === undefined ? '' : ` · ${String(title.artifacts.length)} saved`}
-          </p>
-        )}
-        {title.failure !== undefined && (
-          <p className="text-status-failed mt-1 text-xs">{title.failure.message}</p>
-        )}
-      </div>
-      {title.status === 'needsMapping' && (
-        <Button disabled={running} onClick={onFixMapping} size="sm" variant="outline">
-          Fix mapping
-        </Button>
-      )}
-      {title.status === 'failed' && (
-        <Button disabled={running} onClick={onRetry} size="sm" variant="outline">
-          <RotateCcw /> Retry
-        </Button>
-      )}
-    </li>
-  );
-}
-
-function BatchStatusIcon({ status }: { readonly status: BatchTitleStatus }): React.JSX.Element {
-  switch (status) {
-    case 'needsMapping':
-      return <CircleAlert aria-hidden="true" className="text-status-warning size-5 shrink-0" />;
-    case 'converting':
-      return (
-        <LoaderCircle aria-hidden="true" className="text-accent size-5 shrink-0 animate-spin" />
-      );
-    case 'done':
-      return <CheckCircle2 aria-hidden="true" className="text-status-complete size-5 shrink-0" />;
-    case 'failed':
-      return <CircleAlert aria-hidden="true" className="text-status-failed size-5 shrink-0" />;
-    case 'ready':
-      return <FileArchive aria-hidden="true" className="text-muted-foreground size-5 shrink-0" />;
-  }
 }
 
 export function IssueCallout({

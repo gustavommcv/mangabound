@@ -1,8 +1,29 @@
 import { type MappingDraft, mappingSignature } from './mapping';
-import { type ProcessMode, resolveMode } from './process-mode';
+import { libraryReason, type ProcessMode, resolveMode } from './process-mode';
 
-/** A manga folder (chapters inside) or one comic archive. A whole library of folders is separate. */
-export type QueueRowKind = 'folder' | 'cbz';
+/** What can be added to the queue: a folder or one comic archive. */
+export type QueueInputKind = 'folder' | 'cbz';
+
+/**
+ * What a row turned out to be. A library, a folder of manga folders, only shows itself once a
+ * folder has been read: it is added like any other folder.
+ */
+export type QueueRowKind = QueueInputKind | 'library';
+
+/** What a run did with one manga of a library. */
+export type TitleOutcome =
+  { readonly status: 'done' } | { readonly status: 'failed'; readonly message: string };
+
+/** One manga folder of a library: the grouping mangabind proposed for it, and how it went. */
+export interface LibraryTitle {
+  readonly title: string;
+  readonly draft: MappingDraft;
+  readonly volumes: readonly { readonly name: string; readonly pageCount: number }[];
+  readonly outcome?: TitleOutcome;
+}
+
+/** A title as it is read, before any run has done anything with it. */
+export type ReadTitle = Omit<LibraryTitle, 'outcome'>;
 
 interface QueueRowBase {
   /** The id the main process registered the input under. */
@@ -24,6 +45,8 @@ export type QueueRow = QueueRowBase &
         readonly proposedSignature?: string;
         /** The user opened the editor and accepted the mapping, gaps included. */
         readonly confirmed: boolean;
+        /** The manga a library holds. */
+        readonly titles?: readonly LibraryTitle[];
       }
   );
 
@@ -31,7 +54,7 @@ export type InspectedRow = Extract<QueueRow, { readonly state: 'inspected' }>;
 
 export interface QueueInput {
   readonly id: string;
-  readonly kind: QueueRowKind;
+  readonly kind: QueueInputKind;
   readonly displayName: string;
   readonly displayPath: string;
 }
@@ -42,9 +65,23 @@ export type QueueAction =
       readonly type: 'inspected';
       readonly id: string;
       readonly sessionId: string;
+      /** What the folder was taken for once read; a library is only known by reading it. */
+      readonly kind?: QueueRowKind;
       readonly mapping?: MappingDraft;
+      readonly titles?: readonly ReadTitle[];
     }
   | { readonly type: 'inspect-failed'; readonly id: string; readonly message: string }
+  /** The library was read again, after a title had its volumes saved. Saved titles stay saved. */
+  | {
+      readonly type: 'library-planned';
+      readonly id: string;
+      readonly titles: readonly ReadTitle[];
+    }
+  | {
+      readonly type: 'library-results';
+      readonly id: string;
+      readonly results: readonly { readonly title: string; readonly outcome: TitleOutcome }[];
+    }
   | { readonly type: 'confirm-mapping'; readonly id: string; readonly mapping: MappingDraft }
   | { readonly type: 'remove'; readonly ids: readonly string[] }
   | { readonly type: 'clear' };
@@ -69,7 +106,7 @@ export function queueReducer(rows: readonly QueueRow[], action: QueueAction): re
         row.id === action.id && row.state === 'inspecting'
           ? {
               id: row.id,
-              kind: row.kind,
+              kind: action.kind ?? row.kind,
               displayName: row.displayName,
               displayPath: row.displayPath,
               state: 'inspected',
@@ -78,6 +115,7 @@ export function queueReducer(rows: readonly QueueRow[], action: QueueAction): re
               ...(action.mapping === undefined
                 ? {}
                 : { mapping: action.mapping, proposedSignature: mappingSignature(action.mapping) }),
+              ...(action.titles === undefined ? {} : { titles: action.titles.map(readTitle) }),
             }
           : row,
       );
@@ -94,6 +132,32 @@ export function queueReducer(rows: readonly QueueRow[], action: QueueAction): re
             }
           : row,
       );
+    case 'library-planned':
+      return rows.map((row) =>
+        row.id === action.id && row.state === 'inspected' && row.titles !== undefined
+          ? {
+              ...row,
+              titles: action.titles.map((planned) => {
+                const saved = row.titles?.find((known) => known.title === planned.title);
+                return saved?.outcome?.status === 'done'
+                  ? { ...readTitle(planned), outcome: saved.outcome }
+                  : readTitle(planned);
+              }),
+            }
+          : row,
+      );
+    case 'library-results':
+      return rows.map((row) =>
+        row.id === action.id && row.state === 'inspected' && row.titles !== undefined
+          ? {
+              ...row,
+              titles: row.titles.map((title) => {
+                const result = action.results.find((candidate) => candidate.title === title.title);
+                return result === undefined ? title : { ...title, outcome: result.outcome };
+              }),
+            }
+          : row,
+      );
     case 'confirm-mapping':
       return rows.map((row) =>
         row.id === action.id && row.state === 'inspected'
@@ -107,6 +171,21 @@ export function queueReducer(rows: readonly QueueRow[], action: QueueAction): re
     case 'clear':
       return emptyQueue;
   }
+}
+
+/** Keeps what the queue needs of a title, dropping anything else the read carried. */
+function readTitle(title: ReadTitle): ReadTitle {
+  return { title: title.title, draft: title.draft, volumes: title.volumes };
+}
+
+/** A title a run would make books of: it has volumes, and was not already saved. */
+export function isPendingTitle(title: LibraryTitle): boolean {
+  return title.volumes.length > 0 && title.outcome?.status !== 'done';
+}
+
+/** A title with no volumes yet: a run leaves it out until it has some. */
+export function isWaitingTitle(title: LibraryTitle): boolean {
+  return title.volumes.length === 0 && title.outcome?.status !== 'done';
 }
 
 /** The scratch sessions a set of rows holds, which must be released when the rows go away. */
@@ -126,6 +205,8 @@ export function unassignedChapterCount(mapping: MappingDraft): number {
  */
 export function rowMode(kind: QueueRowKind, mode: ProcessMode): ProcessMode | 'skip' {
   if (kind === 'cbz' && mode === 'bind-only') return 'skip';
+  // A library is joined title by title first: asked not to group, it is left out, not grouped anyway.
+  if (kind === 'library' && mode === 'convert-only') return 'skip';
   return resolveMode(kind, mode);
 }
 
@@ -181,6 +262,8 @@ export function describeRow(row: QueueRow, mode: ProcessMode): RowView {
         };
   }
 
+  if (row.kind === 'library') return describeLibrary(row, mode);
+
   const chapters = row.mapping?.chapters.length ?? 0;
   const volumes = row.mapping?.volumes.length ?? 0;
   const unassigned = row.mapping === undefined ? 0 : unassignedChapterCount(row.mapping);
@@ -221,6 +304,59 @@ export function describeRow(row: QueueRow, mode: ProcessMode): RowView {
     detail: `${folder}${fromNames}`,
     runnable: true,
     ...(unassigned > 0 ? { note: `${plural(unassigned, 'chapter')} left out.` } : {}),
+  };
+}
+
+function describeLibrary(row: InspectedRow, mode: ProcessMode): RowView {
+  const titles = row.titles ?? [];
+  const detail = `Library · ${plural(titles.length, 'title')}`;
+  if (titles.length === 0) {
+    return {
+      chip: 'Not recognized',
+      tone: 'danger',
+      detail,
+      runnable: false,
+      note: 'mangabind found no manga in this folder.',
+    };
+  }
+  if (rowMode('library', mode) === 'skip') {
+    return {
+      chip: 'Needs grouping',
+      tone: 'neutral',
+      detail,
+      runnable: false,
+      note: libraryReason,
+    };
+  }
+  const pending = titles.filter(isPendingTitle);
+  const waiting = titles.filter(isWaitingTitle);
+  if (pending.length === 0) {
+    return waiting.length === 0
+      ? { chip: 'Saved', tone: 'neutral', detail, runnable: false }
+      : {
+          chip: 'Needs volumes',
+          tone: 'warning',
+          detail,
+          runnable: false,
+          note: `${plural(waiting.length, 'title')} ${waiting.length === 1 ? 'has' : 'have'} no volumes yet. Use the pencil on this row to group ${waiting.length === 1 ? 'it' : 'them'}.`,
+        };
+  }
+  const failed = titles.filter((title) => title.outcome?.status === 'failed');
+  const notes = [
+    ...(waiting.length === 0
+      ? []
+      : [`${plural(waiting.length, 'title')} left out until they have volumes.`]),
+    ...(failed.length === 0
+      ? []
+      : [`${plural(failed.length, 'title')} failed last time and will run again.`]),
+  ];
+  const volumes = pending.reduce((count, title) => count + title.volumes.length, 0);
+  return {
+    chip: plural(pending.length, 'title'),
+    tone: 'accent',
+    detail: `${detail} · ${plural(volumes, 'volume')}`,
+    runnable: true,
+    ...(notes.length === 0 ? {} : { note: notes.join(' ') }),
   };
 }
 

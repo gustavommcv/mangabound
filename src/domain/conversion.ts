@@ -3,6 +3,8 @@ import type { MangapressSettings } from './output-profile';
 import type { ProcessMode } from './process-mode';
 
 export type InputKind = 'folder' | 'cbz';
+/** What an input turned out to be once read: a library is a folder of manga folders. */
+export type InspectedKind = InputKind | 'library';
 export type BookFormat = 'epub' | 'cbz' | 'pdf';
 
 export interface InputSelection {
@@ -11,11 +13,26 @@ export interface InputSelection {
   readonly kind: InputKind;
 }
 
+/** One manga folder inside a library, with the grouping mangabind proposes for it. */
+export interface InspectedTitle {
+  readonly title: string;
+  readonly draft: MappingDraft;
+  readonly volumes: readonly PlannedBook[];
+  readonly issues: readonly PipelineIssue[];
+}
+
 export interface InspectedInput {
   readonly sessionId: string;
   readonly displayName: string;
-  readonly kind: InputKind;
+  readonly kind: InspectedKind;
   readonly mapping?: MappingDraft;
+  /** The manga folders of a library. Their paths stay with the workflow. */
+  readonly titles?: readonly InspectedTitle[];
+  readonly issues: readonly PipelineIssue[];
+}
+
+export interface LibraryPlan {
+  readonly titles: readonly InspectedTitle[];
   readonly issues: readonly PipelineIssue[];
 }
 
@@ -94,8 +111,10 @@ export class ConversionWorkflowError extends Error {
       | 'mapping_save_failed'
       | 'mapping_required'
       | 'no_volumes'
+      | 'not_a_library'
       | 'publish_failed'
       | 'session_not_found'
+      | 'title_not_found'
       | 'unsupported_mode',
     message: string,
     options?: ErrorOptions,
