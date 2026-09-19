@@ -1,6 +1,99 @@
 import { describe, expect, it } from 'vitest';
 
-import { defaultMangapressSettings, validateMangapressSettings } from '@/domain/output-profile';
+import {
+  defaultMangapressSettings,
+  defaultUpscaleFor,
+  validateMangapressSettings,
+  withDeviceProfile,
+} from '@/domain/output-profile';
+
+describe('mangapress default settings', () => {
+  it('start in the state Kindle Comic Converter opens in', () => {
+    expect(defaultMangapressSettings).toMatchObject({
+      // On by default in KCC's window.
+      mangaStyle: true,
+      splitter: 'both',
+      upscale: true,
+      cropping: 'margins-and-page-numbers',
+      croppingPower: 1,
+      // Off, or automatic, by default.
+      quiet: false,
+      croppingMinimum: 0,
+      preserveMargin: 0,
+      stretch: false,
+      wallpaper: false,
+      whiteBorders: false,
+      forcePng: false,
+      rotateRight: false,
+      autoLevel: false,
+      noAutoContrast: false,
+      interPanelCrop: 'disabled',
+      eraseRainbow: false,
+      keepComicInfo: false,
+    });
+    // Left to the device profile, as in KCC.
+    expect(defaultMangapressSettings.gamma).toBeUndefined();
+    expect(defaultMangapressSettings.jpegQuality).toBeUndefined();
+    expect(validateMangapressSettings(defaultMangapressSettings)).toEqual([]);
+  });
+
+  it.each(['KV', 'KPW5', 'KPW6', 'KO', 'KCS', 'KoAO', 'KoLC', 'Rmk2', 'RmkPPMove'])(
+    'starts upscaling on for %s, as KCC does',
+    (code) => {
+      expect(defaultUpscaleFor(code)).toBe(true);
+    },
+  );
+
+  it.each([
+    'K1',
+    'K2',
+    'K34',
+    'K57',
+    'K810',
+    'KDX',
+    'KPW',
+    'KS',
+    'KS1240',
+    'KS1324',
+    'KS1860',
+    'KS1920',
+    'KS3',
+    'KSCS',
+    'KoA',
+    'KoG',
+    'KoGHD',
+    'KoMT',
+    'OTHER',
+  ])('starts upscaling off for %s, as KCC does', (code) => {
+    expect(defaultUpscaleFor(code)).toBe(false);
+  });
+
+  it('starts upscaling on for a device this list has never heard of', () => {
+    expect(defaultUpscaleFor('A-FUTURE-READER')).toBe(true);
+  });
+
+  it('resets upscaling, and only upscaling, when another device is chosen', () => {
+    const edited = {
+      ...defaultMangapressSettings,
+      mangaStyle: false,
+      splitter: 'rotate' as const,
+      gamma: 1.2,
+      upscale: true,
+    };
+
+    expect(withDeviceProfile(edited, 'KS')).toEqual({
+      ...edited,
+      deviceProfile: 'KS',
+      upscale: false,
+    });
+    // A device that upscales by default turns it back on, even if it was switched off.
+    expect(withDeviceProfile({ ...edited, upscale: false }, 'KoAO')).toEqual({
+      ...edited,
+      deviceProfile: 'KoAO',
+      upscale: true,
+    });
+  });
+});
 
 describe('mangapress output settings', () => {
   it('accepts the defaults and complete custom-device overrides', () => {

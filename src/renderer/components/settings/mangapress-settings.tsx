@@ -5,6 +5,7 @@ import {
   type MangapressSettingField,
   type MangapressSettings,
   validateMangapressSettings,
+  withDeviceProfile,
 } from '@/domain/output-profile';
 import { Checkbox } from '@/renderer/components/ui/checkbox';
 import { Input } from '@/renderer/components/ui/input';
@@ -64,7 +65,7 @@ export function MangapressSettingsEditor({
             disabled={profiles.length === 0}
             id="device-profile"
             onChange={(event) => {
-              update('deviceProfile', event.target.value);
+              onSettings(withDeviceProfile(settings, event.target.value));
             }}
             value={settings.deviceProfile}
           >

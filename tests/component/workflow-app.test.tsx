@@ -734,6 +734,106 @@ describe('queue application workflow', () => {
   });
 });
 
+describe('the options a run starts with', () => {
+  const scribe = {
+    code: 'KS',
+    name: 'Kindle Scribe 1/2',
+    width: 1860,
+    height: 2480,
+    grayLevels: 16,
+    family: 'kindle',
+  };
+  const voyage = {
+    code: 'KV',
+    name: 'Kindle Voyage',
+    width: 1072,
+    height: 1448,
+    grayLevels: 16,
+    family: 'kindle',
+  };
+
+  it('sends what Kindle Comic Converter has on, and takes upscaling from the device chosen', async () => {
+    const user = userEvent.setup();
+    const convert = vi.fn<MangaboundBridge['convert']>(() =>
+      Promise.resolve({
+        ok: true,
+        value: [{ id: 'a1', name: 'Offline Work.epub', bytes: 2048, format: 'epub' }],
+      }),
+    );
+    // Every pick registers under an id of its own, so the second add is a new item.
+    const chooseInputs = vi
+      .fn<MangaboundBridge['chooseInputs']>()
+      .mockResolvedValueOnce({ ok: true, value: { inputs: [folder()], rejected: [] } })
+      .mockResolvedValueOnce({
+        ok: true,
+        value: { inputs: [folder('Offline Work', 'selection-2')], rejected: [] },
+      });
+    installBridge(
+      bridge({
+        chooseInputs,
+        convert,
+        getDeviceProfiles: () => Promise.resolve({ ok: true, value: [voyage, scribe] }),
+      }),
+    );
+    render(<App />);
+    await addFolder(user);
+    await chooseOutputFolder(user);
+
+    // Nothing has been touched: manga order, both spread modes and upscaling are on.
+    await user.click(await runButton('Convert 1 item'));
+    await screen.findByRole('heading', { name: '1 book saved' });
+    expect(convert.mock.calls[0]?.[0].settings).toMatchObject({
+      deviceProfile: 'KV',
+      mangaStyle: true,
+      splitter: 'both',
+      upscale: true,
+    });
+
+    // A Scribe starts without upscaling, and the rest stays as it was.
+    await user.click(screen.getByRole('button', { name: 'Convert more' }));
+    await addFolder(user);
+    await user.selectOptions(screen.getByLabelText('Device'), 'KS');
+    await user.click(await runButton('Convert 1 item'));
+    await screen.findByRole('heading', { name: '1 book saved' });
+    expect(convert.mock.calls[1]?.[0].settings).toMatchObject({
+      deviceProfile: 'KS',
+      mangaStyle: true,
+      splitter: 'both',
+      upscale: false,
+    });
+  });
+
+  it('starts from the first device on offer, with its own upscaling, when the default one is missing', async () => {
+    const user = userEvent.setup();
+    const convert = vi.fn<MangaboundBridge['convert']>(() =>
+      Promise.resolve({
+        ok: true,
+        value: [{ id: 'a1', name: 'Offline Work.epub', bytes: 2048, format: 'epub' }],
+      }),
+    );
+    installBridge(
+      bridge({
+        convert,
+        getDeviceProfiles: () => Promise.resolve({ ok: true, value: [scribe] }),
+      }),
+    );
+    render(<App />);
+    await waitFor(() => {
+      expect(screen.getByLabelText('Device')).toHaveValue('KS');
+    });
+    await addFolder(user);
+    await chooseOutputFolder(user);
+
+    await user.click(await runButton('Convert 1 item'));
+
+    await screen.findByRole('heading', { name: '1 book saved' });
+    expect(convert.mock.calls[0]?.[0].settings).toMatchObject({
+      deviceProfile: 'KS',
+      upscale: false,
+    });
+  });
+});
+
 describe('process control in the queue', () => {
   it('joins the volumes only: mangapress is not run, its controls lock, and only defaults are sent', async () => {
     const user = userEvent.setup();

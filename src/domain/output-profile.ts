@@ -46,16 +46,22 @@ export interface MangapressSettingIssue {
   readonly message: string;
 }
 
+/**
+ * The state the settings start in. It is the state Kindle Comic Converter's own window opens in
+ * (ADR 0011), not the state the mangapress command line starts in: manga reading order, spreads
+ * both split and rotated, upscaling, and cropping of margins and page numbers are on; everything
+ * else is off or automatic. The device profile is the one option that differs from KCC's window.
+ */
 export const defaultMangapressSettings: MangapressSettings = Object.freeze({
   deviceProfile: 'KV',
   quiet: false,
-  mangaStyle: false,
+  mangaStyle: true,
   cropping: 'margins-and-page-numbers',
   croppingPower: 1,
   croppingMinimum: 0,
   preserveMargin: 0,
-  splitter: 'split',
-  upscale: false,
+  splitter: 'both',
+  upscale: true,
   stretch: false,
   wallpaper: false,
   whiteBorders: false,
@@ -69,6 +75,48 @@ export const defaultMangapressSettings: MangapressSettings = Object.freeze({
   keepComicInfo: false,
   language: 'en-US',
 });
+
+/**
+ * The device profiles Kindle Comic Converter starts with upscaling off for: older or low
+ * resolution readers, the Scribe family, and the custom profile. Every other profile, including
+ * one this list has never heard of, starts with it on.
+ */
+const profilesWithoutUpscaleByDefault: ReadonlySet<string> = new Set([
+  'K1',
+  'K2',
+  'K34',
+  'K57',
+  'K810',
+  'KDX',
+  'KPW',
+  'KS',
+  'KS1240',
+  'KS1324',
+  'KS1860',
+  'KS1920',
+  'KS3',
+  'KSCS',
+  'KoA',
+  'KoG',
+  'KoGHD',
+  'KoMT',
+  'OTHER',
+]);
+
+export function defaultUpscaleFor(deviceProfile: string): boolean {
+  return !profilesWithoutUpscaleByDefault.has(deviceProfile);
+}
+
+/**
+ * The settings after choosing another device. As in Kindle Comic Converter, the choice also puts
+ * upscaling back to what that device starts with, so it is the one setting a device change resets.
+ */
+export function withDeviceProfile(
+  settings: MangapressSettings,
+  deviceProfile: string,
+): MangapressSettings {
+  return { ...settings, deviceProfile, upscale: defaultUpscaleFor(deviceProfile) };
+}
 
 export function validateMangapressSettings(
   settings: MangapressSettings,

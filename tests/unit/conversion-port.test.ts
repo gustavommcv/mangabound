@@ -163,7 +163,10 @@ describe('mangapress conversion port', () => {
       croppingPower: 1,
       croppingMinimum: 0,
       preserveMargin: 0,
-      splitter: 'split',
+      // The starting settings are KCC's window state (ADR 0011), so a run passes these on.
+      mangaStyle: true,
+      splitter: 'both',
+      upscale: true,
       metadataTitle: 'series-only',
       language: 'en-US',
       dryRun: false,

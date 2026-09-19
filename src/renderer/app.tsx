@@ -40,6 +40,7 @@ import {
   defaultMangapressSettings,
   type MangapressSettings,
   validateMangapressSettings,
+  withDeviceProfile,
 } from '@/domain/output-profile';
 import {
   type BatchProcessMode,
@@ -162,11 +163,12 @@ export function App(): React.JSX.Element {
         if (!current) return;
         if (result.ok) {
           setProfiles(result.value);
-          if (!result.value.some((candidate) => candidate.code === 'KV')) {
-            setSettings((current) => ({
-              ...current,
-              deviceProfile: result.value[0]?.code ?? '',
-            }));
+          if (
+            !result.value.some(
+              (candidate) => candidate.code === defaultMangapressSettings.deviceProfile,
+            )
+          ) {
+            setSettings((current) => withDeviceProfile(current, result.value[0]?.code ?? ''));
           }
         } else {
           setFailure(result.error);
@@ -717,7 +719,7 @@ export function App(): React.JSX.Element {
                 void startRun();
               }}
               onDeviceProfile={(code) => {
-                setSettings((current) => ({ ...current, deviceProfile: code }));
+                setSettings((current) => withDeviceProfile(current, code));
               }}
               onDismissRejected={() => {
                 setRejected([]);
