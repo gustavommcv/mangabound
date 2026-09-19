@@ -250,9 +250,29 @@ describe('NodeOpdsServer', () => {
       const response = await fetch(`${handle.url}/books/missing.epub?token=secret`);
 
       expect(response.status).toBe(500);
+      const body = await response.text();
+      expect(body).toBe('The catalog could not be read.');
+      expect(body).not.toContain(root);
     } finally {
       await rm(root, { recursive: true, force: true });
     }
+  });
+
+  it('answers with a generic 500, not the parser text, when the catalog stops being readable mid-session', async () => {
+    const handle = await startServer(
+      {
+        read: () => Promise.reject(new SyntaxError('Unexpected token n in JSON at position 1')),
+        publish: () => Promise.reject(new Error('not used in these tests')),
+      },
+      { mode: 'token', token: 'secret' },
+    );
+
+    const response = await fetch(`${handle.url}/recent?token=secret`);
+
+    expect(response.status).toBe(500);
+    const body = await response.text();
+    expect(body).toBe('The catalog could not be read.');
+    expect(body).not.toMatch(/JSON/u);
   });
 
   it('ends the response without a status change when the stream fails after headers are sent', async () => {
