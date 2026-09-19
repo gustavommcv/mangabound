@@ -72,3 +72,43 @@ describe('mangabind protocol v1', () => {
     expect(() => parseMangabindReport(input)).toThrowError(expect.objectContaining({ code }));
   });
 });
+
+describe('recorded mangabind 0.4.0 reports', () => {
+  const recorded = (name: string) =>
+    parseMangabindReport(
+      fs.readFileSync(path.join(repositoryRoot, 'tests', 'fixtures', 'protocol', name), 'utf8'),
+    );
+
+  it('parses the volume-in-name report with its effective volumes and parser fields', () => {
+    const units = recorded('mangabind-v1-vol-ch-title.json').manga[0]!.units;
+
+    expect(
+      units.map((unit) => [unit.parser.volume, unit.parser.chapter, unit.effective_volume]),
+    ).toEqual([
+      [1, 1, 1],
+      [1, 2, 1],
+      [2, 8, 2],
+      [2, 9, 2],
+    ]);
+    expect(units.every((unit) => unit.disposition === 'included')).toBe(true);
+    expect(units[0]!.parser).toMatchObject({
+      name: 'vol-ch-title',
+      language: 'pt-br',
+      group: 'Morro dos Scans, Power Scans',
+    });
+  });
+
+  it('parses a duplicate chapter as a conflict that still carries an effective volume', () => {
+    const units = recorded('mangabind-v1-duplicate-chapters.json').manga[0]!.units;
+
+    expect(units.map((unit) => unit.disposition)).toEqual(['conflict', 'conflict', 'included']);
+    expect(units[0]!.effective_volume).toBe(1);
+  });
+
+  it('parses a folder that mixes named and unnamed volumes', () => {
+    const units = recorded('mangabind-v1-mixed-grouping.json').manga[0]!.units;
+
+    expect(units.map((unit) => unit.disposition)).toEqual(['unassigned', 'included', 'included']);
+    expect(units[0]!.effective_volume).toBeUndefined();
+  });
+});

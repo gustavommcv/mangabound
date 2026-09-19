@@ -18,8 +18,8 @@ import { MangabindBindingAdapter } from '@/adapters/mangabind/binding-port';
 import { MangabindCliAdapter } from '@/adapters/mangabind/cli';
 import { CliProtocolError } from '@/adapters/cli-protocol-error';
 import { FsLibraryStore } from '@/adapters/library/fs-library-store';
-import { ExternalMetadataProvider } from '@/adapters/external-metadata/metadata-provider';
 import { MetadataProviderError } from '@/adapters/external-metadata/protocol';
+import { createMetadataProviders } from '@/adapters/external-metadata/registry';
 import { MangapressCliAdapter } from '@/adapters/mangapress/cli';
 import { MangapressConversionAdapter } from '@/adapters/mangapress/conversion-port';
 import { OsNetworkInterfaces } from '@/adapters/network/os-network-interfaces';
@@ -53,6 +53,7 @@ import {
   identifierSchema,
   inputKindSchema,
   type InspectedInputPayload,
+  type MetadataProviderDescriptor,
   type MetadataSearchResult,
   planBatchCommandSchema,
   type PlanSummary,
@@ -72,7 +73,11 @@ const selectedInputs = new Map<string, InputSelection>();
 const selectedLibraries = new Map<string, string>();
 const artifactPaths = new Map<string, string>();
 const activeJobs = new Map<string, AbortController>();
-const metadataProvider = new ExternalMetadataProvider();
+const metadataProviders = new Map(
+  createMetadataProviders(process.env).map(
+    (provider) => [provider.descriptor.id, provider] as const,
+  ),
+);
 const libraryStore = new FsLibraryStore();
 const libraryPublisher = new LibraryPublisher(libraryStore);
 const opdsServer = new NodeOpdsServer(libraryStore);
@@ -489,6 +494,12 @@ function registerWorkflowHandlers(): void {
   );
 
   ipcMain.handle(
+    'workflow:list-metadata-providers',
+    (): WorkflowResult<readonly MetadataProviderDescriptor[]> =>
+      ok([...metadataProviders.values()].map((provider) => provider.descriptor)),
+  );
+
+  ipcMain.handle(
     'workflow:search-metadata',
     async (
       _event,
@@ -496,13 +507,17 @@ function registerWorkflowHandlers(): void {
     ): Promise<WorkflowResult<readonly MetadataSearchResult[]>> => {
       try {
         const command = searchMetadataCommandSchema.parse(rawCommand);
+        const provider = metadataProviders.get(command.providerId);
+        if (provider === undefined) {
+          return failed({ code: 'provider_not_found', message: 'That source is not available.' });
+        }
         if (activeJobs.has(command.jobId)) {
           return failed({ code: 'job_exists', message: 'That search is already running.' });
         }
         const controller = new AbortController();
         activeJobs.set(command.jobId, controller);
         try {
-          return ok(await metadataProvider.search(command.title, controller.signal));
+          return ok(await provider.search(command.title, controller.signal));
         } finally {
           activeJobs.delete(command.jobId);
         }
@@ -520,13 +535,17 @@ function registerWorkflowHandlers(): void {
     ): Promise<WorkflowResult<{ volumes: readonly VolumeSuggestion[] }>> => {
       try {
         const command = suggestVolumesCommandSchema.parse(rawCommand);
+        const provider = metadataProviders.get(command.providerId);
+        if (provider === undefined) {
+          return failed({ code: 'provider_not_found', message: 'That source is not available.' });
+        }
         if (activeJobs.has(command.jobId)) {
           return failed({ code: 'job_exists', message: 'That lookup is already running.' });
         }
         const controller = new AbortController();
         activeJobs.set(command.jobId, controller);
         try {
-          return ok(await metadataProvider.suggestVolumes(command.providerId, controller.signal));
+          return ok(await provider.suggestVolumes(command.workId, controller.signal));
         } finally {
           activeJobs.delete(command.jobId);
         }

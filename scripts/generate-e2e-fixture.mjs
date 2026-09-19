@@ -147,5 +147,26 @@ for (let chapter = 1; chapter <= 2; chapter += 1) {
   }
 }
 
+// A single manga whose folder names carry the volume, the way real downloads are named. The
+// mapping editor must open already grouped into volumes 1 and 2, with nothing left to fix.
+const namedVolumesRoot = path.resolve(
+  'tests',
+  'fixtures',
+  'e2e',
+  'manga-named-volumes',
+  'Named Volumes',
+);
+const namedVolumeChapters = [
+  'Vol.01 Ch.0001 - First (en) [Group]',
+  'Vol.01 Ch.0002 - Second (en) [Group]',
+  'Vol.02 Ch.0003 - Third (en) [Group]',
+];
+for (const [index, name] of namedVolumeChapters.entries()) {
+  const chapterPath = path.join(namedVolumesRoot, name);
+  await mkdir(chapterPath, { recursive: true });
+  await writeFile(path.join(chapterPath, '001.png'), image(index + 30));
+}
+
 console.log(`Generated copyright-safe E2E fixture at ${fixtureRoot}`);
 console.log(`Generated copyright-safe batch E2E fixture at ${batchLibraryRoot}`);
+console.log(`Generated copyright-safe named-volumes E2E fixture at ${namedVolumesRoot}`);

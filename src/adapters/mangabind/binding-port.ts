@@ -21,13 +21,15 @@ import {
   type PipelineIssue,
   ToolExecutionError,
 } from '@/domain/conversion';
-import { serializeMangabindMetadata } from '@/domain/mapping';
+import { mappingSignature, serializeMangabindMetadata } from '@/domain/mapping';
 
 interface Workspace {
   readonly rootPath: string;
   readonly inputPath: string;
   readonly metadataPath: string;
   readonly volumesPath: string;
+  /** mappingSignature() of the grouping mangabind itself proposed when the folder was inspected. */
+  seedSignature?: string;
 }
 
 export interface WorkspaceFileSystem {
@@ -71,7 +73,7 @@ export class MangabindBindingAdapter implements BindingPort {
       path.join(this.temporaryRoot, 'mangabound-'),
     );
     const workspaceId = this.createId();
-    const workspace = {
+    const workspace: Workspace = {
       rootPath,
       inputPath,
       metadataPath: path.join(rootPath, 'mangabind.json'),
@@ -85,11 +87,9 @@ export class MangabindBindingAdapter implements BindingPort {
         signal === undefined ? {} : { signal },
       );
       assertSuccessful(result);
-      return {
-        workspaceId,
-        draft: mappingDraftFromMangabindReport(result.report, { seed: 'empty' }),
-        issues: collectIssues(result),
-      };
+      const draft = mappingDraftFromMangabindReport(result.report, { seed: 'effective-volumes' });
+      workspace.seedSignature = mappingSignature(draft);
+      return { workspaceId, draft, issues: collectIssues(result) };
     } catch (error) {
       await this.release(workspaceId);
       throw error;
@@ -107,17 +107,22 @@ export class MangabindBindingAdapter implements BindingPort {
     }
     const metadata = serializeMangabindMetadata(mapping);
     await this.files.writeText(workspace.metadataPath, metadata);
-    try {
-      await this.files.writeTextAtomically(
-        path.join(workspace.inputPath, 'mangabind.json'),
-        metadata,
-      );
-    } catch (error) {
-      throw new ConversionWorkflowError(
-        'mapping_save_failed',
-        "Couldn't save mangabind.json in the source folder. Check that the folder is writable and try again.",
-        { cause: error },
-      );
+    // When the user accepted mangabind's own grouping unchanged, the folder names already say
+    // everything: a mangabind.json next to them would record nothing new, and would make a
+    // read-only or network folder fail for no reason. Any edit still gets saved.
+    if (workspace.seedSignature !== mappingSignature(mapping)) {
+      try {
+        await this.files.writeTextAtomically(
+          path.join(workspace.inputPath, 'mangabind.json'),
+          metadata,
+        );
+      } catch (error) {
+        throw new ConversionWorkflowError(
+          'mapping_save_failed',
+          "Couldn't save mangabind.json in the source folder. Check that the folder is writable and try again.",
+          { cause: error },
+        );
+      }
     }
     const result = await this.cli.run(
       {
@@ -300,7 +305,10 @@ function titleFromManga(
     title: manga.name,
     inputPath: manga.input_path,
     status: manga.status,
-    draft: mappingDraftFromMangabindReport(report, { mangaIndex: index, seed: 'empty' }),
+    draft: mappingDraftFromMangabindReport(report, {
+      mangaIndex: index,
+      seed: 'effective-volumes',
+    }),
     volumes: manga.volumes
       .slice()
       .sort((left, right) => left.number - right.number)

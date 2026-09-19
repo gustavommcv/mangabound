@@ -93,12 +93,15 @@ export const writeTitleMappingCommandSchema = z.object({
 
 export const searchMetadataCommandSchema = z.object({
   jobId: identifierSchema,
+  providerId: z.string().min(1),
   title: z.string().min(1),
 });
 
 export const suggestVolumesCommandSchema = z.object({
   jobId: identifierSchema,
   providerId: z.string().min(1),
+  /** The provider's own id for the work a search returned. */
+  workId: z.string().min(1),
 });
 
 export interface SelectedInput {
@@ -194,6 +197,11 @@ export interface BatchTitleResult {
   readonly status: 'done' | 'failed';
   readonly artifacts: readonly ArtifactSummary[];
   readonly failure?: WorkflowFailure;
+}
+
+export interface MetadataProviderDescriptor {
+  readonly id: string;
+  readonly displayName: string;
 }
 
 export interface MetadataSearchResult {

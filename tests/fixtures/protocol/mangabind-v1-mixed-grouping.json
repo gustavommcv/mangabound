@@ -1,0 +1,119 @@
+{
+  "protocol_version": 1,
+  "tool": "mangabind",
+  "tool_version": "0.4.0",
+  "kind": "report",
+  "mode": "plan",
+  "status": "completed_with_warnings",
+  "input_path": "/fixtures/Mixed Manga",
+  "output_path": "/fixtures/Output Library",
+  "batch": false,
+  "manga": [
+    {
+      "name": "Mixed Manga",
+      "input_path": "/fixtures/Mixed Manga",
+      "status": "completed_with_warnings",
+      "units": [
+        {
+          "name": "Chapter 2",
+          "path": "/fixtures/Mixed Manga/Chapter 2",
+          "kind": "folder",
+          "page_count": 2,
+          "parser": {
+            "matched": true,
+            "name": "chapter-only",
+            "chapter": 2
+          },
+          "metadata_assignment": {
+            "status": "not_requested"
+          },
+          "disposition": "unassigned"
+        },
+        {
+          "name": "Vol.01 Ch.0001 - First (en) [GroupA]",
+          "path": "/fixtures/Mixed Manga/Vol.01 Ch.0001 - First (en) [GroupA]",
+          "kind": "folder",
+          "page_count": 2,
+          "parser": {
+            "matched": true,
+            "name": "vol-ch-title",
+            "volume": 1,
+            "chapter": 1,
+            "title": "First",
+            "group": "GroupA",
+            "language": "en"
+          },
+          "metadata_assignment": {
+            "status": "not_requested"
+          },
+          "effective_volume": 1,
+          "disposition": "included"
+        },
+        {
+          "name": "Vol.02 Ch.0003 - Third (en) [GroupA]",
+          "path": "/fixtures/Mixed Manga/Vol.02 Ch.0003 - Third (en) [GroupA]",
+          "kind": "folder",
+          "page_count": 2,
+          "parser": {
+            "matched": true,
+            "name": "vol-ch-title",
+            "volume": 2,
+            "chapter": 3,
+            "title": "Third",
+            "group": "GroupA",
+            "language": "en"
+          },
+          "metadata_assignment": {
+            "status": "not_requested"
+          },
+          "effective_volume": 2,
+          "disposition": "included"
+        }
+      ],
+      "volumes": [
+        {
+          "number": 1,
+          "output_path": "/fixtures/Output Library/Mixed Manga - Vol.01.cbz",
+          "page_count": 2,
+          "chapters": ["Vol.01 Ch.0001 - First (en) [GroupA]"],
+          "written": false
+        },
+        {
+          "number": 2,
+          "output_path": "/fixtures/Output Library/Mixed Manga - Vol.02.cbz",
+          "page_count": 2,
+          "chapters": ["Vol.02 Ch.0003 - Third (en) [GroupA]"],
+          "written": false
+        }
+      ],
+      "issues": [
+        {
+          "tool": "mangabind",
+          "severity": "warning",
+          "code": "unassigned_chapter",
+          "stage": "group",
+          "manga": "Mixed Manga",
+          "chapter": 2,
+          "path": "/fixtures/Mixed Manga/Chapter 2",
+          "recoverable": true,
+          "message": "Chapter 2 has no volume assignment and was skipped."
+        }
+      ],
+      "summary": {
+        "units": 3,
+        "volumes": 2,
+        "pages": 4,
+        "warnings": 1,
+        "errors": 0
+      }
+    }
+  ],
+  "issues": [],
+  "summary": {
+    "manga": 1,
+    "volumes": 2,
+    "pages": 4,
+    "errors": 0,
+    "warnings": 1
+  }
+}

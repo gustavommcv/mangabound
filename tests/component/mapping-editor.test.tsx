@@ -57,6 +57,60 @@ describe('mapping editor', () => {
     expect(onConfirm.mock.calls[0]?.[0]).not.toContain('source');
   });
 
+  it("opens on mangabind's own grouping, ready to confirm, and says so only while it is unchanged", async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    render(
+      <MappingEditor
+        initialDraft={createMappingDraft({
+          mangaTitle: 'Named Volumes',
+          chapters,
+          volumes: [
+            { id: 'effective-volume-1', number: '1', chapterIds: ['chapter-1', 'chapter-2'] },
+            { id: 'effective-volume-2', number: '2', chapterIds: ['chapter-3'] },
+          ],
+        })}
+        onConfirm={onConfirm}
+        startedFrom="mangabind"
+      />,
+    );
+
+    expect(screen.getByText('Grouped by mangabind · Offline')).toBeVisible();
+    const chapterThreeRow = screen
+      .getByRole('checkbox', { name: 'Select Chapter 3' })
+      .closest('div');
+    expect(within(chapterThreeRow!).getByText('Volume 2')).toBeVisible();
+    // Nothing to fix: it can be confirmed without touching anything.
+    expect(screen.getByRole('button', { name: 'Confirm mapping' })).toBeEnabled();
+
+    await user.click(screen.getByRole('checkbox', { name: 'Select Chapter 3' }));
+    await user.selectOptions(
+      screen.getByLabelText('Move selected chapters to'),
+      'effective-volume-1',
+    );
+    await user.click(screen.getByRole('button', { name: 'Assign selected' }));
+
+    expect(screen.getByText('Manual mapping · Offline')).toBeVisible();
+    expect(screen.queryByText('Grouped by mangabind · Offline')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Undo last mapping edit' }));
+    expect(screen.getByText('Grouped by mangabind · Offline')).toBeVisible();
+  });
+
+  it('does not claim mangabind grouping for a grouped draft it was not told came from mangabind', () => {
+    render(
+      <MappingEditor
+        initialDraft={createMappingDraft({
+          mangaTitle: 'Manual Volumes',
+          chapters,
+          volumes: [{ id: 'volume-1', number: '1', chapterIds: ['chapter-1'] }],
+        })}
+      />,
+    );
+
+    expect(screen.getByText('Manual mapping · Offline')).toBeVisible();
+  });
+
   it('edits a provider suggestion with the same controls and supports undo and redo', async () => {
     const user = userEvent.setup();
     render(
@@ -115,6 +169,8 @@ describe('mapping editor', () => {
     expect(screen.getByRole('button', { name: 'Confirm mapping' })).toBeDisabled();
   });
 
+  const externalProvider = [{ id: 'external', displayName: 'External API' }] as const;
+
   it('applies an external API suggestion as an undoable edit without requiring it', async () => {
     const user = userEvent.setup();
     const onSearchMetadata = vi.fn(() =>
@@ -126,15 +182,23 @@ describe('mapping editor', () => {
     render(
       <MappingEditor
         initialDraft={createMappingDraft({ mangaTitle: 'Offline Work', chapters })}
+        metadataProviders={externalProvider}
         onSearchMetadata={onSearchMetadata}
         onSuggestVolumes={onSuggestVolumes}
       />,
     );
 
+    await user.click(screen.getByRole('button', { name: 'Search' }));
     expect(await screen.findByText('A Quiet Journey')).toBeVisible();
+    expect(onSearchMetadata).toHaveBeenCalledWith(
+      'external',
+      'Offline Work',
+      expect.any(AbortSignal),
+    );
     await user.click(screen.getByRole('button', { name: 'Use this' }));
 
     expect(await screen.findByText('Suggested by External API')).toBeVisible();
+    expect(onSuggestVolumes).toHaveBeenCalledWith('external', 'work-1');
     const chapterOneRow = screen.getByRole('checkbox', { name: 'Select Chapter 1' }).closest('div');
     const chapterThreeRow = screen
       .getByRole('checkbox', { name: 'Select Chapter 3' })
@@ -147,6 +211,114 @@ describe('mapping editor', () => {
     expect(within(chapterOneRow!).getByText('Unassigned')).toBeVisible();
   });
 
+  it('never contacts a source until Search is used, and says where the title goes', async () => {
+    const user = userEvent.setup();
+    const onSearchMetadata = vi.fn(() => Promise.resolve([]));
+    render(
+      <MappingEditor
+        initialDraft={createMappingDraft({ mangaTitle: 'Offline Work', chapters })}
+        metadataProviders={externalProvider}
+        onSearchMetadata={onSearchMetadata}
+        onSuggestVolumes={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Searching sends the title to External API.')).toBeVisible();
+    // Typing alone must not search either.
+    await user.type(screen.getByLabelText('Search external metadata'), ' Extra');
+    expect(onSearchMetadata).not.toHaveBeenCalled();
+    expect(screen.queryByText('No matches found.')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Search' }));
+    expect(onSearchMetadata).toHaveBeenCalledOnce();
+    expect(await screen.findByText('No matches found.')).toBeVisible();
+  });
+
+  it('searches on Enter, and disables Search while the title is empty', async () => {
+    const user = userEvent.setup();
+    const onSearchMetadata = vi.fn(() => Promise.resolve([]));
+    render(
+      <MappingEditor
+        initialDraft={createMappingDraft({ mangaTitle: 'Offline Work', chapters })}
+        metadataProviders={externalProvider}
+        onSearchMetadata={onSearchMetadata}
+        onSuggestVolumes={vi.fn()}
+      />,
+    );
+    const input = screen.getByLabelText('Search external metadata');
+
+    await user.clear(input);
+    expect(screen.getByRole('button', { name: 'Search' })).toBeDisabled();
+    await user.keyboard('{Enter}');
+    expect(onSearchMetadata).not.toHaveBeenCalled();
+
+    await user.type(input, 'Another Title{Enter}');
+    expect(onSearchMetadata).toHaveBeenCalledWith(
+      'external',
+      'Another Title',
+      expect.any(AbortSignal),
+    );
+  });
+
+  it('aborts a search that a newer one supersedes and one still running when the editor closes', async () => {
+    const user = userEvent.setup();
+    const signals: AbortSignal[] = [];
+    const onSearchMetadata = vi.fn((_providerId: string, _title: string, signal: AbortSignal) => {
+      signals.push(signal);
+      return new Promise<never>(() => undefined);
+    });
+    const { unmount } = render(
+      <MappingEditor
+        initialDraft={createMappingDraft({ mangaTitle: 'Offline Work', chapters })}
+        metadataProviders={externalProvider}
+        onSearchMetadata={onSearchMetadata}
+        onSuggestVolumes={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Search' }));
+    await user.click(screen.getByRole('button', { name: 'Search' }));
+
+    expect(signals).toHaveLength(2);
+    expect(signals[0]?.aborted).toBe(true);
+    expect(signals[1]?.aborted).toBe(false);
+    unmount();
+    expect(signals[1]?.aborted).toBe(true);
+  });
+
+  it('lets the user choose between several sources and clears results when the source changes', async () => {
+    const user = userEvent.setup();
+    const onSearchMetadata = vi.fn((providerId: string) =>
+      Promise.resolve([{ id: 'work-1', title: `From ${providerId}`, provider: providerId }]),
+    );
+    render(
+      <MappingEditor
+        initialDraft={createMappingDraft({ mangaTitle: 'Offline Work', chapters })}
+        metadataProviders={[
+          { id: 'first', displayName: 'First Source' },
+          { id: 'second', displayName: 'Second Source' },
+        ]}
+        onSearchMetadata={onSearchMetadata}
+        onSuggestVolumes={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Searching sends the title to First Source.')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Search' }));
+    expect(await screen.findByText('From first')).toBeVisible();
+
+    await user.selectOptions(screen.getByLabelText('Source'), 'second');
+    expect(screen.queryByText('From first')).not.toBeInTheDocument();
+    expect(screen.getByText('Searching sends the title to Second Source.')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Search' }));
+    expect(await screen.findByText('From second')).toBeVisible();
+    expect(onSearchMetadata).toHaveBeenLastCalledWith(
+      'second',
+      'Offline Work',
+      expect.any(AbortSignal),
+    );
+  });
+
   it('keeps every manual control operable when an external API lookup fails', async () => {
     const user = userEvent.setup();
     const onSearchMetadata = vi.fn(() =>
@@ -155,11 +327,13 @@ describe('mapping editor', () => {
     render(
       <MappingEditor
         initialDraft={createMappingDraft({ mangaTitle: 'Offline Work', chapters })}
+        metadataProviders={externalProvider}
         onSearchMetadata={onSearchMetadata}
         onSuggestVolumes={vi.fn()}
       />,
     );
 
+    await user.click(screen.getByRole('button', { name: 'Search' }));
     expect(await screen.findByText('External metadata service is unreachable.')).toBeVisible();
     expect(screen.getByText('Manual mapping · Offline')).toBeVisible();
 
@@ -170,11 +344,50 @@ describe('mapping editor', () => {
     expect(screen.getByText('All chapters are ready to bind.')).toBeVisible();
   });
 
-  it('renders identically to today when no metadata callbacks are supplied', () => {
+  it('shows a readable error when applying a suggestion fails', async () => {
+    const user = userEvent.setup();
     render(
-      <MappingEditor initialDraft={createMappingDraft({ mangaTitle: 'Offline Work', chapters })} />,
+      <MappingEditor
+        initialDraft={createMappingDraft({ mangaTitle: 'Offline Work', chapters })}
+        metadataProviders={externalProvider}
+        onSearchMetadata={() =>
+          Promise.resolve([{ id: 'work-1', title: 'A Quiet Journey', provider: 'External API' }])
+        }
+        onSuggestVolumes={() => Promise.reject(new Error('The lookup timed out.'))}
+      />,
     );
 
+    await user.click(screen.getByRole('button', { name: 'Search' }));
+    await user.click(await screen.findByRole('button', { name: 'Use this' }));
+
+    expect(await screen.findByText('The lookup timed out.')).toBeVisible();
+    expect(screen.getByText('Manual mapping · Offline')).toBeVisible();
+  });
+
+  it('shows no suggestion panel without a source, without callbacks, or with neither', () => {
+    const { rerender } = render(
+      <MappingEditor initialDraft={createMappingDraft({ mangaTitle: 'Offline Work', chapters })} />,
+    );
+    expect(screen.queryByText('Suggest from external API')).not.toBeInTheDocument();
+
+    // Callbacks with no provider to send the title to: nothing to offer.
+    rerender(
+      <MappingEditor
+        initialDraft={createMappingDraft({ mangaTitle: 'Offline Work', chapters })}
+        metadataProviders={[]}
+        onSearchMetadata={vi.fn()}
+        onSuggestVolumes={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText('Suggest from external API')).not.toBeInTheDocument();
+
+    // A provider with no way to search it.
+    rerender(
+      <MappingEditor
+        initialDraft={createMappingDraft({ mangaTitle: 'Offline Work', chapters })}
+        metadataProviders={externalProvider}
+      />,
+    );
     expect(screen.queryByText('Suggest from external API')).not.toBeInTheDocument();
   });
 });

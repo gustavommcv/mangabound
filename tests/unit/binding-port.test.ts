@@ -11,11 +11,18 @@ import {
 } from '@/adapters/mangabind/binding-port';
 import type { MangabindCliAdapter, MangabindRunResult } from '@/adapters/mangabind/cli';
 import { parseMangabindReport } from '@/adapters/mangabind/protocol';
-import { createMappingDraft } from '@/domain/mapping';
+import { createMappingDraft, unassignChapters } from '@/domain/mapping';
 
 const fixture = parseMangabindReport(
   fs.readFileSync(
     path.join(import.meta.dirname, '..', 'fixtures', 'protocol', 'mangabind-v1-plan.json'),
+    'utf8',
+  ),
+);
+// A real mangabind 0.4.0 report for a folder like "Vol.01 Ch.0001 - Title (pt-br) [Group]".
+const groupedFixture = parseMangabindReport(
+  fs.readFileSync(
+    path.join(import.meta.dirname, '..', 'fixtures', 'protocol', 'mangabind-v1-vol-ch-title.json'),
     'utf8',
   ),
 );
@@ -215,7 +222,14 @@ describe('mangabind binding port', () => {
     const controller = new AbortController();
     const inspection = await adapter.inspect('/input/manga', controller.signal);
 
-    expect(inspection.draft.volumes).toEqual([]);
+    // The editor opens on mangabind's own grouping, not an empty draft.
+    expect(inspection.draft.volumes).toMatchObject([
+      {
+        id: 'effective-volume-1',
+        number: '1',
+        chapterIds: ['/fixtures/Mangá São José/Chapter 1'],
+      },
+    ]);
     expect(inspection.issues[0]).toMatchObject({ code: 'unassigned_chapter', chapter: '3' });
     const planned = await adapter.plan(
       inspection.workspaceId,
@@ -243,6 +257,89 @@ describe('mangabind binding port', () => {
     );
     await adapter.release(inspection.workspaceId);
     expect(files.removeDirectory).toHaveBeenCalledWith(path.resolve(root));
+  });
+
+  describe('a folder whose names already carry the volumes', () => {
+    function groupedAdapter(root: string) {
+      const files = fakeFiles(root);
+      const cli = {
+        run: vi.fn<MangabindCliAdapter['run']>((request) => {
+          const report = structuredClone(groupedFixture);
+          if (!request.dryRun) {
+            report.mode = 'execute';
+            report.manga[0]!.volumes = report.manga[0]!.volumes.map((volume) => ({
+              ...volume,
+              output_path: path.join(root, 'volumes', `v${String(volume.number)}.cbz`),
+              written: true,
+            }));
+          }
+          return Promise.resolve(result({ report }));
+        }),
+      };
+      const adapter = new MangabindBindingAdapter(cli, files, os.tmpdir(), () => 'grouped');
+      return { adapter, cli, files };
+    }
+
+    it('opens on mangabind grouping and does not write mangabind.json into the source folder for it', async () => {
+      const root = path.join(os.tmpdir(), 'mangabound-unchanged-seed');
+      const { adapter, cli, files } = groupedAdapter(root);
+
+      const inspection = await adapter.inspect('/input/Chainsaw Man');
+      expect(inspection.draft.volumes.map((volume) => volume.number)).toEqual(['1', '2']);
+      const bound = await adapter.bind(inspection.workspaceId, inspection.draft);
+
+      expect(bound.volumePaths.map((volumePath) => path.basename(volumePath))).toEqual([
+        'v1.cbz',
+        'v2.cbz',
+      ]);
+      // The scratch copy is still what mangabind is run with; only the source-folder file is skipped.
+      expect(files.writeText).toHaveBeenCalledWith(
+        path.join(root, 'mangabind.json'),
+        expect.stringContaining('"schema_version": 1'),
+      );
+      expect(cli.run).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          dryRun: false,
+          metadataFilePath: path.join(root, 'mangabind.json'),
+        }),
+        {},
+      );
+      expect(files.writeTextAtomically).not.toHaveBeenCalled();
+    });
+
+    it('does not treat a renamed volume id as a change', async () => {
+      const root = path.join(os.tmpdir(), 'mangabound-renamed-ids');
+      const { adapter, files } = groupedAdapter(root);
+
+      const inspection = await adapter.inspect('/input/Chainsaw Man');
+      const renamed = {
+        ...inspection.draft,
+        volumes: inspection.draft.volumes.map((volume) => ({
+          ...volume,
+          id: `other-${volume.id}`,
+        })),
+      };
+      await adapter.bind(inspection.workspaceId, renamed);
+
+      expect(files.writeTextAtomically).not.toHaveBeenCalled();
+    });
+
+    it('still saves mangabind.json once the user changes the grouping', async () => {
+      const root = path.join(os.tmpdir(), 'mangabound-edited-seed');
+      const { adapter, files } = groupedAdapter(root);
+
+      const inspection = await adapter.inspect('/input/Chainsaw Man');
+      const firstChapterId = inspection.draft.volumes[0]!.chapterIds[0]!;
+      await adapter.bind(
+        inspection.workspaceId,
+        unassignChapters(inspection.draft, [firstChapterId]),
+      );
+
+      expect(files.writeTextAtomically).toHaveBeenCalledWith(
+        path.join('/input/Chainsaw Man', 'mangabind.json'),
+        expect.stringContaining('"schema_version": 1'),
+      );
+    });
   });
 
   it('cleans up an inspection whose process fails and preserves its structured issue', async () => {
@@ -499,6 +596,10 @@ describe('mangabind binding port', () => {
       volumes: [],
     });
     expect(plan.titles[1]!.issues[0]).toMatchObject({ code: 'metadata_load_failed' });
+    // "Fix mapping" on a title opens on the grouping mangabind already found for it.
+    expect(plan.titles[0]!.draft.volumes).toMatchObject([
+      { id: 'effective-volume-1', number: '1', chapterIds: ['/fixtures/Mangá São José/Chapter 1'] },
+    ]);
     // Cleans up its own scratch workspace regardless of the top-level status.
     expect(files.removeDirectory).toHaveBeenCalledWith(path.resolve(root));
 

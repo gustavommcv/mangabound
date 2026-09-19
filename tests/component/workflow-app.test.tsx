@@ -89,6 +89,7 @@ function bridge(overrides: Partial<MangaboundBridge> = {}): MangaboundBridge {
     planBatch: () => Promise.resolve({ ok: true, value: { titles: [], issues: [] } }),
     writeTitleMapping: () => Promise.resolve({ ok: true, value: undefined }),
     convertBatch: () => Promise.resolve({ ok: true, value: [] }),
+    listMetadataProviders: () => Promise.resolve({ ok: true, value: [] }),
     searchMetadata: () => Promise.resolve({ ok: true, value: [] }),
     suggestVolumes: () => Promise.resolve({ ok: true, value: { volumes: [] } }),
     openArtifact: () => Promise.resolve({ ok: true, value: undefined }),
@@ -159,7 +160,7 @@ describe('single-input application workflow', () => {
     expect(releaseInput).toHaveBeenCalledWith('session');
   });
 
-  it('wires the mapping editor to real external metadata bridge calls with fresh job ids', async () => {
+  it('wires the mapping editor to the metadata bridge only when a source exists and Search is used', async () => {
     const user = userEvent.setup();
     const searchMetadata = vi.fn<MangaboundBridge['searchMetadata']>(() =>
       Promise.resolve({
@@ -170,17 +171,55 @@ describe('single-input application workflow', () => {
     const suggestVolumes = vi.fn<MangaboundBridge['suggestVolumes']>(() =>
       Promise.resolve({ ok: true, value: { volumes: [{ number: '1', chapterNumbers: [1, 2] }] } }),
     );
-    installBridge(bridge({ searchMetadata, suggestVolumes }));
+    installBridge(
+      bridge({
+        listMetadataProviders: () =>
+          Promise.resolve({ ok: true, value: [{ id: 'external', displayName: 'External API' }] }),
+        searchMetadata,
+        suggestVolumes,
+      }),
+    );
     render(<App />);
 
     await user.click(await screen.findByRole('button', { name: /Manga folder/i }));
+    expect(await screen.findByText('Suggest from external API')).toBeVisible();
+    // Opening the editor sends nothing.
+    expect(searchMetadata).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'Search' }));
     expect(await screen.findByText('A Quiet Journey')).toBeVisible();
-    expect(searchMetadata.mock.calls[0]?.[1]).toBe('Offline Work');
+    expect(searchMetadata).toHaveBeenCalledWith(expect.any(String), 'external', 'Offline Work');
 
     await user.click(screen.getByRole('button', { name: 'Use this' }));
     expect(await screen.findByText('Suggested by External API')).toBeVisible();
-    expect(suggestVolumes).toHaveBeenCalledWith(expect.any(String), 'work-1');
+    expect(suggestVolumes).toHaveBeenCalledWith(expect.any(String), 'external', 'work-1');
   });
+
+  it.each([
+    ['no source is configured', () => Promise.resolve({ ok: true as const, value: [] })],
+    [
+      'the source list cannot be read',
+      () =>
+        Promise.resolve({
+          ok: false as const,
+          error: { code: 'internal_error', message: 'Mangabound could not complete that action.' },
+        }),
+    ],
+    ['the source list call fails', () => Promise.reject(new Error('IPC down'))],
+  ])(
+    'hides the suggestion panel and shows no error when %s',
+    async (_name, listMetadataProviders) => {
+      const user = userEvent.setup();
+      installBridge(bridge({ listMetadataProviders }));
+      render(<App />);
+
+      await user.click(await screen.findByRole('button', { name: /Manga folder/i }));
+
+      expect(await screen.findByRole('button', { name: 'Confirm mapping' })).toBeVisible();
+      expect(screen.queryByText('Suggest from external API')).not.toBeInTheDocument();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    },
+  );
 
   it('takes a direct CBZ to output settings without showing the mapping editor', async () => {
     const user = userEvent.setup();

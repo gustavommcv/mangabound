@@ -47,6 +47,7 @@ import type {
   ArtifactSummary,
   DeviceProfileSummary,
   InspectedInputPayload,
+  MetadataProviderDescriptor,
   MetadataSearchResult,
   PlanSummary,
   SelectedInput,
@@ -103,6 +104,9 @@ export function App(): React.JSX.Element {
   const [sharedLibrary, setSharedLibrary] = useState<SelectedLibrary>();
   const [interfaces, setInterfaces] = useState<readonly NetworkInterfaceOption[]>([]);
   const [sharingStatus, setSharingStatus] = useState<OpdsSharingStatus>({ active: false });
+  const [metadataProviders, setMetadataProviders] = useState<readonly MetadataProviderDescriptor[]>(
+    [],
+  );
   const planTokenRef = useRef(0);
 
   const invalidatePlan = (): void => {
@@ -166,6 +170,21 @@ export function App(): React.JSX.Element {
         if (statusResult.ok) setSharingStatus(statusResult.value);
       },
     );
+    return () => {
+      current = false;
+    };
+  }, [bridge]);
+
+  useEffect(() => {
+    if (bridge?.listMetadataProviders === undefined) return;
+    let current = true;
+    // Optional feature: never let this lookup surface as an error. No providers just means no panel.
+    void bridge
+      .listMetadataProviders()
+      .then((result) => {
+        if (current && result.ok) setMetadataProviders(result.value);
+      })
+      .catch(() => undefined);
     return () => {
       current = false;
     };
@@ -416,6 +435,7 @@ export function App(): React.JSX.Element {
   };
 
   const searchMetadata = async (
+    providerId: string,
     title: string,
     signal: AbortSignal,
   ): Promise<readonly MetadataSearchResult[]> => {
@@ -424,16 +444,17 @@ export function App(): React.JSX.Element {
     signal.addEventListener('abort', () => {
       void bridge.cancelConversion(jobId);
     });
-    const result = await bridge.searchMetadata(jobId, title);
+    const result = await bridge.searchMetadata(jobId, providerId, title);
     if (!result.ok) throw new Error(result.error.message);
     return result.value;
   };
 
   const suggestVolumes = async (
-    id: string,
+    providerId: string,
+    workId: string,
   ): Promise<{ readonly volumes: readonly VolumeSuggestion[] }> => {
     if (bridge === undefined) return { volumes: [] };
-    const result = await bridge.suggestVolumes(crypto.randomUUID(), id);
+    const result = await bridge.suggestVolumes(crypto.randomUUID(), providerId, workId);
     if (!result.ok) throw new Error(result.error.message);
     return result.value;
   };
@@ -458,6 +479,15 @@ export function App(): React.JSX.Element {
     if (!result.ok) setFailure(result.error);
     else setSharingStatus({ active: false });
   };
+
+  const correctingDraft: MappingDraft | undefined =
+    correctingTitle === undefined
+      ? undefined
+      : (batch?.titles.find((title) => title.title === correctingTitle)?.draft ?? {
+          mangaTitle: correctingTitle,
+          chapters: [],
+          volumes: [],
+        });
 
   return (
     <div className="bg-background text-foreground min-h-screen">
@@ -537,30 +567,31 @@ export function App(): React.JSX.Element {
               settings={settings}
             />
           )}
-          {step === 'batch-review' && batch !== undefined && correctingTitle !== undefined && (
-            <MappingEditor
-              initialDraft={
-                batch.titles.find((title) => title.title === correctingTitle)?.draft ?? {
-                  mangaTitle: correctingTitle,
-                  chapters: [],
-                  volumes: [],
-                }
-              }
-              onConfirm={(_metadata, draft) => {
-                void confirmTitleMapping(correctingTitle, draft);
-              }}
-              onSearchMetadata={searchMetadata}
-              onSuggestVolumes={suggestVolumes}
-            />
-          )}
+          {step === 'batch-review' &&
+            batch !== undefined &&
+            correctingTitle !== undefined &&
+            correctingDraft !== undefined && (
+              <MappingEditor
+                initialDraft={correctingDraft}
+                startedFrom={correctingDraft.volumes.length > 0 ? 'mangabind' : undefined}
+                onConfirm={(_metadata, draft) => {
+                  void confirmTitleMapping(correctingTitle, draft);
+                }}
+                metadataProviders={metadataProviders}
+                onSearchMetadata={searchMetadata}
+                onSuggestVolumes={suggestVolumes}
+              />
+            )}
           {step === 'mapping' && inspection?.mapping !== undefined && (
             <MappingEditor
               initialDraft={inspection.mapping}
+              startedFrom={inspection.mapping.volumes.length > 0 ? 'mangabind' : undefined}
               onConfirm={(_metadata, draft) => {
                 setMapping(draft);
                 invalidatePlan();
                 setStep('settings');
               }}
+              metadataProviders={metadataProviders}
               onSearchMetadata={searchMetadata}
               onSuggestVolumes={suggestVolumes}
             />

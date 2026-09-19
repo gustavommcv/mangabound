@@ -4,6 +4,8 @@
 
 `cbz/Mangabound Direct.cbz` contains two of the same generated pages and exercises the direct-CBZ path without mangabind.
 
+`manga-named-volumes/Named Volumes` is one manga whose chapter folders carry the volume in their names (`Vol.01 Ch.0001 - First (en) [Group]`), so mangabind groups it into volumes 1 and 2 on its own.
+
 Regenerate the checked-in PNG files from the repository root with:
 
 ```console

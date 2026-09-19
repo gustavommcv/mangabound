@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { userEvent, within } from 'storybook/test';
 
 import { createMappingDraft } from '@/domain/mapping';
 
@@ -64,6 +65,20 @@ export const ManualOffline: Story = {
   },
 };
 
+export const PreGrouped: Story = {
+  args: {
+    startedFrom: 'mangabind',
+    initialDraft: createMappingDraft({
+      mangaTitle: 'A Quiet Journey',
+      chapters,
+      volumes: [
+        { id: 'effective-volume-1', number: '1', chapterIds: ['chapter-1', 'chapter-2'] },
+        { id: 'effective-volume-2', number: '2', chapterIds: ['chapter-3', 'chapter-4'] },
+      ],
+    }),
+  },
+};
+
 export const ProviderSuggested: Story = {
   args: {
     initialDraft: createMappingDraft({
@@ -84,6 +99,7 @@ export const WithMetadataSuggestions: Story = {
       mangaTitle: 'A Quiet Journey',
       chapters,
     }),
+    metadataProviders: [{ id: 'external', displayName: 'External API' }],
     onSearchMetadata: () =>
       Promise.resolve([
         { id: 'work-1', title: 'A Quiet Journey', provider: 'External API' },
@@ -96,6 +112,11 @@ export const WithMetadataSuggestions: Story = {
           { number: '2', chapterNumbers: [3, 4] },
         ],
       }),
+  },
+  // Nothing is searched until the user asks, so the results only exist after this click.
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole('button', { name: 'Search' }));
+    await within(canvasElement).findAllByRole('button', { name: 'Use this' });
   },
 };
 

@@ -82,6 +82,18 @@ token or Basic credentials, and stopped whenever the app quits.
 
 Exit: today's conversion is the first item in the dedicated feed and can be acquired without paging through the library.
 
+## M7b — Workflow rework
+
+Hands-on testing showed the wizard was the wrong shape: the app should feel like a converter with an input list, drag-and-drop and visible process control, and the mapping should start from what mangabind already knows. Work proceeds in phases, one pull request each, with the packaged-app E2E and the visual baselines green before the next.
+
+- Phase 0 — a fixed, sober dark theme (no accent-green, no glow, sentence-case labels).
+- Phase 1 — the mapping editor starts from mangabind's own grouping; online lookups appear only when a provider exists and search only on request ([ADR 0008](adr/0008-mapping-starts-from-mangabind-grouping.md)).
+- Phase 2 — process control: join volumes only, convert only, or both.
+- Phase 3 — persisted settings, a built-in provider registry with a credited first provider, and a contributor guide for adding one.
+- Phase 4 — a KCC-style input queue for files and folders with drag-and-drop, results with "send to KOReader" through the M7 catalog.
+
+Exit: a folder whose names carry volumes converts without opening the mapping editor, and every supported process is reachable from the interface.
+
 ## M8 — Release hardening
 
 - Complete custom-title-bar checks across Windows, macOS, X11, Wayland, and representative tiling window managers.
