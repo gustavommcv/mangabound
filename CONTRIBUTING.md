@@ -101,6 +101,17 @@ Run the npm scripts from PowerShell. The `tar` that ships with Git Bash breaks t
 
 Do not package (`npm run package`) while Storybook or `npm start` is running: their watchers hold the `.webpack` folder and packaging fails with an `EPERM` on a rename.
 
+## Updating the bundled tools
+
+mangabind and mangapress are pinned in `toolchain.lock.json`, and taking a newer release of either is a manual, deliberate step ([ADR 0017](docs/adr/0017-bundled-tools-are-updated-by-hand.md)). When one has published a release you want to ship:
+
+1. Run, from PowerShell on Windows: `npm run toolchain:update -- --tool mangabind` (or `mangapress`; with no `--tool` it does both). It looks up the tool's latest release, downloads every supported platform's asset, checks each against the upstream `checksums.txt` and GitHub's digest, unpacks and hashes the executables, runs their handshakes, and writes the new pin into `toolchain.lock.json`. To take a specific release instead of the latest, add `--mangabind v0.5.0` (or `--mangapress v0.6.0`).
+2. Add `--pr-body pr.md` (for one tool at a time) to also write a pull request description with the old and new release, the protocol versions and the upstream release notes.
+3. Check it: `npm run toolchain:check`, `npm run capabilities:check` (it fails if the tool has a flag the app does not represent), `npm run test:unit`, then `npm run package:e2e` and `npm run test:e2e`.
+4. Open a pull request with that change alone. CI packages and exercises the candidate on Windows, macOS, Linux and Wayland, and a person merges it.
+
+If a release changes the machine-protocol version, that is a compatibility change and not just a new pin: the adapters validate the protocol they were written against, so it needs code changes and probably an ADR.
+
 ## Writing an ADR
 
 A decision that changes how the app is built or what it does gets a short record in `docs/adr/`: a number, a title, a status and date, what it amends if anything, the context, the decision, and the consequences including known limits. Add its row to `docs/adr/README.md`. Accepted ADRs are immutable; when a premise changes, write a new one that says it amends the old one, and mark the old one "amended by" in the index.
