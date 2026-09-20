@@ -18,7 +18,7 @@ after(async () => {
 });
 
 describe('packaged folder whose names carry the volumes', () => {
-  it('arrives already grouped, converts without touching the source folder, and offers no lookup', async () => {
+  it('arrives already grouped, converts without touching the source folder, and searches nowhere unless asked', async () => {
     const testRoot = await mkdtemp(path.join(os.tmpdir(), 'mangabound-named-volumes-e2e-'));
     temporaryDirectories.push(testRoot);
     const inputPath = path.join(testRoot, 'Named Volumes');
@@ -46,9 +46,31 @@ describe('packaged folder whose names carry the volumes', () => {
     const editor = await $('main').getText();
     assert.match(editor, /Grouped by mangabind/u);
     assert.doesNotMatch(editor, /Unassigned/u);
-    // No source is configured, so there is no lookup panel to fail.
-    assert.doesNotMatch(editor, /Suggest from external API/u);
+    assert.match(editor, /2 volumes were read from the names of 3 chapters/u);
     assert.equal(await $$('[role="alert"]').length, 0);
+
+    // The names are where the grouping comes from unless someone chooses otherwise, and no online
+    // source is chosen until they do: MangaDex is in the list, and nothing has been sent to it.
+    await $('[role="tab"]*=Online source').click();
+    const source = $('[role="combobox"]');
+    assert.equal((await source.getText()).trim(), 'Select a source');
+    await source.click();
+    assert.match(await $('[role="listbox"]').getText(), /MangaDex\s+mangadex\.org/u);
+    await $('[role="option"]*=MangaDex').click();
+    // The folder names declare English, and the lookup would be made in it.
+    await $('p*=Volumes are looked up in en').waitForDisplayed({ timeout: 10_000 });
+
+    // The credit opens MangaDex's own site through the system, never an address the page names.
+    const openExternal = await browser.electron.mock('shell', 'openExternal');
+    await openExternal.mockResolvedValue(undefined);
+    await $('button[aria-label="Open MangaDex in your browser"]').click();
+    await browser.waitUntil(() => openExternal.mock.calls.length === 1, {
+      timeout: 10_000,
+      timeoutMsg: 'The credit did not open MangaDex.',
+    });
+    assert.deepEqual(openExternal.mock.calls[0], ['https://mangadex.org/']);
+    // Searching is a separate, explicit step: choosing the source sent nothing.
+    assert.equal(await $('button=Search').isExisting(), true);
 
     await $('button=Confirm mapping').click();
     await $('h1=Queue').waitForDisplayed();

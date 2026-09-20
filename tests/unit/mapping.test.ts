@@ -7,6 +7,7 @@ import {
   assignChapterRange,
   assignChapters,
   createMappingDraft,
+  dominantLanguage,
   isMappableChapter,
   MappingOperationError,
   mappingSignature,
@@ -408,5 +409,33 @@ describe('mappingSignature', () => {
     expect(
       mappingSignature({ ...grouped(), source: { provider: 'external', id: 'w1' } }) === base,
     ).toBe(false);
+  });
+});
+
+describe('the language chapters declare', () => {
+  const chapter = (id: string, language?: string) => ({
+    id,
+    name: id,
+    path: `/m/${id}`,
+    pageCount: 1,
+    chapter: Number(id.slice(1)),
+    ...(language === undefined ? {} : { language }),
+  });
+
+  it('is the one most of them declare', () => {
+    expect(
+      dominantLanguage([chapter('c1', 'en'), chapter('c2', 'pt-br'), chapter('c3', 'pt-br')]),
+    ).toBe('pt-br');
+  });
+
+  it('ignores chapters that declare none, and is undefined when none does', () => {
+    expect(dominantLanguage([chapter('c1'), chapter('c2', 'fr'), chapter('c3')])).toBe('fr');
+    expect(dominantLanguage([chapter('c1'), chapter('c2')])).toBeUndefined();
+    expect(dominantLanguage([])).toBeUndefined();
+  });
+
+  it('goes to the language met first when two are declared as often', () => {
+    expect(dominantLanguage([chapter('c1', 'es'), chapter('c2', 'en')])).toBe('es');
+    expect(dominantLanguage([chapter('c1', 'en'), chapter('c2', 'es')])).toBe('en');
   });
 });

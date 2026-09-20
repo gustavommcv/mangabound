@@ -1,0 +1,75 @@
+{
+  "result": "ok",
+  "response": "collection",
+  "data": [
+    {
+      "id": "a77742b1-befd-49a4-bff5-1ad4e6b0ef7b",
+      "type": "manga",
+      "attributes": {
+        "title": {
+          "ja-ro": "Chainsaw Man"
+        },
+        "altTitles": [
+          {
+            "uk": "Людина-бензопила"
+          },
+          {
+            "ru": "Человек-бензопила"
+          },
+          {
+            "ja": "チェンソーマン"
+          }
+        ],
+        "status": "completed",
+        "availableTranslatedLanguages": ["fa", "hu", "cs", "en", "it", "pt-br"]
+      }
+    },
+    {
+      "id": "e896c48c-3150-437d-ba57-d8567eb399ae",
+      "type": "manga",
+      "attributes": {
+        "title": {
+          "en": "Chainsaw Man (Official Colored)"
+        },
+        "altTitles": [
+          {
+            "en": "Chainsaw Man - Digital Colored Comics"
+          },
+          {
+            "fr": "Chainsaw Man (Couleur Officielle)"
+          },
+          {
+            "kk": "Шынжыра адам (Түрлі Түсті)"
+          }
+        ],
+        "status": "ongoing",
+        "availableTranslatedLanguages": ["pt-br", "it", "en", "tr", "es-la", "la"]
+      }
+    },
+    {
+      "id": "268f5da0-d158-4c95-bc2b-b4d962c2f325",
+      "type": "manga",
+      "attributes": {
+        "title": {
+          "en": "Chainsaw Man - The Hayakawa Family (Doujinshi)"
+        },
+        "altTitles": [
+          {
+            "ja": "連続テレビ小説　はやかわ家！"
+          },
+          {
+            "ja-ro": "Renzoku terebi shōsetsu　Hayakawa ie!"
+          },
+          {
+            "en": "Serial TV Novel: The Hayakawa Family!"
+          }
+        ],
+        "status": "completed",
+        "availableTranslatedLanguages": ["en"]
+      }
+    }
+  ],
+  "limit": 5,
+  "offset": 0,
+  "total": 10
+}

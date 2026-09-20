@@ -77,12 +77,15 @@ const bridge: MangaboundBridge = Object.freeze({
       providerId,
       title,
     }),
-  suggestVolumes: (jobId: string, providerId: string, workId: string) =>
+  suggestVolumes: (jobId: string, providerId: string, workId: string, language?: string) =>
     invoke<{ volumes: readonly VolumeSuggestion[] }>('workflow:suggest-volumes', {
       jobId,
       providerId,
       workId,
+      ...(language === undefined ? {} : { language }),
     }),
+  openProviderHomepage: (providerId: string) =>
+    invoke<undefined>('workflow:open-provider-homepage', { providerId }),
   openArtifact: (artifactId: string) => invoke<undefined>('artifact:open', artifactId),
   showArtifactInFolder: (artifactId: string) =>
     invoke<undefined>('artifact:show-in-folder', artifactId),

@@ -13,6 +13,8 @@ npm run package
 npm run test:e2e
 ```
 
+To offer another online source for volume data, follow [the provider guide](docs/adding-a-metadata-provider.md): it lists what a source may and may not be, and every step.
+
 Use Conventional Commit-style subjects where practical. Architecture changes require a new ADR; accepted ADRs are never rewritten to conceal a reversed decision.
 
 ## Remote CI is the completion gate

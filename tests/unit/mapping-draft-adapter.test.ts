@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import { mappingDraftFromMangabindReport } from '@/adapters/mangabind/mapping-draft';
 import { parseMangabindReport } from '@/adapters/mangabind/protocol';
-import { validateMapping } from '@/domain/mapping';
+import { dominantLanguage, validateMapping } from '@/domain/mapping';
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 function protocolFixture(name: string): ReturnType<typeof parseMangabindReport> {
@@ -82,6 +82,23 @@ describe('mangabind report to mapping draft', () => {
 
     expect(draft.chapters).toHaveLength(3);
     expect(draft.chapters[0]).toMatchObject({ special: 'x1', parsedVolume: 4 });
+  });
+});
+
+describe('the language the folder names declare', () => {
+  it('reaches each chapter, so a lookup can be made in that language', () => {
+    const draft = mappingDraftFromMangabindReport(groupedReport, { seed: 'empty' });
+
+    expect(draft.chapters.length).toBeGreaterThan(0);
+    expect(draft.chapters.every((chapter) => chapter.language === 'pt-br')).toBe(true);
+    expect(dominantLanguage(draft.chapters)).toBe('pt-br');
+  });
+
+  it('is left out when the names declare none', () => {
+    const draft = mappingDraftFromMangabindReport(report, { seed: 'empty' });
+
+    expect(draft.chapters.some((chapter) => 'language' in chapter)).toBe(false);
+    expect(dominantLanguage(draft.chapters)).toBeUndefined();
   });
 });
 

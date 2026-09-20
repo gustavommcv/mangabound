@@ -49,3 +49,8 @@ See [the ADR index](docs/adr/README.md) for confirmed decisions and [the milesto
 ## Scope boundary
 
 Mangabound is neither a manga downloader nor a reader. The user supplies input files. Opening a generated file delegates to the operating system's default application.
+
+## Credits
+
+- **[MangaDex](https://mangadex.org)** supplies volume and chapter data when you choose it as an online source in the volume editor. Nothing is sent to it unless you pick it and search, only volume and chapter numbers are used, and nothing is downloaded from it. Mangabound is free and carries no advertisements, as MangaDex's API rules ask. To offer another source, see [the contributor guide](docs/adding-a-metadata-provider.md).
+- **[Kindle Comic Converter](https://github.com/ciromattia/kcc)**, whose conversion behaviour mangapress follows and whose window's default options Mangabound starts from ([ADR 0011](docs/adr/0011-kcc-default-options.md)).

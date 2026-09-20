@@ -87,13 +87,22 @@ test('full output settings remain visually consistent', async ({ page }) => {
   await expect(page.locator('#storybook-root')).toHaveScreenshot('output-settings.png');
 });
 
-test('External API suggestions remain visually consistent', async ({ page }) => {
+test('an online source with its results remains visually consistent', async ({ page }) => {
   await page.goto(
     '/iframe.html?id=workflows-mapping-editor--with-metadata-suggestions&viewMode=story',
   );
-  await expect(page.getByRole('button', { name: 'Use this' }).first()).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Use these volumes' }).first()).toBeVisible();
   await page.evaluate(async () => document.fonts.ready);
   await expect(page.locator('#storybook-root')).toHaveScreenshot('mapping-editor-suggestions.png');
+});
+
+test('the list of online sources remains visually consistent', async ({ page }) => {
+  await page.goto(
+    '/iframe.html?id=workflows-mapping-editor--online-source-list-open&viewMode=story',
+  );
+  await expect(page.getByRole('option', { name: /MangaDex/u })).toBeVisible();
+  await page.evaluate(async () => document.fonts.ready);
+  await expect(page.locator('#storybook-root')).toHaveScreenshot('online-source-list.png');
 });
 
 test('the share panel remains visually consistent', async ({ page }) => {

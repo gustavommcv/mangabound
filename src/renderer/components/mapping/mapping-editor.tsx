@@ -7,11 +7,10 @@ import {
   Redo2,
   RotateCcw,
   Scissors,
-  Search,
   Trash2,
   Undo2,
 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
 import {
   createMappingHistory,
@@ -23,6 +22,7 @@ import {
 } from '@/domain/mapping-editor';
 import {
   assignedVolumeId,
+  dominantLanguage,
   type MappingDraft,
   MappingOperationError,
   mappingSignature,
@@ -30,6 +30,8 @@ import {
   type VolumeSuggestion,
   validateMapping,
 } from '@/domain/mapping';
+import { ChaptersFrom } from './chapters-from';
+
 import { Button } from '@/renderer/components/ui/button';
 import { Checkbox } from '@/renderer/components/ui/checkbox';
 import { Input } from '@/renderer/components/ui/input';
@@ -44,8 +46,12 @@ export interface MappingEditorProps {
   readonly onConfirm?: (metadata: string, draft: MappingDraft) => void;
   /** Offered when the folder can skip grouping and go straight to mangapress as one book. */
   readonly onSkipGrouping?: () => void;
-  /** Online sources that can suggest volumes. The suggestion panel only appears when there is one. */
+  /** Online sources that can suggest volumes. The "Online source" tab only appears when there is one. */
   readonly metadataProviders?: readonly MetadataProviderDescriptor[];
+  /** The source chosen, if any. Left out, the editor keeps the choice itself. */
+  readonly selectedProviderId?: string | undefined;
+  readonly onSelectProvider?: (providerId: string | undefined) => void;
+  readonly onOpenProviderHomepage?: (providerId: string) => void;
   readonly onSearchMetadata?: (
     providerId: string,
     title: string,
@@ -54,6 +60,8 @@ export interface MappingEditorProps {
   readonly onSuggestVolumes?: (
     providerId: string,
     workId: string,
+    /** The language the folders declare, so the volumes are those of that translation. */
+    language?: string,
   ) => Promise<{ readonly volumes: readonly VolumeSuggestion[] }>;
 }
 
@@ -69,8 +77,13 @@ function mappingOriginLabel(
   draft: MappingDraft,
   initialDraft: MappingDraft,
   startedFrom: MappingEditorProps['startedFrom'],
+  providers: readonly MetadataProviderDescriptor[],
 ): string {
-  if (draft.source !== undefined) return `Suggested by ${draft.source.provider}`;
+  if (draft.source !== undefined) {
+    // The mapping records the source's id; the person is told its name.
+    const named = providers.find((provider) => provider.id === draft.source?.provider);
+    return `Suggested by ${named?.displayName ?? draft.source.provider}`;
+  }
   // Only claim mangabind's grouping while the draft still says exactly what mangabind proposed.
   if (startedFrom === 'mangabind' && mappingSignature(draft) === mappingSignature(initialDraft)) {
     return 'Grouped by mangabind · Offline';
@@ -84,194 +97,17 @@ function volumeName(draft: MappingDraft, volumeId: string | undefined): string {
   return volume === undefined ? 'Unassigned' : `Volume ${volume.number}`;
 }
 
-interface MetadataSuggestionPanelProps {
-  readonly mangaTitle: string;
-  readonly providers: readonly [MetadataProviderDescriptor, ...MetadataProviderDescriptor[]];
-  readonly onSearchMetadata: (
-    providerId: string,
-    title: string,
-    signal: AbortSignal,
-  ) => Promise<readonly MetadataSearchResult[]>;
-  readonly onSuggestVolumes: (
-    providerId: string,
-    workId: string,
-  ) => Promise<{ readonly volumes: readonly VolumeSuggestion[] }>;
-  readonly onApply: (result: MetadataSearchResult, volumes: readonly VolumeSuggestion[]) => void;
-}
-
-function MetadataSuggestionPanel({
-  mangaTitle,
-  onApply,
-  onSearchMetadata,
-  onSuggestVolumes,
-  providers,
-}: MetadataSuggestionPanelProps): React.JSX.Element {
-  const [query, setQuery] = useState(mangaTitle);
-  const [providerId, setProviderId] = useState(providers[0].id);
-  const [results, setResults] = useState<readonly MetadataSearchResult[]>([]);
-  const [searched, setSearched] = useState(false);
-  const [searching, setSearching] = useState(false);
-  const [applyingId, setApplyingId] = useState<string>();
-  const [panelError, setPanelError] = useState<string>();
-  const searchController = useRef<AbortController>(undefined);
-  const provider = providers.find((candidate) => candidate.id === providerId) ?? providers[0];
-
-  // A search only ever starts from the Search button (or Enter). Nothing is sent on open or
-  // while typing, so the title never leaves the machine without an explicit action.
-  useEffect(
-    () => () => {
-      searchController.current?.abort();
-    },
-    [],
-  );
-
-  const search = (): void => {
-    const title = query.trim();
-    if (title === '') return;
-    searchController.current?.abort();
-    const controller = new AbortController();
-    searchController.current = controller;
-    setSearching(true);
-    setPanelError(undefined);
-    onSearchMetadata(provider.id, title, controller.signal)
-      .then((found) => {
-        if (controller.signal.aborted) return;
-        setResults(found);
-        setSearched(true);
-      })
-      .catch((error: unknown) => {
-        if (controller.signal.aborted) return;
-        setPanelError(
-          error instanceof Error ? error.message : 'The search could not be completed.',
-        );
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setSearching(false);
-      });
-  };
-
-  const applyResult = (result: MetadataSearchResult): void => {
-    setApplyingId(result.id);
-    setPanelError(undefined);
-    onSuggestVolumes(provider.id, result.id)
-      .then((suggestion) => {
-        onApply(result, suggestion.volumes);
-      })
-      .catch((error: unknown) => {
-        setPanelError(
-          error instanceof Error ? error.message : 'The suggestion could not be applied.',
-        );
-      })
-      .finally(() => {
-        setApplyingId(undefined);
-      });
-  };
-
-  return (
-    <section
-      aria-labelledby="suggestions-title"
-      className="border-border bg-surface rounded-xl border p-5"
-    >
-      <h2 className="text-sm font-semibold" id="suggestions-title">
-        Suggest from external API
-      </h2>
-      <p className="text-muted-foreground mt-1 text-xs">
-        Optional — search a title to suggest which chapters belong in each volume. You can still
-        edit anything afterward.
-      </p>
-      <form
-        className="mt-3 flex flex-wrap items-center gap-2"
-        onSubmit={(event) => {
-          event.preventDefault();
-          search();
-        }}
-      >
-        {providers.length > 1 && (
-          <>
-            <Label className="sr-only" htmlFor="metadata-provider">
-              Source
-            </Label>
-            <NativeSelect
-              id="metadata-provider"
-              onChange={(event) => {
-                setProviderId(event.target.value);
-                setResults([]);
-                setSearched(false);
-                setPanelError(undefined);
-              }}
-              value={provider.id}
-            >
-              {providers.map((candidate) => (
-                <option key={candidate.id} value={candidate.id}>
-                  {candidate.displayName}
-                </option>
-              ))}
-            </NativeSelect>
-          </>
-        )}
-        <Search aria-hidden="true" className="text-muted-foreground size-4 shrink-0" />
-        <Label className="sr-only" htmlFor="metadata-search">
-          Search external metadata
-        </Label>
-        <Input
-          className="min-w-48 flex-1"
-          id="metadata-search"
-          onChange={(event) => {
-            setQuery(event.target.value);
-          }}
-          placeholder="Manga title"
-          value={query}
-        />
-        <Button disabled={query.trim() === ''} size="sm" type="submit" variant="outline">
-          Search
-        </Button>
-      </form>
-      <p className="text-muted-foreground mt-2 text-xs">
-        Searching sends the title to {provider.displayName}.
-      </p>
-      {searching && <p className="text-muted-foreground mt-3 text-xs">Searching…</p>}
-      {panelError !== undefined && (
-        <p className="text-status-failed mt-3 text-xs" role="alert">
-          {panelError}
-        </p>
-      )}
-      {!searching && searched && panelError === undefined && results.length === 0 && (
-        <p className="text-muted-foreground mt-3 text-xs">No matches found.</p>
-      )}
-      {!searching && results.length > 0 && (
-        <ul className="mt-3 space-y-2">
-          {results.map((result) => (
-            <li
-              className="border-border flex items-center justify-between gap-3 rounded-lg border px-3 py-2"
-              key={result.id}
-            >
-              <span className="min-w-0 flex-1 truncate text-sm">{result.title}</span>
-              <Button
-                disabled={applyingId !== undefined}
-                onClick={() => {
-                  applyResult(result);
-                }}
-                size="sm"
-                variant="outline"
-              >
-                {applyingId === result.id ? 'Applying…' : 'Use this'}
-              </Button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
-
 export function MappingEditor({
   initialDraft,
   startedFrom,
   onConfirm,
-  metadataProviders,
+  metadataProviders = [],
+  onOpenProviderHomepage,
+  onSelectProvider,
   onSkipGrouping,
   onSearchMetadata,
   onSuggestVolumes,
+  selectedProviderId,
 }: MappingEditorProps): React.JSX.Element {
   const [history, setHistory] = useState<MappingEditorHistory>(() =>
     createMappingHistory(initialDraft),
@@ -282,9 +118,10 @@ export function MappingEditor({
   const [rangeStart, setRangeStart] = useState(initialDraft.chapters[0]?.id ?? '');
   const [rangeEnd, setRangeEnd] = useState(initialDraft.chapters.at(-1)?.id ?? '');
   const [operationMessage, setOperationMessage] = useState<string>();
+  // The source is chosen by the caller when it keeps the choice across titles, or here when not.
+  const [localProviderId, setLocalProviderId] = useState<string>();
   const generatedId = useRef(0);
   const draft = history.present;
-  const [firstProvider, ...otherProviders] = metadataProviders ?? [];
   const effectiveTargetVolumeId = draft.volumes.some((volume) => volume.id === targetVolumeId)
     ? targetVolumeId
     : (draft.volumes[0]?.id ?? '');
@@ -371,7 +208,7 @@ export function MappingEditor({
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-muted-foreground text-xs font-medium">Chapter mapping</p>
             <span className="border-border bg-muted text-muted-foreground rounded-full border px-2 py-0.5 text-xs">
-              {mappingOriginLabel(draft, initialDraft, startedFrom)}
+              {mappingOriginLabel(draft, initialDraft, startedFrom, metadataProviders)}
             </span>
           </div>
           <h1 id="mapping-title" className="text-2xl font-semibold tracking-tight">
@@ -396,7 +233,7 @@ export function MappingEditor({
             </p>
           </div>
         )}
-        <div className="flex items-center gap-1" aria-label="Edit history">
+        <div className="flex items-center gap-1" aria-label="Edit history" role="group">
           <Button
             aria-label="Undo last mapping edit"
             disabled={history.past.length === 0}
@@ -435,23 +272,41 @@ export function MappingEditor({
         </div>
       </header>
 
-      {firstProvider !== undefined &&
-        onSearchMetadata !== undefined &&
-        onSuggestVolumes !== undefined && (
-          <MetadataSuggestionPanel
-            mangaTitle={draft.mangaTitle}
-            providers={[firstProvider, ...otherProviders]}
-            onApply={(result, volumes) => {
-              dispatch({
-                type: 'apply-suggestion',
-                suggestions: volumes.map((volume) => ({ ...volume, id: createVolumeId() })),
-                source: { provider: result.provider, id: result.id },
-              });
-            }}
-            onSearchMetadata={onSearchMetadata}
-            onSuggestVolumes={onSuggestVolumes}
-          />
-        )}
+      <ChaptersFrom
+        names={{
+          volumes: initialDraft.volumes.length,
+          chapters: initialDraft.chapters.length,
+          changed: history.past.length > 0,
+          onStartOver: () => {
+            setHistory(createMappingHistory(initialDraft));
+            setSelectedChapterIds(new Set());
+            setOperationMessage(undefined);
+          },
+        }}
+        online={
+          metadataProviders.length > 0 &&
+          onSearchMetadata !== undefined &&
+          onSuggestVolumes !== undefined
+            ? {
+                providers: metadataProviders,
+                selectedId: onSelectProvider === undefined ? localProviderId : selectedProviderId,
+                onSelect: onSelectProvider ?? setLocalProviderId,
+                onOpenHomepage: onOpenProviderHomepage ?? (() => undefined),
+                mangaTitle: draft.mangaTitle,
+                language: dominantLanguage(draft.chapters),
+                onSearch: onSearchMetadata,
+                onSuggest: onSuggestVolumes,
+                onApply: (result, volumes) => {
+                  dispatch({
+                    type: 'apply-suggestion',
+                    suggestions: volumes.map((volume) => ({ ...volume, id: createVolumeId() })),
+                    source: { provider: result.provider, id: result.id },
+                  });
+                },
+              }
+            : undefined
+        }
+      />
 
       {operationMessage !== undefined && (
         <div
@@ -811,7 +666,7 @@ export function MappingEditor({
                   </div>
                 )}
                 {warnings.length > 0 && (
-                  <div aria-label="Mapping warnings">
+                  <div aria-label="Mapping warnings" role="group">
                     <p className="text-status-warning text-xs font-medium">Check these chapters</p>
                     <ul className="mt-2 space-y-2">
                       {warnings.map((issue, index) => (
