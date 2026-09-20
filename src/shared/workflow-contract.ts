@@ -24,6 +24,7 @@ const chapterSchema = z.object({
   chapter: z.number().nonnegative().optional(),
   special: z.string().optional(),
   parsedVolume: z.number().nonnegative().optional(),
+  language: z.string().max(40).optional(),
 });
 const volumeSchema = z.object({
   id: z.string().min(1),
@@ -118,12 +119,22 @@ export const searchMetadataCommandSchema = z.object({
   title: z.string().min(1),
 });
 
+/** A language tag such as "en" or "pt-br": letters and digits in short groups joined by dashes. */
+export const languageTagSchema = z
+  .string()
+  .max(20)
+  .regex(/^[a-z]{2,3}(-[a-z0-9]{2,8})*$/iu);
+
 export const suggestVolumesCommandSchema = z.object({
   jobId: identifierSchema,
   providerId: z.string().min(1),
   /** The provider's own id for the work a search returned. */
   workId: z.string().min(1),
+  /** The language to group the volumes in, when the folders declare one. */
+  language: languageTagSchema.optional(),
 });
+
+export const openProviderHomepageCommandSchema = z.object({ providerId: z.string().min(1) });
 
 export interface SelectedInput {
   readonly selectionId: string;
@@ -230,6 +241,10 @@ export interface LibraryTitleResult {
 export interface MetadataProviderDescriptor {
   readonly id: string;
   readonly displayName: string;
+  /** The service's own site, shown in the list and opened from the credit. */
+  readonly homepage: string;
+  /** What the service is, in a few words. */
+  readonly description: string;
 }
 
 export interface MetadataSearchResult {

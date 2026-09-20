@@ -155,6 +155,8 @@ export function App(): React.JSX.Element {
   const [metadataProviders, setMetadataProviders] = useState<readonly MetadataProviderDescriptor[]>(
     [],
   );
+  // No online source is chosen until a person chooses one; it is then kept for the next title.
+  const [selectedProviderId, setSelectedProviderId] = useState<string>();
   const rowsRef = useRef(rows);
   const attemptedInspection = useRef(new Set<string>());
   const cancelRequested = useRef(false);
@@ -616,11 +618,19 @@ export function App(): React.JSX.Element {
   const suggestVolumes = async (
     providerId: string,
     workId: string,
+    language?: string,
   ): Promise<{ readonly volumes: readonly VolumeSuggestion[] }> => {
     if (bridge === undefined) return { volumes: [] };
-    const result = await bridge.suggestVolumes(crypto.randomUUID(), providerId, workId);
+    const result = await bridge.suggestVolumes(crypto.randomUUID(), providerId, workId, language);
     if (!result.ok) throw new Error(result.error.message);
     return result.value;
+  };
+
+  const openProviderHomepage = (providerId: string): void => {
+    if (bridge === undefined) return;
+    void bridge.openProviderHomepage(providerId).then((result) => {
+      if (!result.ok) setFailure(result.error);
+    });
   };
 
   const chooseSharedLibrary = async (): Promise<void> => {
@@ -792,12 +802,15 @@ export function App(): React.JSX.Element {
                     dispatch({ type: 'confirm-mapping', id: editingRow.id, mapping: draft });
                     setStep('queue');
                   }}
+                  onOpenProviderHomepage={openProviderHomepage}
                   onSearchMetadata={searchMetadata}
+                  onSelectProvider={setSelectedProviderId}
                   onSkipGrouping={() => {
                     setMode('convert-only');
                     setStep('queue');
                   }}
                   onSuggestVolumes={suggestVolumes}
+                  selectedProviderId={selectedProviderId}
                   startedFrom={
                     editingRow.proposedSignature !== undefined &&
                     editingRow.mapping.volumes.length > 0 &&
@@ -842,8 +855,11 @@ export function App(): React.JSX.Element {
                   onConfirm={(_metadata, draft) => {
                     void confirmTitleMapping(editingRow, editingTitleEntry.title, draft);
                   }}
+                  onOpenProviderHomepage={openProviderHomepage}
                   onSearchMetadata={searchMetadata}
+                  onSelectProvider={setSelectedProviderId}
                   onSuggestVolumes={suggestVolumes}
+                  selectedProviderId={selectedProviderId}
                   startedFrom={editingTitleEntry.draft.volumes.length > 0 ? 'mangabind' : undefined}
                 />
               </div>

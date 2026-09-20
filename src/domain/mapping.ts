@@ -6,6 +6,8 @@ export interface MappingChapter {
   readonly chapter?: number;
   readonly special?: string;
   readonly parsedVolume?: number;
+  /** The language the folder name declared, such as "pt-br", when it declared one. */
+  readonly language?: string;
 }
 
 export interface MappingVolume {
@@ -180,6 +182,28 @@ function withoutChapters(
     ...volume,
     chapterIds: volume.chapterIds.filter((chapterId) => !chapterIds.has(chapterId)),
   }));
+}
+
+/**
+ * The language most of the chapters declare, or undefined when none does. A lookup for volumes is
+ * made in this language, since a work is grouped into volumes differently in each translation.
+ */
+export function dominantLanguage(chapters: readonly MappingChapter[]): string | undefined {
+  const counts = new Map<string, number>();
+  for (const chapter of chapters) {
+    if (chapter.language === undefined) continue;
+    counts.set(chapter.language, (counts.get(chapter.language) ?? 0) + 1);
+  }
+  let best: string | undefined;
+  let bestCount = 0;
+  for (const [language, count] of counts) {
+    // The first language seen wins a tie, so the answer does not depend on how the map iterates.
+    if (count > bestCount) {
+      best = language;
+      bestCount = count;
+    }
+  }
+  return best;
 }
 
 export function createMappingDraft({

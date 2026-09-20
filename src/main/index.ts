@@ -20,8 +20,8 @@ import { CliProtocolError } from '@/adapters/cli-protocol-error';
 import { classifyInputPaths } from '@/adapters/input/classify-input-paths';
 import { FsBookFileStore } from '@/adapters/library/fs-book-file-store';
 import { FsLibraryStore } from '@/adapters/library/fs-library-store';
-import { MetadataProviderError } from '@/adapters/external-metadata/protocol';
-import { createMetadataProviders } from '@/adapters/external-metadata/registry';
+import { MetadataProviderError } from '@/adapters/metadata-providers/errors';
+import { createMetadataProviders } from '@/adapters/metadata-providers/registry';
 import { MangapressCliAdapter } from '@/adapters/mangapress/cli';
 import { MangapressConversionAdapter } from '@/adapters/mangapress/conversion-port';
 import { OsNetworkInterfaces } from '@/adapters/network/os-network-interfaces';
@@ -63,6 +63,7 @@ import {
   registerInputsCommandSchema,
   searchMetadataCommandSchema,
   type SelectedLibrary,
+  openProviderHomepageCommandSchema,
   suggestVolumesCommandSchema,
   type VolumeSuggestion,
   type WorkflowFailure,
@@ -77,9 +78,7 @@ const selectedLibraries = new Map<string, string>();
 const artifactPaths = new Map<string, string>();
 const activeJobs = new Map<string, AbortController>();
 const metadataProviders = new Map(
-  createMetadataProviders(process.env).map(
-    (provider) => [provider.descriptor.id, provider] as const,
-  ),
+  createMetadataProviders().map((provider) => [provider.descriptor.id, provider] as const),
 );
 const libraryStore = new FsLibraryStore();
 const libraryPublisher = new LibraryPublisher(libraryStore);
@@ -515,6 +514,29 @@ function registerWorkflowHandlers(): void {
   );
 
   ipcMain.handle(
+    'workflow:open-provider-homepage',
+    async (_event, rawCommand: unknown): Promise<WorkflowResult<undefined>> => {
+      try {
+        const command = openProviderHomepageCommandSchema.parse(rawCommand);
+        const provider = metadataProviders.get(command.providerId);
+        if (provider === undefined) {
+          return failed({ code: 'provider_not_found', message: 'That source is not available.' });
+        }
+        // Only the address a provider is registered with is ever opened, and only when it is https:
+        // the page can name a provider but never an address.
+        const homepage = new URL(provider.descriptor.homepage);
+        if (homepage.protocol !== 'https:') {
+          return failed({ code: 'invalid_homepage', message: 'That source has no safe address.' });
+        }
+        await shell.openExternal(homepage.href);
+        return ok(undefined);
+      } catch (error) {
+        return failed(toFailure(error));
+      }
+    },
+  );
+
+  ipcMain.handle(
     'workflow:search-metadata',
     async (
       _event,
@@ -560,7 +582,12 @@ function registerWorkflowHandlers(): void {
         const controller = new AbortController();
         activeJobs.set(command.jobId, controller);
         try {
-          return ok(await provider.suggestVolumes(command.workId, controller.signal));
+          return ok(
+            await provider.suggestVolumes(command.workId, {
+              ...(command.language === undefined ? {} : { language: command.language }),
+              signal: controller.signal,
+            }),
+          );
         } finally {
           activeJobs.delete(command.jobId);
         }

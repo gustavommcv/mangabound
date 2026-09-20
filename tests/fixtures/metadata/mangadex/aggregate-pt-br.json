@@ -1,0 +1,169 @@
+{
+  "result": "ok",
+  "volumes": {
+    "1": {
+      "volume": "1",
+      "count": 28,
+      "chapters": {
+        "1": {
+          "chapter": "1",
+          "id": "27eae585-c792-4c07-a163-3d5e80ec12d0",
+          "isUnavailable": false,
+          "others": [
+            "467410b2-35b5-4077-8497-2826a1cde663",
+            "8b2ae7f0-53c9-4cee-b4e8-c2c84c237e11",
+            "16b99098-f939-45f5-abc7-f4dc1e5e222a",
+            "59fafbf9-3e2b-40c1-8ab8-0af18527f9f9"
+          ],
+          "count": 5
+        },
+        "2": {
+          "chapter": "2",
+          "id": "bd2da4cf-f670-46e5-808f-1b5328adf9e5",
+          "isUnavailable": false,
+          "others": [
+            "9f757552-52ad-4e13-a45a-05f8afebcedb",
+            "8eb391d4-c1b6-4e77-93a7-1a0b0acc204c",
+            "c74d21be-34ef-4c15-8eb2-8044da8e99e8"
+          ],
+          "count": 4
+        },
+        "3": {
+          "chapter": "3",
+          "id": "5c43b014-b242-4029-8ae7-c86ab3846c7b",
+          "isUnavailable": false,
+          "others": [
+            "f564e4ae-76e6-4e9c-a2c2-c6935bc0e9e0",
+            "1626059d-9355-4ab0-8b67-2d81e537938e",
+            "d20b649b-8b9f-483d-8889-9a5a5630f1fa"
+          ],
+          "count": 4
+        },
+        "4": {
+          "chapter": "4",
+          "id": "e949ac5b-f55a-4fcd-9763-c88c2bc90673",
+          "isUnavailable": false,
+          "others": [
+            "f9f3a019-d0db-47f1-83c8-836a334aecff",
+            "6d6989d0-3768-4ff5-a68f-a026be1b65ce"
+          ],
+          "count": 3
+        }
+      }
+    },
+    "2": {
+      "volume": "2",
+      "count": 26,
+      "chapters": {
+        "8": {
+          "chapter": "8",
+          "id": "1d4d6ea4-108a-40ef-ba85-45b68f7683fb",
+          "isUnavailable": false,
+          "others": [
+            "1782cd72-67e0-40ba-a04d-9a176bc38290",
+            "b88c7765-7bdd-435e-a5b1-20a9ba180164"
+          ],
+          "count": 3
+        },
+        "9": {
+          "chapter": "9",
+          "id": "06dd9c0f-87a2-424b-9809-50070826ddd5",
+          "isUnavailable": false,
+          "others": [
+            "e8b4f589-f891-49e0-9c23-38bec9ab7073",
+            "deb53c09-dcf4-49dd-80a7-e98885db3851"
+          ],
+          "count": 3
+        },
+        "10": {
+          "chapter": "10",
+          "id": "a8c968a6-f0b8-4fce-b236-9a6a3b7a1546",
+          "isUnavailable": false,
+          "others": [
+            "623add97-3ede-4b4d-a608-24f44edcd56e",
+            "b8fcbebe-5828-45a0-a0fc-124759287e8d"
+          ],
+          "count": 3
+        },
+        "11": {
+          "chapter": "11",
+          "id": "358dd58b-7743-42b3-a072-00b09b2f4cb2",
+          "isUnavailable": false,
+          "others": [
+            "87997084-f71d-4ac5-aace-468e652c1537",
+            "9759ce15-8820-4fcf-80c3-80c3d8756aeb"
+          ],
+          "count": 3
+        }
+      }
+    },
+    "3": {
+      "volume": "3",
+      "count": 20,
+      "chapters": {
+        "17": {
+          "chapter": "17",
+          "id": "fa96618b-828d-4f68-9375-0c1fcda2d372",
+          "isUnavailable": false,
+          "others": ["9e5a01e4-3870-4fea-aa8c-a97d98b71359"],
+          "count": 2
+        },
+        "18": {
+          "chapter": "18",
+          "id": "ce9377cd-951b-4f1b-a1fb-de608bf6d8fa",
+          "isUnavailable": false,
+          "others": ["ac793a15-1870-49e0-82d9-e1a2333d457d"],
+          "count": 2
+        },
+        "19": {
+          "chapter": "19",
+          "id": "1640cf3e-70e3-425b-bf53-1b35ad766992",
+          "isUnavailable": false,
+          "others": ["5513cc8a-a2e8-4f51-84fd-a9d7230ea58c"],
+          "count": 2
+        },
+        "20": {
+          "chapter": "20",
+          "id": "6482b5a2-dc4f-4f14-9192-0f3558410de7",
+          "isUnavailable": false,
+          "others": ["82230cec-bb93-473b-957a-4339f57be5e7"],
+          "count": 2
+        }
+      }
+    },
+    "none": {
+      "volume": "none",
+      "count": 65,
+      "chapters": {
+        "165": {
+          "chapter": "165",
+          "id": "09d748f3-48fb-4aca-b0c3-47e94b22dbb9",
+          "isUnavailable": false,
+          "others": [],
+          "count": 1
+        },
+        "166": {
+          "chapter": "166",
+          "id": "350a91b9-49b6-4d8b-8d9f-7d4d187d6b47",
+          "isUnavailable": false,
+          "others": [],
+          "count": 1
+        },
+        "167": {
+          "chapter": "167",
+          "id": "3d1c0553-a6ba-484d-947f-a8b741937435",
+          "isUnavailable": false,
+          "others": [],
+          "count": 1
+        },
+        "168": {
+          "chapter": "168",
+          "id": "181bf4d8-26cf-4eda-a52c-7251db7d10bd",
+          "isUnavailable": false,
+          "others": [],
+          "count": 1
+        }
+      }
+    }
+  }
+}

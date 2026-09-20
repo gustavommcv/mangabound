@@ -31,6 +31,7 @@ export function mappingDraftFromMangabindReport(
       ...(unit.parser.chapter === undefined ? {} : { chapter: unit.parser.chapter }),
       ...(unit.parser.special === undefined ? {} : { special: unit.parser.special }),
       ...(unit.parser.volume === undefined ? {} : { parsedVolume: unit.parser.volume }),
+      ...(unit.parser.language === undefined ? {} : { language: unit.parser.language }),
     }));
 
   const volumes: MappingVolume[] = [];

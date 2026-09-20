@@ -138,6 +138,7 @@ function bridge(overrides: Partial<MangaboundBridge> = {}): MangaboundBridge {
     listMetadataProviders: () => Promise.resolve({ ok: true, value: [] }),
     searchMetadata: () => Promise.resolve({ ok: true, value: [] }),
     suggestVolumes: () => Promise.resolve({ ok: true, value: { volumes: [] } }),
+    openProviderHomepage: () => Promise.resolve({ ok: true, value: undefined }),
     openArtifact: () => Promise.resolve({ ok: true, value: undefined }),
     showArtifactInFolder: () => Promise.resolve({ ok: true, value: undefined }),
     onConversionProgress: () => () => undefined,
@@ -339,40 +340,178 @@ describe('queue application workflow', () => {
     expect(convert.mock.calls[0]?.[0].mapping?.volumes).toHaveLength(1);
   });
 
-  it('wires the mapping editor to the metadata bridge only when a source exists and Search is used', async () => {
+  const mangaDex = {
+    id: 'mangadex',
+    displayName: 'MangaDex',
+    homepage: 'https://mangadex.org',
+    description: 'Community catalogue of manga, with volume and chapter data',
+  };
+
+  /** Opens the editor of the folder in the queue and picks MangaDex from the list of sources. */
+  async function chooseMangaDex(user: UserEvent): Promise<void> {
+    await user.click(screen.getByRole('button', { name: 'Edit volumes for Offline Work' }));
+    await user.click(await screen.findByRole('tab', { name: 'Online source' }));
+    await user.click(screen.getByRole('combobox', { name: 'Source' }));
+    await user.click(screen.getByRole('option', { name: /MangaDex/u }));
+  }
+
+  it('offers the sources as a list with none chosen, and searches only when asked', async () => {
     const user = userEvent.setup();
     const searchMetadata = vi.fn<MangaboundBridge['searchMetadata']>(() =>
       Promise.resolve({
         ok: true,
-        value: [{ id: 'work-1', title: 'A Quiet Journey', provider: 'External API' }],
+        value: [{ id: 'work-1', title: 'A Quiet Journey', provider: 'mangadex' }],
       }),
     );
     const suggestVolumes = vi.fn<MangaboundBridge['suggestVolumes']>(() =>
       Promise.resolve({ ok: true, value: { volumes: [{ number: '1', chapterNumbers: [1, 2] }] } }),
     );
+    const openProviderHomepage = vi.fn<MangaboundBridge['openProviderHomepage']>(() =>
+      Promise.resolve({ ok: true, value: undefined }),
+    );
     installBridge(
       bridge({
-        listMetadataProviders: () =>
-          Promise.resolve({ ok: true, value: [{ id: 'external', displayName: 'External API' }] }),
+        listMetadataProviders: () => Promise.resolve({ ok: true, value: [mangaDex] }),
         searchMetadata,
         suggestVolumes,
+        openProviderHomepage,
       }),
     );
     render(<App />);
 
     await addFolder(user);
     await user.click(screen.getByRole('button', { name: 'Edit volumes for Offline Work' }));
-    expect(await screen.findByText('Suggest from external API')).toBeVisible();
-    // Opening the editor sends nothing.
+    await user.click(await screen.findByRole('tab', { name: 'Online source' }));
+    // Nothing is chosen, and opening the editor sent nothing.
+    expect(screen.getByRole('combobox', { name: 'Source' })).toHaveTextContent('Select a source');
     expect(searchMetadata).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('combobox', { name: 'Source' }));
+    await user.click(screen.getByRole('option', { name: /MangaDex/u }));
+    expect(searchMetadata).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Open MangaDex in your browser' }));
+    expect(openProviderHomepage).toHaveBeenCalledExactlyOnceWith('mangadex');
 
     await user.click(screen.getByRole('button', { name: 'Search' }));
     expect(await screen.findByText('A Quiet Journey')).toBeVisible();
-    expect(searchMetadata).toHaveBeenCalledWith(expect.any(String), 'external', 'Offline Work');
+    expect(searchMetadata).toHaveBeenCalledWith(expect.any(String), 'mangadex', 'Offline Work');
 
-    await user.click(screen.getByRole('button', { name: 'Use this' }));
-    expect(await screen.findByText('Suggested by External API')).toBeVisible();
-    expect(suggestVolumes).toHaveBeenCalledWith(expect.any(String), 'external', 'work-1');
+    await user.click(screen.getByRole('button', { name: 'Use these volumes' }));
+    expect(await screen.findByText('Suggested by MangaDex')).toBeVisible();
+    expect(suggestVolumes).toHaveBeenCalledWith(
+      expect.any(String),
+      'mangadex',
+      'work-1',
+      // The folders of this test declare no language.
+      undefined,
+    );
+  });
+
+  it('remembers the source that was chosen when the next title is edited', async () => {
+    const user = userEvent.setup();
+    installBridge(
+      bridge({ listMetadataProviders: () => Promise.resolve({ ok: true, value: [mangaDex] }) }),
+    );
+    render(<App />);
+    await addFolder(user);
+    await chooseMangaDex(user);
+
+    await user.click(screen.getByRole('button', { name: 'Queue' }));
+    await user.click(screen.getByRole('button', { name: 'Edit volumes for Offline Work' }));
+    await user.click(await screen.findByRole('tab', { name: 'Online source' }));
+
+    expect(screen.getByRole('combobox', { name: 'Source' })).toHaveTextContent('MangaDex');
+    expect(screen.getByText('Volume data by')).toBeVisible();
+  });
+
+  it('says why the site of a source could not be opened', async () => {
+    const user = userEvent.setup();
+    installBridge(
+      bridge({
+        listMetadataProviders: () => Promise.resolve({ ok: true, value: [mangaDex] }),
+        openProviderHomepage: () =>
+          Promise.resolve({
+            ok: false,
+            error: { code: 'provider_not_found', message: 'That source is not available.' },
+          }),
+      }),
+    );
+    render(<App />);
+    await addFolder(user);
+    await chooseMangaDex(user);
+
+    await user.click(screen.getByRole('button', { name: 'Open MangaDex in your browser' }));
+
+    expect(await screen.findByRole('alert', { name: 'Workflow error' })).toHaveTextContent(
+      'That source is not available.',
+    );
+  });
+
+  it('looks volumes up in the language the folders declare, and shows a lookup that failed', async () => {
+    const user = userEvent.setup();
+    const suggestVolumes = vi.fn<MangaboundBridge['suggestVolumes']>(() =>
+      Promise.resolve({
+        ok: false,
+        error: { code: 'network_error', message: 'Could not reach MangaDex.' },
+      }),
+    );
+    installBridge(
+      bridge({
+        listMetadataProviders: () => Promise.resolve({ ok: true, value: [mangaDex] }),
+        searchMetadata: () =>
+          Promise.resolve({
+            ok: true,
+            value: [{ id: 'work-1', title: 'Offline Work', provider: 'mangadex' }],
+          }),
+        suggestVolumes,
+        inspectInput: () =>
+          Promise.resolve({
+            ok: true,
+            value: {
+              sessionId: 'session',
+              displayName: 'Offline Work',
+              kind: 'folder',
+              mapping: createMappingDraft({
+                mangaTitle: 'Offline Work',
+                chapters: chapters.map((chapter) => ({ ...chapter, language: 'pt-br' })),
+              }),
+              issues: [],
+            },
+          }),
+      }),
+    );
+    render(<App />);
+    await addFolder(user);
+    await chooseMangaDex(user);
+    await user.click(screen.getByRole('button', { name: 'Search' }));
+
+    await user.click(await screen.findByRole('button', { name: 'Use these volumes' }));
+
+    expect(suggestVolumes).toHaveBeenCalledWith(expect.any(String), 'mangadex', 'work-1', 'pt-br');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not reach MangaDex.');
+  });
+
+  it('shows a failed search in the panel, without an error for the whole page', async () => {
+    const user = userEvent.setup();
+    installBridge(
+      bridge({
+        listMetadataProviders: () => Promise.resolve({ ok: true, value: [mangaDex] }),
+        searchMetadata: () =>
+          Promise.resolve({
+            ok: false,
+            error: { code: 'rate_limited', message: 'MangaDex is rate-limiting requests.' },
+          }),
+      }),
+    );
+    render(<App />);
+    await addFolder(user);
+    await chooseMangaDex(user);
+
+    await user.click(screen.getByRole('button', { name: 'Search' }));
+
+    // The lookup is optional: its failure is beside it, and the page has no error of its own.
+    expect(await screen.findByText('MangaDex is rate-limiting requests.')).toBeVisible();
+    expect(screen.queryByRole('alert', { name: 'Workflow error' })).not.toBeInTheDocument();
   });
 
   it.each([
@@ -386,21 +525,18 @@ describe('queue application workflow', () => {
         }),
     ],
     ['the source list call fails', () => Promise.reject(new Error('IPC down'))],
-  ])(
-    'hides the suggestion panel and shows no error when %s',
-    async (_name, listMetadataProviders) => {
-      const user = userEvent.setup();
-      installBridge(bridge({ listMetadataProviders }));
-      render(<App />);
+  ])('offers no online source and shows no error when %s', async (_name, listMetadataProviders) => {
+    const user = userEvent.setup();
+    installBridge(bridge({ listMetadataProviders }));
+    render(<App />);
 
-      await addFolder(user);
-      await user.click(screen.getByRole('button', { name: 'Edit volumes for Offline Work' }));
+    await addFolder(user);
+    await user.click(screen.getByRole('button', { name: 'Edit volumes for Offline Work' }));
 
-      expect(await screen.findByRole('button', { name: 'Confirm mapping' })).toBeVisible();
-      expect(screen.queryByText('Suggest from external API')).not.toBeInTheDocument();
-      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-    },
-  );
+    expect(await screen.findByRole('button', { name: 'Confirm mapping' })).toBeVisible();
+    expect(screen.queryByRole('tab', { name: 'Online source' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
 
   it('takes a CBZ straight to mangapress and explains that it is already one volume', async () => {
     const user = userEvent.setup();

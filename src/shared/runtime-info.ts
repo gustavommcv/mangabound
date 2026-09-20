@@ -68,7 +68,11 @@ export interface MangaboundBridge {
     jobId: string,
     providerId: string,
     workId: string,
+    /** The language the folders declare, so the volumes are those of that translation. */
+    language?: string,
   ) => Promise<WorkflowResult<{ volumes: readonly VolumeSuggestion[] }>>;
+  /** Opens a source's own site in the browser: the provider is named, its address is not. */
+  readonly openProviderHomepage: (providerId: string) => Promise<WorkflowResult<undefined>>;
   readonly openArtifact: (artifactId: string) => Promise<WorkflowResult<undefined>>;
   readonly showArtifactInFolder: (artifactId: string) => Promise<WorkflowResult<undefined>>;
   readonly onConversionProgress: (
