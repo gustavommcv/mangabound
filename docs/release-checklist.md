@@ -9,6 +9,7 @@ CI automates the repeatable launch and rendering checks. Compositor policy and r
 - Sharing a library whose `.mangabound/library.json` is corrupt fails with a readable message instead of starting (covered by e2e), and a catalog that corrupts while sharing is answered with a generic error, never parser text or file paths (covered by e2e).
 - Custom title bar retains native close/minimize/maximize behavior, keyboard focus, scaling, and reduced motion.
 - Opening and locating an artifact delegates to the registered OS application/folder without exposing arbitrary-path IPC.
+- The options are kept between sessions (ADR 0014): change the device, format and steps, choose an output folder, quit, and open the app again. A damaged `settings.json` and a deleted output folder each start from the defaults with a notice, and Reset to defaults puts the options back. The e2e suite covers this against the packaged app, in a user data folder of its own. Where the file lives is the operating system's per-user app data folder for Mangabound (`%APPDATA%` on Windows, `~/Library/Application Support` on macOS, `$XDG_CONFIG_HOME` or `~/.config` on Linux).
 - Dragging a manga _folder_ from the file manager onto the queue adds it as a folder row, and dragging a `.cbz` adds a file row. A native drag cannot be scripted, so the e2e suite covers the path resolution with real files and synthetic drag events; the directory case is only checked here (ADR 0010).
 
 ## Windows

@@ -7,6 +7,7 @@ import type {
   OpdsSharingStatus,
 } from '../shared/opds-contract';
 import type { MangaboundBridge } from '../shared/runtime-info';
+import type { RestoredSettings, SaveSettingsCommand } from '../shared/settings-contract';
 import type { ToolchainStatus } from '../shared/toolchain-status';
 import type {
   ArtifactSummary,
@@ -107,6 +108,8 @@ const bridge: MangaboundBridge = Object.freeze({
     invoke<OpdsSharingStatus>('opds:start-sharing', { libraryId, interfaceAddress, auth }),
   stopSharing: () => invoke<undefined>('opds:stop-sharing'),
   getSharingStatus: () => invoke<OpdsSharingStatus>('opds:get-status'),
+  loadSettings: () => invoke<RestoredSettings>('settings:load'),
+  saveSettings: (command: SaveSettingsCommand) => invoke<undefined>('settings:save', command),
   runtime: Object.freeze({
     electron: process.versions.electron,
     platform: process.platform,

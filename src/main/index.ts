@@ -18,6 +18,7 @@ import { MangabindBindingAdapter } from '@/adapters/mangabind/binding-port';
 import { MangabindCliAdapter } from '@/adapters/mangabind/cli';
 import { CliProtocolError } from '@/adapters/cli-protocol-error';
 import { classifyInputPaths } from '@/adapters/input/classify-input-paths';
+import { directoryExists } from '@/adapters/library/directory-exists';
 import { FsBookFileStore } from '@/adapters/library/fs-book-file-store';
 import { FsLibraryStore } from '@/adapters/library/fs-library-store';
 import { MetadataProviderError } from '@/adapters/metadata-providers/errors';
@@ -27,10 +28,13 @@ import { MangapressConversionAdapter } from '@/adapters/mangapress/conversion-po
 import { OsNetworkInterfaces } from '@/adapters/network/os-network-interfaces';
 import { NodeOpdsServer } from '@/adapters/opds/http-server';
 import { createNodeProcessRunner } from '@/adapters/process/node-process-runner';
+import { FsSettingsStore } from '@/adapters/settings/fs-settings-store';
 import { verifyBundledToolchain } from '@/adapters/toolchain/verification';
 import type { OpdsServerHandle } from '@/application/ports/opds-server';
 import { ProcessCancelledError } from '@/application/ports/process-runner';
+import { SettingsSaveError } from '@/application/ports/settings-store';
 import { LibraryPublisher } from '@/application/workflows/library-publisher';
+import { PreferencesWorkflow } from '@/application/workflows/preferences';
 import { SingleInputWorkflow } from '@/application/workflows/single-input';
 import {
   ConversionWorkflowError,
@@ -44,6 +48,7 @@ import {
   type OpdsSharingStatus,
   startSharingCommandSchema,
 } from '@/shared/opds-contract';
+import { type RestoredSettings, saveSettingsCommandSchema } from '@/shared/settings-contract';
 import type { ToolchainStatus, ToolchainTarget } from '@/shared/toolchain-status';
 import {
   type ArtifactSummary,
@@ -84,6 +89,7 @@ const libraryStore = new FsLibraryStore();
 const libraryPublisher = new LibraryPublisher(libraryStore);
 const opdsServer = new NodeOpdsServer(libraryStore);
 const networkInterfaces = new OsNetworkInterfaces();
+let preferences: PreferencesWorkflow | undefined;
 let activeSharing: OpdsServerHandle | undefined;
 let workflow: SingleInputWorkflow | undefined;
 let mangapressCli: MangapressCliAdapter | undefined;
@@ -110,6 +116,9 @@ function toFailure(error: unknown): WorkflowFailure {
   }
   if (error instanceof LibraryIndexError) {
     return { code: error.code, message: 'The output library catalog could not be read.' };
+  }
+  if (error instanceof SettingsSaveError) {
+    return { code: error.code, message: 'Your settings could not be saved.' };
   }
   if (
     error instanceof Error &&
@@ -269,6 +278,43 @@ async function registerInputPaths(paths: readonly string[]): Promise<RegisteredI
     return { selectionId, displayName: selection.displayName, displayPath: inputPath, kind };
   });
   return { inputs, rejected };
+}
+
+function registerSettingsHandlers(workflows: PreferencesWorkflow): void {
+  ipcMain.handle('settings:load', async (): Promise<WorkflowResult<RestoredSettings>> => {
+    try {
+      const restored = await workflows.restore();
+      // The window is given the folder the way a dialog would give it: by an id, never a path.
+      let library: SelectedLibrary | undefined;
+      if (restored.outputFolder !== undefined) {
+        const libraryId = randomUUID();
+        selectedLibraries.set(libraryId, restored.outputFolder);
+        library = { libraryId, displayPath: restored.outputFolder };
+      }
+      return ok({
+        preferences: restored.preferences,
+        ...(library === undefined ? {} : { library }),
+        notices: restored.notices,
+      });
+    } catch (error) {
+      return failed(toFailure(error));
+    }
+  });
+
+  ipcMain.handle(
+    'settings:save',
+    async (_event, rawCommand: unknown): Promise<WorkflowResult<undefined>> => {
+      try {
+        const command = saveSettingsCommandSchema.parse(rawCommand);
+        const outputFolder =
+          command.libraryId === undefined ? undefined : selectedLibraries.get(command.libraryId);
+        await workflows.save(command.preferences, outputFolder);
+        return ok(undefined);
+      } catch (error) {
+        return failed(toFailure(error));
+      }
+    },
+  );
 }
 
 function registerWorkflowHandlers(): void {
@@ -791,6 +837,11 @@ void app.whenReady().then(async () => {
     );
   }
   ipcMain.handle('toolchain:get-status', () => toolchainStatus);
+  preferences = new PreferencesWorkflow(
+    new FsSettingsStore(path.join(app.getPath('userData'), 'settings.json')),
+    directoryExists,
+  );
+  registerSettingsHandlers(preferences);
   registerWorkflowHandlers();
   registerOpdsHandlers();
   createMainWindow();
@@ -800,11 +851,16 @@ void app.whenReady().then(async () => {
 });
 
 app.on('before-quit', (event) => {
-  if (cleanupStarted || (workflow === undefined && activeSharing === undefined)) return;
+  if (cleanupStarted) return;
   event.preventDefault();
   cleanupStarted = true;
   for (const controller of activeJobs.values()) controller.abort();
-  void Promise.allSettled([workflow?.releaseAll(), activeSharing?.stop()]).finally(() => {
+  // A change made an instant before quitting is still written.
+  void Promise.allSettled([
+    workflow?.releaseAll(),
+    activeSharing?.stop(),
+    preferences?.settled(),
+  ]).finally(() => {
     app.quit();
   });
 });

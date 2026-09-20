@@ -13,9 +13,11 @@ import { useState } from 'react';
 import { type QueueRow, summarizeQueue } from '@/domain/input-queue';
 import type { BookFormat } from '@/domain/conversion';
 import type { MangapressSettings } from '@/domain/output-profile';
-import type { ProcessMode } from '@/domain/process-mode';
+import { isDefaultMangapress } from '@/domain/preferences';
+import { defaultProcessMode, type ProcessMode } from '@/domain/process-mode';
 import { QueueRowItem } from '@/renderer/components/queue/queue-row';
 import { ProcessSteps } from '@/renderer/components/settings/process-steps';
+import { ResetOptions } from '@/renderer/components/settings/reset-options';
 import { Button } from '@/renderer/components/ui/button';
 import { Label } from '@/renderer/components/ui/label';
 import { NativeSelect } from '@/renderer/components/ui/native-select';
@@ -51,6 +53,8 @@ export interface QueueScreenProps {
   readonly onMode: (mode: ProcessMode) => void;
   readonly onOpenOptions: () => void;
   readonly onRemove: (id: string) => void;
+  /** Puts the steps, device, format and every mangapress option back to their defaults. */
+  readonly onReset: () => void;
   readonly onValidate: () => void;
   readonly plans?: readonly RowPlan[];
   readonly profiles: readonly DeviceProfileSummary[];
@@ -97,6 +101,7 @@ export function QueueScreen(props: QueueScreenProps): React.JSX.Element {
     onMode,
     onOpenOptions,
     onRemove,
+    onReset,
     onValidate,
     plans,
     profiles,
@@ -258,6 +263,14 @@ export function QueueScreen(props: QueueScreenProps): React.JSX.Element {
             <ChevronRight aria-hidden="true" className="size-4" />
           </button>
         )}
+
+        <div className="border-border border-t pt-3">
+          <ResetOptions
+            changed={mode !== defaultProcessMode || !isDefaultMangapress(format, settings)}
+            onReset={onReset}
+            scope="the steps, device, format and every mangapress option"
+          />
+        </div>
 
         <div className="space-y-2">
           <Button className="w-full" disabled={!canRun} onClick={onConvert} size="lg">

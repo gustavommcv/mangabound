@@ -44,42 +44,58 @@ export const registerInputsCommandSchema = z.object({
   paths: z.array(z.string()).max(1000),
 });
 export const identifierSchema = z.string().min(1).max(200);
+/** The mangapress options a person keeps between sessions: every one but the book's own identity. */
+const preferenceSettingFields = {
+  deviceProfile: z.string().trim().min(1).max(40),
+  quiet: z.boolean(),
+  mangaStyle: z.boolean(),
+  cropping: z.enum(['disabled', 'margins', 'margins-and-page-numbers']),
+  croppingPower: z.number().finite(),
+  croppingMinimum: z.number().finite().min(0).max(100),
+  preserveMargin: z.number().finite().min(0).max(100),
+  splitter: z.enum(['split', 'rotate', 'both']),
+  upscale: z.boolean(),
+  stretch: z.boolean(),
+  wallpaper: z.boolean(),
+  whiteBorders: z.boolean(),
+  forcePng: z.boolean(),
+  jpegQuality: z.number().int().min(1).max(100).optional(),
+  rotateRight: z.boolean(),
+  gamma: z.number().finite().optional(),
+  autoLevel: z.boolean(),
+  noAutoContrast: z.boolean(),
+  interPanelCrop: z.enum(['disabled', 'horizontal', 'both']),
+  eraseRainbow: z.boolean(),
+  metadataTitle: z.enum(['series-only', 'combine', 'title-only']),
+  keepComicInfo: z.boolean(),
+  language: z.string().trim().min(1).max(40),
+  customWidth: z.number().int().min(1).optional(),
+  customHeight: z.number().int().min(1).optional(),
+};
+
+const customProfileNeedsASize = {
+  check: (settings: {
+    readonly deviceProfile: string;
+    readonly customWidth?: number | undefined;
+    readonly customHeight?: number | undefined;
+  }): boolean =>
+    settings.deviceProfile !== 'OTHER' ||
+    (settings.customWidth !== undefined && settings.customHeight !== undefined),
+  message: 'The custom device profile needs both a width and height.',
+};
+
 const mangapressSettingsSchema = z
   .object({
-    deviceProfile: z.string().trim().min(1).max(40),
-    quiet: z.boolean(),
-    mangaStyle: z.boolean(),
-    cropping: z.enum(['disabled', 'margins', 'margins-and-page-numbers']),
-    croppingPower: z.number().finite(),
-    croppingMinimum: z.number().finite().min(0).max(100),
-    preserveMargin: z.number().finite().min(0).max(100),
-    splitter: z.enum(['split', 'rotate', 'both']),
-    upscale: z.boolean(),
-    stretch: z.boolean(),
-    wallpaper: z.boolean(),
-    whiteBorders: z.boolean(),
-    forcePng: z.boolean(),
-    jpegQuality: z.number().int().min(1).max(100).optional(),
-    rotateRight: z.boolean(),
-    gamma: z.number().finite().optional(),
-    autoLevel: z.boolean(),
-    noAutoContrast: z.boolean(),
-    interPanelCrop: z.enum(['disabled', 'horizontal', 'both']),
-    eraseRainbow: z.boolean(),
+    ...preferenceSettingFields,
     title: z.string().max(300).optional(),
     author: z.string().max(300).optional(),
-    metadataTitle: z.enum(['series-only', 'combine', 'title-only']),
-    keepComicInfo: z.boolean(),
-    language: z.string().trim().min(1).max(40),
-    customWidth: z.number().int().min(1).optional(),
-    customHeight: z.number().int().min(1).optional(),
   })
-  .refine(
-    (settings) =>
-      settings.deviceProfile !== 'OTHER' ||
-      (settings.customWidth !== undefined && settings.customHeight !== undefined),
-    { message: 'The custom device profile needs both a width and height.' },
-  );
+  .refine(customProfileNeedsASize.check, { message: customProfileNeedsASize.message });
+
+/** The options that are kept between sessions; a title or an author is dropped, not rejected. */
+export const persistedSettingsSchema = z
+  .object(preferenceSettingFields)
+  .refine(customProfileNeedsASize.check, { message: customProfileNeedsASize.message });
 export const conversionCommandSchema = z.object({
   jobId: identifierSchema,
   sessionId: identifierSchema,

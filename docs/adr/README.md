@@ -14,6 +14,7 @@ Accepted decisions are immutable records. If a premise changes, add a new ADR th
 | [0008](0008-mapping-starts-from-mangabind-grouping.md) | Accepted (amended by 0013)                               | The mapping starts from mangabind's grouping; online lookups only on explicit request |
 | [0009](0009-process-modes.md)                          | Accepted                                                 | Process modes: join only, convert only, or both                                       |
 | [0010](0010-input-queue.md)                            | Accepted (amended by 0012)                               | The entry screen is a queue of folders and comic files                                |
-| [0011](0011-kcc-default-options.md)                    | Accepted                                                 | The mangapress options start where Kindle Comic Converter's window starts             |
+| [0011](0011-kcc-default-options.md)                    | Accepted (amended by 0014)                               | The mangapress options start where Kindle Comic Converter's window starts             |
 | [0012](0012-libraries-in-the-queue.md)                 | Accepted                                                 | A library is a row in the queue, read as one and named by session, never by path      |
-| [0013](0013-online-sources-for-volume-data.md)         | Accepted                                                 | Online sources for volume data: a fixed list, none chosen, MangaDex first, credited   |
+| [0013](0013-online-sources-for-volume-data.md)         | Accepted (amended by 0014)                               | Online sources for volume data: a fixed list, none chosen, MangaDex first, credited   |
+| [0014](0014-persisted-settings-and-reset.md)           | Accepted                                                 | Options are kept between sessions, and can be put back to their defaults              |

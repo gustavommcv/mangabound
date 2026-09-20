@@ -126,6 +126,7 @@ const base: QueueScreenProps = {
   onMode: () => undefined,
   onOpenOptions: () => undefined,
   onRemove: () => undefined,
+  onReset: () => undefined,
   onValidate: () => undefined,
   profiles: [
     {
@@ -198,6 +199,15 @@ export const JoinOnly: Story = {
 
 export const ConvertOnly: Story = {
   args: { rows, mode: 'convert-only' },
+};
+
+/** Options that were changed, and kept: the button that puts them back is live. */
+export const OptionsChanged: Story = {
+  args: {
+    rows,
+    format: 'pdf',
+    settings: { ...defaultMangapressSettings, deviceProfile: 'KoAO', upscale: false },
+  },
 };
 
 export const OnlyComicFiles: Story = {

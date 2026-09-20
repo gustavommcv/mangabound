@@ -33,6 +33,13 @@ test.describe('at the size the window opens at', () => {
     await expect(page.locator('#storybook-root')).toHaveScreenshot('queue-join-only.png');
   });
 
+  test('a queue whose options were changed remains visually consistent', async ({ page }) => {
+    await page.goto('/iframe.html?id=workflows-queue--options-changed&viewMode=story');
+    await expect(page.getByRole('button', { name: 'Reset to defaults' })).toBeVisible();
+    await page.evaluate(async () => document.fonts.ready);
+    await expect(page.locator('#storybook-root')).toHaveScreenshot('queue-options-changed.png');
+  });
+
   test('validated plan remains visually consistent', async ({ page }) => {
     await page.goto('/iframe.html?id=workflows-queue--plan-validated&viewMode=story');
     await expect(page.getByRole('heading', { name: 'Plan validated' })).toBeVisible();
@@ -110,6 +117,22 @@ test('the share panel remains visually consistent', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Share via OPDS' })).toBeVisible();
   await page.evaluate(async () => document.fonts.ready);
   await expect(page.locator('#storybook-root')).toHaveScreenshot('share-panel.png');
+});
+
+test('the question before options are reset remains visually consistent', async ({ page }) => {
+  await page.goto('/iframe.html?id=workflows-reset-options--asking-to-confirm&viewMode=story');
+  await expect(page.getByRole('group', { name: 'Confirm reset' })).toBeVisible();
+  await page.evaluate(async () => document.fonts.ready);
+  await expect(page.locator('#storybook-root')).toHaveScreenshot('reset-options-confirm.png');
+});
+
+test('the notices remain visually consistent', async ({ page }) => {
+  await page.goto(
+    '/iframe.html?id=workflows-notices--saved-settings-could-not-be-used&viewMode=story',
+  );
+  await expect(page.getByRole('status', { name: 'Notices' })).toBeVisible();
+  await page.evaluate(async () => document.fonts.ready);
+  await expect(page.locator('#storybook-root')).toHaveScreenshot('notices.png');
 });
 
 test('the process steps remain visually consistent', async ({ page }) => {

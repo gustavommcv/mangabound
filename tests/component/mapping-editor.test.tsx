@@ -164,6 +164,75 @@ describe('mapping editor', () => {
     expect(within(chapterTwoRow!).getByText('Volume 2')).toBeVisible();
   });
 
+  it('says what the number beside Add is, and what Split before does with it', async () => {
+    const user = userEvent.setup();
+    render(
+      <MappingEditor
+        initialDraft={createMappingDraft({
+          mangaTitle: 'Eleven Volumes',
+          chapters,
+          volumes: [
+            { id: 'volume-1', number: '1', chapterIds: ['chapter-1', 'chapter-2'] },
+            { id: 'volume-11', number: '11', chapterIds: ['chapter-3'] },
+          ],
+        })}
+      />,
+    );
+
+    // The box holds the number the next volume will get: one above the highest so far.
+    const newNumber = screen.getByLabelText('New volume number');
+    expect(newNumber).toHaveValue('12');
+    // It is a visible label, not one only a screen reader gets, and the text beside it explains both controls.
+    expect(screen.getByText('New volume number')).not.toHaveClass('sr-only');
+    expect(newNumber).toHaveAccessibleDescription(
+      /Add creates an empty volume with the number in the box, which counts up by itself\..*Split before moves the chosen chapter and every one after it into a new volume, numbered one above the highest so far/u,
+    );
+
+    // Split before cuts the volume before the chosen chapter and gives the rest that next number.
+    await user.click(screen.getByRole('button', { name: 'Split volume 1' }));
+    expect(
+      screen
+        .getAllByLabelText(/^Volume number for volume/u)
+        .map((input) => (input as HTMLInputElement).value),
+    ).toEqual(['1', '12', '11']);
+
+    // The split took 12, so the box moves on: adding now cannot make a second volume 12.
+    expect(newNumber).toHaveValue('13');
+
+    // Add uses the box, and the box counts up by itself.
+    await user.click(screen.getByRole('button', { name: 'Add volume' }));
+    expect(screen.getByLabelText('Volume number for volume 13')).toBeVisible();
+    expect(newNumber).toHaveValue('14');
+    expect(
+      screen
+        .getAllByLabelText(/^Volume number for volume/u)
+        .map((input) => (input as HTMLInputElement).value),
+    ).toEqual(['1', '12', '11', '13']);
+  });
+
+  it('leaves the number in the box alone when a split is refused', async () => {
+    const user = userEvent.setup();
+    render(
+      <MappingEditor
+        initialDraft={createMappingDraft({
+          mangaTitle: 'One Volume',
+          chapters,
+          volumes: [{ id: 'volume-1', number: '1', chapterIds: ['chapter-1', 'chapter-2'] }],
+        })}
+      />,
+    );
+    // The chapter chosen to split before is gone from the volume by the time the button is pressed.
+    const select = screen.getByLabelText('Split before');
+    Object.defineProperty(select, 'value', { configurable: true, value: 'chapter-1' });
+
+    await user.click(screen.getByRole('button', { name: 'Split volume 1' }));
+
+    expect(screen.getByLabelText('New volume number')).toHaveValue('2');
+    expect(
+      screen.getByText('A split must leave at least one chapter in each volume.'),
+    ).toBeVisible();
+  });
+
   it('assigns an inclusive range and exposes split, merge, and validation states accessibly', async () => {
     const user = userEvent.setup();
     render(

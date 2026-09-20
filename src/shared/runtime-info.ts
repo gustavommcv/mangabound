@@ -1,4 +1,5 @@
 import type { NetworkInterfaceOption, OpdsAuthConfig, OpdsSharingStatus } from './opds-contract';
+import type { RestoredSettings, SaveSettingsCommand } from './settings-contract';
 import type { ToolchainStatus } from './toolchain-status';
 import type {
   ArtifactSummary,
@@ -86,4 +87,8 @@ export interface MangaboundBridge {
   ) => Promise<WorkflowResult<OpdsSharingStatus>>;
   readonly stopSharing: () => Promise<WorkflowResult<undefined>>;
   readonly getSharingStatus: () => Promise<WorkflowResult<OpdsSharingStatus>>;
+  /** The options kept from the last session, and the output folder when it is still there. */
+  readonly loadSettings: () => Promise<WorkflowResult<RestoredSettings>>;
+  /** Keeps the options. The output folder is named by the id it was given, never by a path. */
+  readonly saveSettings: (command: SaveSettingsCommand) => Promise<WorkflowResult<undefined>>;
 }
