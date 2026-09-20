@@ -108,6 +108,11 @@ textarea {
   height: env(titlebar-area-height, 3rem);
 }
 
+/* What sits on the bar is clicked, not dragged: only the empty part of the bar moves the window. */
+.window-titlebar-actions {
+  -webkit-app-region: no-drag;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

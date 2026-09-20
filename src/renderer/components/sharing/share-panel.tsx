@@ -1,10 +1,11 @@
-import { RadioTower } from 'lucide-react';
+import { Copy, RadioTower } from 'lucide-react';
 import { useState } from 'react';
 
 import { Button } from '@/renderer/components/ui/button';
 import { Input } from '@/renderer/components/ui/input';
 import { Label } from '@/renderer/components/ui/label';
 import { NativeSelect } from '@/renderer/components/ui/native-select';
+import { catalogAddress } from '@/renderer/lib/sharing';
 import type {
   NetworkInterfaceOption,
   OpdsAuthConfig,
@@ -21,6 +22,10 @@ export interface SharePanelProps {
   readonly onStop: () => void;
 }
 
+/**
+ * The one place sharing is set up, started and stopped (ADR 0016). It opens from the title bar
+ * whenever it is wanted, and from the results screen with the books just saved already chosen.
+ */
 export function SharePanel({
   library,
   interfaces,
@@ -33,6 +38,7 @@ export function SharePanel({
   const [authMode, setAuthMode] = useState<'token' | 'basic'>('token');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [copied, setCopied] = useState(false);
 
   const selectedInterfaceAddress =
     interfaceAddress === '' ? (interfaces[0]?.address ?? '') : interfaceAddress;
@@ -40,39 +46,52 @@ export function SharePanel({
     library !== undefined &&
     selectedInterfaceAddress !== '' &&
     (authMode === 'token' || (username.trim() !== '' && password !== ''));
-  const shareUrl =
-    status.active && status.url !== undefined
-      ? status.authMode === 'token' && status.token !== undefined
-        ? `${status.url}/?token=${status.token}`
-        : status.url
-      : undefined;
+  const address = catalogAddress(status) ?? '';
 
   return (
     <section
       aria-labelledby="share-title"
       className="border-border bg-surface rounded-xl border p-5"
     >
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 pr-10">
         <RadioTower aria-hidden="true" className="text-accent size-4 shrink-0" />
         <h2 className="text-sm font-semibold" id="share-title">
-          Share via OPDS
+          Share to your e-reader
         </h2>
       </div>
       <p className="text-muted-foreground mt-1 text-xs">
-        Serve a newest-first catalog on your network so KOReader, or any OPDS reader, can browse and
+        Serves a newest-first catalog on your network, so KOReader or any OPDS reader can browse and
         download what you&apos;ve converted.
       </p>
 
       {status.active ? (
         <div className="mt-4 space-y-3">
           <div>
-            <Label className="sr-only" htmlFor="share-url">
-              Catalog URL
-            </Label>
-            <Input id="share-url" readOnly value={shareUrl ?? ''} />
+            <Label htmlFor="share-url">Catalog address</Label>
+            <div className="mt-1.5 flex gap-2">
+              <Input id="share-url" readOnly value={address} />
+              <Button
+                aria-label="Copy the address"
+                onClick={() => {
+                  void navigator.clipboard.writeText(address).then(
+                    () => {
+                      setCopied(true);
+                    },
+                    () => {
+                      setCopied(false);
+                    },
+                  );
+                }}
+                size="sm"
+                variant="outline"
+              >
+                <Copy /> {copied ? 'Copied' : 'Copy'}
+              </Button>
+            </div>
           </div>
-          <p className="text-muted-foreground text-xs">
-            Add this address as a catalog in your OPDS reader.
+          <p className="text-subtle-foreground text-xs">
+            In KOReader: Search, then OPDS catalog, then add this address. Keep Mangabound open
+            while it syncs.
           </p>
           <Button onClick={onStop} size="sm" variant="outline">
             Stop sharing

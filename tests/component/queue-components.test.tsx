@@ -1,10 +1,10 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { LibraryTitle } from '@/domain/input-queue';
 import { createMappingDraft } from '@/domain/mapping';
-import { KoreaderCard } from '@/renderer/components/sharing/koreader-card';
+import { SendToKoreader } from '@/renderer/components/sharing/send-to-koreader';
 import { SegmentedControl } from '@/renderer/components/ui/segmented-control';
 import { LibraryScreen } from '@/renderer/screens/library-screen';
 import { formatBytes, ResultsScreen, type RunOutcome } from '@/renderer/screens/results-screen';
@@ -76,73 +76,27 @@ describe('SegmentedControl', () => {
   });
 });
 
-describe('KoreaderCard', () => {
-  const wifi = { name: 'Wi-Fi', address: '192.168.1.24' };
-  const ethernet = { name: 'Ethernet', address: '10.0.0.7' };
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it('starts sharing on the only network without asking which one', async () => {
+describe('SendToKoreader', () => {
+  it('offers to share the books just saved, and has no controls of its own', async () => {
     const user = userEvent.setup();
-    const onStart = vi.fn();
-    render(
-      <KoreaderCard
-        interfaces={[wifi]}
-        onStart={onStart}
-        onStop={vi.fn()}
-        status={{ active: false }}
-      />,
-    );
+    const onOpen = vi.fn();
+    render(<SendToKoreader onOpen={onOpen} status={{ active: false }} />);
 
-    expect(screen.queryByLabelText('Network')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Start sharing' }));
-
-    expect(onStart).toHaveBeenCalledWith('192.168.1.24');
-  });
-
-  it('lets the network be chosen when there are several', async () => {
-    const user = userEvent.setup();
-    const onStart = vi.fn();
-    render(
-      <KoreaderCard
-        interfaces={[wifi, ethernet]}
-        onStart={onStart}
-        onStop={vi.fn()}
-        status={{ active: false }}
-      />,
-    );
-
-    await user.selectOptions(screen.getByLabelText('Network'), '10.0.0.7');
-    await user.click(screen.getByRole('button', { name: 'Start sharing' }));
-
-    expect(onStart).toHaveBeenCalledWith('10.0.0.7');
-  });
-
-  it('says so when there is no network to share on', () => {
-    render(
-      <KoreaderCard
-        interfaces={[]}
-        onStart={vi.fn()}
-        onStop={vi.fn()}
-        status={{ active: false }}
-      />,
-    );
-
-    expect(screen.getByText(/No local network address was found/u)).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Send to KOReader' })).toBeVisible();
+    expect(screen.queryByText('Sharing')).not.toBeInTheDocument();
+    // Setting up, starting and stopping live in the Share panel: this only takes a person there.
     expect(screen.queryByRole('button', { name: 'Start sharing' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Stop sharing' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Share these books' }));
+    expect(onOpen).toHaveBeenCalledOnce();
   });
 
-  it('shows the address with its token, copies it and stops on request', async () => {
+  it('says that sharing is on, and offers to show it instead', async () => {
     const user = userEvent.setup();
-    const onStop = vi.fn();
-    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
+    const onOpen = vi.fn();
     render(
-      <KoreaderCard
-        interfaces={[wifi]}
-        onStart={vi.fn()}
-        onStop={onStop}
+      <SendToKoreader
+        onOpen={onOpen}
         status={{
           active: true,
           url: 'http://192.168.1.24:8080/opds',
@@ -152,33 +106,10 @@ describe('KoreaderCard', () => {
       />,
     );
 
-    const address = 'http://192.168.1.24:8080/opds/?token=abc123';
-    expect(screen.getByLabelText('Address')).toHaveValue(address);
     expect(screen.getByText('Sharing')).toBeVisible();
-    await user.click(screen.getByRole('button', { name: 'Copy the address' }));
-    expect(writeText).toHaveBeenCalledWith(address);
-    expect(await screen.findByText('Copied')).toBeVisible();
-
-    await user.click(screen.getByRole('button', { name: 'Stop sharing' }));
-    expect(onStop).toHaveBeenCalledOnce();
-  });
-
-  it('shows the plain address when sharing needs no token, and copes with a refused copy', async () => {
-    const user = userEvent.setup();
-    vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValue(new Error('denied'));
-    render(
-      <KoreaderCard
-        interfaces={[wifi]}
-        onStart={vi.fn()}
-        onStop={vi.fn()}
-        status={{ active: true, url: 'http://192.168.1.24:8080/opds', authMode: 'basic' }}
-      />,
-    );
-
-    expect(screen.getByLabelText('Address')).toHaveValue('http://192.168.1.24:8080/opds');
-    await user.click(screen.getByRole('button', { name: 'Copy the address' }));
-    expect(screen.getByRole('button', { name: 'Copy the address' })).toHaveTextContent('Copy');
-    expect(screen.queryByText('Copied')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Share these books' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Show sharing' }));
+    expect(onOpen).toHaveBeenCalledOnce();
   });
 });
 

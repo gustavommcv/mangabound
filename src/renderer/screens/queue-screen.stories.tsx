@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { expect, userEvent, within } from 'storybook/test';
 
 import type { QueueRow } from '@/domain/input-queue';
 import { createMappingDraft } from '@/domain/mapping';
@@ -172,6 +173,16 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Empty: Story = {};
+
+/** A click on the empty area opens a menu of the two choices, files or a folder. */
+export const EmptyChoosing: Story = {
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByTestId('drop-target'));
+    // The menu is drawn at the end of the page, not inside the story's own root.
+    const menu = await within(document.body).findByRole('menu');
+    await expect(within(menu).getByRole('menuitem', { name: 'Choose a folder' })).toBeVisible();
+  },
+};
 
 export const WithItems: Story = {
   args: { rows },

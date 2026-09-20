@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 
-import { KoreaderCard } from '@/renderer/components/sharing/koreader-card';
+import { SendToKoreader } from '@/renderer/components/sharing/send-to-koreader';
 
 import { ResultsScreen, type ResultsScreenProps } from './results-screen';
 
@@ -57,28 +57,17 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const networks = [{ name: 'Wi-Fi', address: '192.168.1.24' }];
-
 export const Saved: Story = {
   args: {
-    aside: (
-      <KoreaderCard
-        interfaces={networks}
-        onStart={() => undefined}
-        onStop={() => undefined}
-        status={{ active: false }}
-      />
-    ),
+    aside: <SendToKoreader onOpen={() => undefined} status={{ active: false }} />,
   },
 };
 
 export const SavedAndSharing: Story = {
   args: {
     aside: (
-      <KoreaderCard
-        interfaces={networks}
-        onStart={() => undefined}
-        onStop={() => undefined}
+      <SendToKoreader
+        onOpen={() => undefined}
         status={{
           active: true,
           url: 'http://192.168.1.24:8080/opds',
@@ -108,18 +97,5 @@ export const NothingSaved: Story = {
         message: 'mangapress crashed while processing pages.',
       },
     ],
-  },
-};
-
-export const NoNetworkToShareOn: Story = {
-  args: {
-    aside: (
-      <KoreaderCard
-        interfaces={[]}
-        onStart={() => undefined}
-        onStop={() => undefined}
-        status={{ active: false }}
-      />
-    ),
   },
 };

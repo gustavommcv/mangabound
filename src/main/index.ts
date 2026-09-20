@@ -770,7 +770,9 @@ const createMainWindow = (): BrowserWindow => {
   > =
     process.platform === 'darwin'
       ? { trafficLightPosition: { x: 16, y: 16 } }
-      : { titleBarOverlay: { color: '#121214', height: 48, symbolColor: '#e8e8eb' } };
+      : // The overlay is the window's own buttons, drawn over the top 48px: the same height as the
+        // title bar in the page, which draws no line of its own for that reason (see Titlebar).
+        { titleBarOverlay: { color: '#121214', height: 48, symbolColor: '#e8e8eb' } };
   const window = new BrowserWindow({
     // Electron cannot read CSS variables: these hex values are the theme's --background and
     // --foreground from src/renderer/styles.css. Keep them in step.

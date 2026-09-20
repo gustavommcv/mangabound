@@ -41,8 +41,10 @@ import { MappingEditor } from '@/renderer/components/mapping/mapping-editor';
 import { Notices } from '@/renderer/components/shared/notices';
 import { MangapressSettingsEditor } from '@/renderer/components/settings/mangapress-settings';
 import { ResetOptions } from '@/renderer/components/settings/reset-options';
-import { KoreaderCard } from '@/renderer/components/sharing/koreader-card';
+import { SendToKoreader } from '@/renderer/components/sharing/send-to-koreader';
 import { SharePanel } from '@/renderer/components/sharing/share-panel';
+import { ShareMenu } from '@/renderer/components/sharing/share-menu';
+import { Titlebar } from '@/renderer/components/shell/titlebar';
 import { Button } from '@/renderer/components/ui/button';
 import { LibraryScreen } from '@/renderer/screens/library-screen';
 import { QueueScreen, type RowPlan } from '@/renderer/screens/queue-screen';
@@ -732,15 +734,20 @@ export function App(): React.JSX.Element {
     else if (result.value !== null) setSharedLibrary(result.value);
   };
 
-  const startSharing = async (
-    interfaceAddress: string,
-    auth: OpdsAuthConfig,
-    target: SelectedLibrary | undefined = sharedLibrary,
-  ): Promise<void> => {
-    if (bridge === undefined || target === undefined) return;
-    const result = await bridge.startSharing(target.libraryId, interfaceAddress, auth);
+  const startSharing = async (interfaceAddress: string, auth: OpdsAuthConfig): Promise<void> => {
+    if (bridge === undefined || sharedLibrary === undefined) return;
+    const result = await bridge.startSharing(sharedLibrary.libraryId, interfaceAddress, auth);
     if (!result.ok) setFailure(result.error);
     else setSharingStatus(result.value);
+  };
+
+  /**
+   * Opens the Share panel from the results screen with the books just saved chosen. Sharing that is
+   * already on keeps serving what it serves: changing it is what Stop sharing is for.
+   */
+  const shareSavedBooks = (saved: SelectedLibrary): void => {
+    if (!sharingStatus.active) setSharedLibrary(saved);
+    setSharePanelOpen(true);
   };
 
   const stopSharing = async (): Promise<void> => {
@@ -790,293 +797,270 @@ export function App(): React.JSX.Element {
     settings.deviceProfile;
 
   return (
-    <div className="bg-background text-foreground min-h-screen">
-      <Titlebar runtime={bridge?.runtime} />
-      {bridge === undefined ? (
-        <Foundation toolchain={toolchain} />
-      ) : (
-        <main className="mx-auto max-w-6xl px-8 py-10">
-          <ToolchainBanner toolchain={toolchain} />
-          <div className="mb-8 space-y-3">
-            <div className="flex justify-end">
-              <Button
-                onClick={() => {
-                  setSharePanelOpen((open) => !open);
-                }}
-                size="sm"
-                variant="outline"
-              >
-                <RadioTower /> {sharingStatus.active ? 'Sharing active' : 'Share'}
-              </Button>
-            </div>
-            {sharePanelOpen && (
-              <SharePanel
-                interfaces={interfaces}
-                library={sharedLibrary}
-                onChooseLibrary={() => {
-                  void chooseSharedLibrary();
-                }}
-                onStart={(interfaceAddress, auth) => {
-                  void startSharing(interfaceAddress, auth);
-                }}
-                onStop={() => {
-                  void stopSharing();
-                }}
-                status={sharingStatus}
-              />
-            )}
-          </div>
-          <Notices
-            notices={notices}
-            onDismiss={() => {
-              setNotices([]);
-            }}
-          />
-          {failure !== undefined && <IssueCallout failure={failure} />}
-          {step === 'queue' && (
-            <QueueScreen
-              disabled={toolchain?.state !== 'ready'}
-              format={format}
-              {...(library === undefined ? {} : { library })}
-              mode={mode}
-              onAddFiles={() => {
-                void addFromDialog('files');
-              }}
-              onAddFolders={() => {
-                void addFromDialog('folders');
-              }}
+    // The title bar stays where it is and only what is under it scrolls (ADR 0016).
+    <div className="bg-background text-foreground flex h-screen flex-col">
+      <Titlebar desktop={bridge !== undefined} platform={bridge?.runtime.platform}>
+        {bridge !== undefined && (
+          <ShareMenu
+            onOpenChange={setSharePanelOpen}
+            open={sharePanelOpen}
+            sharing={sharingStatus.active}
+          >
+            <SharePanel
+              interfaces={interfaces}
+              library={sharedLibrary}
               onChooseLibrary={() => {
-                void chooseLibrary();
+                void chooseSharedLibrary();
               }}
-              onClear={() => {
-                removeRows(rows.map((row) => row.id));
+              onStart={(interfaceAddress, auth) => {
+                void startSharing(interfaceAddress, auth);
               }}
-              onConvert={() => {
-                void startRun();
+              onStop={() => {
+                void stopSharing();
               }}
-              onDeviceProfile={(code) => {
-                setSettings((current) => withDeviceProfile(current, code));
-              }}
-              onDismissRejected={() => {
-                setRejected([]);
-              }}
-              onDropFiles={(files) => {
-                void addDropped(files);
-              }}
-              onEdit={openEditor}
-              onFormat={setFormat}
-              onMode={setMode}
-              onOpenOptions={() => {
-                setStep('options');
-              }}
-              onRemove={(id) => {
-                removeRows([id]);
-              }}
-              onReset={resetAll}
-              onValidate={() => {
-                void validatePlans();
-              }}
-              {...(plans === undefined ? {} : { plans })}
-              profiles={profiles}
-              rejected={rejected}
-              rows={rows}
-              settings={settings}
-              validating={validating}
+              status={sharingStatus}
             />
-          )}
-          {step === 'options' && (
-            <section className="mx-auto max-w-5xl space-y-6" aria-labelledby="options-title">
-              <Button
-                onClick={() => {
-                  setStep('queue');
-                }}
-                variant="ghost"
-              >
-                <ArrowLeft /> Back
-              </Button>
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <p className="text-muted-foreground text-xs font-medium">Advanced</p>
-                  <h1 className="mt-2 text-3xl font-semibold tracking-tight" id="options-title">
-                    mangapress options
-                  </h1>
-                  <p className="text-muted-foreground mt-3 text-sm">
-                    Every setting mangapress supports. They apply to everything in the queue, and
-                    are kept for next time.
-                  </p>
-                </div>
-                <div className="w-72 shrink-0">
-                  <ResetOptions
-                    changed={!isDefaultMangapress(format, settings)}
-                    onReset={resetMangapress}
-                    scope="the device, format and every mangapress option"
-                  />
-                </div>
-              </div>
-              <MangapressSettingsEditor
+          </ShareMenu>
+        )}
+      </Titlebar>
+      {/* The line under the bar is this area's top edge: see Titlebar for why it is not the bar's. */}
+      <div className="border-border min-h-0 flex-1 overflow-y-auto border-t">
+        {bridge === undefined ? (
+          <Foundation toolchain={toolchain} />
+        ) : (
+          <main className="mx-auto max-w-6xl px-8 py-10">
+            <ToolchainBanner toolchain={toolchain} />
+            <Notices
+              notices={notices}
+              onDismiss={() => {
+                setNotices([]);
+              }}
+            />
+            {failure !== undefined && <IssueCallout failure={failure} />}
+            {step === 'queue' && (
+              <QueueScreen
+                disabled={toolchain?.state !== 'ready'}
                 format={format}
+                {...(library === undefined ? {} : { library })}
+                mode={mode}
+                onAddFiles={() => {
+                  void addFromDialog('files');
+                }}
+                onAddFolders={() => {
+                  void addFromDialog('folders');
+                }}
+                onChooseLibrary={() => {
+                  void chooseLibrary();
+                }}
+                onClear={() => {
+                  removeRows(rows.map((row) => row.id));
+                }}
+                onConvert={() => {
+                  void startRun();
+                }}
+                onDeviceProfile={(code) => {
+                  setSettings((current) => withDeviceProfile(current, code));
+                }}
+                onDismissRejected={() => {
+                  setRejected([]);
+                }}
+                onDropFiles={(files) => {
+                  void addDropped(files);
+                }}
+                onEdit={openEditor}
                 onFormat={setFormat}
-                onSettings={setSettings}
+                onMode={setMode}
+                onOpenOptions={() => {
+                  setStep('options');
+                }}
+                onRemove={(id) => {
+                  removeRows([id]);
+                }}
+                onReset={resetAll}
+                onValidate={() => {
+                  void validatePlans();
+                }}
+                {...(plans === undefined ? {} : { plans })}
                 profiles={profiles}
+                rejected={rejected}
+                rows={rows}
                 settings={settings}
+                validating={validating}
               />
-            </section>
-          )}
-          {step === 'editing' &&
-            editingRow?.state === 'inspected' &&
-            editingRow.mapping !== undefined && (
-              <div className="space-y-4">
+            )}
+            {step === 'options' && (
+              <section className="mx-auto max-w-5xl space-y-6" aria-labelledby="options-title">
                 <Button
                   onClick={() => {
                     setStep('queue');
                   }}
                   variant="ghost"
                 >
-                  <ChevronLeft /> Queue
+                  <ArrowLeft /> Back
                 </Button>
-                <MappingEditor
-                  initialDraft={editingRow.mapping}
-                  metadataProviders={metadataProviders}
-                  onConfirm={(_metadata, draft) => {
-                    dispatch({ type: 'confirm-mapping', id: editingRow.id, mapping: draft });
-                    setStep('queue');
-                  }}
-                  onOpenProviderHomepage={openProviderHomepage}
-                  onSearchMetadata={searchMetadata}
-                  onSelectProvider={setSelectedProviderId}
-                  onSkipGrouping={() => {
-                    setMode('convert-only');
-                    setStep('queue');
-                  }}
-                  onSuggestVolumes={suggestVolumes}
-                  selectedProviderId={activeProviderId}
-                  startedFrom={
-                    editingRow.proposedSignature !== undefined &&
-                    editingRow.mapping.volumes.length > 0 &&
-                    mappingSignature(editingRow.mapping) === editingRow.proposedSignature
-                      ? 'mangabind'
-                      : undefined
-                  }
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <p className="text-muted-foreground text-xs font-medium">Advanced</p>
+                    <h1 className="mt-2 text-3xl font-semibold tracking-tight" id="options-title">
+                      mangapress options
+                    </h1>
+                    <p className="text-muted-foreground mt-3 text-sm">
+                      Every setting mangapress supports. They apply to everything in the queue, and
+                      are kept for next time.
+                    </p>
+                  </div>
+                  <div className="w-72 shrink-0">
+                    <ResetOptions
+                      changed={!isDefaultMangapress(format, settings)}
+                      onReset={resetMangapress}
+                      scope="the device, format and every mangapress option"
+                    />
+                  </div>
+                </div>
+                <MangapressSettingsEditor
+                  format={format}
+                  onFormat={setFormat}
+                  onSettings={setSettings}
+                  profiles={profiles}
+                  settings={settings}
                 />
-              </div>
+              </section>
             )}
-          {step === 'library' &&
-            editingRow?.state === 'inspected' &&
-            editingRow.titles !== undefined && (
-              <LibraryScreen
-                name={editingRow.displayName}
+            {step === 'editing' &&
+              editingRow?.state === 'inspected' &&
+              editingRow.mapping !== undefined && (
+                <div className="space-y-4">
+                  <Button
+                    onClick={() => {
+                      setStep('queue');
+                    }}
+                    variant="ghost"
+                  >
+                    <ChevronLeft /> Queue
+                  </Button>
+                  <MappingEditor
+                    initialDraft={editingRow.mapping}
+                    metadataProviders={metadataProviders}
+                    onConfirm={(_metadata, draft) => {
+                      dispatch({ type: 'confirm-mapping', id: editingRow.id, mapping: draft });
+                      setStep('queue');
+                    }}
+                    onOpenProviderHomepage={openProviderHomepage}
+                    onSearchMetadata={searchMetadata}
+                    onSelectProvider={setSelectedProviderId}
+                    onSkipGrouping={() => {
+                      setMode('convert-only');
+                      setStep('queue');
+                    }}
+                    onSuggestVolumes={suggestVolumes}
+                    selectedProviderId={activeProviderId}
+                    startedFrom={
+                      editingRow.proposedSignature !== undefined &&
+                      editingRow.mapping.volumes.length > 0 &&
+                      mappingSignature(editingRow.mapping) === editingRow.proposedSignature
+                        ? 'mangabind'
+                        : undefined
+                    }
+                  />
+                </div>
+              )}
+            {step === 'library' &&
+              editingRow?.state === 'inspected' &&
+              editingRow.titles !== undefined && (
+                <LibraryScreen
+                  name={editingRow.displayName}
+                  onBack={() => {
+                    setStep('queue');
+                  }}
+                  onEdit={(title) => {
+                    setEditingTitle(title);
+                    setStep('editing-title');
+                  }}
+                  titles={editingRow.titles}
+                />
+              )}
+            {step === 'editing-title' &&
+              editingRow?.state === 'inspected' &&
+              editingTitleEntry !== undefined && (
+                <div className="space-y-4">
+                  <Button
+                    onClick={() => {
+                      setStep('library');
+                    }}
+                    variant="ghost"
+                  >
+                    <ChevronLeft /> {editingRow.displayName}
+                  </Button>
+                  <MappingEditor
+                    initialDraft={editingTitleEntry.draft}
+                    key={editingTitleEntry.title}
+                    metadataProviders={metadataProviders}
+                    onConfirm={(_metadata, draft) => {
+                      void confirmTitleMapping(editingRow, editingTitleEntry.title, draft);
+                    }}
+                    onOpenProviderHomepage={openProviderHomepage}
+                    onSearchMetadata={searchMetadata}
+                    onSelectProvider={setSelectedProviderId}
+                    onSuggestVolumes={suggestVolumes}
+                    selectedProviderId={activeProviderId}
+                    startedFrom={
+                      editingTitleEntry.draft.volumes.length > 0 ? 'mangabind' : undefined
+                    }
+                  />
+                </div>
+              )}
+            {step === 'running' && (
+              <RunningScreen
+                onCancel={() => {
+                  void cancelConversion();
+                }}
+                {...(progress === undefined ? {} : { progress })}
+                {...(runPosition === undefined ? {} : { position: runPosition })}
+              />
+            )}
+            {step === 'results' && (
+              <ResultsScreen
+                aside={
+                  outcomes.some((outcome) => outcome.artifacts.length > 0) &&
+                  library !== undefined ? (
+                    <SendToKoreader
+                      onOpen={() => {
+                        shareSavedBooks(library);
+                      }}
+                      status={sharingStatus}
+                    />
+                  ) : undefined
+                }
                 onBack={() => {
+                  setOutcomes([]);
                   setStep('queue');
                 }}
-                onEdit={(title) => {
-                  setEditingTitle(title);
-                  setStep('editing-title');
+                onFix={(rowId) => {
+                  setOutcomes([]);
+                  openEditor(rowId);
                 }}
-                titles={editingRow.titles}
+                onOpen={(artifactId) => {
+                  if (bridge.openArtifact !== undefined) {
+                    void runArtifactAction(bridge.openArtifact, artifactId);
+                  }
+                }}
+                onShow={(artifactId) => {
+                  if (bridge.showArtifactInFolder !== undefined) {
+                    void runArtifactAction(bridge.showArtifactInFolder, artifactId);
+                  }
+                }}
+                outcomes={outcomes}
+                summary={
+                  mode === 'bind-only'
+                    ? `Joined volumes · CBZ · ${library?.displayPath ?? ''}`
+                    : `${deviceName} · ${format.toUpperCase()} · ${library?.displayPath ?? ''}`
+                }
               />
             )}
-          {step === 'editing-title' &&
-            editingRow?.state === 'inspected' &&
-            editingTitleEntry !== undefined && (
-              <div className="space-y-4">
-                <Button
-                  onClick={() => {
-                    setStep('library');
-                  }}
-                  variant="ghost"
-                >
-                  <ChevronLeft /> {editingRow.displayName}
-                </Button>
-                <MappingEditor
-                  initialDraft={editingTitleEntry.draft}
-                  key={editingTitleEntry.title}
-                  metadataProviders={metadataProviders}
-                  onConfirm={(_metadata, draft) => {
-                    void confirmTitleMapping(editingRow, editingTitleEntry.title, draft);
-                  }}
-                  onOpenProviderHomepage={openProviderHomepage}
-                  onSearchMetadata={searchMetadata}
-                  onSelectProvider={setSelectedProviderId}
-                  onSuggestVolumes={suggestVolumes}
-                  selectedProviderId={activeProviderId}
-                  startedFrom={editingTitleEntry.draft.volumes.length > 0 ? 'mangabind' : undefined}
-                />
-              </div>
-            )}
-          {step === 'running' && (
-            <RunningScreen
-              onCancel={() => {
-                void cancelConversion();
-              }}
-              {...(progress === undefined ? {} : { progress })}
-              {...(runPosition === undefined ? {} : { position: runPosition })}
-            />
-          )}
-          {step === 'results' && (
-            <ResultsScreen
-              aside={
-                outcomes.some((outcome) => outcome.artifacts.length > 0) &&
-                library !== undefined ? (
-                  <KoreaderCard
-                    interfaces={interfaces}
-                    onStart={(interfaceAddress) => {
-                      setSharedLibrary(library);
-                      void startSharing(interfaceAddress, { mode: 'token' }, library);
-                    }}
-                    onStop={() => {
-                      void stopSharing();
-                    }}
-                    status={sharingStatus}
-                  />
-                ) : undefined
-              }
-              onBack={() => {
-                setOutcomes([]);
-                setStep('queue');
-              }}
-              onFix={(rowId) => {
-                setOutcomes([]);
-                openEditor(rowId);
-              }}
-              onOpen={(artifactId) => {
-                if (bridge.openArtifact !== undefined) {
-                  void runArtifactAction(bridge.openArtifact, artifactId);
-                }
-              }}
-              onShow={(artifactId) => {
-                if (bridge.showArtifactInFolder !== undefined) {
-                  void runArtifactAction(bridge.showArtifactInFolder, artifactId);
-                }
-              }}
-              outcomes={outcomes}
-              summary={
-                mode === 'bind-only'
-                  ? `Joined volumes · CBZ · ${library?.displayPath ?? ''}`
-                  : `${deviceName} · ${format.toUpperCase()} · ${library?.displayPath ?? ''}`
-              }
-            />
-          )}
-        </main>
-      )}
-    </div>
-  );
-}
-
-function Titlebar({
-  runtime,
-}: {
-  readonly runtime?: { readonly platform: string };
-}): React.JSX.Element {
-  return (
-    <header className="window-titlebar border-border bg-titlebar border-b">
-      <div className="window-titlebar-content flex items-center gap-3 px-4">
-        <span aria-hidden="true" className="bg-accent size-2 rounded-full" />
-        <span className="text-sm font-semibold tracking-tight">Mangabound</span>
-        <span className="text-muted-foreground text-xs">
-          {runtime === undefined ? 'Foundation' : 'Desktop'}
-        </span>
+          </main>
+        )}
       </div>
-    </header>
+    </div>
   );
 }
 
