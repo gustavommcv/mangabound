@@ -174,11 +174,13 @@ type Story = StoryObj<typeof meta>;
 
 export const Empty: Story = {};
 
-/** A click on the empty area asks whether to add files or a folder. */
+/** A click on the empty area opens a menu of the two choices, files or a folder. */
 export const EmptyChoosing: Story = {
   play: async ({ canvasElement }) => {
     await userEvent.click(within(canvasElement).getByTestId('drop-target'));
-    await expect(within(canvasElement).getByRole('group', { name: 'What to add' })).toBeVisible();
+    // The menu is drawn at the end of the page, not inside the story's own root.
+    const menu = await within(document.body).findByRole('menu');
+    await expect(within(menu).getByRole('menuitem', { name: 'Choose a folder' })).toBeVisible();
   },
 };
 

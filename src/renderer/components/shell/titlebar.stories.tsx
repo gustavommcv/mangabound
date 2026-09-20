@@ -12,9 +12,11 @@ const meta = {
     (Story) => (
       <div className="bg-background text-foreground min-h-64">
         <Story />
-        <p className="text-muted-foreground px-8 py-10 text-sm">
-          The page under the bar scrolls; the bar stays where it is.
-        </p>
+        <div className="border-border border-t">
+          <p className="text-muted-foreground px-8 py-10 text-sm">
+            The page under the bar scrolls; the bar stays where it is.
+          </p>
+        </div>
       </div>
     ),
   ],

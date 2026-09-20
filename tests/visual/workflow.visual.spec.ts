@@ -12,13 +12,14 @@ test.describe('at the size the window opens at', () => {
     await expect(page.locator('#storybook-root')).toHaveScreenshot('queue-empty.png');
   });
 
-  test('the question a click on the empty queue asks remains visually consistent', async ({
+  test('the menu a click on the empty queue opens remains visually consistent', async ({
     page,
   }) => {
     await page.goto('/iframe.html?id=workflows-queue--empty-choosing&viewMode=story');
-    await expect(page.getByRole('group', { name: 'What to add' })).toBeVisible();
+    await expect(page.getByRole('menu')).toBeVisible();
     await page.evaluate(async () => document.fonts.ready);
-    await expect(page.locator('#storybook-root')).toHaveScreenshot('queue-empty-choosing.png');
+    // The menu is drawn outside the story's root, so the whole window is what is compared.
+    await expect(page).toHaveScreenshot('queue-empty-choosing.png');
   });
 
   test('a queue with items in every state remains visually consistent', async ({ page }) => {

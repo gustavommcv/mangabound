@@ -823,7 +823,8 @@ export function App(): React.JSX.Element {
           </ShareMenu>
         )}
       </Titlebar>
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      {/* The line under the bar is this area's top edge: see Titlebar for why it is not the bar's. */}
+      <div className="border-border min-h-0 flex-1 overflow-y-auto border-t">
         {bridge === undefined ? (
           <Foundation toolchain={toolchain} />
         ) : (

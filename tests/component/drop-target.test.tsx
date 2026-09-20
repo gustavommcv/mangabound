@@ -1,4 +1,4 @@
-import { createEvent, fireEvent, render, screen } from '@testing-library/react';
+import { createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -25,116 +25,193 @@ function drag(target: HTMLElement, type: 'dragEnter' | 'dragOver' | 'dragLeave' 
 }
 
 describe('DropTarget', () => {
-  it('invites a click as well as a drop, and asks what to add when clicked', async () => {
+  it('invites a click as well as a drop, and opens a menu of the two choices when clicked', async () => {
     const user = userEvent.setup();
     const { onAddFiles, onAddFolders } = renderTarget();
     const hint = screen.getByRole('button', {
       name: 'Drop manga folders, libraries or .cbz files here, or click to choose.',
     });
+    expect(hint).toHaveAttribute('aria-haspopup', 'menu');
     expect(hint).toHaveAttribute('aria-expanded', 'false');
 
     await user.click(hint);
 
     expect(hint).toHaveAttribute('aria-expanded', 'true');
-    const chooser = screen.getByRole('group', { name: 'What to add' });
-    expect(hint).toHaveAttribute('aria-controls', chooser.id);
+    const menu = await screen.findByRole('menu');
+    expect(
+      within(menu)
+        .getAllByRole('menuitem')
+        .map((item) => item.textContent?.trim()),
+    ).toEqual(['Choose files', 'Choose a folder']);
+    // Asking what to add adds nothing yet.
     expect(onAddFiles).not.toHaveBeenCalled();
     expect(onAddFolders).not.toHaveBeenCalled();
   });
 
-  it('opens the chooser from a click anywhere in the empty area, not only on the words', async () => {
+  it('opens the menu from a click anywhere in the empty area, not only on the words', async () => {
     const user = userEvent.setup();
     renderTarget();
 
     await user.click(screen.getByTestId('drop-target'));
 
-    expect(screen.getByRole('group', { name: 'What to add' })).toBeVisible();
-    await user.click(screen.getByTestId('drop-target'));
-    expect(screen.queryByRole('group', { name: 'What to add' })).not.toBeInTheDocument();
+    expect(await screen.findByRole('menu')).toBeVisible();
   });
 
-  it('asks for files, and puts the question away', async () => {
+  it('puts the menu away when the area is clicked again, and does not open it a second time', async () => {
+    const user = userEvent.setup();
+    renderTarget();
+    await user.click(screen.getByTestId('drop-target'));
+    await screen.findByRole('menu');
+
+    await user.click(screen.getByTestId('drop-target'));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    });
+    // And it opens again from the next click, as it did the first time.
+    await user.click(screen.getByTestId('drop-target'));
+    expect(await screen.findByRole('menu')).toBeVisible();
+  });
+
+  it('puts the menu away for a click somewhere else on the page, which still does its own job', async () => {
+    const user = userEvent.setup();
+    const onSomewhereElse = vi.fn();
+    render(
+      <>
+        <button onClick={onSomewhereElse} type="button">
+          Somewhere else
+        </button>
+        <DropTarget
+          disabled={false}
+          empty
+          onAddFiles={vi.fn()}
+          onAddFolders={vi.fn()}
+          onDropFiles={vi.fn()}
+        />
+      </>,
+    );
+    await user.click(screen.getByTestId('drop-target'));
+    await screen.findByRole('menu');
+
+    await user.click(screen.getByRole('button', { name: 'Somewhere else' }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    });
+    expect(onSomewhereElse).toHaveBeenCalledOnce();
+  });
+
+  it('asks for files when Choose files is picked, and puts the menu away', async () => {
     const user = userEvent.setup();
     const { onAddFiles, onAddFolders } = renderTarget();
     await user.click(screen.getByTestId('drop-target'));
 
-    await user.click(screen.getByRole('button', { name: 'Choose files' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Choose files' }));
 
     expect(onAddFiles).toHaveBeenCalledOnce();
     expect(onAddFolders).not.toHaveBeenCalled();
-    expect(screen.queryByRole('group', { name: 'What to add' })).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    });
   });
 
-  it('asks for a folder, and puts the question away', async () => {
+  it('asks for a folder when Choose a folder is picked, and puts the menu away', async () => {
     const user = userEvent.setup();
     const { onAddFiles, onAddFolders } = renderTarget();
     await user.click(screen.getByTestId('drop-target'));
 
-    await user.click(screen.getByRole('button', { name: 'Choose a folder' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Choose a folder' }));
 
     expect(onAddFolders).toHaveBeenCalledOnce();
     expect(onAddFiles).not.toHaveBeenCalled();
-    expect(screen.queryByRole('group', { name: 'What to add' })).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    });
   });
 
-  it('works from the keyboard, and Escape puts the question away and keeps focus on the hint', async () => {
+  it('works from the keyboard: Enter opens it, the arrows move, Enter picks, and focus comes back', async () => {
     const user = userEvent.setup();
-    renderTarget();
+    const { onAddFolders } = renderTarget();
+    await user.tab();
+    const hint = screen.getByRole('button', { name: /click to choose/u });
+    expect(hint).toHaveFocus();
+
+    await user.keyboard('{Enter}');
+    expect(await screen.findByRole('menuitem', { name: 'Choose files' })).toHaveFocus();
+    await user.keyboard('{ArrowDown}');
+    expect(screen.getByRole('menuitem', { name: 'Choose a folder' })).toHaveFocus();
+    await user.keyboard('{Enter}');
+
+    expect(onAddFolders).toHaveBeenCalledOnce();
+    await waitFor(() => {
+      expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    });
+    expect(hint).toHaveFocus();
+  });
+
+  it('puts the menu away with Escape and gives focus back to the hint', async () => {
+    const user = userEvent.setup();
+    const { onAddFiles, onAddFolders } = renderTarget();
     await user.tab();
     await user.keyboard('{Enter}');
-    expect(screen.getByRole('group', { name: 'What to add' })).toBeVisible();
-    await user.tab();
-    expect(screen.getByRole('button', { name: 'Choose files' })).toHaveFocus();
+    await screen.findByRole('menu');
 
     await user.keyboard('{Escape}');
 
-    expect(screen.queryByRole('group', { name: 'What to add' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /click to choose/u })).toHaveFocus();
+    expect(onAddFiles).not.toHaveBeenCalled();
+    expect(onAddFolders).not.toHaveBeenCalled();
   });
 
-  it('ignores other keys while the question is open', async () => {
-    const user = userEvent.setup();
+  it('answers the pointer over the whole area while the queue is empty', () => {
     renderTarget();
-    await user.click(screen.getByTestId('drop-target'));
-    await user.tab();
 
-    await user.keyboard('{ArrowRight}');
-
-    expect(screen.getByRole('group', { name: 'What to add' })).toBeVisible();
+    // It lights up under the pointer wherever that is, shows the hand, and the words follow it.
+    const area = screen.getByTestId('drop-target');
+    expect(area).toHaveClass('cursor-pointer', 'hover:bg-muted/30');
+    const hint = screen.getByRole('button', { name: /click to choose/u });
+    expect(hint).toHaveClass('cursor-pointer', 'group-hover:text-foreground');
   });
 
   it('leaves the rest of the area alone once the queue has items: only its own line is clickable', async () => {
     const user = userEvent.setup();
     renderTarget({ empty: false, children: <p>A row</p> });
+    const area = screen.getByTestId('drop-target');
+    expect(area).not.toHaveClass('cursor-pointer');
 
-    await user.click(screen.getByTestId('drop-target'));
-    expect(screen.queryByRole('group', { name: 'What to add' })).not.toBeInTheDocument();
+    await user.click(area);
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
 
     await user.click(
       screen.getByRole('button', { name: 'Drop files or folders here, or click to choose.' }),
     );
-    expect(screen.getByRole('group', { name: 'What to add' })).toBeVisible();
+    expect(await screen.findByRole('menu')).toBeVisible();
   });
 
   it('does nothing when it is disabled, until the tools are ready', async () => {
     const user = userEvent.setup();
     renderTarget({ disabled: true });
+    const area = screen.getByTestId('drop-target');
 
-    await user.click(screen.getByTestId('drop-target'));
+    await user.click(area);
 
     expect(screen.getByRole('button', { name: /click to choose/u })).toBeDisabled();
-    expect(screen.queryByRole('group', { name: 'What to add' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    // Nor does it invite a click it would ignore.
+    expect(area).not.toHaveClass('cursor-pointer');
   });
 
-  it('closes the question if the area gets disabled while it is open', async () => {
+  it('puts the menu away if the area gets disabled while it is open', async () => {
     const user = userEvent.setup();
     const handlers = { onAddFiles: vi.fn(), onAddFolders: vi.fn(), onDropFiles: vi.fn() };
     const { rerender } = render(<DropTarget disabled={false} empty {...handlers} />);
     await user.click(screen.getByTestId('drop-target'));
+    await screen.findByRole('menu');
 
     rerender(<DropTarget disabled empty {...handlers} />);
 
-    expect(screen.queryByRole('group', { name: 'What to add' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
   });
 
   it('hands over what is dropped, and says it will take it while a drag is over', () => {

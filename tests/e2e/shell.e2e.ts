@@ -28,6 +28,8 @@ describe('packaged application shell', () => {
           found: true,
           barTop: bar.getBoundingClientRect().top,
           barHeight: bar.getBoundingClientRect().height,
+          barLine: getComputedStyle(bar).borderBottomWidth,
+          scrollerLine: getComputedStyle(scroller).borderTopWidth,
           scrolled: scroller.scrollTop,
           windowScrolled: document.documentElement.scrollTop,
         };
@@ -38,6 +40,8 @@ describe('packaged application shell', () => {
       found: boolean;
       barTop: number;
       barHeight: number;
+      barLine: string;
+      scrollerLine: string;
       scrolled: number;
       windowScrolled: number;
     };
@@ -45,6 +49,9 @@ describe('packaged application shell', () => {
     assert.equal(measured.found, true, 'the bar should be followed by the part that scrolls');
     assert.equal(measured.barTop, 0, 'the bar stays at the top of the window');
     assert.ok(measured.barHeight >= 40, 'the bar keeps its height');
+    // The window's buttons cover the whole height of the bar, so the line under it is not the bar's.
+    assert.equal(measured.barLine, '0px', 'the bar draws no line that its buttons could cover');
+    assert.equal(measured.scrollerLine, '1px', "the line under the bar is the scrolling part's");
     assert.ok(measured.scrolled > 0, 'the part under the bar is what scrolls');
     assert.equal(measured.windowScrolled, 0, 'the window itself does not scroll');
   });
