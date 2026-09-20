@@ -511,7 +511,7 @@ export function MappingEditor({
                 </p>
               </div>
               <div className="flex items-end gap-2">
-                <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
                   <Label
                     className="text-muted-foreground text-xs font-normal"
                     htmlFor="new-volume-number"
