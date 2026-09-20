@@ -8,7 +8,7 @@ import {
   LoaderCircle,
   RadioTower,
 } from 'lucide-react';
-import { useEffect, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 
 import type { BookFormat, ConversionProgress } from '@/domain/conversion';
 import {
@@ -27,8 +27,10 @@ import { type MappingDraft, mappingSignature } from '@/domain/mapping';
 import {
   defaultMangapressSettings,
   type MangapressSettings,
+  validateMangapressSettings,
   withDeviceProfile,
 } from '@/domain/output-profile';
+import { defaultFormat, isDefaultMangapress, persistedSettings } from '@/domain/preferences';
 import {
   defaultProcessMode,
   type ProcessMode,
@@ -36,7 +38,9 @@ import {
   usesMangapress,
 } from '@/domain/process-mode';
 import { MappingEditor } from '@/renderer/components/mapping/mapping-editor';
+import { Notices } from '@/renderer/components/shared/notices';
 import { MangapressSettingsEditor } from '@/renderer/components/settings/mangapress-settings';
+import { ResetOptions } from '@/renderer/components/settings/reset-options';
 import { KoreaderCard } from '@/renderer/components/sharing/koreader-card';
 import { SharePanel } from '@/renderer/components/sharing/share-panel';
 import { Button } from '@/renderer/components/ui/button';
@@ -49,6 +53,7 @@ import type {
   OpdsAuthConfig,
   OpdsSharingStatus,
 } from '@/shared/opds-contract';
+import type { SaveSettingsCommand } from '@/shared/settings-contract';
 import type { ToolchainStatus } from '@/shared/toolchain-status';
 import type {
   ConversionCommand,
@@ -70,6 +75,28 @@ type WorkflowStep =
 
 const plural = (count: number, word: string): string =>
   `${String(count)} ${word}${count === 1 ? '' : 's'}`;
+
+const withNotice = (current: readonly string[], message: string): readonly string[] =>
+  current.includes(message) ? current : [...current, message];
+
+/** What is kept of the choices on screen: without the book's own title and author. */
+function settingsToKeep(values: {
+  readonly mode: ProcessMode;
+  readonly format: BookFormat;
+  readonly settings: MangapressSettings;
+  readonly providerId: string | undefined;
+  readonly libraryId: string | undefined;
+}): SaveSettingsCommand {
+  return {
+    preferences: {
+      mode: values.mode,
+      format: values.format,
+      settings: persistedSettings(values.settings),
+      ...(values.providerId === undefined ? {} : { providerId: values.providerId }),
+    },
+    ...(values.libraryId === undefined ? {} : { libraryId: values.libraryId }),
+  };
+}
 
 const outcomeOf = (title: LibraryTitleResult): TitleOutcome =>
   title.status === 'done'
@@ -131,7 +158,7 @@ export function App(): React.JSX.Element {
   const [editingId, setEditingId] = useState<string>();
   const [library, setLibrary] = useState<SelectedLibrary>();
   const [settings, setSettings] = useState<MangapressSettings>(defaultMangapressSettings);
-  const [format, setFormat] = useState<BookFormat>('epub');
+  const [format, setFormat] = useState<BookFormat>(defaultFormat);
   const [mode, setMode] = useState<ProcessMode>(defaultProcessMode);
   const [jobId, setJobId] = useState<string>();
   const [progress, setProgress] = useState<ConversionProgress>();
@@ -157,6 +184,15 @@ export function App(): React.JSX.Element {
   );
   // No online source is chosen until a person chooses one; it is then kept for the next title.
   const [selectedProviderId, setSelectedProviderId] = useState<string>();
+  // What was kept from the last session is read once; nothing is saved before it has been (ADR 0014).
+  const [restored, setRestored] = useState(false);
+  // What was last read or written, so only a real change is written: a first launch leaves no file,
+  // and a file that could not be read stays until something is changed.
+  const lastKept = useRef<string | undefined>(undefined);
+  const [notices, setNotices] = useState<readonly string[]>([]);
+  const notify = useCallback((message: string) => {
+    setNotices((current) => withNotice(current, message));
+  }, []);
   const rowsRef = useRef(rows);
   const attemptedInspection = useRef(new Set<string>());
   const cancelRequested = useRef(false);
@@ -172,18 +208,8 @@ export function App(): React.JSX.Element {
         if (status.state !== 'ready' || bridge.getDeviceProfiles === undefined) return;
         const result = await bridge.getDeviceProfiles();
         if (!current) return;
-        if (result.ok) {
-          setProfiles(result.value);
-          if (
-            !result.value.some(
-              (candidate) => candidate.code === defaultMangapressSettings.deviceProfile,
-            )
-          ) {
-            setSettings((current) => withDeviceProfile(current, result.value[0]?.code ?? ''));
-          }
-        } else {
-          setFailure(result.error);
-        }
+        if (result.ok) setProfiles(result.value);
+        else setFailure(result.error);
       })
       .catch(() => {
         if (current) {
@@ -198,6 +224,72 @@ export function App(): React.JSX.Element {
       current = false;
     };
   }, [bridge]);
+
+  useEffect(() => {
+    if (bridge?.loadSettings === undefined) return;
+    let current = true;
+    void bridge
+      .loadSettings()
+      .then(
+        (result) => (result.ok ? result.value : undefined),
+        () => undefined,
+      )
+      .then((saved) => {
+        if (!current) return;
+        if (saved === undefined) {
+          // Nothing is saved from here on: what is on screen is only the defaults, and saving
+          // them would overwrite what was kept.
+          notify('The saved settings could not be loaded.');
+          return;
+        }
+        lastKept.current = JSON.stringify(
+          settingsToKeep({
+            ...saved.preferences,
+            providerId: saved.preferences.providerId,
+            libraryId: saved.library?.libraryId,
+          }),
+        );
+        setMode(saved.preferences.mode);
+        setFormat(saved.preferences.format);
+        setSettings(saved.preferences.settings);
+        setSelectedProviderId(saved.preferences.providerId);
+        if (saved.library !== undefined) setLibrary(saved.library);
+        for (const notice of saved.notices) notify(notice);
+        setRestored(true);
+      });
+    return () => {
+      current = false;
+    };
+  }, [bridge, notify]);
+
+  useEffect(() => {
+    if (bridge?.saveSettings === undefined || !restored) return;
+    // A value that is half typed is not kept: the last valid options stay saved until it is fixed.
+    if (validateMangapressSettings(settings).length > 0) return;
+    const command = settingsToKeep({
+      mode,
+      format,
+      settings,
+      providerId: selectedProviderId,
+      libraryId: library?.libraryId,
+    });
+    const key = JSON.stringify(command);
+    if (key === lastKept.current) return;
+    lastKept.current = key;
+    // A failed save is tried again with the next change, whatever it is.
+    const failedToSave = (message: string): void => {
+      lastKept.current = undefined;
+      notify(message);
+    };
+    void bridge.saveSettings(command).then(
+      (result) => {
+        if (!result.ok) failedToSave(result.error.message);
+      },
+      () => {
+        failedToSave('The settings could not be saved.');
+      },
+    );
+  }, [bridge, restored, mode, format, settings, selectedProviderId, library, notify]);
 
   useEffect(() => {
     if (bridge?.onConversionProgress === undefined) return;
@@ -658,11 +750,41 @@ export function App(): React.JSX.Element {
     else setSharingStatus({ active: false });
   };
 
+  const resetMangapress = (): void => {
+    setFormat(defaultFormat);
+    setSettings(defaultMangapressSettings);
+  };
+
+  const resetAll = (): void => {
+    setMode(defaultProcessMode);
+    resetMangapress();
+  };
+
+  // The source chosen last time only counts while the list still has it.
+  const activeProviderId = metadataProviders.some((provider) => provider.id === selectedProviderId)
+    ? selectedProviderId
+    : undefined;
+
   const editingRow = rows.find((row) => row.id === editingId);
   const editingTitleEntry =
     editingRow?.state === 'inspected'
       ? editingRow.titles?.find((title) => title.title === editingTitle)
       : undefined;
+  // A device the tools no longer list cannot be converted for, whether it came from the file or is
+  // the default. This adjusts state while rendering, the way React documents for state that follows
+  // other state, so the screen never shows it selected.
+  if (
+    profiles.length > 0 &&
+    !profiles.some((candidate) => candidate.code === settings.deviceProfile)
+  ) {
+    const fallback =
+      profiles.find((candidate) => candidate.code === defaultMangapressSettings.deviceProfile) ??
+      profiles[0]!;
+    notify(
+      `The device profile ${settings.deviceProfile} is not available, so ${fallback.name} is selected.`,
+    );
+    setSettings(withDeviceProfile(settings, fallback.code));
+  }
   const deviceName =
     profiles.find((profile) => profile.code === settings.deviceProfile)?.name ??
     settings.deviceProfile;
@@ -704,6 +826,12 @@ export function App(): React.JSX.Element {
               />
             )}
           </div>
+          <Notices
+            notices={notices}
+            onDismiss={() => {
+              setNotices([]);
+            }}
+          />
           {failure !== undefined && <IssueCallout failure={failure} />}
           {step === 'queue' && (
             <QueueScreen
@@ -744,6 +872,7 @@ export function App(): React.JSX.Element {
               onRemove={(id) => {
                 removeRows([id]);
               }}
+              onReset={resetAll}
               onValidate={() => {
                 void validatePlans();
               }}
@@ -765,14 +894,24 @@ export function App(): React.JSX.Element {
               >
                 <ArrowLeft /> Back
               </Button>
-              <div>
-                <p className="text-muted-foreground text-xs font-medium">Advanced</p>
-                <h1 className="mt-2 text-3xl font-semibold tracking-tight" id="options-title">
-                  mangapress options
-                </h1>
-                <p className="text-muted-foreground mt-3 text-sm">
-                  Every setting mangapress supports. They apply to everything in the queue.
-                </p>
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p className="text-muted-foreground text-xs font-medium">Advanced</p>
+                  <h1 className="mt-2 text-3xl font-semibold tracking-tight" id="options-title">
+                    mangapress options
+                  </h1>
+                  <p className="text-muted-foreground mt-3 text-sm">
+                    Every setting mangapress supports. They apply to everything in the queue, and
+                    are kept for next time.
+                  </p>
+                </div>
+                <div className="w-72 shrink-0">
+                  <ResetOptions
+                    changed={!isDefaultMangapress(format, settings)}
+                    onReset={resetMangapress}
+                    scope="the device, format and every mangapress option"
+                  />
+                </div>
               </div>
               <MangapressSettingsEditor
                 format={format}
@@ -810,7 +949,7 @@ export function App(): React.JSX.Element {
                     setStep('queue');
                   }}
                   onSuggestVolumes={suggestVolumes}
-                  selectedProviderId={selectedProviderId}
+                  selectedProviderId={activeProviderId}
                   startedFrom={
                     editingRow.proposedSignature !== undefined &&
                     editingRow.mapping.volumes.length > 0 &&
@@ -859,7 +998,7 @@ export function App(): React.JSX.Element {
                   onSearchMetadata={searchMetadata}
                   onSelectProvider={setSelectedProviderId}
                   onSuggestVolumes={suggestVolumes}
-                  selectedProviderId={selectedProviderId}
+                  selectedProviderId={activeProviderId}
                   startedFrom={editingTitleEntry.draft.volumes.length > 0 ? 'mangabind' : undefined}
                 />
               </div>

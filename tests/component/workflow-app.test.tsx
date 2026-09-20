@@ -12,8 +12,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createMappingDraft } from '@/domain/mapping';
 import { defaultMangapressSettings } from '@/domain/output-profile';
+import { defaultPreferences } from '@/domain/preferences';
 import { App } from '@/renderer/app';
 import type { MangaboundBridge } from '@/shared/runtime-info';
+import type { RestoredSettings } from '@/shared/settings-contract';
 import type {
   ConversionProgressPayload,
   InspectedInputPayload,
@@ -147,9 +149,21 @@ function bridge(overrides: Partial<MangaboundBridge> = {}): MangaboundBridge {
       Promise.resolve({ ok: true, value: { active: true, authMode: 'token' as const } }),
     stopSharing: () => Promise.resolve({ ok: true, value: undefined }),
     getSharingStatus: () => Promise.resolve({ ok: true, value: { active: false } }),
+    loadSettings: () =>
+      Promise.resolve({ ok: true, value: { preferences: defaultPreferences, notices: [] } }),
+    saveSettings: () => Promise.resolve({ ok: true, value: undefined }),
     ...overrides,
   };
 }
+
+/** A bridge that hands back these settings, as if they had been kept from the last session. */
+const keptSettings =
+  (kept: Partial<RestoredSettings>): MangaboundBridge['loadSettings'] =>
+  () =>
+    Promise.resolve({
+      ok: true,
+      value: { preferences: defaultPreferences, notices: [], ...kept },
+    });
 
 function installBridge(value: MangaboundBridge): void {
   Object.defineProperty(window, 'mangabound', { configurable: true, value });
@@ -861,7 +875,9 @@ describe('queue application workflow', () => {
     await addFolder(user);
     await user.click(screen.getByRole('button', { name: /mangapress options/u }));
     expect(await screen.findByRole('heading', { name: 'mangapress options' })).toBeVisible();
-    expect(screen.getByText(/They apply to everything in the queue\./u)).toBeVisible();
+    expect(
+      screen.getByText(/They apply to everything in the queue, and are kept for next time\./u),
+    ).toBeVisible();
 
     await user.click(screen.getByRole('button', { name: /Back/u }));
     expect(await screen.findByRole('heading', { name: 'Queue' })).toBeVisible();
@@ -956,6 +972,9 @@ describe('the options a run starts with', () => {
     await waitFor(() => {
       expect(screen.getByLabelText('Device')).toHaveValue('KS');
     });
+    expect(
+      screen.getByText('The device profile KV is not available, so Kindle Scribe 1/2 is selected.'),
+    ).toBeVisible();
     await addFolder(user);
     await chooseOutputFolder(user);
 
@@ -965,6 +984,438 @@ describe('the options a run starts with', () => {
     expect(convert.mock.calls[0]?.[0].settings).toMatchObject({
       deviceProfile: 'KS',
       upscale: false,
+    });
+  });
+});
+
+describe('the options kept between sessions', () => {
+  const scribe = {
+    code: 'KS',
+    name: 'Kindle Scribe 1/2',
+    width: 1860,
+    height: 2480,
+    grayLevels: 16,
+    family: 'kindle',
+  };
+  const voyage = {
+    code: 'KV',
+    name: 'Kindle Voyage',
+    width: 1072,
+    height: 1448,
+    grayLevels: 16,
+    family: 'kindle',
+  };
+  const twoDevices = (): MangaboundBridge['getDeviceProfiles'] => () =>
+    Promise.resolve({ ok: true, value: [voyage, scribe] });
+  const savedFolder = { libraryId: 'saved-library', displayPath: 'D:\\Manga\\Saved' };
+
+  const saveCalls = (
+    saveSettings: ReturnType<typeof vi.fn<MangaboundBridge['saveSettings']>>,
+  ): readonly Parameters<MangaboundBridge['saveSettings']>[0][] =>
+    saveSettings.mock.calls.map(([command]) => command);
+
+  const okSave = (): ReturnType<typeof vi.fn<MangaboundBridge['saveSettings']>> =>
+    vi.fn<MangaboundBridge['saveSettings']>(() => Promise.resolve({ ok: true, value: undefined }));
+
+  it('opens as it was left: the steps, device, format, options and output folder', async () => {
+    installBridge(
+      bridge({
+        getDeviceProfiles: twoDevices(),
+        loadSettings: keptSettings({
+          preferences: {
+            mode: 'convert-only',
+            format: 'pdf',
+            settings: { ...defaultMangapressSettings, deviceProfile: 'KS', upscale: false },
+          },
+          library: savedFolder,
+        }),
+      }),
+    );
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Device')).toHaveValue('KS');
+    });
+    expect(screen.getByRole('radio', { name: 'PDF' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Group chapters into volumes' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Convert for e-reader' })).toBeChecked();
+    expect(screen.getByText('D:\\Manga\\Saved')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Change output folder' })).toBeVisible();
+    // Nothing went wrong, so nothing is said.
+    expect(screen.queryByRole('status', { name: 'Notices' })).not.toBeInTheDocument();
+  });
+
+  it('keeps each change, without the title and author, and names the folder by its id', async () => {
+    const user = userEvent.setup();
+    const saveSettings = okSave();
+    installBridge(bridge({ saveSettings, getDeviceProfiles: twoDevices() }));
+    render(<App />);
+    await screen.findByRole('heading', { name: 'Queue' });
+    await waitFor(() => {
+      expect(screen.getByLabelText('Device')).toHaveValue('KV');
+    });
+    // Opening the app changes nothing, so nothing is written.
+    expect(saveSettings).not.toHaveBeenCalled();
+
+    await chooseOutputFolder(user);
+    await user.click(screen.getByRole('radio', { name: 'PDF' }));
+    await user.click(screen.getByRole('button', { name: /mangapress options/u }));
+    await user.type(await screen.findByLabelText('Title'), 'Only for this book');
+
+    await waitFor(() => {
+      const last = saveCalls(saveSettings).at(-1);
+      expect(last).toEqual({
+        preferences: {
+          mode: 'bind-and-convert',
+          format: 'pdf',
+          settings: defaultMangapressSettings,
+        },
+        libraryId: 'library',
+      });
+    });
+    // A title belongs to one book: it is on screen but is not among what is kept.
+    expect(screen.getByLabelText('Title')).toHaveValue('Only for this book');
+    for (const command of saveCalls(saveSettings)) {
+      expect(command.preferences.settings).not.toHaveProperty('title');
+    }
+  });
+
+  it('keeps the source that was chosen, and forgets one the list no longer has', async () => {
+    const user = userEvent.setup();
+    const saveSettings = okSave();
+    const mangaDex = {
+      id: 'mangadex',
+      displayName: 'MangaDex',
+      homepage: 'https://mangadex.org',
+      description: 'Community catalogue of manga, with volume and chapter data',
+    };
+    installBridge(
+      bridge({
+        saveSettings,
+        listMetadataProviders: () => Promise.resolve({ ok: true, value: [mangaDex] }),
+        loadSettings: keptSettings({
+          preferences: { ...defaultPreferences, providerId: 'removed-in-an-update' },
+        }),
+      }),
+    );
+    render(<App />);
+    await addFolder(user);
+    await user.click(screen.getByRole('button', { name: 'Edit volumes for Offline Work' }));
+    await user.click(await screen.findByRole('tab', { name: 'Online source' }));
+
+    // The saved id is not in the list, so nothing is chosen.
+    expect(screen.getByRole('combobox', { name: 'Source' })).toHaveTextContent('Select a source');
+    await user.click(screen.getByRole('combobox', { name: 'Source' }));
+    await user.click(screen.getByRole('option', { name: /MangaDex/u }));
+
+    await waitFor(() => {
+      expect(saveCalls(saveSettings).at(-1)?.preferences.providerId).toBe('mangadex');
+    });
+  });
+
+  it('starts with the source that was kept, when the list has it', async () => {
+    const user = userEvent.setup();
+    const mangaDex = {
+      id: 'mangadex',
+      displayName: 'MangaDex',
+      homepage: 'https://mangadex.org',
+      description: 'Community catalogue of manga, with volume and chapter data',
+    };
+    installBridge(
+      bridge({
+        listMetadataProviders: () => Promise.resolve({ ok: true, value: [mangaDex] }),
+        loadSettings: keptSettings({
+          preferences: { ...defaultPreferences, providerId: 'mangadex' },
+        }),
+      }),
+    );
+    render(<App />);
+    await addFolder(user);
+    await user.click(screen.getByRole('button', { name: 'Edit volumes for Offline Work' }));
+    await user.click(await screen.findByRole('tab', { name: 'Online source' }));
+
+    expect(screen.getByRole('combobox', { name: 'Source' })).toHaveTextContent('MangaDex');
+  });
+
+  it('saves nothing until what was kept has been read', async () => {
+    const user = userEvent.setup();
+    const saveSettings = okSave();
+    let release: (result: Awaited<ReturnType<MangaboundBridge['loadSettings']>>) => void = () =>
+      undefined;
+    installBridge(
+      bridge({
+        saveSettings,
+        loadSettings: () =>
+          new Promise((resolve) => {
+            release = resolve;
+          }),
+      }),
+    );
+    render(<App />);
+    await screen.findByRole('heading', { name: 'Queue' });
+    // The defaults on screen must not be written over what is still being read.
+    expect(saveSettings).not.toHaveBeenCalled();
+
+    act(() => {
+      release({
+        ok: true,
+        value: {
+          preferences: { ...defaultPreferences, format: 'cbz' },
+          notices: [],
+        },
+      });
+    });
+    await waitFor(() => {
+      expect(screen.getByRole('radio', { name: 'CBZ' })).toBeChecked();
+    });
+    // What was read is what is kept already, so reading it writes nothing.
+    expect(saveSettings).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('radio', { name: 'PDF' }));
+    await waitFor(() => {
+      expect(saveCalls(saveSettings)).toEqual([
+        { preferences: { ...defaultPreferences, format: 'pdf' } },
+      ]);
+    });
+  });
+
+  it.each([
+    [
+      'answers with a failure',
+      () => Promise.resolve({ ok: false as const, error: { code: 'x', message: 'no' } }),
+    ],
+    ['is rejected', () => Promise.reject(new Error('the bridge is gone'))],
+  ])('saves nothing, and says so, when reading what was kept %s', async (_name, loadSettings) => {
+    const user = userEvent.setup();
+    const saveSettings = okSave();
+    installBridge(bridge({ saveSettings, loadSettings }));
+    render(<App />);
+
+    expect(await screen.findByText('The saved settings could not be loaded.')).toBeVisible();
+    await user.click(screen.getByRole('radio', { name: 'PDF' }));
+    expect(saveSettings).not.toHaveBeenCalled();
+  });
+
+  it('says what could not be restored, until it is dismissed', async () => {
+    const user = userEvent.setup();
+    installBridge(
+      bridge({
+        loadSettings: keptSettings({
+          notices: [
+            'The saved settings could not be read, so the defaults are in use.',
+            'The output folder D:\\Gone is not available. Choose another to save to.',
+          ],
+        }),
+      }),
+    );
+    render(<App />);
+
+    const notices = await screen.findByRole('status', { name: 'Notices' });
+    expect(within(notices).getAllByRole('listitem')).toHaveLength(2);
+    expect(notices).toHaveTextContent('The saved settings could not be read');
+    expect(notices).toHaveTextContent('D:\\Gone is not available');
+
+    await user.click(screen.getByRole('button', { name: 'Dismiss these notices' }));
+    expect(screen.queryByRole('status', { name: 'Notices' })).not.toBeInTheDocument();
+  });
+
+  it('uses a device the tools still list when the kept one is gone, and says so', async () => {
+    const saveSettings = okSave();
+    installBridge(
+      bridge({
+        saveSettings,
+        getDeviceProfiles: twoDevices(),
+        loadSettings: keptSettings({
+          preferences: {
+            ...defaultPreferences,
+            settings: { ...defaultMangapressSettings, deviceProfile: 'K999' },
+          },
+        }),
+      }),
+    );
+    render(<App />);
+
+    expect(
+      await screen.findByText(
+        'The device profile K999 is not available, so Kindle Voyage is selected.',
+      ),
+    ).toBeVisible();
+    expect(screen.getByLabelText('Device')).toHaveValue('KV');
+    await waitFor(() => {
+      expect(saveCalls(saveSettings).at(-1)?.preferences.settings.deviceProfile).toBe('KV');
+    });
+  });
+
+  it('tries a save again with the next change after one failed', async () => {
+    const user = userEvent.setup();
+    const saveSettings = vi
+      .fn<MangaboundBridge['saveSettings']>()
+      .mockResolvedValueOnce({
+        ok: false,
+        error: { code: 'settings_save_failed', message: 'Your settings could not be saved.' },
+      })
+      .mockResolvedValue({ ok: true, value: undefined });
+    installBridge(bridge({ saveSettings }));
+    render(<App />);
+    await screen.findByRole('heading', { name: 'Queue' });
+
+    await user.click(screen.getByRole('radio', { name: 'PDF' }));
+    expect(await screen.findByText('Your settings could not be saved.')).toBeVisible();
+    await user.click(screen.getByRole('radio', { name: 'CBZ' }));
+
+    await waitFor(() => {
+      expect(saveSettings).toHaveBeenCalledTimes(2);
+    });
+    expect(saveCalls(saveSettings).at(-1)?.preferences.format).toBe('cbz');
+  });
+
+  it.each([
+    [
+      'refuses',
+      () =>
+        Promise.resolve({
+          ok: false as const,
+          error: { code: 'settings_save_failed', message: 'Your settings could not be saved.' },
+        }),
+      'Your settings could not be saved.',
+    ],
+    [
+      'is rejected',
+      () => Promise.reject(new Error('the bridge is gone')),
+      'The settings could not be saved.',
+    ],
+  ])('says so when saving %s', async (_name, saveSettings, message) => {
+    const user = userEvent.setup();
+    installBridge(bridge({ saveSettings }));
+    render(<App />);
+    await screen.findByRole('heading', { name: 'Queue' });
+
+    await user.click(screen.getByRole('radio', { name: 'PDF' }));
+
+    expect(await screen.findByText(message)).toBeVisible();
+  });
+
+  it('does not keep an option while it is half typed, and keeps it once it is valid', async () => {
+    const user = userEvent.setup();
+    const saveSettings = okSave();
+    installBridge(bridge({ saveSettings }));
+    render(<App />);
+    await user.click(await screen.findByRole('button', { name: /mangapress options/u }));
+
+    const quality = await screen.findByLabelText(/JPEG quality/u);
+    await user.type(quality, '500');
+    await user.clear(quality);
+    await user.type(quality, '80');
+
+    await waitFor(() => {
+      expect(saveCalls(saveSettings).at(-1)?.preferences.settings.jpegQuality).toBe(80);
+    });
+    // 500 is out of range, so it was never written; the 5 and the 50 on the way to it were.
+    expect(
+      saveCalls(saveSettings).some((command) => command.preferences.settings.jpegQuality === 500),
+    ).toBe(false);
+  });
+
+  describe('putting the options back to their defaults', () => {
+    async function changeEverything(user: UserEvent): Promise<void> {
+      await user.selectOptions(await screen.findByLabelText('Device'), 'KS');
+      await user.click(screen.getByRole('radio', { name: 'PDF' }));
+      await user.click(screen.getByRole('checkbox', { name: 'Group chapters into volumes' }));
+    }
+
+    it('is dimmed while every option is at its default, and does nothing', async () => {
+      const user = userEvent.setup();
+      installBridge(bridge());
+      render(<App />);
+
+      const reset = await screen.findByRole('button', { name: 'Reset to defaults' });
+      expect(reset).toHaveAttribute('aria-disabled', 'true');
+      expect(reset).toHaveAccessibleDescription('Every option is already at its default.');
+      await user.click(reset);
+      expect(screen.queryByRole('group', { name: 'Confirm reset' })).not.toBeInTheDocument();
+    });
+
+    it('puts the steps, device, format and options back, keeps the folder, and saves that', async () => {
+      const user = userEvent.setup();
+      const saveSettings = okSave();
+      installBridge(
+        bridge({
+          saveSettings,
+          getDeviceProfiles: twoDevices(),
+          loadSettings: keptSettings({ library: savedFolder }),
+        }),
+      );
+      render(<App />);
+      await changeEverything(user);
+      expect(screen.getByLabelText('Device')).toHaveValue('KS');
+
+      await user.click(screen.getByRole('button', { name: 'Reset to defaults' }));
+      const confirm = screen.getByRole('group', { name: 'Confirm reset' });
+      expect(confirm).toHaveTextContent(
+        'Put the steps, device, format and every mangapress option back to their defaults?',
+      );
+      await user.click(within(confirm).getByRole('button', { name: 'Reset' }));
+
+      expect(screen.getByLabelText('Device')).toHaveValue('KV');
+      expect(screen.getByRole('radio', { name: 'EPUB' })).toBeChecked();
+      expect(screen.getByRole('checkbox', { name: 'Group chapters into volumes' })).toBeChecked();
+      expect(screen.getByRole('checkbox', { name: 'Convert for e-reader' })).toBeChecked();
+      // A place is not an option: the folder stays.
+      expect(screen.getByText('D:\\Manga\\Saved')).toBeVisible();
+      expect(screen.queryByRole('group', { name: 'Confirm reset' })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Reset to defaults' })).toHaveAttribute(
+        'aria-disabled',
+        'true',
+      );
+      await waitFor(() => {
+        expect(saveCalls(saveSettings).at(-1)).toEqual({
+          preferences: defaultPreferences,
+          libraryId: 'saved-library',
+        });
+      });
+    });
+
+    it('changes nothing when the second click is a cancel', async () => {
+      const user = userEvent.setup();
+      installBridge(bridge({ getDeviceProfiles: twoDevices() }));
+      render(<App />);
+      await changeEverything(user);
+
+      await user.click(screen.getByRole('button', { name: 'Reset to defaults' }));
+      await user.click(
+        within(screen.getByRole('group', { name: 'Confirm reset' })).getByRole('button', {
+          name: 'Cancel',
+        }),
+      );
+
+      expect(screen.queryByRole('group', { name: 'Confirm reset' })).not.toBeInTheDocument();
+      expect(screen.getByLabelText('Device')).toHaveValue('KS');
+      expect(screen.getByRole('radio', { name: 'PDF' })).toBeChecked();
+    });
+
+    it('resets only what the options screen holds when it is used there', async () => {
+      const user = userEvent.setup();
+      installBridge(bridge({ getDeviceProfiles: twoDevices() }));
+      render(<App />);
+      await changeEverything(user);
+      await user.click(screen.getByRole('button', { name: /mangapress options/u }));
+      await screen.findByRole('heading', { name: 'mangapress options' });
+      expect(screen.getByLabelText('Device profile')).toHaveValue('KS');
+
+      await user.click(screen.getByRole('button', { name: 'Reset to defaults' }));
+      const confirm = screen.getByRole('group', { name: 'Confirm reset' });
+      expect(confirm).toHaveTextContent(
+        'Put the device, format and every mangapress option back to their defaults?',
+      );
+      await user.click(within(confirm).getByRole('button', { name: 'Reset' }));
+
+      expect(screen.getByLabelText('Device profile')).toHaveValue('KV');
+      expect(screen.getByLabelText('Book format')).toHaveValue('epub');
+      await user.click(screen.getByRole('button', { name: 'Back' }));
+      // The steps are not on that screen, so they stay as they were set.
+      expect(
+        await screen.findByRole('checkbox', { name: 'Group chapters into volumes' }),
+      ).not.toBeChecked();
     });
   });
 });

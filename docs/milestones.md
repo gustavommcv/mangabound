@@ -89,7 +89,7 @@ Hands-on testing showed the wizard was the wrong shape: the app should feel like
 - Phase 0 — a fixed, sober dark theme (no accent-green, no glow, sentence-case labels).
 - Phase 1 — the mapping editor starts from mangabind's own grouping; online lookups appear only when a provider exists and search only on request ([ADR 0008](adr/0008-mapping-starts-from-mangabind-grouping.md)).
 - Phase 2 — process control: join volumes only, convert only, or both ([ADR 0009](adr/0009-process-modes.md)).
-- Phase 3 — online sources for volume data: a fixed list with none chosen, MangaDex first and credited, and a contributor guide for adding another ([ADR 0013](adr/0013-online-sources-for-volume-data.md)). Persisted settings follow.
+- Phase 3 — online sources for volume data: a fixed list with none chosen, MangaDex first and credited, and a contributor guide for adding another ([ADR 0013](adr/0013-online-sources-for-volume-data.md)). The options are then kept between sessions and can be put back to their defaults ([ADR 0014](adr/0014-persisted-settings-and-reset.md)).
 - Phase 4 — a KCC-style input queue for files and folders with drag-and-drop, results with "send to KOReader" through the M7 catalog ([ADR 0010](adr/0010-input-queue.md)). A library is a row in the queue too, read as one and named by session, never by path ([ADR 0012](adr/0012-libraries-in-the-queue.md)).
 
 Exit: a folder whose names carry volumes converts without opening the mapping editor, and every supported process is reachable from the interface.

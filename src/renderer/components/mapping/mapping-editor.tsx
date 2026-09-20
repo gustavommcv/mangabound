@@ -501,7 +501,7 @@ export function MappingEditor({
             aria-labelledby="volumes-title"
             className="border-border bg-surface rounded-xl border p-5"
           >
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex items-end justify-between gap-3">
               <div>
                 <h2 id="volumes-title" className="text-sm font-semibold">
                   Volumes
@@ -511,11 +511,15 @@ export function MappingEditor({
                 </p>
               </div>
               <div className="flex items-end gap-2">
-                <div className="space-y-2">
-                  <Label className="sr-only" htmlFor="new-volume-number">
+                <div className="space-y-1.5">
+                  <Label
+                    className="text-muted-foreground text-xs font-normal"
+                    htmlFor="new-volume-number"
+                  >
                     New volume number
                   </Label>
                   <Input
+                    aria-describedby="new-volume-help"
                     className="w-20"
                     id="new-volume-number"
                     inputMode="decimal"
@@ -525,11 +529,16 @@ export function MappingEditor({
                     value={newVolumeNumber}
                   />
                 </div>
-                <Button aria-label="Add volume" onClick={addNewVolume} size="icon">
-                  <Plus />
+                <Button aria-label="Add volume" onClick={addNewVolume}>
+                  <Plus /> Add
                 </Button>
               </div>
             </div>
+            <p className="text-muted-foreground mt-3 text-xs leading-relaxed" id="new-volume-help">
+              Add creates an empty volume with the number in the box, which counts up by itself.
+              Split before moves the chosen chapter and every one after it into a new volume,
+              numbered one above the highest so far; renumber it afterward if you like.
+            </p>
 
             {draft.volumes.length === 0 ? (
               <div className="border-border text-muted-foreground mt-5 rounded-lg border border-dashed px-4 py-8 text-center text-sm">
@@ -597,13 +606,16 @@ export function MappingEditor({
                               const select =
                                 event.currentTarget.parentElement?.querySelector('select');
                               if (select === undefined || select === null) return;
-                              dispatch({
+                              const splitNumber = nextVolumeNumber(draft);
+                              const split = dispatch({
                                 type: 'split-volume',
                                 volumeId: volume.id,
                                 firstChapterId: select.value,
                                 newVolumeId: createVolumeId(),
-                                newVolumeNumber: nextVolumeNumber(draft),
+                                newVolumeNumber: splitNumber,
                               });
+                              // The new volume took that number, so the next one is the one after.
+                              if (split) setNewVolumeNumber(String(Number(splitNumber) + 1));
                             }}
                             size="icon"
                             variant="outline"
