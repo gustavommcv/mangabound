@@ -24,7 +24,7 @@ Exit: both protocols are documented, tested, released, and immutable for their d
 ## M2 — Reproducible toolchain acquisition
 
 - Pin both releases and every target artifact in `toolchain.lock.json`.
-- Add verified build acquisition, executable verification, runtime version/protocol checks, and the updater pull-request workflow.
+- Add verified build acquisition, executable verification, runtime version/protocol checks, and a script that proposes a newer pin, run by hand ([ADR 0017](adr/0017-bundled-tools-are-updated-by-hand.md); a scheduled workflow was planned first and dropped).
 - Turn the real-binary CI fixture into a required gate.
 
 Exit: a clean build obtains the same verified binaries, packages them, and rejects tampering or skew.
