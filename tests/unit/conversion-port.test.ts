@@ -88,9 +88,10 @@ describe('mangapress conversion port', () => {
       width: 1072,
       height: 1448,
     });
-    expect(run).toHaveBeenCalledWith(expect.objectContaining({ dryRun: true, profile: 'KV' }), {
-      signal: controller.signal,
-    });
+    expect(run).toHaveBeenCalledWith(
+      expect.objectContaining({ dryRun: true, profile: defaultMangapressSettings.deviceProfile }),
+      { signal: controller.signal },
+    );
   });
 
   it.each([
@@ -158,7 +159,7 @@ describe('mangapress conversion port', () => {
       message: 'Saving the finished book…',
     });
     expect(run.mock.calls[0]?.[0]).toMatchObject({
-      profile: 'KV',
+      profile: defaultMangapressSettings.deviceProfile,
       cropping: 'margins-and-page-numbers',
       croppingPower: 1,
       croppingMinimum: 0,

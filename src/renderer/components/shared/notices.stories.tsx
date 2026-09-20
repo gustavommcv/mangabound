@@ -26,7 +26,7 @@ export const SavedSettingsCouldNotBeUsed: Story = {
     notices: [
       'The saved settings could not be read, so the defaults are in use.',
       'The output folder D:\\Manga\\Library is not available. Choose another to save to.',
-      'The device profile KV is not available, so Kindle Scribe 1/2 is selected.',
+      'The device profile KV is not available, so Kindle Paperwhite 6 is selected.',
     ],
   },
 };

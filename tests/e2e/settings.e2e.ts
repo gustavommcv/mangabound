@@ -90,9 +90,9 @@ describe('packaged saved settings', () => {
       timeoutMsg: 'the settings file did not get the defaults back',
     });
     const reset = await readKept(settingsPath);
-    assert.equal(reset.settings.deviceProfile, 'KV');
+    assert.equal(reset.settings.deviceProfile, 'KPW6');
     assert.equal(reset.outputFolder, libraryPath);
-    assert.equal(await $('#queue-device').getValue(), 'KV');
+    assert.equal(await $('#queue-device').getValue(), 'KPW6');
     assert.equal(await formatRadio('EPUB').getAttribute('aria-checked'), 'true');
   });
 

@@ -6,10 +6,10 @@ import { MangapressSettingsEditor } from './mangapress-settings';
 
 const profiles = [
   {
-    code: 'KV',
-    name: 'Kindle Voyage',
-    width: 1072,
-    height: 1448,
+    code: 'KPW6',
+    name: 'Kindle Paperwhite 6',
+    width: 1272,
+    height: 1696,
     grayLevels: 16,
     family: 'kindle',
   },

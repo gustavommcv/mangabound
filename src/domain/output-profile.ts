@@ -48,12 +48,13 @@ export interface MangapressSettingIssue {
 
 /**
  * The state the settings start in. It is the state Kindle Comic Converter's own window opens in
- * (ADR 0011), not the state the mangapress command line starts in: manga reading order, spreads
- * both split and rotated, upscaling, and cropping of margins and page numbers are on; everything
- * else is off or automatic. The device profile is the one option that differs from KCC's window.
+ * (ADR 0011, ADR 0015), not the state the mangapress command line starts in: a Kindle Paperwhite,
+ * manga reading order, spreads both split and rotated, upscaling, and cropping of margins and page
+ * numbers are on; everything else is off or automatic. The format stays EPUB, which is the one
+ * option that still differs from KCC's window.
  */
 export const defaultMangapressSettings: MangapressSettings = Object.freeze({
-  deviceProfile: 'KV',
+  deviceProfile: 'KPW6',
   quiet: false,
   mangaStyle: true,
   cropping: 'margins-and-page-numbers',
