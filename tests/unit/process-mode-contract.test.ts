@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import { defaultMangapressSettings } from '@/domain/output-profile';
 import { processModes } from '@/domain/process-mode';
-import { batchConversionCommandSchema, conversionCommandSchema } from '@/shared/workflow-contract';
+import {
+  conversionCommandSchema,
+  libraryConversionCommandSchema,
+} from '@/shared/workflow-contract';
 
 const single = {
   jobId: 'job-1',
@@ -12,9 +15,9 @@ const single = {
   format: 'epub',
 } as const;
 
-const batch = {
+const library = {
   jobId: 'job-1',
-  parentPath: 'C:\\Library',
+  sessionId: 'session-1',
   libraryId: 'library-1',
   settings: defaultMangapressSettings,
   format: 'epub',
@@ -32,21 +35,21 @@ describe('process mode on the IPC commands', () => {
     expect(conversionCommandSchema.safeParse({ ...single, mode: 'skip-everything' }).success).toBe(
       false,
     );
-    expect(batchConversionCommandSchema.safeParse({ ...batch, mode: 'nothing' }).success).toBe(
+    expect(libraryConversionCommandSchema.safeParse({ ...library, mode: 'nothing' }).success).toBe(
       false,
     );
   });
 
-  it('lets a batch join or join-and-convert, but never skip the joining', () => {
-    expect(batchConversionCommandSchema.parse({ ...batch, mode: 'bind-only' }).mode).toBe(
+  it('lets a library join or join-and-convert, but never skip the joining', () => {
+    expect(libraryConversionCommandSchema.parse({ ...library, mode: 'bind-only' }).mode).toBe(
       'bind-only',
     );
-    expect(batchConversionCommandSchema.parse({ ...batch, mode: 'bind-and-convert' }).mode).toBe(
-      'bind-and-convert',
-    );
-    expect(batchConversionCommandSchema.parse(batch).mode).toBeUndefined();
-    expect(batchConversionCommandSchema.safeParse({ ...batch, mode: 'convert-only' }).success).toBe(
-      false,
-    );
+    expect(
+      libraryConversionCommandSchema.parse({ ...library, mode: 'bind-and-convert' }).mode,
+    ).toBe('bind-and-convert');
+    expect(libraryConversionCommandSchema.parse(library).mode).toBeUndefined();
+    expect(
+      libraryConversionCommandSchema.safeParse({ ...library, mode: 'convert-only' }).success,
+    ).toBe(false);
   });
 });

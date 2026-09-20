@@ -4,9 +4,12 @@ import {
   describeRow,
   emptyQueue,
   type InspectedRow,
+  isPendingTitle,
+  isWaitingTitle,
   type QueueInput,
   type QueueRow,
   queueReducer,
+  type ReadTitle,
   rowMode,
   runnableRows,
   sessionIds,
@@ -379,5 +382,246 @@ describe('summarizing a queue and picking what to run', () => {
       ['held', 'convert-only'],
       ['cbz', 'convert-only'],
     ]);
+  });
+});
+
+/** A title as the tools read it, with as many volumes as asked for. */
+function readTitle(title: string, volumeCount: number): ReadTitle {
+  return {
+    title,
+    draft: createMappingDraft({ mangaTitle: title, chapters }),
+    volumes: Array.from({ length: volumeCount }, (_, index) => ({
+      name: `${title} - Vol.0${String(index + 1)}.cbz`,
+      pageCount: 2,
+    })),
+  };
+}
+
+function libraryRow(...titles: ReadTitle[]): InspectedRow {
+  const rows = queueReducer(queueReducer(emptyQueue, { type: 'add', inputs: [folderInput] }), {
+    type: 'inspected',
+    id: 'a',
+    sessionId: 'session-a',
+    kind: 'library',
+    titles,
+  });
+  return rows[0] as InspectedRow;
+}
+
+const saved = { status: 'done' } as const;
+const crashed = { status: 'failed', message: 'mangapress crashed.' } as const;
+
+describe('a library in the queue', () => {
+  it('is what a folder becomes when it is read as one, with the titles it holds', () => {
+    const row = libraryRow(readTitle('Good', 2), readTitle('Empty', 0));
+
+    expect(row).toMatchObject({
+      id: 'a',
+      kind: 'library',
+      state: 'inspected',
+      sessionId: 'session-a',
+      confirmed: false,
+    });
+    expect(row.titles?.map((title) => [title.title, title.volumes.length])).toEqual([
+      ['Good', 2],
+      ['Empty', 0],
+    ]);
+    expect(row.mapping).toBeUndefined();
+  });
+
+  it('keeps only what it needs of a title that came with more', () => {
+    const extra = { ...readTitle('Good', 1), issues: [{ code: 'x' }] };
+    const row = libraryRow(extra);
+
+    expect(Object.keys(row.titles?.[0] ?? {}).sort()).toEqual(['draft', 'title', 'volumes']);
+  });
+
+  it('is read again without forgetting what was already saved, and forgets what failed', () => {
+    const rows = queueReducer([libraryRow(readTitle('Good', 1), readTitle('Bad', 1))], {
+      type: 'library-results',
+      id: 'a',
+      results: [
+        { title: 'Good', outcome: saved },
+        { title: 'Bad', outcome: crashed },
+      ],
+    });
+
+    const again = queueReducer(rows, {
+      type: 'library-planned',
+      id: 'a',
+      titles: [readTitle('Good', 1), readTitle('Bad', 2), readTitle('New', 1)],
+    });
+
+    const titles = (again[0] as InspectedRow).titles ?? [];
+    expect(
+      titles.map((title) => [title.title, title.volumes.length, title.outcome?.status]),
+    ).toEqual([
+      ['Good', 1, 'done'],
+      ['Bad', 2, undefined],
+      ['New', 1, undefined],
+    ]);
+  });
+
+  it('takes a run’s result for the titles it names and leaves the others alone', () => {
+    const rows = queueReducer([libraryRow(readTitle('Good', 1), readTitle('Bad', 1))], {
+      type: 'library-results',
+      id: 'a',
+      results: [
+        { title: 'Bad', outcome: crashed },
+        { title: 'Nothing like it', outcome: saved },
+      ],
+    });
+
+    expect((rows[0] as InspectedRow).titles?.map((title) => title.outcome)).toEqual([
+      undefined,
+      crashed,
+    ]);
+  });
+
+  it('only takes a library’s re-read or results for a library that has been read', () => {
+    const rowsOfOthers: readonly QueueRow[] = [
+      libraryRow(readTitle('Good', 1)),
+      inspectedFolder(grouped),
+      { ...folderInput, state: 'inspecting' },
+    ];
+    const results = queueReducer(rowsOfOthers, {
+      type: 'library-results',
+      id: 'a',
+      results: [{ title: 'Good', outcome: saved }],
+    });
+    const planned = queueReducer(rowsOfOthers, {
+      type: 'library-planned',
+      id: 'a',
+      titles: [readTitle('Other', 1)],
+    });
+
+    // Only the first row is a read library with that id; the folder shares the id and is untouched.
+    expect((results[0] as InspectedRow).titles?.[0]?.outcome).toEqual(saved);
+    expect(results[1]).toBe(rowsOfOthers[1]);
+    expect(results[2]).toBe(rowsOfOthers[2]);
+    expect((planned[0] as InspectedRow).titles?.map((title) => title.title)).toEqual(['Other']);
+    expect(planned[1]).toBe(rowsOfOthers[1]);
+    expect(planned[2]).toBe(rowsOfOthers[2]);
+
+    const elsewhere = queueReducer(rowsOfOthers, {
+      type: 'library-results',
+      id: 'not-a-row',
+      results: [{ title: 'Good', outcome: saved }],
+    });
+    expect(elsewhere).toEqual(rowsOfOthers);
+  });
+
+  it('runs its titles in every mode but the one that skips joining', () => {
+    expect(rowMode('library', 'bind-and-convert')).toBe('bind-and-convert');
+    expect(rowMode('library', 'bind-only')).toBe('bind-only');
+    // Not grouping is not something a library can do: it is left out instead of grouped anyway.
+    expect(rowMode('library', 'convert-only')).toBe('skip');
+  });
+
+  it('tells a title a run would make books of from one that waits for volumes', () => {
+    const good = { ...readTitle('Good', 1) };
+    const empty = readTitle('Empty', 0);
+
+    expect(isPendingTitle(good)).toBe(true);
+    expect(isPendingTitle(empty)).toBe(false);
+    expect(isPendingTitle({ ...good, outcome: saved })).toBe(false);
+    expect(isPendingTitle({ ...good, outcome: crashed })).toBe(true);
+    expect(isWaitingTitle(empty)).toBe(true);
+    expect(isWaitingTitle(good)).toBe(false);
+    expect(isWaitingTitle({ ...empty, outcome: saved })).toBe(false);
+  });
+});
+
+describe('describing a library row', () => {
+  it('says how many titles and volumes a run would make books of', () => {
+    expect(
+      describeRow(libraryRow(readTitle('A', 2), readTitle('B', 1)), 'bind-and-convert'),
+    ).toEqual({
+      chip: '2 titles',
+      tone: 'accent',
+      detail: 'Library · 2 titles · 3 volumes',
+      runnable: true,
+    });
+    expect(describeRow(libraryRow(readTitle('A', 1)), 'bind-only')).toMatchObject({
+      chip: '1 title',
+      detail: 'Library · 1 title · 1 volume',
+      runnable: true,
+    });
+  });
+
+  it('runs what is ready and says what it leaves out, and what failed last time', () => {
+    const rows = queueReducer(
+      [libraryRow(readTitle('A', 1), readTitle('B', 0), readTitle('C', 1))],
+      {
+        type: 'library-results',
+        id: 'a',
+        results: [{ title: 'C', outcome: crashed }],
+      },
+    );
+
+    expect(describeRow(rows[0] as InspectedRow, 'bind-and-convert')).toMatchObject({
+      chip: '2 titles',
+      runnable: true,
+      note: '1 title left out until they have volumes. 1 title failed last time and will run again.',
+    });
+  });
+
+  it('holds a library whose titles all wait for volumes', () => {
+    expect(describeRow(libraryRow(readTitle('A', 0)), 'bind-and-convert')).toMatchObject({
+      chip: 'Needs volumes',
+      tone: 'warning',
+      runnable: false,
+      note: '1 title has no volumes yet. Use the pencil on this row to group it.',
+    });
+    expect(
+      describeRow(libraryRow(readTitle('A', 0), readTitle('B', 0)), 'bind-and-convert').note,
+    ).toBe('2 titles have no volumes yet. Use the pencil on this row to group them.');
+  });
+
+  it('cannot be recognized when the read found no manga in it', () => {
+    expect(describeRow(libraryRow(), 'bind-and-convert')).toMatchObject({
+      chip: 'Not recognized',
+      tone: 'danger',
+      detail: 'Library · 0 titles',
+      runnable: false,
+    });
+    const withoutTitles = queueReducer(
+      queueReducer(emptyQueue, { type: 'add', inputs: [folderInput] }),
+      { type: 'inspected', id: 'a', sessionId: 'session-a', kind: 'library' },
+    );
+    expect(describeRow(withoutTitles[0] as InspectedRow, 'bind-only').chip).toBe('Not recognized');
+  });
+
+  it('is saved once every title is', () => {
+    const rows = queueReducer([libraryRow(readTitle('A', 1))], {
+      type: 'library-results',
+      id: 'a',
+      results: [{ title: 'A', outcome: saved }],
+    });
+
+    expect(describeRow(rows[0] as InspectedRow, 'bind-and-convert')).toMatchObject({
+      chip: 'Saved',
+      runnable: false,
+    });
+  });
+
+  it('is left out, with the reason, when the run does not group', () => {
+    expect(describeRow(libraryRow(readTitle('A', 1)), 'convert-only')).toEqual({
+      chip: 'Needs grouping',
+      tone: 'neutral',
+      detail: 'Library · 1 title',
+      runnable: false,
+      note: 'A library is grouped title by title first, so it cannot skip joining volumes.',
+    });
+  });
+
+  it('counts and runs as any row does', () => {
+    const rows = [libraryRow(readTitle('A', 1)), inspectedCbz()];
+
+    expect(summarizeQueue(rows, 'bind-and-convert')).toMatchObject({ runnable: 2, skipped: 0 });
+    expect(runnableRows(rows, 'bind-only').map(({ row, mode }) => [row.id, mode])).toEqual([
+      ['a', 'bind-only'],
+    ]);
+    expect(runnableRows(rows, 'convert-only').map(({ row }) => row.id)).toEqual(['b']);
   });
 });

@@ -1,6 +1,7 @@
 import type { BookFileStorePort, SavedBookFile } from '@/application/ports/book-file-store';
 import type {
   BindingBatchPlan,
+  BindingBatchTitle,
   BindingPort,
   ConversionPort,
 } from '@/application/ports/conversion-tools';
@@ -13,6 +14,8 @@ import {
   ConversionWorkflowError,
   type InputSelection,
   type InspectedInput,
+  type InspectedTitle,
+  type LibraryPlan,
   type WorkflowPlan,
 } from '@/domain/conversion';
 import { createMappingDraft, type MappingDraft, validateMapping } from '@/domain/mapping';
@@ -25,10 +28,17 @@ import {
   usesMangapress,
 } from '@/domain/process-mode';
 
+/** The manga folders of a library as last planned. Their paths never leave the workflow. */
+interface LibraryState {
+  readonly titles: readonly BindingBatchTitle[];
+}
+
 interface ActiveSession {
   readonly selection: InputSelection;
   readonly trustedDraft?: MappingDraft;
   readonly workspaceId?: string;
+  /** Set when the folder turned out to be a library rather than one manga. */
+  readonly library?: LibraryState;
 }
 
 export class SingleInputWorkflow {
@@ -54,6 +64,19 @@ export class SingleInputWorkflow {
     }
 
     const inspection = await this.binding.inspect(selection.inputPath, signal);
+    const library = await this.probeLibrary(selection.inputPath, inspection.draft, signal);
+    if (library !== undefined) {
+      // Reading the folder as one manga left a scratch copy behind that a library has no use for.
+      await this.binding.release(inspection.workspaceId);
+      this.sessions.set(sessionId, { selection, library: { titles: library.titles } });
+      return {
+        sessionId,
+        displayName: selection.displayName,
+        kind: 'library',
+        titles: library.titles.map(summarizeTitle),
+        issues: library.issues,
+      };
+    }
     this.sessions.set(sessionId, {
       selection,
       trustedDraft: inspection.draft,
@@ -66,6 +89,33 @@ export class SingleInputWorkflow {
       mapping: inspection.draft,
       issues: inspection.issues,
     };
+  }
+
+  /**
+   * Tells a library from a manga folder. A manga folder holds chapters with pages in them. A
+   * library holds manga folders, which mangabind reads as chapters that have no pages of their own
+   * (a title named like "Mob Psycho 100" even parses as one), so a folder with no chapter that has
+   * pages is read once more as a library. It is one only if that finds manga with chapters in them.
+   */
+  private async probeLibrary(
+    inputPath: string,
+    draft: MappingDraft,
+    signal: AbortSignal | undefined,
+  ): Promise<
+    | { readonly titles: readonly BindingBatchTitle[]; readonly issues: LibraryPlan['issues'] }
+    | undefined
+  > {
+    if (draft.chapters.some((chapter) => chapter.pageCount > 0)) return undefined;
+    let plan: BindingBatchPlan;
+    try {
+      plan = await this.binding.planBatch(inputPath, signal);
+    } catch (error) {
+      if (signal?.aborted === true) throw error;
+      // Not readable as a library either: it stays a folder, which says it has nothing in it.
+      return undefined;
+    }
+    const titles = plan.titles.filter((title) => title.draft.chapters.length > 0);
+    return titles.length === 0 ? undefined : { titles, issues: plan.issues };
   }
 
   async convert(
@@ -95,6 +145,7 @@ export class SingleInputWorkflow {
         'This input is no longer available. Choose it again.',
       );
     }
+    rejectLibrary(session);
     const unsupported = unsupportedModeReason(session.selection.kind, mode);
     if (unsupported !== undefined)
       throw new ConversionWorkflowError('unsupported_mode', unsupported);
@@ -169,6 +220,7 @@ export class SingleInputWorkflow {
         'This input is no longer available. Choose it again.',
       );
     }
+    rejectLibrary(session);
     const unsupported = unsupportedModeReason(session.selection.kind, mode);
     if (unsupported !== undefined)
       throw new ConversionWorkflowError('unsupported_mode', unsupported);
@@ -211,23 +263,36 @@ export class SingleInputWorkflow {
     };
   }
 
-  async planBatch(parentPath: string, signal?: AbortSignal): Promise<BindingBatchPlan> {
-    if (this.binding.planBatch === undefined) {
-      throw new Error('This binding port does not support batch planning.');
-    }
-    return this.binding.planBatch(parentPath, signal);
+  /** Reads the library again, for instance after a title's mapping was saved. */
+  async planLibrary(sessionId: string, signal?: AbortSignal): Promise<LibraryPlan> {
+    const { session, library } = this.librarySession(sessionId);
+    const plan = await this.binding.planBatch(session.selection.inputPath, signal);
+    const titles = plan.titles.filter((title) => title.draft.chapters.length > 0);
+    this.sessions.set(sessionId, { ...session, library: { ...library, titles } });
+    return { titles: titles.map(summarizeTitle), issues: plan.issues };
   }
 
-  async writeTitleMapping(inputPath: string, mapping: MappingDraft): Promise<void> {
-    if (this.binding.writeTitleMapping === undefined) {
-      throw new Error('This binding port does not support writing title mappings.');
+  /**
+   * Saves what the user confirmed for one title of a library as that title folder's mangabind.json.
+   * The folder is looked up in what the workflow read, and the chapters come from there too: the
+   * renderer only gets to say which volume each one belongs to.
+   */
+  async writeTitleMapping(sessionId: string, title: string, mapping: MappingDraft): Promise<void> {
+    const { library } = this.librarySession(sessionId);
+    const known = library.titles.find((candidate) => candidate.title === title);
+    if (known === undefined) {
+      throw new ConversionWorkflowError(
+        'title_not_found',
+        'That title is no longer in the library. Choose the library again.',
+      );
     }
-    await this.binding.writeTitleMapping(inputPath, mapping);
+    await this.binding.writeTitleMapping(known.inputPath, trustedMapping(known.draft, mapping));
   }
 
-  async convertBatch(
+  /** Joins a library with one mangabind call, then makes a book of each volume of each title. */
+  async convertLibrary(
     request: {
-      readonly parentPath: string;
+      readonly sessionId: string;
       readonly libraryPath: string;
       readonly settings: MangapressSettings;
       readonly format: BookFormat;
@@ -251,10 +316,8 @@ export class SingleInputWorkflow {
         'Review the output settings before converting.',
       );
     }
-    if (this.binding.bindBatch === undefined) {
-      throw new Error('This binding port does not support batch binding.');
-    }
-    const bound = await this.binding.bindBatch(request.parentPath, signal);
+    const { session } = this.librarySession(request.sessionId);
+    const bound = await this.binding.bindBatch(session.selection.inputPath, signal);
     const titles =
       request.titles === undefined
         ? bound.titles
@@ -387,6 +450,23 @@ export class SingleInputWorkflow {
     };
   }
 
+  private librarySession(sessionId: string): {
+    readonly session: ActiveSession;
+    readonly library: LibraryState;
+  } {
+    const session = this.sessions.get(sessionId);
+    if (session === undefined) {
+      throw new ConversionWorkflowError(
+        'session_not_found',
+        'This input is no longer available. Choose it again.',
+      );
+    }
+    if (session.library === undefined) {
+      throw new ConversionWorkflowError('not_a_library', 'This input is not a library.');
+    }
+    return { session, library: session.library };
+  }
+
   async release(sessionId: string): Promise<void> {
     const session = this.sessions.get(sessionId);
     this.sessions.delete(sessionId);
@@ -395,6 +475,26 @@ export class SingleInputWorkflow {
 
   async releaseAll(): Promise<void> {
     await Promise.all([...this.sessions.keys()].map((sessionId) => this.release(sessionId)));
+  }
+}
+
+/** What the renderer is told about a title: everything but where it lives. */
+function summarizeTitle(title: BindingBatchTitle): InspectedTitle {
+  return {
+    title: title.title,
+    draft: title.draft,
+    volumes: title.volumes,
+    issues: title.issues,
+  };
+}
+
+/** A library is converted through its own run, so the calls for one input refuse its session. */
+function rejectLibrary(session: ActiveSession): void {
+  if (session.library !== undefined) {
+    throw new ConversionWorkflowError(
+      'unsupported_mode',
+      'A library is converted title by title, not as one input.',
+    );
   }
 }
 

@@ -2,13 +2,13 @@ import type { NetworkInterfaceOption, OpdsAuthConfig, OpdsSharingStatus } from '
 import type { ToolchainStatus } from './toolchain-status';
 import type {
   ArtifactSummary,
-  BatchConversionCommand,
-  BatchPlanSummary,
-  BatchTitleResult,
   ConversionCommand,
   ConversionProgressPayload,
   DeviceProfileSummary,
   InspectedInputPayload,
+  LibraryConversionCommand,
+  LibraryPlanSummary,
+  LibraryTitleResult,
   MetadataProviderDescriptor,
   MetadataSearchResult,
   PlanSummary,
@@ -43,20 +43,19 @@ export interface MangaboundBridge {
   ) => Promise<WorkflowResult<readonly ArtifactSummary[]>>;
   readonly planConversion: (command: ConversionCommand) => Promise<WorkflowResult<PlanSummary>>;
   readonly cancelConversion: (jobId: string) => Promise<WorkflowResult<undefined>>;
-  readonly chooseInputBatch: () => Promise<
-    WorkflowResult<{ parentPath: string; displayName: string } | null>
-  >;
-  readonly planBatch: (
+  /** Reads a library again, after a title's mapping was saved. */
+  readonly planLibrary: (
     jobId: string,
-    parentPath: string,
-  ) => Promise<WorkflowResult<BatchPlanSummary>>;
+    sessionId: string,
+  ) => Promise<WorkflowResult<LibraryPlanSummary>>;
   readonly writeTitleMapping: (
-    inputPath: string,
+    sessionId: string,
+    title: string,
     mapping: MappingDraft,
   ) => Promise<WorkflowResult<undefined>>;
-  readonly convertBatch: (
-    command: BatchConversionCommand,
-  ) => Promise<WorkflowResult<readonly BatchTitleResult[]>>;
+  readonly convertLibrary: (
+    command: LibraryConversionCommand,
+  ) => Promise<WorkflowResult<readonly LibraryTitleResult[]>>;
   readonly listMetadataProviders: () => Promise<
     WorkflowResult<readonly MetadataProviderDescriptor[]>
   >;

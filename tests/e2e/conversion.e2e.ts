@@ -136,8 +136,8 @@ describe('packaged conversion pipeline', () => {
     assert.equal(openDialog.mock.calls.length, 3);
   });
 
-  it('discovers a real library in batch, fixes one title, and converts both with the pinned tools', async () => {
-    const testRoot = await mkdtemp(path.join(os.tmpdir(), 'mangabound-batch-e2e-'));
+  it('reads a real library from the queue, fixes one title, and converts both with the pinned tools', async () => {
+    const testRoot = await mkdtemp(path.join(os.tmpdir(), 'mangabound-library-e2e-'));
     temporaryDirectories.push(testRoot);
     const sourceLibrary = path.resolve('tests', 'fixtures', 'e2e', 'manga-batch', 'Library');
     const libraryParentPath = path.join(testRoot, 'Library');
@@ -153,19 +153,25 @@ describe('packaged conversion pipeline', () => {
 
     // The previous test left the app on its "book saved" screen: return to the queue first.
     await resetQueue();
-    await $('button=Library').click();
-    await $('h1=Convert Library').waitForDisplayed({ timeout: 30_000 });
-    assert.match(await $('main').getText(), /No volumes could be assigned automatically/u);
+    // A library is added like any folder, and turns out to be one once it has been read.
+    await $('button=Folder').click();
+    await $('span=1 title').waitForDisplayed({ timeout: 60_000 });
+    const queued = await $('main').getText();
+    assert.match(queued, /Library · 2 titles · 1 volume/u);
+    assert.match(queued, /1 title left out until they have volumes/u);
     await assert.rejects(readFile(path.join(needsMappingInputPath, 'mangabind.json'), 'utf8'));
 
-    await $('button=Fix mapping').click();
+    await $('button[aria-label="Edit titles of Library"]').click();
+    await $('span=Needs volumes').waitForDisplayed({ timeout: 30_000 });
+    await $('button[aria-label="Edit volumes for Needs Mapping Manga"]').click();
     await $('h1=Organize Needs Mapping Manga into volumes').waitForDisplayed({ timeout: 30_000 });
     await $('button=Select all').click();
     await $('button[aria-label="Add volume"]').click();
     await $('button=Assign selected').click();
     await $('button=Confirm mapping').click();
-    await $('h1=Convert Library').waitForDisplayed({ timeout: 30_000 });
-    assert.doesNotMatch(await $('main').getText(), /No volumes could be assigned automatically/u);
+    // Saved in that title's folder, and the library read again: both titles have volumes now.
+    await $('span=Needs volumes').waitForDisplayed({ timeout: 60_000, reverse: true });
+    assert.doesNotMatch(await $('main').getText(), /Needs volumes/u);
 
     const savedMetadata = JSON.parse(
       await readFile(path.join(needsMappingInputPath, 'mangabind.json'), 'utf8'),
@@ -173,10 +179,13 @@ describe('packaged conversion pipeline', () => {
     assert.equal(savedMetadata.schema_version, 1);
     await assert.rejects(readFile(path.join(autoResolvedInputPath, 'mangabind.json'), 'utf8'));
 
-    // The prior spec already chose a library, so this reads "Change output folder" here —
-    // either label opens the same picker and this spec supplies its own fresh directory.
-    await chooseOutputFolder('button*=output folder', outputLibraryPath);
-    await $('button=Start batch conversion').click();
+    await $('button=Queue').click();
+    await $('span=2 titles').waitForDisplayed({ timeout: 30_000 });
+    // The prior test already chose a library, so this reads "Change output folder" here: either
+    // label opens the same picker and this test supplies its own fresh directory.
+    await chooseOutputFolder(queueOutputFolderButton, outputLibraryPath);
+    await $('button=Convert 1 item').click();
+    await $('h1=2 books saved').waitForDisplayed({ timeout: 120_000 });
     await waitForEntryCount(outputLibraryPath, 3, 120_000, () => $('main').getText());
 
     const entries = (await readdir(outputLibraryPath)).sort();

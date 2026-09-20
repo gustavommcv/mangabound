@@ -72,7 +72,7 @@ function dependencies({ volumePaths = ['/work/volume-1.cbz', '/work/volume-2.cbz
       height: 1448,
     }),
   );
-  const planBatch = vi.fn<NonNullable<BindingPort['planBatch']>>(() =>
+  const planBatch = vi.fn<BindingPort['planBatch']>(() =>
     Promise.resolve({
       titles: [
         {
@@ -87,7 +87,7 @@ function dependencies({ volumePaths = ['/work/volume-1.cbz', '/work/volume-2.cbz
       issues: [],
     }),
   );
-  const bindBatch = vi.fn<NonNullable<BindingPort['bindBatch']>>(() =>
+  const bindBatch = vi.fn<BindingPort['bindBatch']>(() =>
     Promise.resolve({
       workspaceId: 'batch-workspace',
       titles: [
@@ -107,9 +107,7 @@ function dependencies({ volumePaths = ['/work/volume-1.cbz', '/work/volume-2.cbz
       issues: [],
     }),
   );
-  const writeTitleMapping = vi.fn<NonNullable<BindingPort['writeTitleMapping']>>(() =>
-    Promise.resolve(),
-  );
+  const writeTitleMapping = vi.fn<BindingPort['writeTitleMapping']>(() => Promise.resolve());
   const saveBook = vi.fn<BookFileStorePort['saveBook']>(({ sourcePath, libraryPath }) => {
     const name = sourcePath.split('/').at(-1) ?? 'volume.cbz';
     return Promise.resolve({ path: `${libraryPath}/${name}`, name, bytes: 1234 });
@@ -149,6 +147,32 @@ const cbz: InputSelection = {
   displayName: 'Standalone.cbz',
   kind: 'cbz',
 };
+const library: InputSelection = {
+  inputPath: '/input/Library',
+  displayName: 'Library',
+  kind: 'folder',
+};
+// Read as one manga, a library's manga folders are chapters that have no pages of their own.
+const libraryRead = createMappingDraft({
+  mangaTitle: 'Library',
+  chapters: [
+    { id: 'l1', name: 'Good Manga', path: '/input/Library/Good Manga', pageCount: 0, chapter: 100 },
+  ],
+});
+
+/** A workflow whose first input is a library, read the way mangabind reads one. */
+async function openLibrary(ports: ReturnType<typeof dependencies>) {
+  ports.inspect.mockResolvedValue({ workspaceId: 'workspace-1', draft: libraryRead, issues: [] });
+  let id = 0;
+  const workflow = new SingleInputWorkflow(
+    ports.binding,
+    ports.conversion,
+    () => `id-${String(++id)}`,
+    ports.bookFiles,
+  );
+  const inspected = await workflow.inspect(library);
+  return { workflow, sessionId: inspected.sessionId };
+}
 
 describe('single-input workflow', () => {
   it('inspects folders for an offline mapping and keeps CBZ files direct', async () => {
@@ -173,6 +197,8 @@ describe('single-input workflow', () => {
       issues: [],
     });
     expect(ports.inspect).toHaveBeenCalledOnce();
+    // Chapters with pages in them: this is one manga, so it is never read as a library too.
+    expect(ports.planBatch).not.toHaveBeenCalled();
   });
 
   it('binds a trusted folder mapping and converts volumes strictly sequentially', async () => {
@@ -543,201 +569,381 @@ describe('single-input workflow', () => {
     expect(ports.release).toHaveBeenCalledExactlyOnceWith('workspace-1');
   });
 
-  it('delegates batch planning and title-mapping writes to the binding port', async () => {
-    const ports = dependencies();
-    const workflow = new SingleInputWorkflow(
-      ports.binding,
-      ports.conversion,
-      () => 'id',
-      ports.bookFiles,
-    );
-    const controller = new AbortController();
+  describe('a library', () => {
+    it('is what a folder is taken for when no chapter has pages and mangabind finds manga in it', async () => {
+      const ports = dependencies();
+      const { workflow } = await openLibrary(ports);
 
-    await expect(workflow.planBatch('/library', controller.signal)).resolves.toMatchObject({
-      titles: [{ title: 'Good Manga' }],
+      await expect(workflow.inspect(library)).resolves.toEqual({
+        sessionId: 'id-2',
+        displayName: 'Library',
+        kind: 'library',
+        titles: [
+          {
+            title: 'Good Manga',
+            draft: trustedDraft,
+            volumes: [{ name: 'Good Manga - Vol.01.cbz', pageCount: 2 }],
+            issues: [],
+          },
+        ],
+        issues: [],
+      });
+      expect(ports.planBatch).toHaveBeenCalledWith('/input/Library', undefined);
+      // Reading it as one manga left a scratch copy, which a library has no use for.
+      expect(ports.release).toHaveBeenCalledWith('workspace-1');
     });
-    expect(ports.planBatch).toHaveBeenCalledWith('/library', controller.signal);
 
-    await workflow.writeTitleMapping('/library/Good Manga', mappedDraft());
-    expect(ports.writeTitleMapping).toHaveBeenCalledWith('/library/Good Manga', mappedDraft());
-  });
+    it('keeps where each title lives to itself', async () => {
+      const ports = dependencies();
+      const { workflow } = await openLibrary(ports);
 
-  it('rejects batch operations when the binding port does not support them', async () => {
-    const ports = dependencies();
-    const bindingWithoutBatch: BindingPort = {
-      bind: ports.bind,
-      inspect: ports.inspect,
-      plan: ports.bindingPlan,
-      release: ports.release,
-    };
-    const workflow = new SingleInputWorkflow(
-      bindingWithoutBatch,
-      ports.conversion,
-      () => 'id',
-      ports.bookFiles,
-    );
+      const inspected = await workflow.inspect(library);
 
-    await expect(workflow.planBatch('/library')).rejects.toThrow(/does not support/u);
-    await expect(workflow.writeTitleMapping('/library/Manga', mappedDraft())).rejects.toThrow(
-      /does not support/u,
-    );
-    await expect(
-      workflow.convertBatch(
+      expect(inspected.titles?.[0]).not.toHaveProperty('inputPath');
+      expect(JSON.stringify(inspected)).not.toContain('/library/Good Manga');
+    });
+
+    it('is also what a folder with nothing readable in it is taken for, once manga turn up in it', async () => {
+      const ports = dependencies();
+      ports.inspect.mockResolvedValue({
+        workspaceId: 'workspace-1',
+        draft: createMappingDraft({ mangaTitle: 'Library', chapters: [] }),
+        issues: [],
+      });
+      const workflow = new SingleInputWorkflow(
+        ports.binding,
+        ports.conversion,
+        () => 'id',
+        ports.bookFiles,
+      );
+
+      await expect(workflow.inspect(library)).resolves.toMatchObject({ kind: 'library' });
+    });
+
+    it('stays a folder when the batch read finds no manga with chapters in it', async () => {
+      const ports = dependencies();
+      ports.inspect.mockResolvedValue({
+        workspaceId: 'workspace-1',
+        draft: libraryRead,
+        issues: [],
+      });
+      ports.planBatch.mockResolvedValue({
+        titles: [
+          {
+            title: 'Empty',
+            inputPath: '/input/Library/Empty',
+            status: 'failed',
+            draft: createMappingDraft({ mangaTitle: 'Empty', chapters: [] }),
+            volumes: [],
+            issues: [],
+          },
+        ],
+        issues: [],
+      });
+      const workflow = new SingleInputWorkflow(
+        ports.binding,
+        ports.conversion,
+        () => 'id',
+        ports.bookFiles,
+      );
+
+      await expect(workflow.inspect(library)).resolves.toMatchObject({
+        kind: 'folder',
+        mapping: libraryRead,
+      });
+      // The single read is what the session keeps, so nothing is released.
+      expect(ports.release).not.toHaveBeenCalled();
+    });
+
+    it('stays a folder when it cannot be read as a library at all', async () => {
+      const ports = dependencies();
+      ports.inspect.mockResolvedValue({
+        workspaceId: 'workspace-1',
+        draft: libraryRead,
+        issues: [],
+      });
+      ports.planBatch.mockRejectedValue(new Error('mangabind failed'));
+      const workflow = new SingleInputWorkflow(
+        ports.binding,
+        ports.conversion,
+        () => 'id',
+        ports.bookFiles,
+      );
+
+      await expect(workflow.inspect(library)).resolves.toMatchObject({ kind: 'folder' });
+    });
+
+    it('lets a cancellation through instead of taking it for "not a library"', async () => {
+      const ports = dependencies();
+      ports.inspect.mockResolvedValue({
+        workspaceId: 'workspace-1',
+        draft: libraryRead,
+        issues: [],
+      });
+      const controller = new AbortController();
+      ports.planBatch.mockImplementation(() => {
+        controller.abort();
+        return Promise.reject(new Error('aborted'));
+      });
+      const workflow = new SingleInputWorkflow(
+        ports.binding,
+        ports.conversion,
+        () => 'id',
+        ports.bookFiles,
+      );
+
+      await expect(workflow.inspect(library, controller.signal)).rejects.toThrow('aborted');
+    });
+
+    it('is read again on request, and what was read replaces what was known', async () => {
+      const ports = dependencies();
+      const { workflow, sessionId } = await openLibrary(ports);
+      ports.planBatch.mockClear();
+      ports.planBatch.mockResolvedValue({
+        titles: [
+          {
+            title: 'Good Manga',
+            inputPath: '/library/Good Manga',
+            status: 'completed',
+            draft: mappedDraft(),
+            volumes: [
+              { name: 'Good Manga - Vol.01.cbz', pageCount: 2 },
+              { name: 'Good Manga - Vol.02.cbz', pageCount: 3 },
+            ],
+            issues: [],
+          },
+        ],
+        issues: [],
+      });
+      const controller = new AbortController();
+
+      const planned = await workflow.planLibrary(sessionId, controller.signal);
+
+      expect(ports.planBatch).toHaveBeenCalledExactlyOnceWith('/input/Library', controller.signal);
+      expect(planned.titles.map((title) => title.volumes.length)).toEqual([2]);
+      // The next write goes by what was read last.
+      await workflow.writeTitleMapping(sessionId, 'Good Manga', mappedDraft());
+      expect(ports.writeTitleMapping).toHaveBeenCalledWith('/library/Good Manga', mappedDraft());
+    });
+
+    it('refuses to be read again, written to or converted once it is gone or was never one', async () => {
+      const ports = dependencies();
+      const workflow = new SingleInputWorkflow(
+        ports.binding,
+        ports.conversion,
+        () => 'id',
+        ports.bookFiles,
+      );
+      const { sessionId: folderSession } = await workflow.inspect(folder);
+      const convertRequest = {
+        libraryPath: '/output',
+        settings: defaultMangapressSettings,
+        format: 'epub',
+      } as const;
+
+      await expect(workflow.planLibrary('gone')).rejects.toMatchObject({
+        code: 'session_not_found',
+      });
+      await expect(workflow.planLibrary(folderSession)).rejects.toMatchObject({
+        code: 'not_a_library',
+      });
+      await expect(
+        workflow.writeTitleMapping(folderSession, 'Trusted Manga', mappedDraft()),
+      ).rejects.toMatchObject({ code: 'not_a_library' });
+      await expect(
+        workflow.convertLibrary(
+          { ...convertRequest, sessionId: folderSession },
+          { onProgress: vi.fn() },
+        ),
+      ).rejects.toMatchObject({ code: 'not_a_library' });
+      await expect(
+        workflow.convertLibrary({ ...convertRequest, sessionId: 'gone' }, { onProgress: vi.fn() }),
+      ).rejects.toMatchObject({ code: 'session_not_found' });
+      expect(ports.bindBatch).not.toHaveBeenCalled();
+    });
+
+    it('saves a title mapping in that title folder, from the chapters it was read with', async () => {
+      const ports = dependencies();
+      const { workflow, sessionId } = await openLibrary(ports);
+      const forgedChapters = trustedDraft.chapters.map((chapter) => ({
+        ...chapter,
+        path: '/somewhere/else',
+      }));
+
+      await workflow.writeTitleMapping(sessionId, 'Good Manga', {
+        ...mappedDraft(),
+        chapters: forgedChapters,
+      });
+
+      expect(ports.writeTitleMapping).toHaveBeenCalledExactlyOnceWith(
+        '/library/Good Manga',
+        mappedDraft(),
+      );
+    });
+
+    it('refuses a mapping for a title it does not know, and one that names unknown chapters', async () => {
+      const ports = dependencies();
+      const { workflow, sessionId } = await openLibrary(ports);
+
+      await expect(
+        workflow.writeTitleMapping(sessionId, 'Not There', mappedDraft()),
+      ).rejects.toMatchObject({ code: 'title_not_found' });
+      await expect(
+        workflow.writeTitleMapping(sessionId, 'Good Manga', {
+          ...mappedDraft(),
+          volumes: [{ id: 'v1', number: '1', chapterIds: ['nope'] }],
+        }),
+      ).rejects.toMatchObject({ code: 'invalid_mapping' });
+      expect(ports.writeTitleMapping).not.toHaveBeenCalled();
+    });
+
+    it('is not converted as if it were one input', async () => {
+      const ports = dependencies();
+      const { workflow, sessionId } = await openLibrary(ports);
+      const request = {
+        sessionId,
+        libraryPath: '/output',
+        settings: defaultMangapressSettings,
+        format: 'epub',
+      } as const;
+
+      await expect(workflow.convert(request, { onProgress: vi.fn() })).rejects.toMatchObject({
+        code: 'unsupported_mode',
+      });
+      await expect(workflow.plan(request)).rejects.toMatchObject({ code: 'unsupported_mode' });
+    });
+
+    it('holds no scratch copy of its own once read', async () => {
+      const ports = dependencies();
+      const { workflow } = await openLibrary(ports);
+      ports.release.mockClear();
+
+      await workflow.releaseAll();
+
+      expect(ports.release).not.toHaveBeenCalled();
+    });
+
+    it('rejects invalid output settings before invoking batch binding', async () => {
+      const ports = dependencies();
+      const { workflow, sessionId } = await openLibrary(ports);
+
+      await expect(
+        workflow.convertLibrary(
+          {
+            sessionId,
+            libraryPath: '/output',
+            settings: { ...defaultMangapressSettings, jpegQuality: 101 },
+            format: 'epub',
+          },
+          { onProgress: vi.fn() },
+        ),
+      ).rejects.toMatchObject({ code: 'invalid_settings' });
+      expect(ports.bindBatch).not.toHaveBeenCalled();
+    });
+
+    it('converts every volume of a successful title and isolates a bind-phase failure', async () => {
+      const ports = dependencies();
+      const { workflow, sessionId } = await openLibrary(ports);
+      const onProgress = vi.fn();
+
+      const outcomes = await workflow.convertLibrary(
         {
-          parentPath: '/library',
+          sessionId,
+          libraryPath: '/output',
+          settings: defaultMangapressSettings,
+          format: 'epub',
+        },
+        { onProgress },
+      );
+
+      expect(ports.bindBatch).toHaveBeenCalledExactlyOnceWith('/input/Library', undefined);
+      expect(ports.convert).toHaveBeenCalledTimes(2);
+      expect(outcomes).toMatchObject([
+        {
+          title: 'Good Manga',
+          status: 'done',
+          artifacts: [
+            { id: 'artifact-/work/batch/good-vol-1.cbz' },
+            { id: 'artifact-/work/batch/good-vol-2.cbz' },
+          ],
+        },
+        { title: 'Broken Manga', status: 'failed', artifacts: [] },
+      ]);
+      expect(outcomes[1]!.error).toMatchObject({ code: 'binding_failed' });
+      expect(onProgress).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Good Manga', stage: 'processing' }),
+      );
+      expect(ports.release).toHaveBeenCalledWith('batch-workspace');
+    });
+
+    it('isolates a mangapress-phase failure to its own title and keeps converting the rest', async () => {
+      const ports = dependencies();
+      ports.convert.mockImplementationOnce(() => Promise.reject(new Error('mangapress crashed')));
+      const { workflow, sessionId } = await openLibrary(ports);
+
+      const outcomes = await workflow.convertLibrary(
+        {
+          sessionId,
           libraryPath: '/output',
           settings: defaultMangapressSettings,
           format: 'epub',
         },
         { onProgress: vi.fn() },
-      ),
-    ).rejects.toThrow(/does not support/u);
-  });
+      );
 
-  it('rejects invalid output settings before invoking batch binding', async () => {
-    const ports = dependencies();
-    const workflow = new SingleInputWorkflow(
-      ports.binding,
-      ports.conversion,
-      () => 'id',
-      ports.bookFiles,
-    );
+      expect(outcomes[0]).toMatchObject({ title: 'Good Manga', status: 'failed', artifacts: [] });
+      expect(outcomes[0]!.error).toMatchObject({ message: 'mangapress crashed' });
+      // The bind-phase failure for the other title is still reported, not skipped.
+      expect(outcomes[1]).toMatchObject({ title: 'Broken Manga', status: 'failed' });
+      expect(ports.release).toHaveBeenCalledWith('batch-workspace');
+    });
 
-    await expect(
-      workflow.convertBatch(
+    it('stops before starting the next title once cancelled, and still releases the workspace', async () => {
+      const ports = dependencies();
+      const controller = new AbortController();
+      // Simulates the real subprocess adapter: an in-flight convert() rejects once its signal aborts.
+      ports.convert.mockImplementationOnce(() => {
+        controller.abort();
+        return Promise.reject(new Error('aborted'));
+      });
+      const { workflow, sessionId } = await openLibrary(ports);
+
+      const outcomes = await workflow.convertLibrary(
         {
-          parentPath: '/library',
+          sessionId,
           libraryPath: '/output',
-          settings: { ...defaultMangapressSettings, jpegQuality: 101 },
+          settings: defaultMangapressSettings,
           format: 'epub',
         },
-        { onProgress: vi.fn() },
-      ),
-    ).rejects.toMatchObject({ code: 'invalid_settings' });
-    expect(ports.bindBatch).not.toHaveBeenCalled();
-  });
+        { onProgress: vi.fn(), signal: controller.signal },
+      );
 
-  it('converts every volume of a successful batch title and isolates a bind-phase failure', async () => {
-    const ports = dependencies();
-    const onProgress = vi.fn();
-    const workflow = new SingleInputWorkflow(
-      ports.binding,
-      ports.conversion,
-      () => 'id',
-      ports.bookFiles,
-    );
-
-    const outcomes = await workflow.convertBatch(
-      {
-        parentPath: '/library',
-        libraryPath: '/output',
-        settings: defaultMangapressSettings,
-        format: 'epub',
-      },
-      { onProgress },
-    );
-
-    expect(ports.convert).toHaveBeenCalledTimes(2);
-    expect(outcomes).toMatchObject([
-      {
-        title: 'Good Manga',
-        status: 'done',
-        artifacts: [
-          { id: 'artifact-/work/batch/good-vol-1.cbz' },
-          { id: 'artifact-/work/batch/good-vol-2.cbz' },
-        ],
-      },
-      { title: 'Broken Manga', status: 'failed', artifacts: [] },
-    ]);
-    expect(outcomes[1]!.error).toMatchObject({ code: 'binding_failed' });
-    expect(onProgress).toHaveBeenCalledWith(
-      expect.objectContaining({ title: 'Good Manga', stage: 'processing' }),
-    );
-    expect(ports.release).toHaveBeenCalledExactlyOnceWith('batch-workspace');
-  });
-
-  it('isolates a mangapress-phase failure to its own title and keeps converting the rest', async () => {
-    const ports = dependencies();
-    ports.convert.mockImplementationOnce(() => Promise.reject(new Error('mangapress crashed')));
-    const workflow = new SingleInputWorkflow(
-      ports.binding,
-      ports.conversion,
-      () => 'id',
-      ports.bookFiles,
-    );
-
-    const outcomes = await workflow.convertBatch(
-      {
-        parentPath: '/library',
-        libraryPath: '/output',
-        settings: defaultMangapressSettings,
-        format: 'epub',
-      },
-      { onProgress: vi.fn() },
-    );
-
-    expect(outcomes[0]).toMatchObject({ title: 'Good Manga', status: 'failed', artifacts: [] });
-    expect(outcomes[0]!.error).toMatchObject({ message: 'mangapress crashed' });
-    // The bind-phase failure for the other title is still reported, not skipped.
-    expect(outcomes[1]).toMatchObject({ title: 'Broken Manga', status: 'failed' });
-    expect(ports.release).toHaveBeenCalledExactlyOnceWith('batch-workspace');
-  });
-
-  it('stops before starting the next title once cancelled, and still releases the workspace', async () => {
-    const ports = dependencies();
-    const controller = new AbortController();
-    // Simulates the real subprocess adapter: an in-flight convert() rejects once its signal aborts.
-    ports.convert.mockImplementationOnce(() => {
-      controller.abort();
-      return Promise.reject(new Error('aborted'));
+      // The interrupted title is reported as failed, and the loop stops before "Broken Manga".
+      expect(ports.convert).toHaveBeenCalledTimes(1);
+      expect(outcomes).toMatchObject([{ title: 'Good Manga', status: 'failed', artifacts: [] }]);
+      expect(outcomes[0]!.error).toMatchObject({ message: 'aborted' });
+      expect(ports.release).toHaveBeenCalledWith('batch-workspace');
     });
-    const workflow = new SingleInputWorkflow(
-      ports.binding,
-      ports.conversion,
-      () => 'id',
-      ports.bookFiles,
-    );
 
-    const outcomes = await workflow.convertBatch(
-      {
-        parentPath: '/library',
-        libraryPath: '/output',
-        settings: defaultMangapressSettings,
-        format: 'epub',
-      },
-      { onProgress: vi.fn(), signal: controller.signal },
-    );
+    it('restricts conversion to the requested titles when running only some of them', async () => {
+      const ports = dependencies();
+      const { workflow, sessionId } = await openLibrary(ports);
 
-    // The interrupted title is reported as failed, and the loop stops before "Broken Manga".
-    expect(ports.convert).toHaveBeenCalledTimes(1);
-    expect(outcomes).toMatchObject([{ title: 'Good Manga', status: 'failed', artifacts: [] }]);
-    expect(outcomes[0]!.error).toMatchObject({ message: 'aborted' });
-    expect(ports.release).toHaveBeenCalledExactlyOnceWith('batch-workspace');
-  });
+      const outcomes = await workflow.convertLibrary(
+        {
+          sessionId,
+          libraryPath: '/output',
+          settings: defaultMangapressSettings,
+          format: 'epub',
+          titles: ['Good Manga'],
+        },
+        { onProgress: vi.fn() },
+      );
 
-  it('restricts conversion to the requested titles when retrying one after a partial run', async () => {
-    const ports = dependencies();
-    const workflow = new SingleInputWorkflow(
-      ports.binding,
-      ports.conversion,
-      () => 'id',
-      ports.bookFiles,
-    );
-
-    const outcomes = await workflow.convertBatch(
-      {
-        parentPath: '/library',
-        libraryPath: '/output',
-        settings: defaultMangapressSettings,
-        format: 'epub',
-        titles: ['Good Manga'],
-      },
-      { onProgress: vi.fn() },
-    );
-
-    expect(outcomes).toHaveLength(1);
-    expect(outcomes[0]).toMatchObject({ title: 'Good Manga', status: 'done' });
-    expect(ports.convert).toHaveBeenCalledTimes(2);
+      expect(outcomes).toHaveLength(1);
+      expect(outcomes[0]).toMatchObject({ title: 'Good Manga', status: 'done' });
+      expect(ports.convert).toHaveBeenCalledTimes(2);
+    });
   });
 });
 
@@ -1064,9 +1270,8 @@ describe('single-input workflow process modes', () => {
     ).rejects.toMatchObject({ code: 'invalid_settings' });
   });
 
-  describe('a batch', () => {
-    const batchRequest = {
-      parentPath: '/library',
+  describe('a library', () => {
+    const libraryRequest = {
       libraryPath: '/output',
       settings: defaultMangapressSettings,
       format: 'epub',
@@ -1074,12 +1279,12 @@ describe('single-input workflow process modes', () => {
 
     it('joins every title and saves the volumes as books, skipping mangapress and its settings', async () => {
       const ports = dependencies();
-      const workflow = folderWorkflow(ports);
+      const { workflow, sessionId } = await openLibrary(ports);
       const progress: ConversionProgress[] = [];
       const landed: string[] = [];
 
-      const outcomes = await workflow.convertBatch(
-        { ...batchRequest, settings: invalidSettings, mode: 'bind-only' },
+      const outcomes = await workflow.convertLibrary(
+        { ...libraryRequest, sessionId, settings: invalidSettings, mode: 'bind-only' },
         {
           onProgress: (update) => progress.push(update),
           onArtifact: (artifact) => landed.push(artifact.name),
@@ -1116,10 +1321,10 @@ describe('single-input workflow process modes', () => {
     it('isolates a title whose volumes could not be saved, and still releases the workspace', async () => {
       const ports = dependencies();
       ports.saveBook.mockRejectedValueOnce(new Error('EACCES'));
-      const workflow = folderWorkflow(ports);
+      const { workflow, sessionId } = await openLibrary(ports);
 
-      const outcomes = await workflow.convertBatch(
-        { ...batchRequest, mode: 'bind-only' },
+      const outcomes = await workflow.convertLibrary(
+        { ...libraryRequest, sessionId, mode: 'bind-only' },
         { onProgress: vi.fn() },
       );
 
@@ -1134,13 +1339,16 @@ describe('single-input workflow process modes', () => {
 
     it('reports each converted book as it lands in the ordinary mode too', async () => {
       const ports = dependencies();
-      const workflow = folderWorkflow(ports);
+      const { workflow, sessionId } = await openLibrary(ports);
       const landed: string[] = [];
 
-      await workflow.convertBatch(batchRequest, {
-        onProgress: vi.fn(),
-        onArtifact: (artifact) => landed.push(artifact.id),
-      });
+      await workflow.convertLibrary(
+        { ...libraryRequest, sessionId },
+        {
+          onProgress: vi.fn(),
+          onArtifact: (artifact) => landed.push(artifact.id),
+        },
+      );
 
       expect(landed).toEqual([
         'artifact-/work/batch/good-vol-1.cbz',
@@ -1150,11 +1358,11 @@ describe('single-input workflow process modes', () => {
 
     it('still validates the mangapress settings when mangapress will run', async () => {
       const ports = dependencies();
-      const workflow = folderWorkflow(ports);
+      const { workflow, sessionId } = await openLibrary(ports);
 
       await expect(
-        workflow.convertBatch(
-          { ...batchRequest, settings: invalidSettings },
+        workflow.convertLibrary(
+          { ...libraryRequest, sessionId, settings: invalidSettings },
           { onProgress: vi.fn() },
         ),
       ).rejects.toMatchObject({ code: 'invalid_settings' });

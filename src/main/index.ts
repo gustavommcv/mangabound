@@ -47,17 +47,17 @@ import {
 import type { ToolchainStatus, ToolchainTarget } from '@/shared/toolchain-status';
 import {
   type ArtifactSummary,
-  batchConversionCommandSchema,
-  type BatchPlanSummary,
-  type BatchTitleResult,
   conversionCommandSchema,
   type DeviceProfileSummary,
   chooseInputsKindSchema,
   identifierSchema,
   type InspectedInputPayload,
+  libraryConversionCommandSchema,
+  type LibraryPlanSummary,
+  type LibraryTitleResult,
   type MetadataProviderDescriptor,
   type MetadataSearchResult,
-  planBatchCommandSchema,
+  planLibraryCommandSchema,
   type PlanSummary,
   type RegisteredInputs,
   registerInputsCommandSchema,
@@ -341,29 +341,6 @@ function registerWorkflowHandlers(): void {
   );
 
   ipcMain.handle(
-    'workflow:choose-input-batch',
-    async (): Promise<WorkflowResult<{ parentPath: string; displayName: string } | null>> => {
-      try {
-        const result = await dialog.showOpenDialog({
-          title: 'Choose a folder containing multiple manga',
-          properties: ['openDirectory'],
-        });
-        const parentPath = result.filePaths[0];
-        if (result.canceled || parentPath === undefined) return ok(null);
-        if (!(await stat(parentPath)).isDirectory()) {
-          return failed({
-            code: 'invalid_input',
-            message: 'Choose a folder containing manga subfolders.',
-          });
-        }
-        return ok({ parentPath, displayName: path.basename(parentPath) });
-      } catch (error) {
-        return failed(toFailure(error));
-      }
-    },
-  );
-
-  ipcMain.handle(
     'workflow:choose-library',
     async (): Promise<WorkflowResult<SelectedLibrary | null>> => {
       try {
@@ -494,17 +471,17 @@ function registerWorkflowHandlers(): void {
   );
 
   ipcMain.handle(
-    'workflow:plan-batch',
-    async (_event, rawCommand: unknown): Promise<WorkflowResult<BatchPlanSummary>> => {
+    'workflow:plan-library',
+    async (_event, rawCommand: unknown): Promise<WorkflowResult<LibraryPlanSummary>> => {
       try {
-        const command = planBatchCommandSchema.parse(rawCommand);
+        const command = planLibraryCommandSchema.parse(rawCommand);
         if (activeJobs.has(command.jobId)) {
           return failed({ code: 'job_exists', message: 'That discovery is already running.' });
         }
         const controller = new AbortController();
         activeJobs.set(command.jobId, controller);
         try {
-          return ok(await requireWorkflow().planBatch(command.parentPath, controller.signal));
+          return ok(await requireWorkflow().planLibrary(command.sessionId, controller.signal));
         } finally {
           activeJobs.delete(command.jobId);
         }
@@ -519,7 +496,11 @@ function registerWorkflowHandlers(): void {
     async (_event, rawCommand: unknown): Promise<WorkflowResult<undefined>> => {
       try {
         const command = writeTitleMappingCommandSchema.parse(rawCommand);
-        await requireWorkflow().writeTitleMapping(command.inputPath, command.mapping);
+        await requireWorkflow().writeTitleMapping(
+          command.sessionId,
+          command.title,
+          command.mapping,
+        );
         return ok(undefined);
       } catch (error) {
         return failed(toFailure(error));
@@ -590,13 +571,13 @@ function registerWorkflowHandlers(): void {
   );
 
   ipcMain.handle(
-    'workflow:convert-batch',
+    'workflow:convert-library',
     async (
       event: IpcMainInvokeEvent,
       rawCommand: unknown,
-    ): Promise<WorkflowResult<readonly BatchTitleResult[]>> => {
+    ): Promise<WorkflowResult<readonly LibraryTitleResult[]>> => {
       try {
-        const command = batchConversionCommandSchema.parse(rawCommand);
+        const command = libraryConversionCommandSchema.parse(rawCommand);
         const libraryPath = selectedLibraries.get(command.libraryId);
         if (libraryPath === undefined) {
           return failed({ code: 'library_not_found', message: 'Choose the output folder again.' });
@@ -608,9 +589,9 @@ function registerWorkflowHandlers(): void {
         activeJobs.set(command.jobId, controller);
         const tracked = trackArtifacts(libraryPath);
         try {
-          const outcomes = await requireWorkflow().convertBatch(
+          const outcomes = await requireWorkflow().convertLibrary(
             {
-              parentPath: command.parentPath,
+              sessionId: command.sessionId,
               libraryPath,
               settings: command.settings,
               format: command.format,

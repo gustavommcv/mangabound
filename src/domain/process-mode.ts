@@ -36,7 +36,7 @@ export function usesMangapress(mode: ProcessMode): boolean {
 }
 
 const cbzReason = 'A CBZ is already one volume, so there is nothing to join.';
-const libraryReason =
+export const libraryReason =
   'A library is grouped title by title first, so it cannot skip joining volumes.';
 
 /** Why a run must refuse this mode for this kind of input, or undefined when it can run. */

@@ -1,5 +1,4 @@
 import {
-  Boxes,
   CheckCircle2,
   ChevronRight,
   FilePlus2,
@@ -41,8 +40,6 @@ export interface QueueScreenProps {
   readonly mode: ProcessMode;
   readonly onAddFiles: () => void;
   readonly onAddFolders: () => void;
-  /** Adds a whole library of manga folders; offered until libraries join the queue itself. */
-  readonly onAddLibrary?: () => void;
   readonly onChooseLibrary: () => void;
   readonly onClear: () => void;
   readonly onConvert: () => void;
@@ -73,6 +70,14 @@ const formatOptions = [
 const plural = (count: number, word: string): string =>
   `${String(count)} ${word}${count === 1 ? '' : 's'}`;
 
+/** A queue of one kind only limits the steps to what that kind allows; a mixed one does not. */
+function stepsInput(rows: readonly QueueRow[]): 'folder' | 'cbz' | 'library' {
+  const kind = rows[0]?.kind;
+  return kind !== undefined && rows.every((row) => row.kind === kind) && kind !== 'folder'
+    ? kind
+    : 'folder';
+}
+
 export function QueueScreen(props: QueueScreenProps): React.JSX.Element {
   const {
     disabled,
@@ -81,7 +86,6 @@ export function QueueScreen(props: QueueScreenProps): React.JSX.Element {
     mode,
     onAddFiles,
     onAddFolders,
-    onAddLibrary,
     onChooseLibrary,
     onClear,
     onConvert,
@@ -139,11 +143,6 @@ export function QueueScreen(props: QueueScreenProps): React.JSX.Element {
           <Button disabled={disabled} onClick={onAddFolders} size="sm" variant="outline">
             <FolderPlus /> Folder
           </Button>
-          {onAddLibrary !== undefined && (
-            <Button disabled={disabled} onClick={onAddLibrary} size="sm" variant="ghost">
-              <Boxes /> Library
-            </Button>
-          )}
           {rows.length > 0 && (
             <Button onClick={onClear} size="sm" variant="ghost">
               Clear
@@ -201,11 +200,7 @@ export function QueueScreen(props: QueueScreenProps): React.JSX.Element {
         aria-label="Conversion options"
         className="border-border bg-surface h-fit space-y-5 rounded-xl border p-5"
       >
-        <ProcessSteps
-          input={rows.length > 0 && rows.every((row) => row.kind === 'cbz') ? 'cbz' : 'folder'}
-          mode={mode}
-          onMode={onMode}
-        />
+        <ProcessSteps input={stepsInput(rows)} mode={mode} onMode={onMode} />
 
         <div className="space-y-1.5">
           <Label htmlFor="queue-device">Device</Label>
@@ -348,7 +343,7 @@ function DropTarget({
         {over
           ? 'Release to add them'
           : empty
-            ? 'Drop manga folders or .cbz files here, or use Files and Folder.'
+            ? 'Drop manga folders, libraries or .cbz files here, or use Files and Folder.'
             : 'Drop files or folders here'}
       </p>
     </div>

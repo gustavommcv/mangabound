@@ -2,8 +2,11 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { LibraryTitle } from '@/domain/input-queue';
+import { createMappingDraft } from '@/domain/mapping';
 import { KoreaderCard } from '@/renderer/components/sharing/koreader-card';
 import { SegmentedControl } from '@/renderer/components/ui/segmented-control';
+import { LibraryScreen } from '@/renderer/screens/library-screen';
 import { formatBytes, ResultsScreen, type RunOutcome } from '@/renderer/screens/results-screen';
 
 const options = [
@@ -266,6 +269,79 @@ describe('ResultsScreen', () => {
     await user.click(screen.getByRole('button', { name: 'Fix Loose' }));
     expect(onFix).toHaveBeenCalledWith('x');
     await user.click(screen.getByRole('button', { name: 'Convert more' }));
+    expect(onBack).toHaveBeenCalledOnce();
+  });
+});
+
+describe('LibraryScreen', () => {
+  const chapters = [
+    { id: 'c1', name: 'Chapter 1', path: '/m/1', pageCount: 2, chapter: 1 },
+    { id: 'c2', name: 'Chapter 2', path: '/m/2', pageCount: 2, chapter: 2 },
+  ] as const;
+  const volume = { name: 'Vol.01.cbz', pageCount: 4 };
+  const titles: readonly LibraryTitle[] = [
+    {
+      title: 'Whole',
+      draft: createMappingDraft({
+        mangaTitle: 'Whole',
+        chapters,
+        volumes: [{ id: 'v1', number: '1', chapterIds: ['c1', 'c2'] }],
+      }),
+      volumes: [volume],
+    },
+    {
+      title: 'Partial',
+      draft: createMappingDraft({
+        mangaTitle: 'Partial',
+        chapters,
+        volumes: [{ id: 'v1', number: '1', chapterIds: ['c1'] }],
+      }),
+      volumes: [volume],
+    },
+    { title: 'Loose', draft: createMappingDraft({ mangaTitle: 'Loose', chapters }), volumes: [] },
+    {
+      title: 'Saved',
+      draft: createMappingDraft({ mangaTitle: 'Saved', chapters }),
+      volumes: [volume],
+      outcome: { status: 'done' },
+    },
+    {
+      title: 'Crashed',
+      draft: createMappingDraft({ mangaTitle: 'Crashed', chapters }),
+      volumes: [volume],
+      outcome: { status: 'failed', message: 'mangapress crashed.' },
+    },
+  ];
+
+  it('says what each title needs and what became of it', () => {
+    render(<LibraryScreen name="Library" onBack={vi.fn()} onEdit={vi.fn()} titles={titles} />);
+
+    expect(screen.getByRole('heading', { name: 'Library' })).toBeVisible();
+    expect(screen.getByText(/5 titles\./u)).toBeVisible();
+    const rows = screen.getAllByRole('listitem');
+    expect(rows).toHaveLength(5);
+    expect(rows[0]).toHaveTextContent('Whole2 chapters1 volume');
+    expect(rows[1]).toHaveTextContent('1 chapter left out');
+    expect(rows[2]).toHaveTextContent('Needs volumes');
+    // A title that was saved has nothing left to edit.
+    expect(rows[3]).toHaveTextContent('Saved');
+    expect(
+      screen.queryByRole('button', { name: 'Edit volumes for Saved' }),
+    ).not.toBeInTheDocument();
+    expect(rows[4]).toHaveTextContent('Failed');
+    expect(rows[4]).toHaveTextContent('mangapress crashed.');
+  });
+
+  it('opens a title in the editor and goes back to the queue', async () => {
+    const user = userEvent.setup();
+    const onEdit = vi.fn();
+    const onBack = vi.fn();
+    render(<LibraryScreen name="Library" onBack={onBack} onEdit={onEdit} titles={titles} />);
+
+    await user.click(screen.getByRole('button', { name: 'Edit volumes for Loose' }));
+    await user.click(screen.getByRole('button', { name: 'Queue' }));
+
+    expect(onEdit).toHaveBeenCalledWith('Loose');
     expect(onBack).toHaveBeenCalledOnce();
   });
 });

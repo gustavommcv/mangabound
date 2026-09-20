@@ -76,6 +76,38 @@ const rows: readonly QueueRow[] = [
   },
 ];
 
+const libraryTitles = [
+  {
+    title: 'Chainsaw Man',
+    draft: grouped,
+    volumes: [
+      { name: 'Chainsaw Man - Vol.01.cbz', pageCount: 46 },
+      { name: 'Chainsaw Man - Vol.02.cbz', pageCount: 26 },
+    ],
+  },
+  {
+    title: 'Vagabond',
+    draft: grouped,
+    volumes: [{ name: 'Vagabond - Vol.01.cbz', pageCount: 72 }],
+  },
+  {
+    title: 'Random scans',
+    draft: createMappingDraft({ mangaTitle: 'Random scans', chapters }),
+    volumes: [],
+  },
+] as const;
+
+const libraryRow: QueueRow = {
+  id: 'lib',
+  kind: 'library',
+  displayName: 'Manga Library',
+  displayPath: 'D:\\Manga\\Manga Library',
+  state: 'inspected',
+  sessionId: 'session-lib',
+  confirmed: false,
+  titles: libraryTitles,
+};
+
 const base: QueueScreenProps = {
   disabled: false,
   format: 'epub',
@@ -83,7 +115,6 @@ const base: QueueScreenProps = {
   mode: 'bind-and-convert',
   onAddFiles: () => undefined,
   onAddFolders: () => undefined,
-  onAddLibrary: () => undefined,
   onChooseLibrary: () => undefined,
   onClear: () => undefined,
   onConvert: () => undefined,
@@ -143,6 +174,18 @@ export const Empty: Story = {};
 
 export const WithItems: Story = {
   args: { rows },
+};
+
+export const WithLibrary: Story = {
+  args: { rows: [libraryRow, ...rows.slice(2, 3)] },
+};
+
+export const LibraryNeedsVolumes: Story = {
+  args: { rows: [{ ...libraryRow, titles: libraryTitles.slice(2) }] },
+};
+
+export const LibraryWhenNotGrouping: Story = {
+  args: { rows: [libraryRow], mode: 'convert-only' },
 };
 
 export const NoOutputFolderYet: Story = {

@@ -132,10 +132,9 @@ function bridge(overrides: Partial<MangaboundBridge> = {}): MangaboundBridge {
         },
       }),
     cancelConversion: () => Promise.resolve({ ok: true, value: undefined }),
-    chooseInputBatch: () => Promise.resolve({ ok: true, value: null }),
-    planBatch: () => Promise.resolve({ ok: true, value: { titles: [], issues: [] } }),
+    planLibrary: () => Promise.resolve({ ok: true, value: { titles: [], issues: [] } }),
     writeTitleMapping: () => Promise.resolve({ ok: true, value: undefined }),
-    convertBatch: () => Promise.resolve({ ok: true, value: [] }),
+    convertLibrary: () => Promise.resolve({ ok: true, value: [] }),
     listMetadataProviders: () => Promise.resolve({ ok: true, value: [] }),
     searchMetadata: () => Promise.resolve({ ok: true, value: [] }),
     suggestVolumes: () => Promise.resolve({ ok: true, value: { volumes: [] } }),
@@ -197,7 +196,7 @@ describe('queue application workflow', () => {
     render(<App />);
 
     expect(await screen.findByRole('heading', { name: 'Queue' })).toBeVisible();
-    expect(screen.getByText(/Drop manga folders or \.cbz files here/u)).toBeVisible();
+    expect(screen.getByText(/Drop manga folders, libraries or \.cbz files here/u)).toBeVisible();
     // Nothing to run and nowhere to put it yet.
     expect(screen.getByRole('button', { name: 'Convert' })).toBeDisabled();
     await waitFor(() => {
@@ -1207,90 +1206,194 @@ describe('sending the saved books to KOReader', () => {
   });
 });
 
-const goodTitleDraft = createMappingDraft({
-  mangaTitle: 'Good Manga',
-  chapters: [
-    {
-      id: 'g1',
-      name: 'Chapter 1',
-      path: 'C:\\Library\\Good Manga\\Chapter 1',
-      pageCount: 2,
-      chapter: 1,
-    },
-  ],
-  volumes: [{ id: 'gv1', number: '1', chapterIds: ['g1'] }],
-});
-const brokenTitleDraft = createMappingDraft({
-  mangaTitle: 'Broken Manga',
-  chapters: [
-    {
-      id: 'b1',
-      name: 'Chapter 1',
-      path: 'C:\\Library\\Broken Manga\\Chapter 1',
-      pageCount: 1,
-      chapter: 1,
-    },
-  ],
-  volumes: [{ id: 'bv1', number: '1', chapterIds: ['b1'] }],
-});
-
-function batchPlan(brokenStatus: 'completed' | 'failed') {
-  return {
-    titles: [
+const goodTitle = {
+  title: 'Good Manga',
+  draft: createMappingDraft({
+    mangaTitle: 'Good Manga',
+    chapters: [
       {
-        title: 'Good Manga',
-        inputPath: 'C:\\Library\\Good Manga',
-        status: 'completed' as const,
-        draft: goodTitleDraft,
-        volumes: [{ name: 'Good Manga - Vol.01.cbz', pageCount: 2 }],
-        issues: [],
-      },
-      {
-        title: 'Broken Manga',
-        inputPath: 'C:\\Library\\Broken Manga',
-        status: brokenStatus,
-        draft: brokenTitleDraft,
-        volumes:
-          brokenStatus === 'completed' ? [{ name: 'Broken Manga - Vol.01.cbz', pageCount: 1 }] : [],
-        issues:
-          brokenStatus === 'failed'
-            ? [
-                {
-                  tool: 'mangabind' as const,
-                  severity: 'error' as const,
-                  code: 'metadata_load_failed',
-                  stage: 'group',
-                  recoverable: true,
-                  message: 'mangabind.json could not be parsed.',
-                },
-              ]
-            : [],
+        id: 'g1',
+        name: 'Chapter 1',
+        path: 'C:\\input\\Manga Library\\Good Manga\\Chapter 1',
+        pageCount: 2,
+        chapter: 1,
       },
     ],
-    issues: [],
-  };
+    volumes: [{ id: 'gv1', number: '1', chapterIds: ['g1'] }],
+  }),
+  volumes: [{ name: 'Good Manga - Vol.01.cbz', pageCount: 2 }],
+  issues: [],
+};
+/** A title mangabind could not group: it has chapters and no volumes. */
+const looseTitle = {
+  title: 'Broken Manga',
+  draft: createMappingDraft({
+    mangaTitle: 'Broken Manga',
+    chapters: [
+      {
+        id: 'b1',
+        name: 'Chapter 1',
+        path: 'C:\\input\\Manga Library\\Broken Manga\\Chapter 1',
+        pageCount: 1,
+        chapter: 1,
+      },
+    ],
+  }),
+  volumes: [],
+  issues: [],
+};
+/** The same title once it has volumes. */
+const groupedTitle = {
+  ...looseTitle,
+  draft: createMappingDraft({
+    mangaTitle: 'Broken Manga',
+    chapters: looseTitle.draft.chapters,
+    volumes: [{ id: 'bv1', number: '1', chapterIds: ['b1'] }],
+  }),
+  volumes: [{ name: 'Broken Manga - Vol.01.cbz', pageCount: 1 }],
+};
+
+const libraryFolder: SelectedInput = {
+  selectionId: 'library-selection',
+  displayName: 'Manga Library',
+  displayPath: 'C:\\input\\Manga Library',
+  kind: 'folder',
+};
+
+/** A bridge whose folder is a library holding these titles. */
+function libraryBridge(
+  titles: readonly (typeof goodTitle)[],
+  overrides: Partial<MangaboundBridge> = {},
+): MangaboundBridge {
+  return bridge({
+    chooseInputs: () =>
+      Promise.resolve({ ok: true, value: { inputs: [libraryFolder], rejected: [] } }),
+    inspectInput: () =>
+      Promise.resolve({
+        ok: true,
+        value: {
+          sessionId: 'library-session',
+          displayName: 'Manga Library',
+          kind: 'library',
+          titles,
+          issues: [],
+        },
+      }),
+    ...overrides,
+  });
 }
 
-describe('batch application workflow', () => {
-  it('reviews a discovered library, fixes a mapping, converts, and retries a failure', async () => {
+const converted = (title: string, id: string) => ({
+  title,
+  status: 'done' as const,
+  artifacts: [{ id, name: `${title}.epub`, bytes: 2048, format: 'epub' as const }],
+});
+
+describe('libraries in the queue', () => {
+  it('is added like any folder, read as a library, and converted title by title', async () => {
     const user = userEvent.setup();
-    const planBatch = vi
-      .fn<MangaboundBridge['planBatch']>()
-      .mockResolvedValueOnce({ ok: true, value: batchPlan('failed') })
-      .mockResolvedValue({ ok: true, value: batchPlan('completed') });
+    const convertLibrary = vi.fn<MangaboundBridge['convertLibrary']>(() =>
+      Promise.resolve({ ok: true, value: [converted('Good Manga', 'good-1')] }),
+    );
+    installBridge(libraryBridge([goodTitle, looseTitle], { convertLibrary }));
+    render(<App />);
+
+    await addFolder(user);
+    const list = screen.getByRole('list', { name: 'Queued items' });
+    expect(within(list).getByText('Manga Library')).toBeVisible();
+    expect(within(list).getByText('1 title')).toBeVisible();
+    expect(within(list).getByText('Library · 2 titles · 1 volume')).toBeVisible();
+    expect(within(list).getByText('1 title left out until they have volumes.')).toBeVisible();
+
+    await chooseOutputFolder(user);
+    await user.click(await runButton('Convert 1 item'));
+
+    expect(await screen.findByRole('heading', { name: '1 book saved' })).toBeVisible();
+    expect(convertLibrary.mock.calls[0]?.[0]).toMatchObject({
+      sessionId: 'library-session',
+      libraryId: 'library',
+      mode: 'bind-and-convert',
+      settings: defaultMangapressSettings,
+      format: 'epub',
+      // Only the title that has volumes goes; the other waits.
+      titles: ['Good Manga'],
+    });
+    expect(convertLibrary.mock.calls[0]?.[0]).not.toHaveProperty('parentPath');
+    // What was left out is reported, with a way to fix it.
+    expect(screen.getByText('Manga Library was skipped')).toBeVisible();
+    expect(screen.getByText('1 title left out until they have volumes.')).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Convert more' }));
+    // The library stays, with the title that was saved no longer counted.
+    expect(screen.getByText('Needs volumes')).toBeVisible();
+  });
+
+  it('has the volumes of a title that has none set in the editor, and is read again', async () => {
+    const user = userEvent.setup();
     const writeTitleMapping = vi.fn<MangaboundBridge['writeTitleMapping']>(() =>
       Promise.resolve({ ok: true, value: undefined }),
     );
-    const convertBatch = vi
-      .fn<MangaboundBridge['convertBatch']>()
+    const planLibrary = vi.fn<MangaboundBridge['planLibrary']>(() =>
+      Promise.resolve({ ok: true, value: { titles: [goodTitle, groupedTitle], issues: [] } }),
+    );
+    const convertLibrary = vi.fn<MangaboundBridge['convertLibrary']>(() =>
+      Promise.resolve({
+        ok: true,
+        value: [converted('Good Manga', 'good-1'), converted('Broken Manga', 'broken-1')],
+      }),
+    );
+    installBridge(
+      libraryBridge([goodTitle, looseTitle], { writeTitleMapping, planLibrary, convertLibrary }),
+    );
+    render(<App />);
+    await addFolder(user);
+    await chooseOutputFolder(user);
+
+    await user.click(screen.getByRole('button', { name: 'Edit titles of Manga Library' }));
+    expect(await screen.findByRole('heading', { name: 'Manga Library' })).toBeVisible();
+    const titles = screen.getByRole('list', { name: 'Titles' });
+    expect(within(titles).getByText('1 volume')).toBeVisible();
+    expect(within(titles).getByText('Needs volumes')).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Edit volumes for Broken Manga' }));
+    // Nothing grouped this title, so its volume is made by hand.
+    await user.click(await screen.findByRole('button', { name: 'Select all' }));
+    await user.click(screen.getByRole('button', { name: 'Add volume' }));
+    await user.click(screen.getByRole('button', { name: 'Assign selected' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm mapping' }));
+
+    // Saved by session and title name, then the library is read again.
+    await waitFor(() => {
+      expect(writeTitleMapping).toHaveBeenCalledWith(
+        'library-session',
+        'Broken Manga',
+        expect.objectContaining({ mangaTitle: 'Broken Manga' }),
+      );
+    });
+    expect(planLibrary).toHaveBeenCalledWith(expect.any(String), 'library-session');
+    expect(await screen.findByRole('list', { name: 'Titles' })).toBeVisible();
+    expect(
+      within(screen.getByRole('list', { name: 'Titles' })).getAllByText('1 volume'),
+    ).toHaveLength(2);
+
+    await user.click(screen.getByRole('button', { name: 'Queue' }));
+    expect(await screen.findByText('2 titles')).toBeVisible();
+    await user.click(await runButton('Convert 1 item'));
+    expect(await screen.findByRole('heading', { name: '2 books saved' })).toBeVisible();
+    expect(convertLibrary.mock.calls[0]?.[0].titles).toEqual(['Good Manga', 'Broken Manga']);
+    // Everything in it was saved, so it leaves the queue.
+    await user.click(screen.getByRole('button', { name: 'Convert more' }));
+    expect(screen.queryByRole('list', { name: 'Queued items' })).not.toBeInTheDocument();
+  });
+
+  it('keeps a title that failed for another try, and runs only what was not saved', async () => {
+    const user = userEvent.setup();
+    const convertLibrary = vi
+      .fn<MangaboundBridge['convertLibrary']>()
       .mockResolvedValueOnce({
         ok: true,
         value: [
-          {
-            title: 'Good Manga',
-            status: 'done',
-            artifacts: [{ id: 'good-1', name: 'Good Manga.epub', bytes: 2048, format: 'epub' }],
-          },
+          converted('Good Manga', 'good-1'),
           {
             title: 'Broken Manga',
             status: 'failed',
@@ -1299,148 +1402,330 @@ describe('batch application workflow', () => {
           },
         ],
       })
-      .mockResolvedValueOnce({
+      .mockResolvedValueOnce({ ok: true, value: [converted('Broken Manga', 'broken-1')] });
+    installBridge(libraryBridge([goodTitle, groupedTitle], { convertLibrary }));
+    render(<App />);
+    await addFolder(user);
+    await chooseOutputFolder(user);
+
+    await user.click(await runButton('Convert 1 item'));
+
+    expect(await screen.findByRole('heading', { name: '1 book saved' })).toBeVisible();
+    expect(screen.getByText('Manga Library · Broken Manga could not be converted')).toBeVisible();
+    expect(screen.getByText('mangapress crashed.')).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Convert more' }));
+    expect(screen.getByText('1 title failed last time and will run again.')).toBeVisible();
+    await user.click(await runButton('Convert 1 item'));
+
+    expect(await screen.findByRole('heading', { name: '1 book saved' })).toBeVisible();
+    expect(convertLibrary.mock.calls[1]?.[0].titles).toEqual(['Broken Manga']);
+    await user.click(screen.getByRole('button', { name: 'Convert more' }));
+    expect(screen.queryByRole('list', { name: 'Queued items' })).not.toBeInTheDocument();
+  });
+
+  it('reports a library that could not be run at all', async () => {
+    const user = userEvent.setup();
+    installBridge(
+      libraryBridge([goodTitle], {
+        convertLibrary: () =>
+          Promise.resolve({
+            ok: false,
+            error: { code: 'not_a_library', message: 'This input is not a library.' },
+          }),
+      }),
+    );
+    render(<App />);
+    await addFolder(user);
+    await chooseOutputFolder(user);
+
+    await user.click(await runButton('Convert 1 item'));
+
+    expect(await screen.findByRole('heading', { name: 'Nothing was saved' })).toBeVisible();
+    expect(screen.getByText('Manga Library could not be converted')).toBeVisible();
+    expect(screen.getByText('This input is not a library.')).toBeVisible();
+  });
+
+  it('stops the queue at a library that was cancelled', async () => {
+    const user = userEvent.setup();
+    const convert = vi.fn<MangaboundBridge['convert']>(() =>
+      Promise.resolve({ ok: true, value: [] }),
+    );
+    installBridge(
+      libraryBridge([goodTitle], {
+        convert,
+        chooseInputs: () =>
+          Promise.resolve({
+            ok: true,
+            value: { inputs: [libraryFolder, folder('Second', 'second')], rejected: [] },
+          }),
+        inspectInput: (id) =>
+          Promise.resolve(
+            id === 'library-selection'
+              ? {
+                  ok: true,
+                  value: {
+                    sessionId: 'library-session',
+                    displayName: 'Manga Library',
+                    kind: 'library',
+                    titles: [goodTitle],
+                    issues: [],
+                  },
+                }
+              : inspection(id),
+          ),
+        convertLibrary: () =>
+          Promise.resolve({
+            ok: true,
+            value: [
+              {
+                title: 'Good Manga',
+                status: 'failed',
+                artifacts: [],
+                failure: { code: 'cancelled', message: 'Cancelled.' },
+              },
+            ],
+          }),
+      }),
+    );
+    render(<App />);
+    await addFolder(user);
+    await chooseOutputFolder(user);
+
+    await user.click(await runButton('Convert 2 items'));
+
+    expect(await screen.findByRole('heading', { name: 'Nothing was saved' })).toBeVisible();
+    expect(convert).not.toHaveBeenCalled();
+  });
+
+  it('is a queue of its own kind that cannot skip joining', async () => {
+    const user = userEvent.setup();
+    installBridge(libraryBridge([goodTitle]));
+    render(<App />);
+
+    await addFolder(user);
+
+    // A library is joined title by title first, so the step is locked with the reason shown.
+    expect(screen.getByRole('checkbox', { name: 'Group chapters into volumes' })).toBeDisabled();
+    expect(
+      screen.getByText(
+        'A library is grouped title by title first, so it cannot skip joining volumes.',
+      ),
+    ).toBeVisible();
+  });
+
+  it('joins a library without converting, sending defaults for what mangapress would need', async () => {
+    const user = userEvent.setup();
+    const convertLibrary = vi.fn<MangaboundBridge['convertLibrary']>(() =>
+      Promise.resolve({
         ok: true,
         value: [
           {
-            title: 'Broken Manga',
+            title: 'Good Manga',
             status: 'done',
-            artifacts: [{ id: 'broken-1', name: 'Broken Manga.epub', bytes: 1024, format: 'epub' }],
+            artifacts: [{ id: 'a', name: 'Good Manga - Vol.01.cbz', bytes: 10, format: 'cbz' }],
           },
         ],
-      });
-    installBridge(
-      bridge({
-        chooseInputBatch: () =>
-          Promise.resolve({
-            ok: true,
-            value: { parentPath: 'C:\\Library', displayName: 'My Library' },
-          }),
-        planBatch,
-        writeTitleMapping,
-        convertBatch,
       }),
     );
+    installBridge(libraryBridge([goodTitle], { convertLibrary }));
     render(<App />);
-
-    await user.click(await screen.findByRole('button', { name: 'Library' }));
-    expect(await screen.findByRole('heading', { name: 'Convert My Library' })).toBeVisible();
-    expect(screen.getByText(/No volumes could be assigned automatically/i)).toBeVisible();
-
-    await user.click(screen.getByRole('button', { name: 'Fix mapping' }));
-    await user.click(await screen.findByRole('button', { name: 'Confirm mapping' }));
-    expect(writeTitleMapping).toHaveBeenCalledWith('C:\\Library\\Broken Manga', brokenTitleDraft);
-    expect(await screen.findByRole('heading', { name: 'Convert My Library' })).toBeVisible();
-    expect(screen.queryByRole('button', { name: 'Fix mapping' })).not.toBeInTheDocument();
-    expect(planBatch).toHaveBeenCalledTimes(2);
-
-    await user.click(screen.getByRole('button', { name: 'Choose output folder' }));
-    await user.click(await screen.findByRole('button', { name: 'Start batch conversion' }));
-
-    expect(await screen.findByText('mangapress crashed.')).toBeVisible();
-    expect(convertBatch.mock.calls[0]?.[0]).toMatchObject({
-      parentPath: 'C:\\Library',
-      libraryId: 'library',
-    });
-    expect(convertBatch.mock.calls[0]?.[0].titles).toBeUndefined();
-
-    await user.click(await screen.findByRole('button', { name: 'Retry' }));
-    await waitFor(() => {
-      expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
-    });
-    expect(screen.queryByText('mangapress crashed.')).not.toBeInTheDocument();
-    expect(convertBatch.mock.calls[1]?.[0]).toMatchObject({ titles: ['Broken Manga'] });
-  });
-
-  it('stops the queue before the next title once the batch is cancelled', async () => {
-    const user = userEvent.setup();
-    const cancelConversion = vi.fn<MangaboundBridge['cancelConversion']>(() =>
-      Promise.resolve({ ok: true, value: undefined }),
-    );
-    installBridge(
-      bridge({
-        chooseInputBatch: () =>
-          Promise.resolve({
-            ok: true,
-            value: { parentPath: 'C:\\Library', displayName: 'My Library' },
-          }),
-        planBatch: () => Promise.resolve({ ok: true, value: batchPlan('completed') }),
-        convertBatch: () => new Promise(() => undefined),
-        cancelConversion,
-      }),
-    );
-    render(<App />);
-
-    await user.click(await screen.findByRole('button', { name: 'Library' }));
-    await screen.findByRole('heading', { name: 'Convert My Library' });
-    await user.click(screen.getByRole('button', { name: 'Choose output folder' }));
-    await user.click(await screen.findByRole('button', { name: 'Start batch conversion' }));
-    await user.click(await screen.findByRole('button', { name: 'Cancel batch' }));
-
-    expect(cancelConversion).toHaveBeenCalledOnce();
-  });
-
-  it('lets a whole library be joined without converting, with defaults sent and the steps locked while it runs', async () => {
-    const user = userEvent.setup();
-    const convertBatch = vi.fn<MangaboundBridge['convertBatch']>(
-      () => new Promise(() => undefined),
-    );
-    installBridge(
-      bridge({
-        chooseInputBatch: () =>
-          Promise.resolve({
-            ok: true,
-            value: { parentPath: 'C:\\Library', displayName: 'My Library' },
-          }),
-        planBatch: () => Promise.resolve({ ok: true, value: batchPlan('completed') }),
-        convertBatch,
-      }),
-    );
-    render(<App />);
-
-    await user.click(await screen.findByRole('button', { name: 'Library' }));
-    expect(await screen.findByRole('heading', { name: 'Convert My Library' })).toBeVisible();
-    // A library is always grouped: the reason is shown instead of hiding the option.
-    expect(screen.getByRole('checkbox', { name: 'Group chapters into volumes' })).toBeDisabled();
-    expect(screen.getByText(/grouped title by title first/u)).toBeVisible();
+    await addFolder(user);
+    await user.click(screen.getByRole('radio', { name: 'PDF' }));
 
     await user.click(screen.getByRole('checkbox', { name: 'Convert for e-reader' }));
-    expect(screen.getByRole('heading', { name: 'Join My Library' })).toBeVisible();
-    expect(screen.getByLabelText('Book format')).toBeDisabled();
+    await chooseOutputFolder(user);
+    await user.click(await runButton('Join 1 item'));
 
-    await user.click(screen.getByRole('button', { name: 'Choose output folder' }));
-    await user.click(await screen.findByRole('button', { name: 'Start batch join' }));
-
-    expect(convertBatch.mock.calls[0]?.[0]).toMatchObject({
-      parentPath: 'C:\\Library',
-      libraryId: 'library',
+    expect(await screen.findByRole('heading', { name: '1 book saved' })).toBeVisible();
+    expect(convertLibrary.mock.calls[0]?.[0]).toMatchObject({
       mode: 'bind-only',
       settings: defaultMangapressSettings,
       format: 'cbz',
     });
-    // While it runs the process cannot be changed under it.
-    expect(await screen.findByRole('button', { name: 'Cancel batch' })).toBeVisible();
-    expect(screen.getByRole('checkbox', { name: 'Convert for e-reader' })).toBeDisabled();
   });
 
-  it('goes back to the queue from a library review', async () => {
+  it('is left out, with the reason, next to a folder when the run does not group', async () => {
     const user = userEvent.setup();
+    const convert = vi.fn<MangaboundBridge['convert']>(() =>
+      Promise.resolve({
+        ok: true,
+        value: [{ id: 'a1', name: 'Offline Work.epub', bytes: 2048, format: 'epub' }],
+      }),
+    );
+    const convertLibrary = vi.fn<MangaboundBridge['convertLibrary']>(() =>
+      Promise.resolve({ ok: true, value: [] }),
+    );
     installBridge(
-      bridge({
-        chooseInputBatch: () =>
+      libraryBridge([goodTitle], {
+        convert,
+        convertLibrary,
+        chooseInputs: () =>
           Promise.resolve({
             ok: true,
-            value: { parentPath: 'C:\\Library', displayName: 'My Library' },
+            value: { inputs: [libraryFolder, folder('Offline Work', 'plain')], rejected: [] },
           }),
-        planBatch: () => Promise.resolve({ ok: true, value: batchPlan('completed') }),
+        inspectInput: (id) =>
+          Promise.resolve(
+            id === 'library-selection'
+              ? {
+                  ok: true,
+                  value: {
+                    sessionId: 'library-session',
+                    displayName: 'Manga Library',
+                    kind: 'library',
+                    titles: [goodTitle],
+                    issues: [],
+                  },
+                }
+              : inspection(id),
+          ),
       }),
     );
     render(<App />);
+    await addFolder(user);
+    await chooseOutputFolder(user);
 
-    await user.click(await screen.findByRole('button', { name: 'Library' }));
-    await screen.findByRole('heading', { name: 'Convert My Library' });
-    await user.click(screen.getByRole('button', { name: /Back/u }));
+    await user.click(screen.getByRole('checkbox', { name: 'Group chapters into volumes' }));
+    expect(screen.getByText('Needs grouping')).toBeVisible();
+    expect(
+      screen.queryByRole('button', { name: 'Edit titles of Manga Library' }),
+    ).not.toBeInTheDocument();
+    await user.click(await runButton('Convert 1 item'));
+
+    expect(await screen.findByRole('heading', { name: '1 book saved' })).toBeVisible();
+    expect(convertLibrary).not.toHaveBeenCalled();
+    expect(screen.getByText('Manga Library was skipped')).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Fix Manga Library' })).not.toBeInTheDocument();
+  });
+
+  it('shows what a library would make by reading it again, without writing anything', async () => {
+    const user = userEvent.setup();
+    const planLibrary = vi.fn<MangaboundBridge['planLibrary']>(() =>
+      Promise.resolve({ ok: true, value: { titles: [goodTitle, looseTitle], issues: [] } }),
+    );
+    installBridge(libraryBridge([goodTitle, looseTitle], { planLibrary }));
+    render(<App />);
+    await addFolder(user);
+    await chooseOutputFolder(user);
+
+    await user.click(screen.getByRole('button', { name: 'Validate plan' }));
+
+    expect(await screen.findByRole('heading', { name: 'Plan validated' })).toBeVisible();
+    expect(planLibrary).toHaveBeenCalledWith(expect.any(String), 'library-session');
+    expect(
+      screen.getByText('mangabind validated 1 title · 1 volume · no library files written'),
+    ).toBeVisible();
+    expect(screen.getByText('Good Manga - Vol.01.cbz')).toBeVisible();
+    expect(screen.queryByText('Broken Manga - Vol.01.cbz')).not.toBeInTheDocument();
+  });
+
+  it('says when the plan of a library could not be read', async () => {
+    const user = userEvent.setup();
+    installBridge(
+      libraryBridge([goodTitle], {
+        planLibrary: () =>
+          Promise.resolve({
+            ok: false,
+            error: { code: 'process_failed', message: 'mangabind could not read this library.' },
+          }),
+      }),
+    );
+    render(<App />);
+    await addFolder(user);
+    await chooseOutputFolder(user);
+
+    await user.click(screen.getByRole('button', { name: 'Validate plan' }));
+
+    expect(await screen.findByRole('alert', { name: 'Workflow error' })).toHaveTextContent(
+      'mangabind could not read this library.',
+    );
+  });
+
+  it('stays in the title editor and says why when the mapping could not be saved', async () => {
+    const user = userEvent.setup();
+    const planLibrary = vi.fn<MangaboundBridge['planLibrary']>(() =>
+      Promise.resolve({ ok: true, value: { titles: [goodTitle], issues: [] } }),
+    );
+    installBridge(
+      libraryBridge([goodTitle], {
+        planLibrary,
+        writeTitleMapping: () =>
+          Promise.resolve({
+            ok: false,
+            error: { code: 'mapping_save_failed', message: 'The folder is read-only.' },
+          }),
+      }),
+    );
+    render(<App />);
+    await addFolder(user);
+
+    await user.click(screen.getByRole('button', { name: 'Edit titles of Manga Library' }));
+    await user.click(await screen.findByRole('button', { name: 'Edit volumes for Good Manga' }));
+    await user.click(await screen.findByRole('button', { name: 'Confirm mapping' }));
+
+    expect(await screen.findByRole('alert', { name: 'Workflow error' })).toHaveTextContent(
+      'The folder is read-only.',
+    );
+    expect(planLibrary).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Confirm mapping' })).toBeVisible();
+  });
+
+  it('stays in the title editor and says why when the library could not be read again', async () => {
+    const user = userEvent.setup();
+    installBridge(
+      libraryBridge([goodTitle], {
+        planLibrary: () =>
+          Promise.resolve({
+            ok: false,
+            error: { code: 'process_failed', message: 'mangabind could not read this library.' },
+          }),
+      }),
+    );
+    render(<App />);
+    await addFolder(user);
+
+    await user.click(screen.getByRole('button', { name: 'Edit titles of Manga Library' }));
+    await user.click(await screen.findByRole('button', { name: 'Edit volumes for Good Manga' }));
+    await user.click(await screen.findByRole('button', { name: 'Confirm mapping' }));
+
+    expect(await screen.findByRole('alert', { name: 'Workflow error' })).toHaveTextContent(
+      'mangabind could not read this library.',
+    );
+    expect(screen.getByRole('button', { name: 'Confirm mapping' })).toBeVisible();
+  });
+
+  it('goes back to the queue, and from the title editor to the library', async () => {
+    const user = userEvent.setup();
+    installBridge(libraryBridge([goodTitle]));
+    render(<App />);
+    await addFolder(user);
+
+    await user.click(screen.getByRole('button', { name: 'Edit titles of Manga Library' }));
+    await user.click(await screen.findByRole('button', { name: 'Edit volumes for Good Manga' }));
+    await user.click(await screen.findByRole('button', { name: /Manga Library/u }));
+    expect(await screen.findByRole('list', { name: 'Titles' })).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Queue' }));
 
     expect(await screen.findByRole('heading', { name: 'Queue' })).toBeVisible();
+  });
+
+  it('offers to fix a library that was left out, opening its titles', async () => {
+    const user = userEvent.setup();
+    installBridge(
+      libraryBridge([goodTitle, looseTitle], {
+        convertLibrary: () =>
+          Promise.resolve({ ok: true, value: [converted('Good Manga', 'good-1')] }),
+      }),
+    );
+    render(<App />);
+    await addFolder(user);
+    await chooseOutputFolder(user);
+    await user.click(await runButton('Convert 1 item'));
+    await screen.findByText('Manga Library was skipped');
+
+    await user.click(screen.getByRole('button', { name: 'Fix Manga Library' }));
+
+    expect(await screen.findByRole('list', { name: 'Titles' })).toBeVisible();
   });
 });
