@@ -5,16 +5,15 @@ import {
   FolderOpen,
   FolderPlus,
   LoaderCircle,
-  Upload,
   X,
 } from 'lucide-react';
-import { useState } from 'react';
 
 import { type QueueRow, summarizeQueue } from '@/domain/input-queue';
 import type { BookFormat } from '@/domain/conversion';
 import type { MangapressSettings } from '@/domain/output-profile';
 import { isDefaultMangapress } from '@/domain/preferences';
 import { defaultProcessMode, type ProcessMode } from '@/domain/process-mode';
+import { DropTarget } from '@/renderer/components/queue/drop-target';
 import { QueueRowItem } from '@/renderer/components/queue/queue-row';
 import { ProcessSteps } from '@/renderer/components/settings/process-steps';
 import { ResetOptions } from '@/renderer/components/settings/reset-options';
@@ -22,7 +21,6 @@ import { Button } from '@/renderer/components/ui/button';
 import { Label } from '@/renderer/components/ui/label';
 import { NativeSelect } from '@/renderer/components/ui/native-select';
 import { SegmentedControl } from '@/renderer/components/ui/segmented-control';
-import { cn } from '@/renderer/lib/utils';
 import type {
   DeviceProfileSummary,
   PlanSummary,
@@ -155,7 +153,13 @@ export function QueueScreen(props: QueueScreenProps): React.JSX.Element {
           )}
         </div>
 
-        <DropTarget disabled={disabled} onDropFiles={onDropFiles} empty={rows.length === 0}>
+        <DropTarget
+          disabled={disabled}
+          empty={rows.length === 0}
+          onAddFiles={onAddFiles}
+          onAddFolders={onAddFolders}
+          onDropFiles={onDropFiles}
+        >
           {rows.length > 0 && (
             <ul aria-label="Queued items" className="space-y-0.5">
               {rows.map((row) => (
@@ -297,69 +301,6 @@ export function QueueScreen(props: QueueScreenProps): React.JSX.Element {
         </div>
       </aside>
     </section>
-  );
-}
-
-/**
- * The area files and folders can be dropped on. Anywhere on the window would do to receive a drop,
- * but a visible target is what tells the user that dropping works at all.
- */
-function DropTarget({
-  children,
-  disabled,
-  empty,
-  onDropFiles,
-}: {
-  readonly children: React.ReactNode;
-  readonly disabled: boolean;
-  readonly empty: boolean;
-  readonly onDropFiles: (files: readonly File[]) => void;
-}): React.JSX.Element {
-  // A counter, not a flag: dragging across the target's children fires enter and leave repeatedly.
-  const [depth, setDepth] = useState(0);
-  const over = depth > 0;
-  return (
-    <div
-      className={cn(
-        'rounded-xl border border-dashed transition-colors',
-        over ? 'border-accent bg-accent/10' : 'border-border',
-        empty ? 'flex min-h-72 flex-col items-center justify-center p-8' : 'p-2',
-      )}
-      data-testid="drop-target"
-      onDragEnter={(event) => {
-        if (disabled || !event.dataTransfer.types.includes('Files')) return;
-        event.preventDefault();
-        setDepth((current) => current + 1);
-      }}
-      onDragLeave={() => {
-        setDepth((current) => Math.max(0, current - 1));
-      }}
-      onDragOver={(event) => {
-        if (disabled || !event.dataTransfer.types.includes('Files')) return;
-        event.preventDefault();
-      }}
-      onDrop={(event) => {
-        event.preventDefault();
-        setDepth(0);
-        const files = Array.from(event.dataTransfer.files);
-        if (!disabled && files.length > 0) onDropFiles(files);
-      }}
-    >
-      {children}
-      <p
-        className={cn(
-          'text-subtle-foreground flex items-center justify-center gap-2 text-sm',
-          empty ? 'text-center' : 'mt-2 p-3',
-        )}
-      >
-        <Upload aria-hidden="true" className="size-4 shrink-0" />
-        {over
-          ? 'Release to add them'
-          : empty
-            ? 'Drop manga folders, libraries or .cbz files here, or use Files and Folder.'
-            : 'Drop files or folders here'}
-      </p>
-    </div>
   );
 }
 

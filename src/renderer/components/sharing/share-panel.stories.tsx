@@ -48,6 +48,24 @@ export const ReadyToStart: Story = {
   },
 };
 
+export const Sharing: Story = {
+  args: {
+    interfaces,
+    library: { libraryId: 'library', displayPath: 'C:\\Books' },
+    status: {
+      active: true,
+      url: 'http://192.168.1.20:8080/opds',
+      interfaceAddress: '192.168.1.20',
+      port: 8080,
+      authMode: 'token',
+      token: 'a1b2c3d4e5f6',
+    },
+    onChooseLibrary: () => undefined,
+    onStart: () => undefined,
+    onStop: () => undefined,
+  },
+};
+
 export const NoInterfacesDetected: Story = {
   args: {
     interfaces: [],
