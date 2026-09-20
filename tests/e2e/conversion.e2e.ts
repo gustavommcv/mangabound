@@ -169,7 +169,10 @@ describe('packaged conversion pipeline', () => {
     await $('button[aria-label="Add volume"]').click();
     await $('button=Assign selected').click();
     await $('button=Confirm mapping').click();
-    // Saved in that title's folder, and the library read again: both titles have volumes now.
+    // Saved in that title's folder, and the library read again: both titles have volumes now. The
+    // library screen has to be back first. "Needs volumes" is also absent from the editor, so
+    // waiting only for it to go would pass at once, while the save is still on its way.
+    await $('h1=Library').waitForDisplayed({ timeout: 60_000 });
     await $('span=Needs volumes').waitForDisplayed({ timeout: 60_000, reverse: true });
     assert.doesNotMatch(await $('main').getText(), /Needs volumes/u);
 
