@@ -123,7 +123,7 @@ test('the list of online sources remains visually consistent', async ({ page }) 
 
 test('the share panel remains visually consistent', async ({ page }) => {
   await page.goto('/iframe.html?id=workflows-share-panel--ready-to-start&viewMode=story');
-  await expect(page.getByRole('heading', { name: 'Share via OPDS' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Share to your e-reader' })).toBeVisible();
   await page.evaluate(async () => document.fonts.ready);
   await expect(page.locator('#storybook-root')).toHaveScreenshot('share-panel.png');
 });
