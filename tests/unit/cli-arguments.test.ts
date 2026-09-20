@@ -167,10 +167,11 @@ describe('CLI argument builders', () => {
   });
 
   it('keeps the settings that are not on by default aligned with mangapress defaults', () => {
-    // Manga order, both spread modes and upscaling start on, as in Kindle Comic Converter's window
-    // (ADR 0011); every value mangapress has a default for besides those is left at it.
+    // A Paperwhite, manga order, both spread modes and upscaling start on, as in Kindle Comic
+    // Converter's window (ADR 0011, ADR 0015); every value mangapress has a default for besides
+    // those is left at it.
     expect(defaultMangapressSettings).toMatchObject({
-      deviceProfile: 'KV',
+      deviceProfile: 'KPW6',
       cropping: 'margins-and-page-numbers',
       croppingPower: 1,
       croppingMinimum: 0,

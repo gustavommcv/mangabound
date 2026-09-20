@@ -37,6 +37,14 @@ describe('mangapress default settings', () => {
     expect(validateMangapressSettings(defaultMangapressSettings)).toEqual([]);
   });
 
+  it('start on the Kindle Paperwhite KCC opens on, with the upscaling that device starts with', () => {
+    expect(defaultMangapressSettings.deviceProfile).toBe('KPW6');
+    // The two must agree, or the first device change would already flip the option.
+    expect(defaultMangapressSettings.upscale).toBe(
+      defaultUpscaleFor(defaultMangapressSettings.deviceProfile),
+    );
+  });
+
   it.each(['KV', 'KPW5', 'KPW6', 'KO', 'KCS', 'KoAO', 'KoLC', 'Rmk2', 'RmkPPMove'])(
     'starts upscaling on for %s, as KCC does',
     (code) => {

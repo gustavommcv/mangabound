@@ -108,10 +108,10 @@ function bridge(overrides: Partial<MangaboundBridge> = {}): MangaboundBridge {
         ok: true,
         value: [
           {
-            code: 'KV',
-            name: 'Kindle Voyage',
-            width: 1072,
-            height: 1448,
+            code: 'KPW6',
+            name: 'Kindle Paperwhite 6',
+            width: 1272,
+            height: 1696,
             grayLevels: 16,
             family: 'kindle',
           },
@@ -215,7 +215,7 @@ describe('queue application workflow', () => {
     // Nothing to run and nowhere to put it yet.
     expect(screen.getByRole('button', { name: 'Convert' })).toBeDisabled();
     await waitFor(() => {
-      expect(screen.getByLabelText('Device')).toHaveValue('KV');
+      expect(screen.getByLabelText('Device')).toHaveValue('KPW6');
     });
 
     await addFolder(user);
@@ -229,7 +229,7 @@ describe('queue application workflow', () => {
     await user.click(await runButton('Convert 1 item'));
 
     expect(await screen.findByRole('heading', { name: '1 book saved' })).toBeVisible();
-    expect(screen.getByText('Kindle Voyage · EPUB · C:\\Books')).toBeVisible();
+    expect(screen.getByText('Kindle Paperwhite 6 · EPUB · C:\\Books')).toBeVisible();
     expect(convert.mock.calls[0]?.[0]).toMatchObject({
       sessionId: 'session',
       libraryId: 'library',
@@ -894,11 +894,11 @@ describe('the options a run starts with', () => {
     grayLevels: 16,
     family: 'kindle',
   };
-  const voyage = {
-    code: 'KV',
-    name: 'Kindle Voyage',
-    width: 1072,
-    height: 1448,
+  const paperwhite = {
+    code: 'KPW6',
+    name: 'Kindle Paperwhite 6',
+    width: 1272,
+    height: 1696,
     grayLevels: 16,
     family: 'kindle',
   };
@@ -923,7 +923,7 @@ describe('the options a run starts with', () => {
       bridge({
         chooseInputs,
         convert,
-        getDeviceProfiles: () => Promise.resolve({ ok: true, value: [voyage, scribe] }),
+        getDeviceProfiles: () => Promise.resolve({ ok: true, value: [paperwhite, scribe] }),
       }),
     );
     render(<App />);
@@ -934,7 +934,7 @@ describe('the options a run starts with', () => {
     await user.click(await runButton('Convert 1 item'));
     await screen.findByRole('heading', { name: '1 book saved' });
     expect(convert.mock.calls[0]?.[0].settings).toMatchObject({
-      deviceProfile: 'KV',
+      deviceProfile: 'KPW6',
       mangaStyle: true,
       splitter: 'both',
       upscale: true,
@@ -973,7 +973,9 @@ describe('the options a run starts with', () => {
       expect(screen.getByLabelText('Device')).toHaveValue('KS');
     });
     expect(
-      screen.getByText('The device profile KV is not available, so Kindle Scribe 1/2 is selected.'),
+      screen.getByText(
+        'The device profile KPW6 is not available, so Kindle Scribe 1/2 is selected.',
+      ),
     ).toBeVisible();
     await addFolder(user);
     await chooseOutputFolder(user);
@@ -997,16 +999,16 @@ describe('the options kept between sessions', () => {
     grayLevels: 16,
     family: 'kindle',
   };
-  const voyage = {
-    code: 'KV',
-    name: 'Kindle Voyage',
-    width: 1072,
-    height: 1448,
+  const paperwhite = {
+    code: 'KPW6',
+    name: 'Kindle Paperwhite 6',
+    width: 1272,
+    height: 1696,
     grayLevels: 16,
     family: 'kindle',
   };
   const twoDevices = (): MangaboundBridge['getDeviceProfiles'] => () =>
-    Promise.resolve({ ok: true, value: [voyage, scribe] });
+    Promise.resolve({ ok: true, value: [paperwhite, scribe] });
   const savedFolder = { libraryId: 'saved-library', displayPath: 'D:\\Manga\\Saved' };
 
   const saveCalls = (
@@ -1052,7 +1054,7 @@ describe('the options kept between sessions', () => {
     render(<App />);
     await screen.findByRole('heading', { name: 'Queue' });
     await waitFor(() => {
-      expect(screen.getByLabelText('Device')).toHaveValue('KV');
+      expect(screen.getByLabelText('Device')).toHaveValue('KPW6');
     });
     // Opening the app changes nothing, so nothing is written.
     expect(saveSettings).not.toHaveBeenCalled();
@@ -1237,12 +1239,12 @@ describe('the options kept between sessions', () => {
 
     expect(
       await screen.findByText(
-        'The device profile K999 is not available, so Kindle Voyage is selected.',
+        'The device profile K999 is not available, so Kindle Paperwhite 6 is selected.',
       ),
     ).toBeVisible();
-    expect(screen.getByLabelText('Device')).toHaveValue('KV');
+    expect(screen.getByLabelText('Device')).toHaveValue('KPW6');
     await waitFor(() => {
-      expect(saveCalls(saveSettings).at(-1)?.preferences.settings.deviceProfile).toBe('KV');
+      expect(saveCalls(saveSettings).at(-1)?.preferences.settings.deviceProfile).toBe('KPW6');
     });
   });
 
@@ -1356,7 +1358,7 @@ describe('the options kept between sessions', () => {
       );
       await user.click(within(confirm).getByRole('button', { name: 'Reset' }));
 
-      expect(screen.getByLabelText('Device')).toHaveValue('KV');
+      expect(screen.getByLabelText('Device')).toHaveValue('KPW6');
       expect(screen.getByRole('radio', { name: 'EPUB' })).toBeChecked();
       expect(screen.getByRole('checkbox', { name: 'Group chapters into volumes' })).toBeChecked();
       expect(screen.getByRole('checkbox', { name: 'Convert for e-reader' })).toBeChecked();
@@ -1409,7 +1411,7 @@ describe('the options kept between sessions', () => {
       );
       await user.click(within(confirm).getByRole('button', { name: 'Reset' }));
 
-      expect(screen.getByLabelText('Device profile')).toHaveValue('KV');
+      expect(screen.getByLabelText('Device profile')).toHaveValue('KPW6');
       expect(screen.getByLabelText('Book format')).toHaveValue('epub');
       await user.click(screen.getByRole('button', { name: 'Back' }));
       // The steps are not on that screen, so they stay as they were set.
