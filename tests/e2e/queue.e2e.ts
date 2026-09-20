@@ -121,4 +121,30 @@ describe('packaged queue', () => {
 
     await resetQueue();
   });
+
+  it('asks what to add when the empty area is clicked, and adds the folder chosen', async () => {
+    const testRoot = await mkdtemp(path.join(os.tmpdir(), 'mangabound-queue-click-e2e-'));
+    temporaryDirectories.push(testRoot);
+    const grouped = path.join(testRoot, 'Named Volumes');
+    await cp(
+      path.resolve('tests', 'fixtures', 'e2e', 'manga-named-volumes', 'Named Volumes'),
+      grouped,
+      { recursive: true },
+    );
+    const openDialog = await browser.electron.mock('dialog', 'showOpenDialog');
+    await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [grouped] });
+
+    await resetQueue();
+    await $('[data-testid="drop-target"]').click();
+    const chooseFolder = $('button=Choose a folder');
+    await chooseFolder.waitForDisplayed({ timeout: 10_000 });
+    assert.equal(await $('button=Choose files').isDisplayed(), true);
+    await chooseFolder.click();
+
+    await $('span=2 volumes').waitForDisplayed({ timeout: 30_000 });
+    // The question is put away once it was answered.
+    assert.equal(await $('button=Choose a folder').isExisting(), false);
+
+    await resetQueue();
+  });
 });

@@ -12,6 +12,15 @@ test.describe('at the size the window opens at', () => {
     await expect(page.locator('#storybook-root')).toHaveScreenshot('queue-empty.png');
   });
 
+  test('the question a click on the empty queue asks remains visually consistent', async ({
+    page,
+  }) => {
+    await page.goto('/iframe.html?id=workflows-queue--empty-choosing&viewMode=story');
+    await expect(page.getByRole('group', { name: 'What to add' })).toBeVisible();
+    await page.evaluate(async () => document.fonts.ready);
+    await expect(page.locator('#storybook-root')).toHaveScreenshot('queue-empty-choosing.png');
+  });
+
   test('a queue with items in every state remains visually consistent', async ({ page }) => {
     await page.goto('/iframe.html?id=workflows-queue--with-items&viewMode=story');
     await expect(page.getByRole('heading', { name: 'Queue' })).toBeVisible();
@@ -124,6 +133,20 @@ test('the question before options are reset remains visually consistent', async 
   await expect(page.getByRole('group', { name: 'Confirm reset' })).toBeVisible();
   await page.evaluate(async () => document.fonts.ready);
   await expect(page.locator('#storybook-root')).toHaveScreenshot('reset-options-confirm.png');
+});
+
+test('the open share panel remains visually consistent', async ({ page }) => {
+  await page.goto('/iframe.html?id=workflows-share-menu--open-while-sharing&viewMode=story');
+  await expect(page.getByRole('dialog', { name: 'Share to your e-reader' })).toBeVisible();
+  await page.evaluate(async () => document.fonts.ready);
+  await expect(page.locator('#storybook-root')).toHaveScreenshot('share-menu-open.png');
+});
+
+test('the title bar remains visually consistent', async ({ page }) => {
+  await page.goto('/iframe.html?id=shell-title-bar--while-sharing&viewMode=story');
+  await expect(page.getByRole('button', { name: 'Sharing' })).toBeVisible();
+  await page.evaluate(async () => document.fonts.ready);
+  await expect(page.locator('#storybook-root')).toHaveScreenshot('titlebar.png');
 });
 
 test('the notices remain visually consistent', async ({ page }) => {

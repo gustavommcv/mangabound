@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { expect, userEvent, within } from 'storybook/test';
 
 import type { QueueRow } from '@/domain/input-queue';
 import { createMappingDraft } from '@/domain/mapping';
@@ -172,6 +173,14 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Empty: Story = {};
+
+/** A click on the empty area asks whether to add files or a folder. */
+export const EmptyChoosing: Story = {
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByTestId('drop-target'));
+    await expect(within(canvasElement).getByRole('group', { name: 'What to add' })).toBeVisible();
+  },
+};
 
 export const WithItems: Story = {
   args: { rows },
