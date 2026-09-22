@@ -17,6 +17,7 @@ const file = (overrides: Record<string, unknown> = {}): string =>
     settings: { ...defaultMangapressSettings, deviceProfile: 'KS', upscale: false },
     providerId: 'mangadex',
     outputFolder: '/books',
+    lastPickerFolder: '/downloads',
     ...overrides,
   });
 
@@ -28,11 +29,14 @@ describe('parseStoredSettings', () => {
       settings: { ...defaultMangapressSettings, deviceProfile: 'KS', upscale: false },
       providerId: 'mangadex',
       outputFolder: '/books',
+      lastPickerFolder: '/downloads',
     });
   });
 
-  it('leaves out the source and the folder when the file has none', () => {
-    const parsed = parseStoredSettings(file({ providerId: undefined, outputFolder: undefined }));
+  it('leaves out the source and the folders when the file has none', () => {
+    const parsed = parseStoredSettings(
+      file({ providerId: undefined, outputFolder: undefined, lastPickerFolder: undefined }),
+    );
 
     expect(parsed).toEqual({
       mode: 'bind-only',
@@ -41,6 +45,7 @@ describe('parseStoredSettings', () => {
     });
     expect(parsed).not.toHaveProperty('providerId');
     expect(parsed).not.toHaveProperty('outputFolder');
+    expect(parsed).not.toHaveProperty('lastPickerFolder');
   });
 
   it('drops a title, an author and any key it does not know', () => {
@@ -82,6 +87,7 @@ describe('parseStoredSettings', () => {
       file({ settings: { ...defaultMangapressSettings, deviceProfile: 'OTHER' } }),
     ],
     ['an empty folder', file({ outputFolder: '' })],
+    ['an empty picker folder', file({ lastPickerFolder: '' })],
     ['an empty source', file({ providerId: '' })],
   ])('cannot use a file with %s', (_name, raw) => {
     expect(parseStoredSettings(raw)).toBeUndefined();
@@ -90,7 +96,11 @@ describe('parseStoredSettings', () => {
 
 describe('serializeStoredSettings', () => {
   it('writes the version first, and what is kept as readable JSON', () => {
-    const text = serializeStoredSettings({ ...defaultPreferences, outputFolder: '/books' });
+    const text = serializeStoredSettings({
+      ...defaultPreferences,
+      outputFolder: '/books',
+      lastPickerFolder: '/downloads',
+    });
 
     expect(text.endsWith('\n')).toBe(true);
     expect(Object.keys(JSON.parse(text) as object)).toEqual([
@@ -99,6 +109,7 @@ describe('serializeStoredSettings', () => {
       'format',
       'settings',
       'outputFolder',
+      'lastPickerFolder',
     ]);
   });
 
@@ -109,6 +120,7 @@ describe('serializeStoredSettings', () => {
       settings: { ...defaultMangapressSettings, jpegQuality: 70, gamma: 1.2 },
       providerId: 'mangadex',
       outputFolder: 'C:\\Manga',
+      lastPickerFolder: 'C:\\Manga\\Downloads',
     };
 
     expect(parseStoredSettings(serializeStoredSettings(settings))).toEqual(settings);

@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import { $, browser } from '@wdio/globals';
 
 describe('packaged application shell', () => {
-  it('launches with the packaged CLI binaries verified and ready', async () => {
+  it('launches with the packaged CLI binaries verified and ready, saying nothing about it', async () => {
     assert.equal(await browser.getTitle(), 'Mangabound');
     assert.equal(await $('h1').getText(), 'Queue');
-    const status = $('section[aria-label="Bundled tool status"]');
-    await status.waitForDisplayed();
-    assert.match(await status.getText(), /Conversion tools ready/u);
+    // Verified tools are mandatory, not a status: the queue enables once they are, with no banner.
+    await $('button=Files').waitForEnabled();
+    assert.equal(await $('section[aria-label="Bundled tool status"]').isExisting(), false);
   });
 
   it('keeps the title bar in place while the page under it scrolls', async () => {

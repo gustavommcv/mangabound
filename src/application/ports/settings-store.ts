@@ -4,6 +4,8 @@ import type { Preferences } from '@/domain/preferences';
 export interface StoredSettings extends Preferences {
   /** The absolute path of the output folder last used. */
   readonly outputFolder?: string;
+  /** The folder a choose-file or choose-folder dialog last left the person in. */
+  readonly lastPickerFolder?: string;
 }
 
 export interface SettingsLoad {

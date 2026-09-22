@@ -91,6 +91,9 @@ const opdsServer = new NodeOpdsServer(libraryStore);
 const networkInterfaces = new OsNetworkInterfaces();
 let preferences: PreferencesWorkflow | undefined;
 let activeSharing: OpdsServerHandle | undefined;
+// Where a choose-file or choose-folder dialog should open next; kept in memory and mirrored to
+// disk so it survives a restart, but never told to the renderer, which never holds paths.
+let lastPickerFolder: string | undefined;
 let workflow: SingleInputWorkflow | undefined;
 let mangapressCli: MangapressCliAdapter | undefined;
 let cleanupStarted = false;
@@ -284,6 +287,7 @@ function registerSettingsHandlers(workflows: PreferencesWorkflow): void {
   ipcMain.handle('settings:load', async (): Promise<WorkflowResult<RestoredSettings>> => {
     try {
       const restored = await workflows.restore();
+      lastPickerFolder = restored.lastPickerFolder;
       // The window is given the folder the way a dialog would give it: by an id, never a path.
       let library: SelectedLibrary | undefined;
       if (restored.outputFolder !== undefined) {
@@ -308,13 +312,19 @@ function registerSettingsHandlers(workflows: PreferencesWorkflow): void {
         const command = saveSettingsCommandSchema.parse(rawCommand);
         const outputFolder =
           command.libraryId === undefined ? undefined : selectedLibraries.get(command.libraryId);
-        await workflows.save(command.preferences, outputFolder);
+        await workflows.save(command.preferences, outputFolder, lastPickerFolder);
         return ok(undefined);
       } catch (error) {
         return failed(toFailure(error));
       }
     },
   );
+}
+
+/** Updates where the next dialog opens, in memory now and on disk once it is safe to. */
+function rememberPickerFolder(folder: string): void {
+  lastPickerFolder = folder;
+  void preferences?.rememberFolder(folder);
 }
 
 function registerWorkflowHandlers(): void {
@@ -332,7 +342,12 @@ function registerWorkflowHandlers(): void {
           ...(kind === 'files'
             ? { filters: [{ name: 'Comic book archive', extensions: ['cbz'] }] }
             : {}),
+          ...(lastPickerFolder === undefined ? {} : { defaultPath: lastPickerFolder }),
         });
+        const firstPath = result.filePaths[0];
+        if (!result.canceled && firstPath !== undefined) {
+          rememberPickerFolder(kind === 'folders' ? firstPath : path.dirname(firstPath));
+        }
         return ok(await registerInputPaths(result.canceled ? [] : result.filePaths));
       } catch (error) {
         return failed(toFailure(error));
@@ -393,9 +408,11 @@ function registerWorkflowHandlers(): void {
           title: 'Choose the output library',
           buttonLabel: 'Use this folder',
           properties: ['openDirectory', 'createDirectory'],
+          ...(lastPickerFolder === undefined ? {} : { defaultPath: lastPickerFolder }),
         });
         const libraryPath = result.filePaths[0];
         if (result.canceled || libraryPath === undefined) return ok(null);
+        rememberPickerFolder(libraryPath);
         const libraryId = randomUUID();
         selectedLibraries.set(libraryId, libraryPath);
         return ok({ libraryId, displayPath: libraryPath });

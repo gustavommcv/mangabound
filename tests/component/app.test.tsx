@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from '@/renderer/app';
@@ -8,19 +8,17 @@ afterEach(() => {
 });
 
 describe('application foundation', () => {
-  it('identifies the scaffold and explains desktop-only tool verification', () => {
+  it('identifies the scaffold, saying nothing about tools that are still being checked', () => {
     render(<App />);
 
     expect(
       screen.getByRole('heading', { name: 'A deliberate foundation for the manga pipeline.' }),
     ).toBeVisible();
     expect(screen.getByRole('region', { name: 'Foundation boundaries' })).toBeVisible();
-    expect(screen.getByRole('region', { name: 'Bundled tool status' })).toHaveTextContent(
-      /Checking versions, compatibility, and file integrity/i,
-    );
+    expect(screen.queryByRole('region', { name: 'Bundled tool status' })).not.toBeInTheDocument();
   });
 
-  it('shows verified release status returned by the narrow preload bridge', async () => {
+  it('says nothing once the bridge reports the tools are ready: they are mandatory, not a status', async () => {
     Object.defineProperty(window, 'mangabound', {
       configurable: true,
       value: {
@@ -49,8 +47,11 @@ describe('application foundation', () => {
 
     render(<App />);
 
-    expect(await screen.findByText('Conversion tools ready')).toBeVisible();
-    expect(screen.getByText('Bundled conversion tools are verified and ready.')).toBeVisible();
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Files' })).toBeEnabled();
+    });
+    expect(screen.queryByRole('region', { name: 'Bundled tool status' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Conversion tools/u)).not.toBeInTheDocument();
   });
 
   it('presents a safe recovery message if the preload status call fails', async () => {
