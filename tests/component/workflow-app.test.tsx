@@ -145,8 +145,7 @@ function bridge(overrides: Partial<MangaboundBridge> = {}): MangaboundBridge {
     showArtifactInFolder: () => Promise.resolve({ ok: true, value: undefined }),
     onConversionProgress: () => () => undefined,
     listNetworkInterfaces: () => Promise.resolve({ ok: true, value: [] }),
-    startSharing: () =>
-      Promise.resolve({ ok: true, value: { active: true, authMode: 'token' as const } }),
+    startSharing: () => Promise.resolve({ ok: true, value: { active: true } }),
     stopSharing: () => Promise.resolve({ ok: true, value: undefined }),
     getSharingStatus: () => Promise.resolve({ ok: true, value: { active: false } }),
     loadSettings: () =>
@@ -1707,11 +1706,9 @@ describe('sharing to an e-reader', () => {
   const wifi = { name: 'Wi-Fi', address: '192.168.1.24' };
   const sharingOn = {
     active: true as const,
-    url: 'http://192.168.1.24:8080/opds',
+    url: 'http://192.168.1.24:8080',
     interfaceAddress: '192.168.1.24',
     port: 8080,
-    authMode: 'token' as const,
-    token: 'abc123',
   };
   const okStart = (): ReturnType<typeof vi.fn<MangaboundBridge['startSharing']>> =>
     vi.fn<MangaboundBridge['startSharing']>(() => Promise.resolve({ ok: true, value: sharingOn }));
@@ -1745,9 +1742,7 @@ describe('sharing to an e-reader', () => {
     await user.click(screen.getByRole('button', { name: 'Choose a library to share' }));
     await user.click(await screen.findByRole('button', { name: 'Start sharing' }));
 
-    expect(await screen.findByLabelText('Catalog address')).toHaveValue(
-      'http://192.168.1.24:8080/opds/?token=abc123',
-    );
+    expect(await screen.findByLabelText('Catalog address')).toHaveValue('http://192.168.1.24:8080');
     expect(screen.getByRole('button', { name: 'Sharing' })).toBeVisible();
   });
 
@@ -1785,10 +1780,11 @@ describe('sharing to an e-reader', () => {
     const panel = screen.getByRole('dialog', { name: 'Share to your e-reader' });
     expect(panel).toHaveTextContent('C:\\Books');
     await user.click(screen.getByRole('button', { name: 'Start sharing' }));
-    expect(startSharing).toHaveBeenCalledWith('library', '192.168.1.24', { mode: 'token' });
-    expect(await screen.findByLabelText('Catalog address')).toHaveValue(
-      'http://192.168.1.24:8080/opds/?token=abc123',
-    );
+    expect(startSharing).toHaveBeenCalledWith('library', '192.168.1.24', {
+      username: '',
+      password: '',
+    });
+    expect(await screen.findByLabelText('Catalog address')).toHaveValue('http://192.168.1.24:8080');
     // The card and the title bar both say it, from the one state.
     expect(screen.getByRole('button', { name: 'Sharing' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'Show sharing' })).toBeVisible();
@@ -1827,7 +1823,8 @@ describe('sharing to an e-reader', () => {
     await screen.findByLabelText('Catalog address');
     await user.keyboard('{Escape}');
     expect(startSharing).toHaveBeenCalledExactlyOnceWith('elsewhere', '192.168.1.24', {
-      mode: 'token',
+      username: '',
+      password: '',
     });
 
     await convertOne(user);

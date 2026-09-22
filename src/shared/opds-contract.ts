@@ -2,14 +2,14 @@ import { z } from 'zod';
 
 import { identifierSchema } from './workflow-contract';
 
-export const opdsAuthConfigSchema = z.discriminatedUnion('mode', [
-  z.object({ mode: z.literal('token') }),
-  z.object({
-    mode: z.literal('basic'),
-    username: z.string().trim().min(1).max(100),
-    password: z.string().min(1).max(200),
-  }),
-]);
+/**
+ * HTTP Basic credentials for the OPDS catalog. Both may be left empty, which means the catalog
+ * requires no authentication at all — an explicit choice, not a fallback (ADR 0018).
+ */
+export const opdsAuthConfigSchema = z.object({
+  username: z.string().trim().max(100),
+  password: z.string().max(200),
+});
 
 export const startSharingCommandSchema = z.object({
   libraryId: identifierSchema,
@@ -29,6 +29,4 @@ export interface OpdsSharingStatus {
   readonly url?: string;
   readonly interfaceAddress?: string;
   readonly port?: number;
-  readonly authMode?: 'token' | 'basic';
-  readonly token?: string;
 }

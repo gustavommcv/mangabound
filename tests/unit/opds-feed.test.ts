@@ -39,12 +39,6 @@ describe('buildNavigationFeed', () => {
     );
     expect(xml).toContain('<updated>2026-09-16T00:00:00.000Z</updated>');
   });
-
-  it('embeds the token in the subsection link when configured', () => {
-    const xml = buildNavigationFeed({ ...baseConfig, token: 'secret' });
-
-    expect(xml).toContain('href="http://192.168.1.20:51234/recent?token=secret"');
-  });
 });
 
 describe('buildAcquisitionFeed', () => {
@@ -95,14 +89,10 @@ describe('buildAcquisitionFeed', () => {
     expect(pdf).toContain('type="application/pdf"');
   });
 
-  it('embeds the token in acquisition links when configured, omits it otherwise', () => {
-    const withoutToken = buildAcquisitionFeed(baseConfig, [book()]);
-    const withToken = buildAcquisitionFeed({ ...baseConfig, token: 'secret' }, [book()]);
+  it('links to the book with a plain href, no credentials in it', () => {
+    const xml = buildAcquisitionFeed(baseConfig, [book()]);
 
-    expect(withoutToken).toContain('href="http://192.168.1.20:51234/books/Manga/Vol.01.epub"');
-    expect(withToken).toContain(
-      'href="http://192.168.1.20:51234/books/Manga/Vol.01.epub?token=secret"',
-    );
+    expect(xml).toContain('href="http://192.168.1.20:51234/books/Manga/Vol.01.epub"');
   });
 
   it('escapes reserved characters in a title and author while keeping surrounding tags intact', () => {

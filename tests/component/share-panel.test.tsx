@@ -47,7 +47,7 @@ describe('SharePanel', () => {
     expect(onChooseLibrary).toHaveBeenCalledOnce();
   });
 
-  it('starts sharing in token mode with the selected interface once a library is chosen', async () => {
+  it('starts sharing with no credentials when the username and password are left blank', async () => {
     const user = userEvent.setup();
     const onStart = vi.fn();
     render(
@@ -65,10 +65,10 @@ describe('SharePanel', () => {
     await user.selectOptions(screen.getByLabelText('Network interface'), '10.0.0.5');
     await user.click(screen.getByRole('button', { name: 'Start sharing' }));
 
-    expect(onStart).toHaveBeenCalledWith('10.0.0.5', { mode: 'token' });
+    expect(onStart).toHaveBeenCalledWith('10.0.0.5', { username: '', password: '' });
   });
 
-  it('reveals username and password fields in basic mode and requires both before Start', async () => {
+  it('starts sharing with the username and password given', async () => {
     const user = userEvent.setup();
     const onStart = vi.fn();
     render(
@@ -82,23 +82,17 @@ describe('SharePanel', () => {
       />,
     );
 
-    await user.selectOptions(screen.getByLabelText('Authentication'), 'basic');
-    expect(screen.getByRole('button', { name: 'Start sharing' })).toBeDisabled();
-
     await user.type(screen.getByLabelText('Username'), 'reader');
-    expect(screen.getByRole('button', { name: 'Start sharing' })).toBeDisabled();
-
     await user.type(screen.getByLabelText('Password'), 'hunter2');
     await user.click(screen.getByRole('button', { name: 'Start sharing' }));
 
     expect(onStart).toHaveBeenCalledWith('192.168.1.20', {
-      mode: 'basic',
       username: 'reader',
       password: 'hunter2',
     });
   });
 
-  it('shows the catalog URL with an embedded token and calls onStop', async () => {
+  it('shows the catalog address, short enough to type by hand, and calls onStop', async () => {
     const user = userEvent.setup();
     const onStop = vi.fn();
     render(
@@ -107,18 +101,11 @@ describe('SharePanel', () => {
         onChooseLibrary={vi.fn()}
         onStart={vi.fn()}
         onStop={onStop}
-        status={{
-          active: true,
-          url: 'http://192.168.1.20:51234',
-          authMode: 'token',
-          token: 'secret',
-        }}
+        status={{ active: true, url: 'http://192.168.1.20:51234' }}
       />,
     );
 
-    expect(screen.getByLabelText('Catalog address')).toHaveValue(
-      'http://192.168.1.20:51234/?token=secret',
-    );
+    expect(screen.getByLabelText('Catalog address')).toHaveValue('http://192.168.1.20:51234');
     expect(screen.queryByRole('button', { name: 'Start sharing' })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Stop sharing' }));
@@ -132,7 +119,7 @@ describe('SharePanel', () => {
         onChooseLibrary={vi.fn()}
         onStart={vi.fn()}
         onStop={vi.fn()}
-        status={{ active: true, url: 'http://192.168.1.20:51234', authMode: 'token', token: 't' }}
+        status={{ active: true, url: 'http://192.168.1.20:51234' }}
       />,
     );
 
@@ -152,18 +139,13 @@ describe('SharePanel', () => {
         onChooseLibrary={vi.fn()}
         onStart={vi.fn()}
         onStop={vi.fn()}
-        status={{
-          active: true,
-          url: 'http://192.168.1.24:8080/opds',
-          authMode: 'token',
-          token: 'abc123',
-        }}
+        status={{ active: true, url: 'http://192.168.1.24:8080' }}
       />,
     );
 
     await user.click(screen.getByRole('button', { name: 'Copy the address' }));
 
-    expect(writeText).toHaveBeenCalledWith('http://192.168.1.24:8080/opds/?token=abc123');
+    expect(writeText).toHaveBeenCalledWith('http://192.168.1.24:8080');
     expect(await screen.findByText('Copied')).toBeVisible();
   });
 
@@ -176,7 +158,7 @@ describe('SharePanel', () => {
         onChooseLibrary={vi.fn()}
         onStart={vi.fn()}
         onStop={vi.fn()}
-        status={{ active: true, url: 'http://192.168.1.24:8080/opds', authMode: 'basic' }}
+        status={{ active: true, url: 'http://192.168.1.24:8080' }}
       />,
     );
 
@@ -186,17 +168,18 @@ describe('SharePanel', () => {
     expect(screen.queryByText('Copied')).not.toBeInTheDocument();
   });
 
-  it('shows the plain catalog URL for basic auth, with no token appended', () => {
+  it('says leaving the username and password blank shares with no password', () => {
     render(
       <SharePanel
         interfaces={interfaces}
+        library={{ libraryId: 'library', displayPath: 'C:\\Books' }}
         onChooseLibrary={vi.fn()}
         onStart={vi.fn()}
         onStop={vi.fn()}
-        status={{ active: true, url: 'http://192.168.1.20:51234', authMode: 'basic' }}
+        status={{ active: false }}
       />,
     );
 
-    expect(screen.getByLabelText('Catalog address')).toHaveValue('http://192.168.1.20:51234');
+    expect(screen.getByText('Leave both blank to share with no password.')).toBeVisible();
   });
 });

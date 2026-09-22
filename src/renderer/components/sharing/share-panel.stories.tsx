@@ -54,11 +54,9 @@ export const Sharing: Story = {
     library: { libraryId: 'library', displayPath: 'C:\\Books' },
     status: {
       active: true,
-      url: 'http://192.168.1.20:8080/opds',
+      url: 'http://192.168.1.20:8080',
       interfaceAddress: '192.168.1.20',
       port: 8080,
-      authMode: 'token',
-      token: 'a1b2c3d4e5f6',
     },
     onChooseLibrary: () => undefined,
     onStart: () => undefined,
@@ -71,41 +69,6 @@ export const NoInterfacesDetected: Story = {
     interfaces: [],
     library: { libraryId: 'library', displayPath: 'C:\\Books' },
     status: { active: false },
-    onChooseLibrary: () => undefined,
-    onStart: () => undefined,
-    onStop: () => undefined,
-  },
-};
-
-export const ActiveTokenAuth: Story = {
-  args: {
-    interfaces,
-    library: { libraryId: 'library', displayPath: 'C:\\Books' },
-    status: {
-      active: true,
-      url: 'http://192.168.1.20:51234',
-      interfaceAddress: '192.168.1.20',
-      port: 51234,
-      authMode: 'token',
-      token: 'a1b2c3d4',
-    },
-    onChooseLibrary: () => undefined,
-    onStart: () => undefined,
-    onStop: () => undefined,
-  },
-};
-
-export const ActiveBasicAuth: Story = {
-  args: {
-    interfaces,
-    library: { libraryId: 'library', displayPath: 'C:\\Books' },
-    status: {
-      active: true,
-      url: 'http://192.168.1.20:51234',
-      interfaceAddress: '192.168.1.20',
-      port: 51234,
-      authMode: 'basic',
-    },
     onChooseLibrary: () => undefined,
     onStart: () => undefined,
     onStop: () => undefined,

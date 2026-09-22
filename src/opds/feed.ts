@@ -1,4 +1,4 @@
-import { encodeRelativePath, withToken } from './links';
+import { encodeRelativePath } from './links';
 import { bookFormatMimeTypes } from './mime';
 import { escapeXml } from './xml';
 
@@ -11,7 +11,6 @@ export const acquisitionFeedType = 'application/atom+xml;profile=opds-catalog;ki
 export interface OpdsCatalogConfig {
   readonly baseUrl: string;
   readonly libraryTitle: string;
-  readonly token?: string;
   readonly updated: string;
 }
 
@@ -21,7 +20,7 @@ export function entryId(relativePath: string): string {
 
 export function buildNavigationFeed(config: OpdsCatalogConfig): string {
   const rootHref = `${config.baseUrl}/`;
-  const recentHref = withToken(`${config.baseUrl}/recent`, config.token);
+  const recentHref = `${config.baseUrl}/recent`;
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<feed xmlns="http://www.w3.org/2005/Atom" xmlns:opds="http://opds-spec.org/2010/catalog">',
@@ -48,13 +47,10 @@ export function buildAcquisitionFeed(
 ): string {
   const sorted = sortNewestFirst(books);
   const rootHref = `${config.baseUrl}/`;
-  const selfHref = withToken(`${config.baseUrl}/recent`, config.token);
+  const selfHref = `${config.baseUrl}/recent`;
   const updated = sorted[0]?.convertedAt ?? config.updated;
   const entries = sorted.map((book) => {
-    const acquisitionHref = withToken(
-      `${config.baseUrl}/books/${encodeRelativePath(book.relativePath)}`,
-      config.token,
-    );
+    const acquisitionHref = `${config.baseUrl}/books/${encodeRelativePath(book.relativePath)}`;
     return [
       '  <entry>',
       `    <title>${escapeXml(book.title)}</title>`,

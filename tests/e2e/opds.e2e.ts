@@ -86,18 +86,19 @@ describe('packaged OPDS delivery', () => {
         throw new Error('Could not choose a library to share.');
       }
       const started = await bridge.startSharing(chosen.value.libraryId, '127.0.0.1', {
-        mode: 'token',
+        username: 'reader',
+        password: 'hunter2',
       });
       if (!started.ok) throw new Error(started.error.message);
       return started.value;
     });
+    const authorization = `Basic ${Buffer.from('reader:hunter2').toString('base64')}`;
 
     try {
       assert.ok(sharingStatus.url !== undefined);
-      assert.ok(sharingStatus.token !== undefined);
-      const { url, token } = sharingStatus;
+      const { url } = sharingStatus;
 
-      const navResponse = await fetch(`${url}/?token=${token}`);
+      const navResponse = await fetch(`${url}/`, { headers: { Authorization: authorization } });
       assert.equal(navResponse.status, 200);
       assert.match(navResponse.headers.get('content-type') ?? '', /kind=navigation/u);
       assert.match(await navResponse.text(), /kind=acquisition/u);
@@ -105,7 +106,9 @@ describe('packaged OPDS delivery', () => {
       const unauthorized = await fetch(`${url}/recent`);
       assert.equal(unauthorized.status, 401);
 
-      const recentResponse = await fetch(`${url}/recent?token=${token}`);
+      const recentResponse = await fetch(`${url}/recent`, {
+        headers: { Authorization: authorization },
+      });
       assert.equal(recentResponse.status, 200);
       assert.match(recentResponse.headers.get('content-type') ?? '', /kind=acquisition/u);
       const recentBody = await recentResponse.text();
@@ -119,13 +122,15 @@ describe('packaged OPDS delivery', () => {
         'Expected the more recently converted book first.',
       );
 
-      const directHref = `${url}/books/Mangabound%20Direct.epub?token=${token}`;
+      const directHref = `${url}/books/Mangabound%20Direct.epub`;
       assert.ok(
         recentBody.includes(`href="${directHref}" type="application/epub+zip"`),
         'Expected an acquisition link for the direct CBZ conversion with the epub MIME type.',
       );
 
-      const acquisitionResponse = await fetch(directHref);
+      const acquisitionResponse = await fetch(directHref, {
+        headers: { Authorization: authorization },
+      });
       assert.equal(acquisitionResponse.status, 200);
       assert.equal(acquisitionResponse.headers.get('content-type'), 'application/epub+zip');
       const downloaded = Buffer.from(await acquisitionResponse.arrayBuffer());
@@ -160,7 +165,8 @@ describe('packaged OPDS delivery', () => {
         throw new Error('Could not choose a library to share.');
       }
       const started = await bridge.startSharing(chosen.value.libraryId, '127.0.0.1', {
-        mode: 'token',
+        username: '',
+        password: '',
       });
       return JSON.stringify(started);
     });
@@ -191,7 +197,8 @@ describe('packaged OPDS delivery', () => {
         throw new Error('Could not choose a library to share.');
       }
       const started = await bridge.startSharing(chosen.value.libraryId, '127.0.0.1', {
-        mode: 'token',
+        username: '',
+        password: '',
       });
       if (!started.ok) throw new Error(started.error.message);
       return started.value;
@@ -199,13 +206,12 @@ describe('packaged OPDS delivery', () => {
 
     try {
       assert.ok(sharingStatus.url !== undefined);
-      assert.ok(sharingStatus.token !== undefined);
-      const { url, token } = sharingStatus;
+      const { url } = sharingStatus;
 
       await mkdir(path.join(libraryPath, '.mangabound'), { recursive: true });
       await writeFile(path.join(libraryPath, '.mangabound', 'library.json'), '{not valid json');
 
-      const response = await fetch(`${url}/recent?token=${token}`);
+      const response = await fetch(`${url}/recent`);
       assert.equal(response.status, 500);
       const body = await response.text();
       assert.equal(body, 'The catalog could not be read.');

@@ -35,17 +35,13 @@ export function SharePanel({
   onStop,
 }: SharePanelProps): React.JSX.Element {
   const [interfaceAddress, setInterfaceAddress] = useState('');
-  const [authMode, setAuthMode] = useState<'token' | 'basic'>('token');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [copied, setCopied] = useState(false);
 
   const selectedInterfaceAddress =
     interfaceAddress === '' ? (interfaces[0]?.address ?? '') : interfaceAddress;
-  const canStart =
-    library !== undefined &&
-    selectedInterfaceAddress !== '' &&
-    (authMode === 'token' || (username.trim() !== '' && password !== ''));
+  const canStart = library !== undefined && selectedInterfaceAddress !== '';
   const address = catalogAddress(status) ?? '';
 
   return (
@@ -129,53 +125,37 @@ export function SharePanel({
             </div>
           )}
 
-          <div>
-            <Label htmlFor="share-auth-mode">Authentication</Label>
-            <NativeSelect
-              id="share-auth-mode"
-              onChange={(event) => {
-                setAuthMode(event.target.value === 'basic' ? 'basic' : 'token');
-              }}
-              value={authMode}
-            >
-              <option value="token">Random token in the URL</option>
-              <option value="basic">Username and password</option>
-            </NativeSelect>
-          </div>
-
-          {authMode === 'basic' && (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <Label htmlFor="share-username">Username</Label>
-                <Input
-                  id="share-username"
-                  onChange={(event) => {
-                    setUsername(event.target.value);
-                  }}
-                  value={username}
-                />
-              </div>
-              <div>
-                <Label htmlFor="share-password">Password</Label>
-                <Input
-                  id="share-password"
-                  onChange={(event) => {
-                    setPassword(event.target.value);
-                  }}
-                  type="password"
-                  value={password}
-                />
-              </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <Label htmlFor="share-username">Username</Label>
+              <Input
+                id="share-username"
+                onChange={(event) => {
+                  setUsername(event.target.value);
+                }}
+                value={username}
+              />
             </div>
-          )}
+            <div>
+              <Label htmlFor="share-password">Password</Label>
+              <Input
+                id="share-password"
+                onChange={(event) => {
+                  setPassword(event.target.value);
+                }}
+                type="password"
+                value={password}
+              />
+            </div>
+          </div>
+          <p className="text-subtle-foreground text-xs">
+            Leave both blank to share with no password.
+          </p>
 
           <Button
             disabled={!canStart}
             onClick={() => {
-              onStart(
-                selectedInterfaceAddress,
-                authMode === 'token' ? { mode: 'token' } : { mode: 'basic', username, password },
-              );
+              onStart(selectedInterfaceAddress, { username, password });
             }}
             size="sm"
           >

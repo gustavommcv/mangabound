@@ -1,13 +1,13 @@
-export type OpdsAuthConfig =
-  | { readonly mode: 'token'; readonly token: string }
-  | { readonly mode: 'basic'; readonly username: string; readonly password: string };
+/** HTTP Basic credentials; both empty means the catalog requires no authentication (ADR 0018). */
+export interface OpdsAuthConfig {
+  readonly username: string;
+  readonly password: string;
+}
 
 export interface OpdsServerHandle {
   readonly url: string;
   readonly interfaceAddress: string;
   readonly port: number;
-  readonly authMode: 'token' | 'basic';
-  readonly token?: string;
   stop(): Promise<void>;
 }
 
