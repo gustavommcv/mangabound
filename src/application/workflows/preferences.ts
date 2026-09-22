@@ -80,12 +80,6 @@ export class PreferencesWorkflow {
     });
   }
 
-  /** Keeps where a dialog was left, folded into whatever else is already saved. */
-  async rememberFolder(folder: string): Promise<void> {
-    const { settings } = await this.store.load();
-    await this.store.save({ ...settings, lastPickerFolder: folder });
-  }
-
   /** Resolves once every save asked for has finished. */
   settled(): Promise<void> {
     return this.store.settled();

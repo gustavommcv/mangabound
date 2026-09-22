@@ -42,6 +42,7 @@ import {
   type InputSelection,
   ToolExecutionError,
 } from '@/domain/conversion';
+import { defaultPreferences, type Preferences } from '@/domain/preferences';
 import { LibraryIndexError } from '@/library/manifest';
 import {
   type NetworkInterfaceOption,
@@ -88,12 +89,21 @@ const metadataProviders = new Map(
 const libraryStore = new FsLibraryStore();
 const libraryPublisher = new LibraryPublisher(libraryStore);
 const opdsServer = new NodeOpdsServer(libraryStore);
+// Fixed rather than OS-assigned, so a catalog added once in KOReader keeps working across
+// restarts instead of needing to be re-added every time the port happens to change (ADR 0019).
+// Picked in the private/dynamic range, away from common dev-server ports (3000, 5173, 8080, ...).
+const opdsPort = 48123;
 const networkInterfaces = new OsNetworkInterfaces();
 let preferences: PreferencesWorkflow | undefined;
 let activeSharing: OpdsServerHandle | undefined;
 // Where a choose-file or choose-folder dialog should open next; kept in memory and mirrored to
 // disk so it survives a restart, but never told to the renderer, which never holds paths.
 let lastPickerFolder: string | undefined;
+// The last preferences and output folder the renderer asked to save, kept so a dialog pick can be
+// written down on its own without reading the file back first: that read would race the
+// renderer's own save of the very same pick, and the slower of the two could lose it.
+let currentPreferences: Preferences = defaultPreferences;
+let currentOutputFolder: string | undefined;
 let workflow: SingleInputWorkflow | undefined;
 let mangapressCli: MangapressCliAdapter | undefined;
 let cleanupStarted = false;
@@ -123,10 +133,16 @@ function toFailure(error: unknown): WorkflowFailure {
   if (error instanceof SettingsSaveError) {
     return { code: error.code, message: 'Your settings could not be saved.' };
   }
+  if (error instanceof Error && 'code' in error && error.code === 'EADDRINUSE') {
+    return {
+      code: 'sharing_failed',
+      message: `Port ${String(opdsPort)} is already used by another program on this device. Close it and try again.`,
+    };
+  }
   if (
     error instanceof Error &&
     'code' in error &&
-    (error.code === 'EADDRNOTAVAIL' || error.code === 'EADDRINUSE' || error.code === 'EACCES')
+    (error.code === 'EADDRNOTAVAIL' || error.code === 'EACCES')
   ) {
     return {
       code: 'sharing_failed',
@@ -235,6 +251,7 @@ function registerOpdsHandlers(): void {
           libraryPath,
           libraryTitle: path.basename(libraryPath),
           interfaceAddress: command.interfaceAddress,
+          port: opdsPort,
           auth: command.auth,
         });
         return ok(toSharingStatus(activeSharing));
@@ -283,6 +300,8 @@ function registerSettingsHandlers(workflows: PreferencesWorkflow): void {
     try {
       const restored = await workflows.restore();
       lastPickerFolder = restored.lastPickerFolder;
+      currentPreferences = restored.preferences;
+      currentOutputFolder = restored.outputFolder;
       // The window is given the folder the way a dialog would give it: by an id, never a path.
       let library: SelectedLibrary | undefined;
       if (restored.outputFolder !== undefined) {
@@ -307,6 +326,8 @@ function registerSettingsHandlers(workflows: PreferencesWorkflow): void {
         const command = saveSettingsCommandSchema.parse(rawCommand);
         const outputFolder =
           command.libraryId === undefined ? undefined : selectedLibraries.get(command.libraryId);
+        currentPreferences = command.preferences;
+        currentOutputFolder = outputFolder;
         await workflows.save(command.preferences, outputFolder, lastPickerFolder);
         return ok(undefined);
       } catch (error) {
@@ -316,10 +337,14 @@ function registerSettingsHandlers(workflows: PreferencesWorkflow): void {
   );
 }
 
-/** Updates where the next dialog opens, in memory now and on disk once it is safe to. */
+/**
+ * Updates where the next dialog opens, in memory now and on disk right away: writes the last
+ * known preferences and output folder back unchanged, alongside the new picker folder, rather
+ * than reading them from the file first (see `currentPreferences` for why).
+ */
 function rememberPickerFolder(folder: string): void {
   lastPickerFolder = folder;
-  void preferences?.rememberFolder(folder);
+  void preferences?.save(currentPreferences, currentOutputFolder, folder);
 }
 
 function registerWorkflowHandlers(): void {

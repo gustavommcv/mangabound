@@ -148,24 +148,3 @@ describe('keeping the options', () => {
     expect(settled).toHaveBeenCalledOnce();
   });
 });
-
-describe('remembering where a dialog was left', () => {
-  it('folds the folder into whatever else is already saved', async () => {
-    const { port, save } = store({ settings: kept, unreadable: false });
-
-    await new PreferencesWorkflow(port, () => Promise.resolve(true)).rememberFolder('/downloads');
-
-    expect(save).toHaveBeenCalledExactlyOnceWith({ ...kept, lastPickerFolder: '/downloads' });
-  });
-
-  it('replaces a folder remembered before with the one just chosen', async () => {
-    const { port, save } = store({
-      settings: { ...kept, lastPickerFolder: '/old' },
-      unreadable: false,
-    });
-
-    await new PreferencesWorkflow(port, () => Promise.resolve(true)).rememberFolder('/new');
-
-    expect(save).toHaveBeenCalledExactlyOnceWith({ ...kept, lastPickerFolder: '/new' });
-  });
-});
