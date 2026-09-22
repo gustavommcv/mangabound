@@ -1,13 +1,4 @@
-import {
-  ArrowLeft,
-  Boxes,
-  CheckCircle2,
-  ChevronLeft,
-  CircleAlert,
-  Library,
-  LoaderCircle,
-  RadioTower,
-} from 'lucide-react';
+import { ArrowLeft, Boxes, ChevronLeft, CircleAlert, Library, RadioTower } from 'lucide-react';
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 
 import type { BookFormat, ConversionProgress } from '@/domain/conversion';
@@ -1064,34 +1055,25 @@ export function App(): React.JSX.Element {
   );
 }
 
+/**
+ * The bundled tools are mandatory: the app cannot run a conversion without them, so their startup
+ * check is not something to narrate while it succeeds. Only a real problem is worth a banner.
+ */
 function ToolchainBanner({
   toolchain,
 }: {
   readonly toolchain?: ToolchainStatus;
-}): React.JSX.Element {
+}): React.JSX.Element | null {
+  if (toolchain === undefined || toolchain.state === 'ready') return null;
   return (
     <section
       aria-label="Bundled tool status"
       className="border-border bg-surface mb-8 flex items-start gap-3 rounded-lg border px-4 py-3"
     >
-      {toolchain === undefined ? (
-        <LoaderCircle aria-hidden="true" className="text-accent mt-0.5 size-4 animate-spin" />
-      ) : toolchain.state === 'ready' ? (
-        <CheckCircle2 aria-hidden="true" className="text-status-complete mt-0.5 size-4" />
-      ) : (
-        <CircleAlert aria-hidden="true" className="text-status-warning mt-0.5 size-4" />
-      )}
+      <CircleAlert aria-hidden="true" className="text-status-warning mt-0.5 size-4" />
       <div>
-        <h2 className="text-sm font-semibold">
-          {toolchain === undefined
-            ? 'Checking conversion tools'
-            : toolchain.state === 'ready'
-              ? 'Conversion tools ready'
-              : 'Conversion tools need attention'}
-        </h2>
-        <p className="text-muted-foreground mt-0.5 text-xs">
-          {toolchain?.message ?? 'Checking versions, compatibility, and file integrity…'}
-        </p>
+        <h2 className="text-sm font-semibold">Conversion tools need attention</h2>
+        <p className="text-muted-foreground mt-0.5 text-xs">{toolchain.message}</p>
       </div>
     </section>
   );
