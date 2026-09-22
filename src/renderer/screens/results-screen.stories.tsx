@@ -70,11 +70,9 @@ export const SavedAndSharing: Story = {
         onOpen={() => undefined}
         status={{
           active: true,
-          url: 'http://192.168.1.24:8080/opds',
+          url: 'http://192.168.1.24:8080',
           interfaceAddress: '192.168.1.24',
           port: 8080,
-          authMode: 'token',
-          token: 'a1b2c3d4e5f6',
         }}
       />
     ),

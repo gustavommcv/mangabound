@@ -41,11 +41,13 @@ function decodeRelativePath(encoded: string): string {
     .join('/');
 }
 
-function isAuthorized(req: IncomingMessage, url: URL, auth: OpdsAuthConfig): boolean {
-  if (auth.mode === 'token') {
-    const token = url.searchParams.get('token');
-    return token !== null && safeEqual(token, auth.token);
-  }
+/** Both credentials left blank is an explicit choice to share with no authentication (ADR 0018). */
+function isOpen(auth: OpdsAuthConfig): boolean {
+  return auth.username === '' && auth.password === '';
+}
+
+function isAuthorized(req: IncomingMessage, auth: OpdsAuthConfig): boolean {
+  if (isOpen(auth)) return true;
   const header = req.headers.authorization;
   if (header === undefined || !header.startsWith('Basic ')) return false;
   const decoded = Buffer.from(header.slice('Basic '.length), 'base64').toString('utf8');
@@ -56,15 +58,11 @@ function isAuthorized(req: IncomingMessage, url: URL, auth: OpdsAuthConfig): boo
   return safeEqual(username, auth.username) && safeEqual(password, auth.password);
 }
 
-function respondUnauthorized(res: ServerResponse, authMode: OpdsAuthConfig['mode']): void {
-  const headers: Record<string, string> =
-    authMode === 'basic'
-      ? {
-          'WWW-Authenticate': 'Basic realm="Mangabound"',
-          'Content-Type': 'text/plain; charset=utf-8',
-        }
-      : { 'Content-Type': 'text/plain; charset=utf-8' };
-  res.writeHead(401, headers);
+function respondUnauthorized(res: ServerResponse): void {
+  res.writeHead(401, {
+    'WWW-Authenticate': 'Basic realm="Mangabound"',
+    'Content-Type': 'text/plain; charset=utf-8',
+  });
   res.end('Unauthorized.');
 }
 
@@ -100,8 +98,6 @@ export class NodeOpdsServer implements OpdsServerPort {
           url: baseUrl,
           interfaceAddress: options.interfaceAddress,
           port: address.port,
-          authMode: options.auth.mode,
-          ...(options.auth.mode === 'token' ? { token: options.auth.token } : {}),
           stop: () =>
             new Promise<void>((resolveStop, rejectStop) => {
               server.close((closeError) => {
@@ -121,8 +117,8 @@ export class NodeOpdsServer implements OpdsServerPort {
     baseUrl: string,
   ): Promise<void> {
     const url = new URL(req.url!, 'http://localhost');
-    if (!isAuthorized(req, url, options.auth)) {
-      respondUnauthorized(res, options.auth.mode);
+    if (!isAuthorized(req, options.auth)) {
+      respondUnauthorized(res);
       return;
     }
 
@@ -130,7 +126,6 @@ export class NodeOpdsServer implements OpdsServerPort {
       baseUrl,
       libraryTitle: options.libraryTitle,
       updated: new Date().toISOString(),
-      ...(options.auth.mode === 'token' ? { token: options.auth.token } : {}),
     };
 
     if (url.pathname === '/') {

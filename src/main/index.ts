@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { stat } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -194,8 +194,6 @@ function toSharingStatus(handle: OpdsServerHandle | undefined): OpdsSharingStatu
     url: handle.url,
     interfaceAddress: handle.interfaceAddress,
     port: handle.port,
-    authMode: handle.authMode,
-    ...(handle.token === undefined ? {} : { token: handle.token }),
   };
 }
 
@@ -237,10 +235,7 @@ function registerOpdsHandlers(): void {
           libraryPath,
           libraryTitle: path.basename(libraryPath),
           interfaceAddress: command.interfaceAddress,
-          auth:
-            command.auth.mode === 'token'
-              ? { mode: 'token', token: randomBytes(32).toString('base64url') }
-              : command.auth,
+          auth: command.auth,
         });
         return ok(toSharingStatus(activeSharing));
       } catch (error) {

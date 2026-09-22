@@ -95,15 +95,7 @@ describe('SendToKoreader', () => {
     const user = userEvent.setup();
     const onOpen = vi.fn();
     render(
-      <SendToKoreader
-        onOpen={onOpen}
-        status={{
-          active: true,
-          url: 'http://192.168.1.24:8080/opds',
-          authMode: 'token',
-          token: 'abc123',
-        }}
-      />,
+      <SendToKoreader onOpen={onOpen} status={{ active: true, url: 'http://192.168.1.24:8080' }} />,
     );
 
     expect(screen.getByText('Sharing')).toBeVisible();

@@ -12,11 +12,9 @@ const interfaces = [
 
 const sharing = {
   active: true as const,
-  url: 'http://192.168.1.20:8080/opds',
+  url: 'http://192.168.1.20:8080',
   interfaceAddress: '192.168.1.20',
   port: 8080,
-  authMode: 'token' as const,
-  token: 'a1b2c3d4e5f6',
 };
 
 function Menu({ active }: { readonly active: boolean }): React.JSX.Element {

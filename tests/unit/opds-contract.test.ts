@@ -3,42 +3,32 @@ import { describe, expect, it } from 'vitest';
 import { startSharingCommandSchema } from '@/shared/opds-contract';
 
 describe('startSharingCommandSchema', () => {
-  it('accepts a valid token-mode command', () => {
+  it('accepts a command with no credentials, which shares with no authentication', () => {
     expect(
       startSharingCommandSchema.safeParse({
         libraryId: 'library',
         interfaceAddress: '127.0.0.1',
-        auth: { mode: 'token' },
+        auth: { username: '', password: '' },
       }).success,
     ).toBe(true);
   });
 
-  it('accepts a valid basic-mode command', () => {
+  it('accepts a command with a username and password', () => {
     expect(
       startSharingCommandSchema.safeParse({
         libraryId: 'library',
         interfaceAddress: '127.0.0.1',
-        auth: { mode: 'basic', username: 'reader', password: 'hunter2' },
+        auth: { username: 'reader', password: 'hunter2' },
       }).success,
     ).toBe(true);
   });
 
-  it('rejects a basic-mode command missing credentials', () => {
+  it('rejects auth missing the username or password fields entirely', () => {
     expect(
       startSharingCommandSchema.safeParse({
         libraryId: 'library',
         interfaceAddress: '127.0.0.1',
-        auth: { mode: 'basic' },
-      }).success,
-    ).toBe(false);
-  });
-
-  it('rejects an unknown auth mode', () => {
-    expect(
-      startSharingCommandSchema.safeParse({
-        libraryId: 'library',
-        interfaceAddress: '127.0.0.1',
-        auth: { mode: 'oauth' },
+        auth: { username: 'reader' },
       }).success,
     ).toBe(false);
   });
@@ -47,13 +37,13 @@ describe('startSharingCommandSchema', () => {
     expect(
       startSharingCommandSchema.safeParse({
         interfaceAddress: '127.0.0.1',
-        auth: { mode: 'token' },
+        auth: { username: '', password: '' },
       }).success,
     ).toBe(false);
     expect(
       startSharingCommandSchema.safeParse({
         libraryId: 'library',
-        auth: { mode: 'token' },
+        auth: { username: '', password: '' },
       }).success,
     ).toBe(false);
   });

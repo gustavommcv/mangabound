@@ -10,6 +10,8 @@ import type { OpdsAuthConfig, OpdsServerHandle } from '@/application/ports/opds-
 import type { LibraryBookEntry, LibraryManifest } from '@/library/manifest';
 import { libraryManifestSchemaVersion } from '@/library/manifest';
 
+const open: OpdsAuthConfig = { username: '', password: '' };
+
 function memoryStore(books: readonly LibraryBookEntry[]): LibraryStorePort {
   const manifest: LibraryManifest = { schemaVersion: libraryManifestSchemaVersion, books };
   return {
@@ -54,9 +56,9 @@ describe('formatHost', () => {
 
 describe('NodeOpdsServer', () => {
   it('serves a navigation feed linking to the acquisition feed', async () => {
-    const handle = await startServer(memoryStore([]), { mode: 'token', token: 'secret' });
+    const handle = await startServer(memoryStore([]), open);
 
-    const response = await fetch(`${handle.url}/?token=secret`);
+    const response = await fetch(`${handle.url}/`);
 
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toContain('kind=navigation');
@@ -64,23 +66,7 @@ describe('NodeOpdsServer', () => {
     expect(body).toContain('kind=acquisition');
   });
 
-  it('rejects a request with no token', async () => {
-    const handle = await startServer(memoryStore([]), { mode: 'token', token: 'secret' });
-
-    const response = await fetch(`${handle.url}/recent`);
-
-    expect(response.status).toBe(401);
-  });
-
-  it('rejects a request with the wrong token', async () => {
-    const handle = await startServer(memoryStore([]), { mode: 'token', token: 'secret' });
-
-    const response = await fetch(`${handle.url}/recent?token=nope`);
-
-    expect(response.status).toBe(401);
-  });
-
-  it('serves the acquisition feed newest-first with the correct token', async () => {
+  it('serves the acquisition feed newest-first', async () => {
     const older: LibraryBookEntry = {
       relativePath: 'a.epub',
       title: 'A',
@@ -97,12 +83,9 @@ describe('NodeOpdsServer', () => {
       bytes: 20,
       convertedAt: '2026-09-16T10:00:00.000Z',
     };
-    const handle = await startServer(memoryStore([older, newer]), {
-      mode: 'token',
-      token: 'secret',
-    });
+    const handle = await startServer(memoryStore([older, newer]), open);
 
-    const response = await fetch(`${handle.url}/recent?token=secret`);
+    const response = await fetch(`${handle.url}/recent`);
     const body = await response.text();
 
     expect(response.status).toBe(200);
@@ -110,12 +93,24 @@ describe('NodeOpdsServer', () => {
     expect(body.indexOf('<title>B</title>')).toBeLessThan(body.indexOf('<title>A</title>'));
   });
 
-  it('rejects a Basic-auth request with no credentials and advertises the scheme', async () => {
-    const handle = await startServer(memoryStore([]), {
-      mode: 'basic',
-      username: 'reader',
-      password: 'hunter2',
-    });
+  it('accepts any request when both the username and the password are left blank', async () => {
+    const handle = await startServer(memoryStore([]), open);
+
+    const response = await fetch(`${handle.url}/recent`);
+
+    expect(response.status).toBe(200);
+  });
+
+  it('is not open when only one of the username or the password was left blank', async () => {
+    const handle = await startServer(memoryStore([]), { username: 'reader', password: '' });
+
+    const response = await fetch(`${handle.url}/recent`);
+
+    expect(response.status).toBe(401);
+  });
+
+  it('rejects a request with no credentials and advertises the Basic scheme', async () => {
+    const handle = await startServer(memoryStore([]), { username: 'reader', password: 'hunter2' });
 
     const response = await fetch(`${handle.url}/recent`);
 
@@ -123,12 +118,8 @@ describe('NodeOpdsServer', () => {
     expect(response.headers.get('www-authenticate')).toContain('Basic');
   });
 
-  it('rejects a Basic-auth request with a non-Basic scheme', async () => {
-    const handle = await startServer(memoryStore([]), {
-      mode: 'basic',
-      username: 'reader',
-      password: 'hunter2',
-    });
+  it('rejects a request with a non-Basic scheme', async () => {
+    const handle = await startServer(memoryStore([]), { username: 'reader', password: 'hunter2' });
 
     const response = await fetch(`${handle.url}/recent`, {
       headers: { Authorization: 'Bearer abc' },
@@ -137,12 +128,8 @@ describe('NodeOpdsServer', () => {
     expect(response.status).toBe(401);
   });
 
-  it('rejects a Basic-auth request with no colon separator', async () => {
-    const handle = await startServer(memoryStore([]), {
-      mode: 'basic',
-      username: 'reader',
-      password: 'hunter2',
-    });
+  it('rejects a request with no colon separator in the credentials', async () => {
+    const handle = await startServer(memoryStore([]), { username: 'reader', password: 'hunter2' });
 
     const response = await fetch(`${handle.url}/recent`, {
       headers: { Authorization: `Basic ${Buffer.from('nocolon').toString('base64')}` },
@@ -151,12 +138,8 @@ describe('NodeOpdsServer', () => {
     expect(response.status).toBe(401);
   });
 
-  it('rejects a Basic-auth request with the wrong username or password', async () => {
-    const handle = await startServer(memoryStore([]), {
-      mode: 'basic',
-      username: 'reader',
-      password: 'hunter2',
-    });
+  it('rejects the wrong username or password', async () => {
+    const handle = await startServer(memoryStore([]), { username: 'reader', password: 'hunter2' });
 
     const wrongUser = await fetch(`${handle.url}/recent`, {
       headers: { Authorization: basicHeader('someone-else', 'hunter2') },
@@ -169,12 +152,8 @@ describe('NodeOpdsServer', () => {
     expect(wrongPassword.status).toBe(401);
   });
 
-  it('accepts a Basic-auth request with correct credentials', async () => {
-    const handle = await startServer(memoryStore([]), {
-      mode: 'basic',
-      username: 'reader',
-      password: 'hunter2',
-    });
+  it('accepts the correct username and password', async () => {
+    const handle = await startServer(memoryStore([]), { username: 'reader', password: 'hunter2' });
 
     const response = await fetch(`${handle.url}/recent`, {
       headers: { Authorization: basicHeader('reader', 'hunter2') },
@@ -201,11 +180,11 @@ describe('NodeOpdsServer', () => {
         libraryPath: root,
         libraryTitle: 'My Library',
         interfaceAddress: '127.0.0.1',
-        auth: { mode: 'token', token: 'secret' },
+        auth: open,
       });
       activeHandles.push(handle);
 
-      const found = await fetch(`${handle.url}/books/Manga/Vol.01.epub?token=secret`);
+      const found = await fetch(`${handle.url}/books/Manga/Vol.01.epub`);
       const downloaded = Buffer.from(await found.arrayBuffer());
 
       expect(found.status).toBe(200);
@@ -213,7 +192,7 @@ describe('NodeOpdsServer', () => {
       expect(found.headers.get('content-length')).toBe(String(content.byteLength));
       expect(downloaded.equals(content)).toBe(true);
 
-      const missing = await fetch(`${handle.url}/books/Manga/Vol.02.epub?token=secret`);
+      const missing = await fetch(`${handle.url}/books/Manga/Vol.02.epub`);
       expect(missing.status).toBe(404);
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -221,9 +200,9 @@ describe('NodeOpdsServer', () => {
   });
 
   it('404s an unknown route', async () => {
-    const handle = await startServer(memoryStore([]), { mode: 'token', token: 'secret' });
+    const handle = await startServer(memoryStore([]), open);
 
-    const response = await fetch(`${handle.url}/unknown?token=secret`);
+    const response = await fetch(`${handle.url}/unknown`);
 
     expect(response.status).toBe(404);
   });
@@ -243,11 +222,11 @@ describe('NodeOpdsServer', () => {
         libraryPath: root,
         libraryTitle: 'My Library',
         interfaceAddress: '127.0.0.1',
-        auth: { mode: 'token', token: 'secret' },
+        auth: open,
       });
       activeHandles.push(handle);
 
-      const response = await fetch(`${handle.url}/books/missing.epub?token=secret`);
+      const response = await fetch(`${handle.url}/books/missing.epub`);
 
       expect(response.status).toBe(500);
       const body = await response.text();
@@ -264,10 +243,10 @@ describe('NodeOpdsServer', () => {
         read: () => Promise.reject(new SyntaxError('Unexpected token n in JSON at position 1')),
         publish: () => Promise.reject(new Error('not used in these tests')),
       },
-      { mode: 'token', token: 'secret' },
+      open,
     );
 
-    const response = await fetch(`${handle.url}/recent?token=secret`);
+    const response = await fetch(`${handle.url}/recent`);
 
     expect(response.status).toBe(500);
     const body = await response.text();
@@ -291,11 +270,11 @@ describe('NodeOpdsServer', () => {
         libraryPath: root,
         libraryTitle: 'My Library',
         interfaceAddress: '127.0.0.1',
-        auth: { mode: 'token', token: 'secret' },
+        auth: open,
       });
       activeHandles.push(handle);
 
-      const response = await fetch(`${handle.url}/books/a-directory?token=secret`);
+      const response = await fetch(`${handle.url}/books/a-directory`);
 
       expect(response.status).toBe(200);
     } finally {
@@ -303,11 +282,9 @@ describe('NodeOpdsServer', () => {
     }
   });
 
-  it('reports token auth metadata on the handle and stops accepting connections after stop()', async () => {
-    const handle = await startServer(memoryStore([]), { mode: 'token', token: 'secret' });
+  it('stops accepting connections after stop()', async () => {
+    const handle = await startServer(memoryStore([]), open);
 
-    expect(handle.authMode).toBe('token');
-    expect(handle.token).toBe('secret');
     expect(handle.port).toBeGreaterThan(0);
 
     await handle.stop();
@@ -315,19 +292,8 @@ describe('NodeOpdsServer', () => {
     await expect(fetch(`${handle.url}/`)).rejects.toBeInstanceOf(Error);
   });
 
-  it('omits the token field on the handle for basic auth', async () => {
-    const handle = await startServer(memoryStore([]), {
-      mode: 'basic',
-      username: 'reader',
-      password: 'hunter2',
-    });
-
-    expect(handle.authMode).toBe('basic');
-    expect(handle.token).toBeUndefined();
-  });
-
   it('rejects a second stop() on an already-stopped server', async () => {
-    const handle = await startServer(memoryStore([]), { mode: 'token', token: 'secret' });
+    const handle = await startServer(memoryStore([]), open);
 
     await handle.stop();
     activeHandles.length = 0;
