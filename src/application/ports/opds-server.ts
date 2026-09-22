@@ -15,6 +15,8 @@ export interface OpdsServerStartOptions {
   readonly libraryPath: string;
   readonly libraryTitle: string;
   readonly interfaceAddress: string;
+  /** 0 asks the OS for a free port; a caller that wants a stable address picks one itself. */
+  readonly port: number;
   readonly auth: OpdsAuthConfig;
 }
 

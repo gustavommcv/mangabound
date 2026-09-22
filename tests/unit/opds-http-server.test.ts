@@ -34,6 +34,7 @@ async function startServer(
     libraryPath: '/library',
     libraryTitle: 'My Library',
     interfaceAddress: '127.0.0.1',
+    port: 0,
     auth,
   });
   activeHandles.push(handle);
@@ -180,6 +181,7 @@ describe('NodeOpdsServer', () => {
         libraryPath: root,
         libraryTitle: 'My Library',
         interfaceAddress: '127.0.0.1',
+        port: 0,
         auth: open,
       });
       activeHandles.push(handle);
@@ -222,6 +224,7 @@ describe('NodeOpdsServer', () => {
         libraryPath: root,
         libraryTitle: 'My Library',
         interfaceAddress: '127.0.0.1',
+        port: 0,
         auth: open,
       });
       activeHandles.push(handle);
@@ -270,6 +273,7 @@ describe('NodeOpdsServer', () => {
         libraryPath: root,
         libraryTitle: 'My Library',
         interfaceAddress: '127.0.0.1',
+        port: 0,
         auth: open,
       });
       activeHandles.push(handle);
@@ -299,5 +303,19 @@ describe('NodeOpdsServer', () => {
     activeHandles.length = 0;
 
     await expect(handle.stop()).rejects.toBeInstanceOf(Error);
+  });
+
+  it('rejects when the port is already in use', async () => {
+    const first = await startServer(memoryStore([]), open);
+
+    await expect(
+      new NodeOpdsServer(memoryStore([])).start({
+        libraryPath: '/library',
+        libraryTitle: 'My Library',
+        interfaceAddress: '127.0.0.1',
+        port: first.port,
+        auth: open,
+      }),
+    ).rejects.toMatchObject({ code: 'EADDRINUSE' });
   });
 });

@@ -90,7 +90,7 @@ export class NodeOpdsServer implements OpdsServerPort {
 
     return new Promise((resolve, reject) => {
       server.once('error', reject);
-      server.listen(0, options.interfaceAddress, () => {
+      server.listen(options.port, options.interfaceAddress, () => {
         server.removeListener('error', reject);
         const address = server.address() as AddressInfo;
         baseUrl = `http://${formatHost(options.interfaceAddress)}:${String(address.port)}`;
