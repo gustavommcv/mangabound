@@ -72,6 +72,33 @@ describe('restoring the options', () => {
     expect(directoryExists).not.toHaveBeenCalled();
   });
 
+  it('gives back where a dialog was left, when that folder is still there', async () => {
+    const { port } = store({
+      settings: { ...defaultPreferences, lastPickerFolder: '/downloads' },
+      unreadable: false,
+    });
+    const directoryExists = vi.fn(() => Promise.resolve(true));
+
+    const restored = await new PreferencesWorkflow(port, directoryExists).restore();
+
+    expect(restored.lastPickerFolder).toBe('/downloads');
+    expect(directoryExists).toHaveBeenCalledExactlyOnceWith('/downloads');
+  });
+
+  it('leaves out where a dialog was left, quietly, when that folder is gone', async () => {
+    const { port } = store({
+      settings: { ...defaultPreferences, lastPickerFolder: '/downloads' },
+      unreadable: false,
+    });
+
+    const restored = await new PreferencesWorkflow(port, () => Promise.resolve(false)).restore();
+
+    expect(restored).not.toHaveProperty('lastPickerFolder');
+    // Unlike the output folder, a missing dialog folder is not worth a notice: it is only ever a
+    // starting point for a dialog that would otherwise have opened somewhere else anyway.
+    expect(restored.notices).toEqual([]);
+  });
+
   it('says so when the saved settings could not be read, and starts from the defaults', async () => {
     const { port } = store({ settings: defaultPreferences, unreadable: true });
 
@@ -89,25 +116,28 @@ describe('keeping the options', () => {
     const { port, save } = store({ settings: defaultPreferences, unreadable: false });
     const workflow = new PreferencesWorkflow(port, () => Promise.resolve(true));
 
-    await workflow.save({ ...defaultPreferences, format: 'cbz' }, '/books');
+    await workflow.save({ ...defaultPreferences, format: 'cbz' }, '/books', '/downloads');
 
     expect(save).toHaveBeenCalledExactlyOnceWith({
       ...defaultPreferences,
       format: 'cbz',
       outputFolder: '/books',
+      lastPickerFolder: '/downloads',
     });
   });
 
-  it('saves without a folder when none was chosen', async () => {
+  it('saves without a folder when none was chosen, or a dialog was never opened', async () => {
     const { port, save } = store({ settings: defaultPreferences, unreadable: false });
 
     await new PreferencesWorkflow(port, () => Promise.resolve(true)).save(
       defaultPreferences,
       undefined,
+      undefined,
     );
 
     expect(save.mock.calls[0]?.[0]).toEqual(defaultPreferences);
     expect(save.mock.calls[0]?.[0]).not.toHaveProperty('outputFolder');
+    expect(save.mock.calls[0]?.[0]).not.toHaveProperty('lastPickerFolder');
   });
 
   it('waits for the saves the store still has to write', async () => {
@@ -116,5 +146,26 @@ describe('keeping the options', () => {
     await new PreferencesWorkflow(port, () => Promise.resolve(true)).settled();
 
     expect(settled).toHaveBeenCalledOnce();
+  });
+});
+
+describe('remembering where a dialog was left', () => {
+  it('folds the folder into whatever else is already saved', async () => {
+    const { port, save } = store({ settings: kept, unreadable: false });
+
+    await new PreferencesWorkflow(port, () => Promise.resolve(true)).rememberFolder('/downloads');
+
+    expect(save).toHaveBeenCalledExactlyOnceWith({ ...kept, lastPickerFolder: '/downloads' });
+  });
+
+  it('replaces a folder remembered before with the one just chosen', async () => {
+    const { port, save } = store({
+      settings: { ...kept, lastPickerFolder: '/old' },
+      unreadable: false,
+    });
+
+    await new PreferencesWorkflow(port, () => Promise.resolve(true)).rememberFolder('/new');
+
+    expect(save).toHaveBeenCalledExactlyOnceWith({ ...kept, lastPickerFolder: '/new' });
   });
 });

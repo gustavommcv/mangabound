@@ -5,6 +5,8 @@ export interface RestoredPreferences {
   readonly preferences: Preferences;
   /** The output folder from the last session, when it is still there. */
   readonly outputFolder?: string;
+  /** Where a choose-file or choose-folder dialog should open, when that folder is still there. */
+  readonly lastPickerFolder?: string;
   /** What the person should be told about what could not be restored. */
   readonly notices: readonly string[];
 }
@@ -25,7 +27,14 @@ export class PreferencesWorkflow {
     if (unreadable) {
       notices.push('The saved settings could not be read, so the defaults are in use.');
     }
-    const { mode, format, settings: options, providerId, outputFolder } = settings;
+    const {
+      mode,
+      format,
+      settings: options,
+      providerId,
+      outputFolder,
+      lastPickerFolder,
+    } = settings;
     let restoredFolder: string | undefined;
     if (outputFolder !== undefined) {
       if (await this.directoryExists(outputFolder)) {
@@ -36,6 +45,12 @@ export class PreferencesWorkflow {
         );
       }
     }
+    // Just a dialog convenience, not a saved choice: gone silently means a dialog opens where it
+    // would have anyway, with nothing for the person to be told.
+    const restoredPickerFolder =
+      lastPickerFolder !== undefined && (await this.directoryExists(lastPickerFolder))
+        ? lastPickerFolder
+        : undefined;
     return {
       preferences: {
         mode,
@@ -44,15 +59,31 @@ export class PreferencesWorkflow {
         ...(providerId === undefined ? {} : { providerId }),
       },
       ...(restoredFolder === undefined ? {} : { outputFolder: restoredFolder }),
+      ...(restoredPickerFolder === undefined ? {} : { lastPickerFolder: restoredPickerFolder }),
       notices,
     };
   }
 
-  save(preferences: Preferences, outputFolder: string | undefined): Promise<void> {
+  /**
+   * `lastPickerFolder` is not one of the options a person sets; it is passed back in on every call
+   * so that saving the options a person did set never erases it.
+   */
+  save(
+    preferences: Preferences,
+    outputFolder: string | undefined,
+    lastPickerFolder: string | undefined,
+  ): Promise<void> {
     return this.store.save({
       ...preferences,
       ...(outputFolder === undefined ? {} : { outputFolder }),
+      ...(lastPickerFolder === undefined ? {} : { lastPickerFolder }),
     });
+  }
+
+  /** Keeps where a dialog was left, folded into whatever else is already saved. */
+  async rememberFolder(folder: string): Promise<void> {
+    const { settings } = await this.store.load();
+    await this.store.save({ ...settings, lastPickerFolder: folder });
   }
 
   /** Resolves once every save asked for has finished. */

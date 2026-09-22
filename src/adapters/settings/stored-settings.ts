@@ -9,6 +9,7 @@ export const settingsFileVersion = 1;
 const storedSettingsSchema = preferencesSchema.extend({
   version: z.literal(settingsFileVersion),
   outputFolder: z.string().min(1).max(4096).optional(),
+  lastPickerFolder: z.string().min(1).max(4096).optional(),
 });
 
 export const defaultStoredSettings: StoredSettings = defaultPreferences;
@@ -28,13 +29,14 @@ export function parseStoredSettings(raw: string): StoredSettings | undefined {
   }
   const parsed = storedSettingsSchema.safeParse(json);
   if (!parsed.success) return undefined;
-  const { mode, format, settings, providerId, outputFolder } = parsed.data;
+  const { mode, format, settings, providerId, outputFolder, lastPickerFolder } = parsed.data;
   return {
     mode,
     format,
     settings,
     ...(providerId === undefined ? {} : { providerId }),
     ...(outputFolder === undefined ? {} : { outputFolder }),
+    ...(lastPickerFolder === undefined ? {} : { lastPickerFolder }),
   };
 }
 
