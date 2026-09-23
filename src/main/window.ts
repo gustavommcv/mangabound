@@ -1,5 +1,7 @@
 import { app, BrowserWindow, type BrowserWindowConstructorOptions } from 'electron';
 
+import { readyToShowFallbackMs } from './constants';
+
 export const createMainWindow = (): BrowserWindow => {
   const platformTitleBar: Pick<
     BrowserWindowConstructorOptions,
@@ -36,7 +38,15 @@ export const createMainWindow = (): BrowserWindow => {
   window.webContents.on('will-navigate', (event) => {
     event.preventDefault();
   });
+  // 'ready-to-show' depends on the renderer producing a first composited frame; on some GPU/display
+  // setups (observed with a virtual display adapter alongside a real GPU) that signal never arrives,
+  // leaving the window permanently created-but-invisible with no error anywhere. This fallback
+  // guarantees the window becomes visible either way.
+  const showFallback = setTimeout(() => {
+    window.show();
+  }, readyToShowFallbackMs);
   window.once('ready-to-show', () => {
+    clearTimeout(showFallback);
     window.show();
   });
   void window.loadURL(MAIN_WINDOW_WEBPACK_ENTRY);
