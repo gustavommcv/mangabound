@@ -4,7 +4,20 @@ Mangabound is a desktop app that turns manga you already have, as folders of cha
 
 It is a graphical front end for two small command-line tools that it carries inside itself: **[mangabind](https://github.com/gustavommcv/mangabind)** regroups a folder of chapters into one CBZ per volume, and **[mangapress](https://github.com/gustavommcv/mangapress)** converts a CBZ, or a folder of chapters, into an EPUB, CBZ or PDF sized and tuned for a particular e-reader, the way [Kindle Comic Converter](https://github.com/ciromattia/kcc) does. Mangabound adds what a command line cannot: a queue you drop things on, a volume editor for chapters that do not say which volume they belong to, every option of both tools in one place, and a way to hand the finished books to KOReader over your Wi-Fi.
 
-> **Status: alpha (0.x).** It runs from source on Windows, macOS and Linux. Installers are not published yet.
+> **Status: alpha (0.x).** Installers are published on [GitHub Releases](https://github.com/gustavommcv/mangabound/releases). Expect rough edges: no auto-update yet, and the installers aren't code-signed (see the release notes for what that means at install time).
+
+## Download
+
+Grab the file that matches your system from the [latest release](https://github.com/gustavommcv/mangabound/releases/latest):
+
+| Platform                         | File                 |
+| -------------------------------- | -------------------- |
+| Windows x64                      | the `.exe` installer |
+| macOS, Apple Silicon             | the `.zip` archive   |
+| Linux, Debian/Ubuntu family, x64 | the `.deb` package   |
+| Linux, Fedora/RHEL family, x64   | the `.rpm` package   |
+
+Intel Macs, Arch/AUR, and AppImage aren't built for this alpha — see the release notes for why.
 
 ## What it does
 
@@ -68,6 +81,7 @@ What each kind of test covers, and what Storybook is for, is in [CONTRIBUTING.md
 | [Adding an online source](docs/adding-a-metadata-provider.md) | The rules and the steps for offering another source of volume data              |
 | [Milestones](docs/milestones.md)                              | What has been built and what comes next                                         |
 | [Release checklist](docs/release-checklist.md)                | The checks that need hands on a real machine before a release                   |
+| [Releasing](RELEASING.md)                                     | How to cut and publish a release, step by step                                  |
 
 ## Bundled CLI updates
 
