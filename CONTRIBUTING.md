@@ -21,12 +21,13 @@ Use Conventional Commit-style subjects where practical. Architecture changes req
 
 ## The gates, and what each is for
 
-`npm run check` runs the first eight of these together, plus an audit of the production dependencies and a check of the tool pins. Run a single one while you work.
+`npm run check` runs the first nine of these together, plus an audit of the production dependencies and a check of the tool pins. Run a single one while you work.
 
 | Command                               | What it holds                                                                                                                                                                      |
 | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `npm run format:check`                | Prettier. `npm run format` fixes it.                                                                                                                                               |
 | `npm run lint`                        | ESLint with no warnings allowed.                                                                                                                                                   |
+| `npm run lint:boundaries`             | ADR 0001's module boundaries, from `eslint.config.mjs`'s `no-restricted-imports` overrides (below).                                                                                |
 | `npm run typecheck`                   | Strict TypeScript over the source and the tests.                                                                                                                                   |
 | `npm run test:unit`                   | Domain, application, adapters, library, OPDS and `renderer/lib`. **100% statements, branches, functions and lines, or it fails.** It also acquires and verifies the bundled tools. |
 | `npm run capabilities:check`          | Fails when mangabind or mangapress has a flag the app does not represent.                                                                                                          |
@@ -35,6 +36,12 @@ Use Conventional Commit-style subjects where practical. Architecture changes req
 | `npm run build-storybook`             | That Storybook still builds.                                                                                                                                                       |
 | `npm run test:visual`                 | Screenshots of the stories against the committed baselines. CI runs this on Windows (see below).                                                                                   |
 | `npm run package`, `npm run test:e2e` | The packaged application, driven for real with the real tools.                                                                                                                     |
+
+## Module boundaries
+
+[ADR 0001](docs/adr/0001-electron-react-and-module-boundaries.md), elaborated in [the "May import" column of the architecture overview](docs/architecture.md#layers), says what each top-level folder under `src` may import. `eslint.config.mjs` has one `no-restricted-imports` override per folder that enforces it, checked by `npm run lint:boundaries` (part of `npm run check`); `scripts/verify-lint-boundaries.mjs` is that rule's own test, proving a legitimate import from each layer still passes and a representative violation of each boundary fails.
+
+It catches every import written with the `@/*` alias, which is how the codebase writes a cross-layer import everywhere except `src/preload/index.ts` (both the alias and its relative form are covered there specifically, since that file's location is fixed and its relative depth is always known). What it cannot catch is a **new** cross-layer import written as a relative path somewhere else, at some other depth — `no-restricted-imports` matches the import specifier's text, not the module it resolves to, so it has no way to know `../../../application/foo` written from three levels into `src/adapters` means the same thing `@/application/foo` would. Keep using the alias for a cross-layer import, and review still catches the rest, same as it always has.
 
 ## Testing expectations
 
