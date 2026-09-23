@@ -91,7 +91,7 @@ function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
 
 function bridge(overrides: Partial<MangaboundBridge> = {}): MangaboundBridge {
   return {
-    runtime: { electron: '44.3.0', platform: 'win32' },
+    runtime: { electron: '44.3.0', platform: 'win32', version: '0.1.0-alpha.1' },
     getToolchainStatus: () => Promise.resolve(readyToolchain),
     chooseInputs: () => Promise.resolve({ ok: true, value: { inputs: [folder()], rejected: [] } }),
     registerDroppedFiles: () =>

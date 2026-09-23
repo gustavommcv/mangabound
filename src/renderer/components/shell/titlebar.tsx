@@ -5,6 +5,8 @@ export interface TitlebarProps {
   readonly desktop: boolean;
   /** The operating system: on macOS the window's own buttons sit on the left and need room. */
   readonly platform?: string;
+  /** The running app version, shown low-key next to the name (e.g. "0.1.0-alpha.1"). */
+  readonly version?: string;
   /** What sits on the right, before the window's own buttons. */
   readonly children?: React.ReactNode;
 }
@@ -18,7 +20,12 @@ export interface TitlebarProps {
  * height of the bar, so a line in its last row would be hidden behind them. The line belongs to the
  * part that scrolls, which starts where the bar ends.
  */
-export function Titlebar({ children, desktop, platform }: TitlebarProps): React.JSX.Element {
+export function Titlebar({
+  children,
+  desktop,
+  platform,
+  version,
+}: TitlebarProps): React.JSX.Element {
   return (
     <header className="window-titlebar bg-titlebar shrink-0">
       <div
@@ -30,6 +37,9 @@ export function Titlebar({ children, desktop, platform }: TitlebarProps): React.
         <span aria-hidden="true" className="bg-accent size-2 rounded-full" />
         <span className="text-sm font-semibold tracking-tight">Mangabound</span>
         <span className="text-muted-foreground text-xs">{desktop ? 'Desktop' : 'Foundation'}</span>
+        {version !== undefined && (
+          <span className="text-subtle-foreground text-xs">v{version}</span>
+        )}
         <span className="flex-1" />
         {children !== undefined && <div className="window-titlebar-actions">{children}</div>}
       </div>

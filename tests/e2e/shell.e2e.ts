@@ -9,6 +9,9 @@ describe('packaged application shell', () => {
     // Verified tools are mandatory, not a status: the queue enables once they are, with no banner.
     await $('button=Files').waitForEnabled();
     assert.equal(await $('section[aria-label="Bundled tool status"]').isExisting(), false);
+    // Proves app.getVersion() reaches the title bar through additionalArguments, for real - not
+    // just a mocked bridge in a component test.
+    assert.equal(await $('header').$('span=v0.1.0-alpha.1').isDisplayed(), true);
   });
 
   it('keeps the title bar in place while the page under it scrolls', async () => {
