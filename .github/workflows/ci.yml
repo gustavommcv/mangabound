@@ -89,6 +89,47 @@ jobs:
             *.log
           if-no-files-found: ignore
 
+  make-verification:
+    name: Make installer (${{ matrix.name }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows-latest
+            runner: windows-latest
+          - name: ubuntu-latest
+            runner: ubuntu-latest
+          # Pinned, not macos-latest: that alias has already moved from Intel to Apple Silicon
+          # once, silently, and this repo ships arm64-only for the alpha. A fixed, non-deprecated
+          # label keeps the architecture an explicit choice, not a default that drifts whenever
+          # GitHub repoints -latest.
+          - name: macos-15-arm64
+            runner: macos-15
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Install Linux maker dependencies
+        if: runner.os == 'Linux'
+        # MakerRpm needs the `rpmbuild` binary (apt's `rpm` package provides it on
+        # Debian/Ubuntu - there is no separate "rpmbuild" package there); MakerDeb needs
+        # `dpkg` (already present on any Debian-family runner) and `fakeroot`.
+        run: sudo apt-get update && sudo apt-get install --yes rpm fakeroot
+      - run: npm run make
+      - name: Upload installer artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: make-${{ matrix.name }}
+          path: out/make/**
+          if-no-files-found: error
+
   wayland-shell:
     name: Packaged shell (Wayland)
     runs-on: ubuntu-latest
