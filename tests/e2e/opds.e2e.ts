@@ -174,6 +174,80 @@ describe('packaged OPDS delivery', () => {
     }
   });
 
+  it('records the real author mangapress used, and Unknown for an untracked copy of the same file', async () => {
+    const testRoot = await mkdtemp(path.join(os.tmpdir(), 'mangabound-opds-author-e2e-'));
+    temporaryDirectories.push(testRoot);
+    const directCbzPath = path.resolve('tests', 'fixtures', 'e2e', 'cbz', 'Mangabound Direct.cbz');
+    const libraryPath = path.join(testRoot, 'library');
+    await mkdir(libraryPath);
+
+    const openDialog = await browser.electron.mock('dialog', 'showOpenDialog');
+    await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [directCbzPath] });
+    await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [libraryPath] });
+    await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [libraryPath] });
+
+    await resetQueue();
+    await $('button=Files').click();
+    await $('span=Ready').waitForDisplayed({ timeout: 30_000 });
+    await $('button*=mangapress options').click();
+    await $('h1=mangapress options').waitForDisplayed({ timeout: 10_000 });
+    await $('#book-author').setValue('A Real Author');
+    await $('button=Back').click();
+    await $('h1=Queue').waitForDisplayed();
+    await chooseOutputFolder(queueOutputFolderButton, libraryPath);
+    await $('button=Convert 1 item').click();
+    await $('h1=1 book saved').waitForDisplayed({ timeout: 120_000 });
+
+    const savedName = (await readdir(libraryPath)).find((name) => name !== '.mangabound');
+    assert.ok(savedName !== undefined, 'Expected exactly one converted book in the library.');
+    await cp(
+      path.join(libraryPath, savedName),
+      path.join(libraryPath, 'Copied without author.epub'),
+    );
+
+    const sharingStatus = await browser.execute(async () => {
+      const bridge = window.mangabound;
+      if (bridge === undefined) throw new Error('window.mangabound is unavailable.');
+      const chosen = await bridge.chooseLibrary();
+      if (!chosen.ok || chosen.value === null) {
+        throw new Error('Could not choose a library to share.');
+      }
+      const started = await bridge.startSharing(chosen.value.libraryId, '127.0.0.1', {
+        username: '',
+        password: '',
+      });
+      if (!started.ok) throw new Error(started.error.message);
+      return started.value;
+    });
+
+    try {
+      assert.ok(sharingStatus.url !== undefined);
+      const { url } = sharingStatus;
+
+      const recentBody = await (await fetch(`${url}/recent`)).text();
+      assert.match(
+        recentBody,
+        /<name>A Real Author<\/name>/u,
+        'Expected the author set in mangapress options on the tracked entry.',
+      );
+
+      const otherBody = await (await fetch(`${url}/other`)).text();
+      assert.ok(
+        otherBody.includes('<title>Copied without author</title>'),
+        'Expected the untracked copy in the "Other files" feed.',
+      );
+      assert.ok(
+        !otherBody.includes('A Real Author'),
+        'An untracked copy must not inherit the tracked entry’s author.',
+      );
+      assert.match(otherBody, /<name>Unknown<\/name>/u);
+    } finally {
+      await browser.execute(async () => {
+        await window.mangabound?.stopSharing();
+      });
+    }
+  });
+
   it('refuses to start sharing a library whose catalog is corrupt, with a readable message', async () => {
     const testRoot = await mkdtemp(path.join(os.tmpdir(), 'mangabound-opds-corrupt-start-'));
     temporaryDirectories.push(testRoot);
