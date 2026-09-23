@@ -129,6 +129,14 @@ jobs:
           name: make-${{ matrix.name }}
           path: out/make/**
           if-no-files-found: error
+      - name: 'Diagnostic: launch the real .deb with the sandbox enabled'
+        if: runner.os == 'Linux'
+        # Not a release gate (always exits 0) - purely to observe and record real behavior before
+        # anyone documents a workaround for a problem that might not even apply here. Every other
+        # Electron launch in this repo's CI runs with --no-sandbox (see wdio.conf.ts); this is the
+        # one place that deliberately does not, so the result reflects what a real user gets.
+        shell: bash
+        run: .github/scripts/check-deb-sandbox.sh
 
   wayland-shell:
     name: Packaged shell (Wayland)
