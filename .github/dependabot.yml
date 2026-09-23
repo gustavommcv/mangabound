@@ -16,3 +16,9 @@ updates:
       webdriverio:
         patterns:
           - '@wdio/*'
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
