@@ -14,13 +14,46 @@ export interface OpdsCatalogConfig {
   readonly updated: string;
 }
 
+/** One flat acquisition feed a person can browse into from the root (ADR 0007, amended by 0020). */
+export interface AcquisitionFeedInfo {
+  readonly id: string;
+  readonly title: string;
+  readonly summary: string;
+  readonly path: string;
+}
+
+export const recentFeed: AcquisitionFeedInfo = {
+  id: 'urn:mangabound:recent',
+  title: 'Recently converted',
+  summary: 'The most recently converted books, newest first.',
+  path: '/recent',
+};
+
+export const otherFilesFeed: AcquisitionFeedInfo = {
+  id: 'urn:mangabound:other',
+  title: 'Other files',
+  summary: 'Comic and book files found in this folder that were not converted here.',
+  path: '/other',
+};
+
 export function entryId(relativePath: string): string {
   return `urn:mangabound:book:${encodeRelativePath(relativePath)}`;
 }
 
 export function buildNavigationFeed(config: OpdsCatalogConfig): string {
   const rootHref = `${config.baseUrl}/`;
-  const recentHref = `${config.baseUrl}/recent`;
+  const sections = [recentFeed, otherFilesFeed].map((feed) => {
+    const href = `${config.baseUrl}${feed.path}`;
+    return [
+      '  <entry>',
+      `    <title>${escapeXml(feed.title)}</title>`,
+      `    <id>${escapeXml(feed.id)}</id>`,
+      `    <updated>${escapeXml(config.updated)}</updated>`,
+      `    <content type="text">${escapeXml(feed.summary)}</content>`,
+      `    <link rel="subsection" href="${escapeXml(href)}" type="${acquisitionFeedType}"/>`,
+      '  </entry>',
+    ].join('\n');
+  });
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<feed xmlns="http://www.w3.org/2005/Atom" xmlns:opds="http://opds-spec.org/2010/catalog">',
@@ -29,13 +62,7 @@ export function buildNavigationFeed(config: OpdsCatalogConfig): string {
     `  <updated>${escapeXml(config.updated)}</updated>`,
     `  <link rel="self" href="${escapeXml(rootHref)}" type="${navigationFeedType}"/>`,
     `  <link rel="start" href="${escapeXml(rootHref)}" type="${navigationFeedType}"/>`,
-    '  <entry>',
-    '    <title>Recently converted</title>',
-    '    <id>urn:mangabound:recent</id>',
-    `    <updated>${escapeXml(config.updated)}</updated>`,
-    '    <content type="text">The most recently converted books, newest first.</content>',
-    `    <link rel="subsection" href="${escapeXml(recentHref)}" type="${acquisitionFeedType}"/>`,
-    '  </entry>',
+    ...sections,
     '</feed>',
     '',
   ].join('\n');
@@ -43,11 +70,12 @@ export function buildNavigationFeed(config: OpdsCatalogConfig): string {
 
 export function buildAcquisitionFeed(
   config: OpdsCatalogConfig,
+  feed: AcquisitionFeedInfo,
   books: readonly LibraryBookEntry[],
 ): string {
   const sorted = sortNewestFirst(books);
   const rootHref = `${config.baseUrl}/`;
-  const selfHref = `${config.baseUrl}/recent`;
+  const selfHref = `${config.baseUrl}${feed.path}`;
   const updated = sorted[0]?.convertedAt ?? config.updated;
   const entries = sorted.map((book) => {
     const acquisitionHref = `${config.baseUrl}/books/${encodeRelativePath(book.relativePath)}`;
@@ -66,8 +94,8 @@ export function buildAcquisitionFeed(
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<feed xmlns="http://www.w3.org/2005/Atom" xmlns:opds="http://opds-spec.org/2010/catalog">',
-    '  <id>urn:mangabound:recent</id>',
-    '  <title>Recently converted</title>',
+    `  <id>${escapeXml(feed.id)}</id>`,
+    `  <title>${escapeXml(feed.title)}</title>`,
     `  <updated>${escapeXml(updated)}</updated>`,
     `  <link rel="self" href="${escapeXml(selfHref)}" type="${acquisitionFeedType}"/>`,
     `  <link rel="start" href="${escapeXml(rootHref)}" type="${navigationFeedType}"/>`,

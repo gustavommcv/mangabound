@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -122,6 +122,67 @@ describe('FsLibraryStore (mocked filesystem)', () => {
 
     expect(manifest.books).toEqual([republished]);
   });
+
+  it('finds nothing when the folder does not exist yet', async () => {
+    const readdir = vi.fn(() => Promise.reject(enoentError()));
+    const store = new FsLibraryStore({
+      readdir: readdir as unknown as FsLibraryStoreDeps['readdir'],
+    });
+
+    await expect(store.scanUntracked('/library', emptyLibraryManifest)).resolves.toEqual([]);
+  });
+
+  it('propagates a non-ENOENT listing failure', async () => {
+    const failure = new Error('permission denied');
+    const readdir = vi.fn(() => Promise.reject(failure));
+    const store = new FsLibraryStore({
+      readdir: readdir as unknown as FsLibraryStoreDeps['readdir'],
+    });
+
+    await expect(store.scanUntracked('/library', emptyLibraryManifest)).rejects.toBe(failure);
+  });
+
+  it('skips subfolders, already-tracked files, and files of an unsupported kind', async () => {
+    const direntLike = (
+      name: string,
+      isFile: boolean,
+    ): { name: string; isFile: () => boolean } => ({
+      name,
+      isFile: () => isFile,
+    });
+    const readdir = vi.fn(() =>
+      Promise.resolve([
+        direntLike('Subfolder', false),
+        direntLike('Vol.01.epub', true),
+        direntLike('notes.txt', true),
+        direntLike('Loose.cbz', true),
+      ]),
+    );
+    const stat = vi.fn(() =>
+      Promise.resolve({ size: 42, mtime: new Date('2026-09-20T12:00:00.000Z') }),
+    );
+    const store = new FsLibraryStore({
+      readdir: readdir as unknown as FsLibraryStoreDeps['readdir'],
+      stat: stat as unknown as FsLibraryStoreDeps['stat'],
+    });
+    const manifest = {
+      schemaVersion: libraryManifestSchemaVersion,
+      books: [entry({ relativePath: 'Vol.01.epub' })],
+    };
+
+    const found = await store.scanUntracked('/library', manifest);
+
+    expect(found).toEqual([
+      {
+        relativePath: 'Loose.cbz',
+        title: 'Loose',
+        author: 'Unknown',
+        format: 'cbz',
+        bytes: 42,
+        convertedAt: '2026-09-20T12:00:00.000Z',
+      },
+    ]);
+  });
 });
 
 describe('FsLibraryStore (real filesystem)', () => {
@@ -134,6 +195,29 @@ describe('FsLibraryStore (real filesystem)', () => {
       const reread = await new FsLibraryStore().read(root);
 
       expect(reread.books).toEqual([entry()]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('finds a loose comic file that was never published, on a real directory', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'mangabound-library-untracked-'));
+    try {
+      const store = new FsLibraryStore();
+      await store.publish(root, entry());
+      await writeFile(path.join(root, 'Copied in.epub'), 'fake epub contents');
+      await mkdir(path.join(root, 'Not a file'));
+
+      const manifest = await store.read(root);
+      const found = await store.scanUntracked(root, manifest);
+
+      expect(found).toHaveLength(1);
+      expect(found[0]).toMatchObject({
+        relativePath: 'Copied in.epub',
+        title: 'Copied in',
+        author: 'Unknown',
+        format: 'epub',
+      });
     } finally {
       await rm(root, { recursive: true, force: true });
     }

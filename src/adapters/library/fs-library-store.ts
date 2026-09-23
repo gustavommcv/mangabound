@@ -1,11 +1,13 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import type { Dirent } from 'node:fs';
+import { mkdir, readdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import type { LibraryStorePort } from '@/application/ports/library-store';
 import {
   type LibraryBookEntry,
   type LibraryManifest,
+  bookFormatFromExtension,
   emptyLibraryManifest,
   parseLibraryManifest,
   serializeLibraryManifest,
@@ -20,6 +22,8 @@ export interface FsLibraryStoreDeps {
   readonly writeFile: typeof writeFile;
   readonly rename: typeof rename;
   readonly mkdir: typeof mkdir;
+  readonly readdir: typeof readdir;
+  readonly stat: typeof stat;
   readonly createTempSuffix: () => string;
 }
 
@@ -44,6 +48,8 @@ export class FsLibraryStore implements LibraryStorePort {
       writeFile: deps.writeFile ?? writeFile,
       rename: deps.rename ?? rename,
       mkdir: deps.mkdir ?? mkdir,
+      readdir: deps.readdir ?? readdir,
+      stat: deps.stat ?? stat,
       createTempSuffix: deps.createTempSuffix ?? randomUUID,
     };
   }
@@ -68,5 +74,35 @@ export class FsLibraryStore implements LibraryStorePort {
     await this.io.writeFile(tempPath, serializeLibraryManifest(next), 'utf8');
     await this.io.rename(tempPath, finalPath);
     return next;
+  }
+
+  async scanUntracked(
+    libraryPath: string,
+    manifest: LibraryManifest,
+  ): Promise<readonly LibraryBookEntry[]> {
+    const known = new Set(manifest.books.map((book) => book.relativePath));
+    let entries: Dirent[];
+    try {
+      entries = await this.io.readdir(libraryPath, { withFileTypes: true });
+    } catch (error) {
+      if (isEnoent(error)) return [];
+      throw error;
+    }
+    const found: LibraryBookEntry[] = [];
+    for (const entry of entries) {
+      if (!entry.isFile() || known.has(entry.name)) continue;
+      const format = bookFormatFromExtension(entry.name);
+      if (format === undefined) continue;
+      const stats = await this.io.stat(path.join(libraryPath, entry.name));
+      found.push({
+        relativePath: entry.name,
+        title: path.parse(entry.name).name,
+        author: 'Unknown',
+        format,
+        bytes: stats.size,
+        convertedAt: stats.mtime.toISOString(),
+      });
+    }
+    return found;
   }
 }

@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 import { z } from 'zod';
 
 import type { BookFormat } from '@/domain/conversion';
@@ -82,4 +84,15 @@ export function parseLibraryManifest(input: string): LibraryManifest {
 
 export function serializeLibraryManifest(manifest: LibraryManifest): string {
   return `${JSON.stringify(manifest, null, 2)}\n`;
+}
+
+const extensionFormats: Readonly<Record<string, BookFormat>> = {
+  '.epub': 'epub',
+  '.cbz': 'cbz',
+  '.pdf': 'pdf',
+};
+
+/** The format a bare file name implies from its extension, or undefined for anything else. */
+export function bookFormatFromExtension(fileName: string): BookFormat | undefined {
+  return extensionFormats[path.extname(fileName).toLowerCase()];
 }

@@ -9,6 +9,8 @@ import {
   entryId,
   navigationFeedType,
   type OpdsCatalogConfig,
+  otherFilesFeed,
+  recentFeed,
 } from '@/opds/feed';
 
 function book(overrides: Partial<LibraryBookEntry> = {}): LibraryBookEntry {
@@ -30,23 +32,38 @@ const baseConfig: OpdsCatalogConfig = {
 };
 
 describe('buildNavigationFeed', () => {
-  it('links to the acquisition feed with the navigation feed self/start links', () => {
+  it('links to both acquisition feeds with the navigation feed self/start links', () => {
     const xml = buildNavigationFeed(baseConfig);
 
     expect(xml).toContain(`type="${navigationFeedType}"`);
     expect(xml).toContain(
       `<link rel="subsection" href="http://192.168.1.20:51234/recent" type="${acquisitionFeedType}"/>`,
     );
+    expect(xml).toContain(
+      `<link rel="subsection" href="http://192.168.1.20:51234/other" type="${acquisitionFeedType}"/>`,
+    );
+    expect(xml).toContain('<title>Recently converted</title>');
+    expect(xml).toContain('<title>Other files</title>');
     expect(xml).toContain('<updated>2026-09-16T00:00:00.000Z</updated>');
   });
 });
 
 describe('buildAcquisitionFeed', () => {
   it('produces a well-formed feed with no entries for an empty library', () => {
-    const xml = buildAcquisitionFeed(baseConfig, []);
+    const xml = buildAcquisitionFeed(baseConfig, recentFeed, []);
 
     expect(xml).not.toContain('<entry>');
     expect(xml).toContain('<updated>2026-09-16T00:00:00.000Z</updated>');
+  });
+
+  it("carries the given feed's own id, title, and self link, not another feed's", () => {
+    const xml = buildAcquisitionFeed(baseConfig, otherFilesFeed, []);
+
+    expect(xml).toContain(`<id>${otherFilesFeed.id}</id>`);
+    expect(xml).toContain(`<title>${otherFilesFeed.title}</title>`);
+    expect(xml).toContain(
+      `<link rel="self" href="http://192.168.1.20:51234/other" type="${acquisitionFeedType}"/>`,
+    );
   });
 
   it('orders entries newest-converted-first regardless of input order', () => {
@@ -54,7 +71,7 @@ describe('buildAcquisitionFeed', () => {
     const newest = book({ relativePath: 'b', convertedAt: '2026-09-16T12:00:00.000Z' });
     const middle = book({ relativePath: 'c', convertedAt: '2026-09-16T10:00:00.000Z' });
 
-    const xml = buildAcquisitionFeed(baseConfig, [oldest, newest, middle]);
+    const xml = buildAcquisitionFeed(baseConfig, recentFeed, [oldest, newest, middle]);
 
     const newestIndex = xml.indexOf(entryId('b'));
     const middleIndex = xml.indexOf(entryId('c'));
@@ -72,7 +89,7 @@ describe('buildAcquisitionFeed', () => {
       republished,
     );
 
-    const xml = buildAcquisitionFeed(baseConfig, manifestAfterReplace.books);
+    const xml = buildAcquisitionFeed(baseConfig, recentFeed, manifestAfterReplace.books);
 
     expect(xml.match(/<entry>/g)).toHaveLength(1);
     expect(xml).toContain(`<id>${entryId(republished.relativePath)}</id>`);
@@ -80,9 +97,9 @@ describe('buildAcquisitionFeed', () => {
   });
 
   it('sets the acquisition link type from the book format', () => {
-    const epub = buildAcquisitionFeed(baseConfig, [book({ format: 'epub' })]);
-    const cbz = buildAcquisitionFeed(baseConfig, [book({ format: 'cbz' })]);
-    const pdf = buildAcquisitionFeed(baseConfig, [book({ format: 'pdf' })]);
+    const epub = buildAcquisitionFeed(baseConfig, recentFeed, [book({ format: 'epub' })]);
+    const cbz = buildAcquisitionFeed(baseConfig, recentFeed, [book({ format: 'cbz' })]);
+    const pdf = buildAcquisitionFeed(baseConfig, recentFeed, [book({ format: 'pdf' })]);
 
     expect(epub).toContain('type="application/epub+zip"');
     expect(cbz).toContain('type="application/vnd.comicbook+zip"');
@@ -90,13 +107,13 @@ describe('buildAcquisitionFeed', () => {
   });
 
   it('links to the book with a plain href, no credentials in it', () => {
-    const xml = buildAcquisitionFeed(baseConfig, [book()]);
+    const xml = buildAcquisitionFeed(baseConfig, recentFeed, [book()]);
 
     expect(xml).toContain('href="http://192.168.1.20:51234/books/Manga/Vol.01.epub"');
   });
 
   it('escapes reserved characters in a title and author while keeping surrounding tags intact', () => {
-    const xml = buildAcquisitionFeed(baseConfig, [
+    const xml = buildAcquisitionFeed(baseConfig, recentFeed, [
       book({ title: `Tom & Jerry: "Cat's Life" <redux>`, author: `A & B` }),
     ]);
 

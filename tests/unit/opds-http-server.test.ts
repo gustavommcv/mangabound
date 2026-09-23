@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { FsLibraryStore } from '@/adapters/library/fs-library-store';
 import { formatHost, NodeOpdsServer } from '@/adapters/opds/http-server';
 import type { LibraryStorePort } from '@/application/ports/library-store';
 import type { OpdsAuthConfig, OpdsServerHandle } from '@/application/ports/opds-server';
@@ -17,6 +18,7 @@ function memoryStore(books: readonly LibraryBookEntry[]): LibraryStorePort {
   return {
     read: () => Promise.resolve(manifest),
     publish: () => Promise.reject(new Error('not used in these tests')),
+    scanUntracked: () => Promise.resolve([]),
   };
 }
 
@@ -201,6 +203,52 @@ describe('NodeOpdsServer', () => {
     }
   });
 
+  it('serves a loose file in the "other" feed, and never lists it in "recent"', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'mangabound-opds-other-'));
+    try {
+      const tracked: LibraryBookEntry = {
+        relativePath: 'Tracked.epub',
+        title: 'Tracked',
+        author: 'Someone',
+        format: 'epub',
+        bytes: 1,
+        convertedAt: '2026-09-16T10:00:00.000Z',
+      };
+      const store = new FsLibraryStore();
+      await store.publish(root, tracked);
+      await writeFile(path.join(root, 'Tracked.epub'), 'x');
+      const loose = Buffer.from('fake cbz contents');
+      await writeFile(path.join(root, 'Copied in.cbz'), loose);
+
+      const handle = await new NodeOpdsServer(store).start({
+        libraryPath: root,
+        libraryTitle: 'My Library',
+        interfaceAddress: '127.0.0.1',
+        port: 0,
+        auth: open,
+      });
+      activeHandles.push(handle);
+
+      const otherFeed = await fetch(`${handle.url}/other`);
+      const otherBody = await otherFeed.text();
+      expect(otherFeed.status).toBe(200);
+      expect(otherBody).toContain('<title>Copied in</title>');
+      expect(otherBody).not.toContain('<title>Tracked</title>');
+
+      const recentFeed = await fetch(`${handle.url}/recent`);
+      const recentBody = await recentFeed.text();
+      expect(recentBody).toContain('<title>Tracked</title>');
+      expect(recentBody).not.toContain('<title>Copied in</title>');
+
+      const downloaded = await fetch(`${handle.url}/books/Copied%20in.cbz`);
+      expect(downloaded.status).toBe(200);
+      expect(downloaded.headers.get('content-type')).toBe('application/vnd.comicbook+zip');
+      expect(Buffer.from(await downloaded.arrayBuffer()).equals(loose)).toBe(true);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('404s an unknown route', async () => {
     const handle = await startServer(memoryStore([]), open);
 
@@ -245,6 +293,7 @@ describe('NodeOpdsServer', () => {
       {
         read: () => Promise.reject(new SyntaxError('Unexpected token n in JSON at position 1')),
         publish: () => Promise.reject(new Error('not used in these tests')),
+        scanUntracked: () => Promise.reject(new Error('not used in these tests')),
       },
       open,
     );
