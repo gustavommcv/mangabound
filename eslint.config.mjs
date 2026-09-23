@@ -3,6 +3,8 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
+import { moduleBoundaries } from './eslint-rules/module-boundaries.mjs';
+
 export default tseslint.config(
   {
     ignores: [
@@ -44,6 +46,22 @@ export default tseslint.config(
         'error',
         { checksVoidReturn: { attributes: false } },
       ],
+    },
+  },
+  {
+    // ADR 0001's module boundaries (docs/architecture.md's "Layers" table has the full "May
+    // import" list this encodes). One rule for every file under src, rather than one config block
+    // per layer: the rule itself resolves each import - the `@/*` alias, a relative path, at any
+    // depth - to the real layer it targets before deciding whether the importing file's own layer
+    // may reach it, so it needs no per-layer file globs to do that correctly. See
+    // eslint-rules/module-boundaries.mjs for the layer-by-layer allow list and why library/opds and
+    // adapters/main/preload each get a different Node/Electron treatment.
+    files: ['src/**/*.{ts,tsx}'],
+    plugins: {
+      'module-boundaries': { rules: { 'respect-layers': moduleBoundaries } },
+    },
+    rules: {
+      'module-boundaries/respect-layers': 'error',
     },
   },
   {
