@@ -137,6 +137,7 @@ describe('ResultsScreen', () => {
     expect(screen.getByText('Kindle Voyage · EPUB · C:\\Books')).toBeVisible();
     expect(screen.getByText('1.5 KB')).toBeVisible();
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '1 book saved' })).toHaveFocus();
   });
 
   it('uses the plural for several books and shows the side card beside the list', () => {
@@ -240,6 +241,7 @@ describe('LibraryScreen', () => {
     render(<LibraryScreen name="Library" onBack={vi.fn()} onEdit={vi.fn()} titles={titles} />);
 
     expect(screen.getByRole('heading', { name: 'Library' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Library' })).toHaveFocus();
     expect(screen.getByText(/5 titles\./u)).toBeVisible();
     const rows = screen.getAllByRole('listitem');
     expect(rows).toHaveLength(5);

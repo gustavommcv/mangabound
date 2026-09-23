@@ -1,4 +1,5 @@
 import { BookOpen, CircleAlert, ExternalLink, FolderOpen, TriangleAlert } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 
 import { Button } from '@/renderer/components/ui/button';
 import type { ArtifactSummary } from '@/shared/workflow-contract';
@@ -44,6 +45,10 @@ export function ResultsScreen({
 }: ResultsScreenProps): React.JSX.Element {
   const artifacts = outcomes.flatMap((outcome) => outcome.artifacts);
   const problems = outcomes.filter((outcome) => outcome.status !== 'done');
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    titleRef.current?.focus();
+  }, []);
   return (
     <section
       aria-labelledby="results-title"
@@ -56,7 +61,12 @@ export function ResultsScreen({
       <div className="min-w-0 space-y-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight" id="results-title">
+            <h1
+              className="focus-visible:ring-ring focus-visible:ring-offset-background rounded-md text-2xl font-semibold tracking-tight outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+              id="results-title"
+              ref={titleRef}
+              tabIndex={-1}
+            >
               {artifacts.length === 0
                 ? 'Nothing was saved'
                 : `${String(artifacts.length)} book${artifacts.length === 1 ? '' : 's'} saved`}

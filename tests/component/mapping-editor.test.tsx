@@ -57,6 +57,19 @@ describe('mapping editor', () => {
     expect(onConfirm.mock.calls[0]?.[0]).not.toContain('source');
   });
 
+  it('focuses its own heading as soon as it mounts', () => {
+    render(
+      <MappingEditor
+        initialDraft={createMappingDraft({ mangaTitle: 'Offline Work', chapters })}
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole('heading', { name: /Organize Offline Work into volumes/u }),
+    ).toHaveFocus();
+  });
+
   it("opens on mangabind's own grouping, ready to confirm, and says so only while it is unchanged", async () => {
     const user = userEvent.setup();
     const onConfirm = vi.fn();

@@ -10,7 +10,7 @@ import {
   Trash2,
   Undo2,
 } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   createMappingHistory,
@@ -121,6 +121,10 @@ export function MappingEditor({
   // The source is chosen by the caller when it keeps the choice across titles, or here when not.
   const [localProviderId, setLocalProviderId] = useState<string>();
   const generatedId = useRef(0);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    titleRef.current?.focus();
+  }, []);
   const draft = history.present;
   const effectiveTargetVolumeId = draft.volumes.some((volume) => volume.id === targetVolumeId)
     ? targetVolumeId
@@ -211,7 +215,12 @@ export function MappingEditor({
               {mappingOriginLabel(draft, initialDraft, startedFrom, metadataProviders)}
             </span>
           </div>
-          <h1 id="mapping-title" className="text-2xl font-semibold tracking-tight">
+          <h1
+            id="mapping-title"
+            className="focus-visible:ring-ring focus-visible:ring-offset-background rounded-md text-2xl font-semibold tracking-tight outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+            ref={titleRef}
+            tabIndex={-1}
+          >
             Organize {draft.mangaTitle || 'untitled manga'} into volumes
           </h1>
           <p className="text-muted-foreground max-w-2xl text-sm leading-6">

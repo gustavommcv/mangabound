@@ -182,4 +182,99 @@ describe('SharePanel', () => {
 
     expect(screen.getByText('Leave both blank to share with no password.')).toBeVisible();
   });
+
+  it('does not steal focus just from being rendered already active', () => {
+    render(
+      <SharePanel
+        interfaces={interfaces}
+        onChooseLibrary={vi.fn()}
+        onStart={vi.fn()}
+        onStop={vi.fn()}
+        status={{ active: true, url: 'http://192.168.1.20:51234' }}
+      />,
+    );
+
+    expect(screen.getByLabelText('Catalog address')).not.toHaveFocus();
+  });
+
+  it('moves focus to the catalog address once sharing starts', () => {
+    const { rerender } = render(
+      <SharePanel
+        interfaces={interfaces}
+        library={{ libraryId: 'library', displayPath: 'C:\\Books' }}
+        onChooseLibrary={vi.fn()}
+        onStart={vi.fn()}
+        onStop={vi.fn()}
+        status={{ active: false }}
+      />,
+    );
+
+    rerender(
+      <SharePanel
+        interfaces={interfaces}
+        library={{ libraryId: 'library', displayPath: 'C:\\Books' }}
+        onChooseLibrary={vi.fn()}
+        onStart={vi.fn()}
+        onStop={vi.fn()}
+        status={{ active: true, url: 'http://192.168.1.20:51234' }}
+      />,
+    );
+
+    expect(screen.getByLabelText('Catalog address')).toHaveFocus();
+  });
+
+  it('moves focus to the library button once sharing stops, never leaving it on nothing', () => {
+    const { rerender } = render(
+      <SharePanel
+        interfaces={interfaces}
+        library={{ libraryId: 'library', displayPath: 'C:\\Books' }}
+        onChooseLibrary={vi.fn()}
+        onStart={vi.fn()}
+        onStop={vi.fn()}
+        status={{ active: true, url: 'http://192.168.1.20:51234' }}
+      />,
+    );
+
+    rerender(
+      <SharePanel
+        interfaces={interfaces}
+        library={{ libraryId: 'library', displayPath: 'C:\\Books' }}
+        onChooseLibrary={vi.fn()}
+        onStart={vi.fn()}
+        onStop={vi.fn()}
+        status={{ active: false }}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Change shared library' })).toHaveFocus();
+  });
+
+  it('still moves focus to the library button on stop even when Start sharing would be disabled', () => {
+    // No network interfaces means canStart is false and "Start sharing" is a disabled, unfocusable
+    // native button - proving the library button, not that one, is what actually receives focus.
+    const { rerender } = render(
+      <SharePanel
+        interfaces={[]}
+        library={{ libraryId: 'library', displayPath: 'C:\\Books' }}
+        onChooseLibrary={vi.fn()}
+        onStart={vi.fn()}
+        onStop={vi.fn()}
+        status={{ active: true, url: 'http://192.168.1.20:51234' }}
+      />,
+    );
+
+    rerender(
+      <SharePanel
+        interfaces={[]}
+        library={{ libraryId: 'library', displayPath: 'C:\\Books' }}
+        onChooseLibrary={vi.fn()}
+        onStart={vi.fn()}
+        onStop={vi.fn()}
+        status={{ active: false }}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Change shared library' })).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'Start sharing' })).toBeDisabled();
+  });
 });

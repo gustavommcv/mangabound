@@ -1,4 +1,5 @@
 import { ChevronLeft, Folder, Pencil } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 
 import { isPendingTitle, isWaitingTitle, type LibraryTitle } from '@/domain/input-queue';
 import { unassignedChapterCount } from '@/domain/input-queue';
@@ -22,13 +23,22 @@ export function LibraryScreen({
   onEdit,
   titles,
 }: LibraryScreenProps): React.JSX.Element {
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    titleRef.current?.focus();
+  }, []);
   return (
     <section aria-labelledby="library-title" className="mx-auto max-w-3xl space-y-5">
       <Button onClick={onBack} variant="ghost">
         <ChevronLeft /> Queue
       </Button>
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight break-all" id="library-title">
+        <h1
+          className="focus-visible:ring-ring focus-visible:ring-offset-background rounded-md text-2xl font-semibold tracking-tight break-all outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+          id="library-title"
+          ref={titleRef}
+          tabIndex={-1}
+        >
           {name}
         </h1>
         <p className="text-subtle-foreground mt-1 text-sm">
