@@ -347,7 +347,12 @@ function rememberPickerFolder(folder: string): void {
   void preferences?.save(currentPreferences, currentOutputFolder, folder);
 }
 
-function registerWorkflowHandlers(): void {
+/**
+ * Choosing and preparing what a job runs against: files, folders, a library to read, and the
+ * output library to save into. Every handler here ends in a selection the renderer can only ever
+ * refer to by an id these register.
+ */
+function registerInputHandlers(): void {
   ipcMain.handle(
     'workflow:choose-inputs',
     async (_event, rawKind: unknown): Promise<WorkflowResult<RegisteredInputs>> => {
@@ -441,7 +446,14 @@ function registerWorkflowHandlers(): void {
       }
     },
   );
+}
 
+/**
+ * Planning and running a job: the device list a plan is built against, validating a plan without
+ * writing anything, converting a single input or a whole library, and cancelling either by the job
+ * id `workflow:plan`/`workflow:convert`/`workflow:convert-library` handed back.
+ */
+function registerConversionHandlers(): void {
   ipcMain.handle(
     'workflow:get-device-profiles',
     async (): Promise<WorkflowResult<readonly DeviceProfileSummary[]>> => {
@@ -591,6 +603,83 @@ function registerWorkflowHandlers(): void {
   );
 
   ipcMain.handle(
+    'workflow:convert-library',
+    async (
+      event: IpcMainInvokeEvent,
+      rawCommand: unknown,
+    ): Promise<WorkflowResult<readonly LibraryTitleResult[]>> => {
+      try {
+        const command = libraryConversionCommandSchema.parse(rawCommand);
+        const libraryPath = selectedLibraries.get(command.libraryId);
+        if (libraryPath === undefined) {
+          return failed({ code: 'library_not_found', message: 'Choose the output folder again.' });
+        }
+        if (activeJobs.has(command.jobId)) {
+          return failed({ code: 'job_exists', message: 'That conversion is already running.' });
+        }
+        const controller = new AbortController();
+        activeJobs.set(command.jobId, controller);
+        const tracked = trackArtifacts(libraryPath);
+        try {
+          const outcomes = await requireWorkflow().convertLibrary(
+            {
+              sessionId: command.sessionId,
+              libraryPath,
+              settings: command.settings,
+              format: command.format,
+              ...(command.titles === undefined ? {} : { titles: command.titles }),
+              ...(command.mode === undefined ? {} : { mode: command.mode }),
+            },
+            {
+              signal: controller.signal,
+              onArtifact: tracked.add,
+              onProgress: (progress) => {
+                event.sender.send('workflow:progress', { jobId: command.jobId, ...progress });
+              },
+            },
+          );
+          return ok(
+            outcomes.map((outcome) => ({
+              title: outcome.title,
+              status: outcome.status,
+              artifacts: outcome.artifacts.map(({ bytes, format, id, name }) => ({
+                bytes,
+                format,
+                id,
+                name,
+              })),
+              ...(outcome.error === undefined ? {} : { failure: toFailure(outcome.error) }),
+            })),
+          );
+        } finally {
+          await tracked.settled();
+          activeJobs.delete(command.jobId);
+        }
+      } catch (error) {
+        return failed(toFailure(error));
+      }
+    },
+  );
+
+  ipcMain.handle('workflow:cancel', (_event, rawJobId: unknown): WorkflowResult<undefined> => {
+    try {
+      const jobId = identifierSchema.parse(rawJobId);
+      const controller = activeJobs.get(jobId);
+      if (controller === undefined) {
+        return failed({ code: 'job_not_found', message: 'That conversion is no longer running.' });
+      }
+      controller.abort();
+      return ok(undefined);
+    } catch (error) {
+      return failed(toFailure(error));
+    }
+  });
+}
+
+/** The built-in online-source registry: what it offers, opening a source's own homepage, and the
+ * two calls a source itself can answer (search by title, list a work's volumes; ADR 0013). */
+function registerMetadataHandlers(): void {
+  ipcMain.handle(
     'workflow:list-metadata-providers',
     (): WorkflowResult<readonly MetadataProviderDescriptor[]> =>
       ok([...metadataProviders.values()].map((provider) => provider.descriptor)),
@@ -679,80 +768,10 @@ function registerWorkflowHandlers(): void {
       }
     },
   );
+}
 
-  ipcMain.handle(
-    'workflow:convert-library',
-    async (
-      event: IpcMainInvokeEvent,
-      rawCommand: unknown,
-    ): Promise<WorkflowResult<readonly LibraryTitleResult[]>> => {
-      try {
-        const command = libraryConversionCommandSchema.parse(rawCommand);
-        const libraryPath = selectedLibraries.get(command.libraryId);
-        if (libraryPath === undefined) {
-          return failed({ code: 'library_not_found', message: 'Choose the output folder again.' });
-        }
-        if (activeJobs.has(command.jobId)) {
-          return failed({ code: 'job_exists', message: 'That conversion is already running.' });
-        }
-        const controller = new AbortController();
-        activeJobs.set(command.jobId, controller);
-        const tracked = trackArtifacts(libraryPath);
-        try {
-          const outcomes = await requireWorkflow().convertLibrary(
-            {
-              sessionId: command.sessionId,
-              libraryPath,
-              settings: command.settings,
-              format: command.format,
-              ...(command.titles === undefined ? {} : { titles: command.titles }),
-              ...(command.mode === undefined ? {} : { mode: command.mode }),
-            },
-            {
-              signal: controller.signal,
-              onArtifact: tracked.add,
-              onProgress: (progress) => {
-                event.sender.send('workflow:progress', { jobId: command.jobId, ...progress });
-              },
-            },
-          );
-          return ok(
-            outcomes.map((outcome) => ({
-              title: outcome.title,
-              status: outcome.status,
-              artifacts: outcome.artifacts.map(({ bytes, format, id, name }) => ({
-                bytes,
-                format,
-                id,
-                name,
-              })),
-              ...(outcome.error === undefined ? {} : { failure: toFailure(outcome.error) }),
-            })),
-          );
-        } finally {
-          await tracked.settled();
-          activeJobs.delete(command.jobId);
-        }
-      } catch (error) {
-        return failed(toFailure(error));
-      }
-    },
-  );
-
-  ipcMain.handle('workflow:cancel', (_event, rawJobId: unknown): WorkflowResult<undefined> => {
-    try {
-      const jobId = identifierSchema.parse(rawJobId);
-      const controller = activeJobs.get(jobId);
-      if (controller === undefined) {
-        return failed({ code: 'job_not_found', message: 'That conversion is no longer running.' });
-      }
-      controller.abort();
-      return ok(undefined);
-    } catch (error) {
-      return failed(toFailure(error));
-    }
-  });
-
+/** Opening a saved book, or showing it in its folder, by the artifact id a finished job returned. */
+function registerArtifactHandlers(): void {
   ipcMain.handle('artifact:open', async (_event, rawArtifactId: unknown) =>
     withArtifact(rawArtifactId, async (artifactPath) => {
       const message = await shell.openPath(artifactPath);
@@ -881,7 +900,10 @@ void app.whenReady().then(async () => {
     directoryExists,
   );
   registerSettingsHandlers(preferences);
-  registerWorkflowHandlers();
+  registerInputHandlers();
+  registerConversionHandlers();
+  registerMetadataHandlers();
+  registerArtifactHandlers();
   registerOpdsHandlers();
   createMainWindow();
   app.on('activate', () => {
