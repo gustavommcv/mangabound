@@ -89,12 +89,16 @@ jobs:
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           path: artifacts
-      - name: Collect the real installer files into one flat directory
+      - name: Collect only the files a downloading user actually needs
+        # Deliberately narrower than everything `make` produces: Squirrel's .nupkg and RELEASES
+        # are its own internal update-feed manifest, meaningless without update-feed
+        # infrastructure this project doesn't have yet. They still exist in each platform's own
+        # CI artifact (release-windows-latest, etc.) for anyone who needs them - this is only
+        # about what's public on the Release's download page. See RELEASING.md.
         run: |
           mkdir -p release-assets
           find artifacts -type f \( \
-            -name '*.exe' -o -name '*.nupkg' -o -name 'RELEASES' -o \
-            -name '*.zip' -o -name '*.deb' -o -name '*.rpm' \
+            -name '*.exe' -o -name '*.zip' -o -name '*.deb' -o -name '*.rpm' \
           \) -exec cp {} release-assets/ \;
           echo "Assets to publish:"
           ls -la release-assets
@@ -109,6 +113,18 @@ jobs:
           else
             echo "flag=" >> "$GITHUB_OUTPUT"
           fi
+      - name: Require hand-written release notes for this tag
+        # Not --generate-notes: for this project's first tag especially, that produces every
+        # merged PR back to the beginning - an internal changelog, not something written for a
+        # person deciding whether to install this. See RELEASING.md for what these notes should
+        # cover; failing here (rather than silently falling back to something else) means a
+        # release can never go out without them.
+        run: |
+          notes_file="docs/releases/${GITHUB_REF_NAME}.md"
+          if [[ ! -f "$notes_file" ]]; then
+            echo "::error::Missing $notes_file. Write the release notes for this tag before pushing it (see RELEASING.md)."
+            exit 1
+          fi
       - name: Create the GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -116,5 +132,5 @@ jobs:
           gh release create "${GITHUB_REF_NAME}" \
             ${{ steps.prerelease.outputs.flag }} \
             --title "${GITHUB_REF_NAME}" \
-            --generate-notes \
+            --notes-file "docs/releases/${GITHUB_REF_NAME}.md" \
             release-assets/*
