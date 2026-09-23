@@ -74,6 +74,13 @@ describe('packaged OPDS delivery', () => {
       'Mangabound E2E - Vol.01.epub',
     ]);
 
+    // Simulates a file placed in the library some other way, never through this app: the
+    // catalog (`.mangabound/library.json`) never learns about it (ADR 0020).
+    await cp(
+      path.join(libraryPath, 'Mangabound Direct.epub'),
+      path.join(libraryPath, 'Copied in.epub'),
+    );
+
     // The Share panel's interface picker only ever lists real, non-loopback LAN
     // addresses (by design, see ADR 0007) -- a CI sandbox may have none. Sharing
     // itself is driven directly through the same bridge the panel calls, bound to
@@ -136,6 +143,30 @@ describe('packaged OPDS delivery', () => {
       const downloaded = Buffer.from(await acquisitionResponse.arrayBuffer());
       const onDisk = await readFile(path.join(libraryPath, 'Mangabound Direct.epub'));
       assert.ok(downloaded.equals(onDisk));
+
+      // The file copied in some other way shows up as "Other files," not "Recently converted."
+      assert.ok(
+        !recentBody.includes('<title>Copied in</title>'),
+        'A loose file must not appear in the tracked feed.',
+      );
+      const otherResponse = await fetch(`${url}/other`, {
+        headers: { Authorization: authorization },
+      });
+      assert.equal(otherResponse.status, 200);
+      const otherBody = await otherResponse.text();
+      assert.ok(
+        otherBody.includes('<title>Copied in</title>'),
+        'Expected the loose file in the untracked feed.',
+      );
+      assert.ok(
+        !otherBody.includes('<title>Mangabound Direct</title>'),
+        'A tracked book must not also appear in the untracked feed.',
+      );
+
+      const otherHref = `${url}/books/Copied%20in.epub`;
+      const otherDownload = await fetch(otherHref, { headers: { Authorization: authorization } });
+      assert.equal(otherDownload.status, 200);
+      assert.ok(Buffer.from(await otherDownload.arrayBuffer()).equals(onDisk));
     } finally {
       await browser.execute(async () => {
         await window.mangabound?.stopSharing();

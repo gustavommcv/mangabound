@@ -30,6 +30,7 @@ describe('LibraryPublisher', () => {
     const store: LibraryStorePort = {
       read: vi.fn(),
       publish: publish as LibraryStorePort['publish'],
+      scanUntracked: vi.fn(),
     };
     const publisher = new LibraryPublisher(store, () => '2026-09-16T12:00:00.000Z');
 
@@ -49,6 +50,7 @@ describe('LibraryPublisher', () => {
     const store: LibraryStorePort = {
       read: vi.fn(),
       publish: vi.fn(() => Promise.reject(new Error('disk full'))),
+      scanUntracked: vi.fn(),
     };
     const publisher = new LibraryPublisher(store);
 

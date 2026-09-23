@@ -12,12 +12,15 @@ import type {
   OpdsServerPort,
   OpdsServerStartOptions,
 } from '@/application/ports/opds-server';
+import type { LibraryBookEntry, LibraryManifest } from '@/library/manifest';
 import {
   acquisitionFeedType,
   buildAcquisitionFeed,
   buildNavigationFeed,
   navigationFeedType,
   type OpdsCatalogConfig,
+  otherFilesFeed,
+  recentFeed,
 } from '@/opds/feed';
 import { bookFormatMimeTypes } from '@/opds/mime';
 
@@ -134,10 +137,18 @@ export class NodeOpdsServer implements OpdsServerPort {
       return;
     }
 
-    if (url.pathname === '/recent') {
+    if (url.pathname === recentFeed.path) {
       const manifest = await this.libraryStore.read(options.libraryPath);
       res.writeHead(200, { 'Content-Type': acquisitionFeedType });
-      res.end(buildAcquisitionFeed(catalogConfig, manifest.books));
+      res.end(buildAcquisitionFeed(catalogConfig, recentFeed, manifest.books));
+      return;
+    }
+
+    if (url.pathname === otherFilesFeed.path) {
+      const manifest = await this.libraryStore.read(options.libraryPath);
+      const untracked = await this.libraryStore.scanUntracked(options.libraryPath, manifest);
+      res.writeHead(200, { 'Content-Type': acquisitionFeedType });
+      res.end(buildAcquisitionFeed(catalogConfig, otherFilesFeed, untracked));
       return;
     }
 
@@ -149,6 +160,21 @@ export class NodeOpdsServer implements OpdsServerPort {
     respondNotFound(res);
   }
 
+  /**
+   * A tracked entry, or one this asks a fresh scan for. The scan only ever returns bare file names
+   * it just found on disk, so matching a request against it can never resolve outside the folder.
+   */
+  private async findBook(
+    libraryPath: string,
+    manifest: LibraryManifest,
+    requestedPath: string,
+  ): Promise<LibraryBookEntry | undefined> {
+    const tracked = manifest.books.find((book) => book.relativePath === requestedPath);
+    if (tracked !== undefined) return tracked;
+    const untracked = await this.libraryStore.scanUntracked(libraryPath, manifest);
+    return untracked.find((book) => book.relativePath === requestedPath);
+  }
+
   private async serveBook(
     res: ServerResponse,
     libraryPath: string,
@@ -156,7 +182,7 @@ export class NodeOpdsServer implements OpdsServerPort {
   ): Promise<void> {
     const requestedPath = decodeRelativePath(encodedRelativePath);
     const manifest = await this.libraryStore.read(libraryPath);
-    const entry = manifest.books.find((book) => book.relativePath === requestedPath);
+    const entry = await this.findBook(libraryPath, manifest, requestedPath);
     if (entry === undefined) {
       respondNotFound(res);
       return;
