@@ -38,17 +38,43 @@ export const createMainWindow = (): BrowserWindow => {
   window.webContents.on('will-navigate', (event) => {
     event.preventDefault();
   });
-  // 'ready-to-show' depends on the renderer producing a first composited frame; on some GPU/display
-  // setups (observed with a virtual display adapter alongside a real GPU) that signal never arrives,
-  // leaving the window permanently created-but-invisible with no error anywhere. This fallback
-  // guarantees the window becomes visible either way.
+
+  // Electron <44.4.4 has a confirmed bug where 'ready-to-show' never fires for a hidden window
+  // using titleBarOverlay on Windows (electron/electron#54025, fixed by #54118) - this project stays
+  // updated past that fix, but 'ready-to-show' can still legitimately arrive late for other reasons
+  // (Electron's own docs note a complex page's first paint can be slow enough to make the app feel
+  // stuck), so this timeout is kept as a second line of defense rather than removed now that the
+  // known root cause is patched.
+  let shown = false;
   const showFallback = setTimeout(() => {
+    shown = true;
     window.show();
   }, readyToShowFallbackMs);
   window.once('ready-to-show', () => {
     clearTimeout(showFallback);
+    shown = true;
     window.show();
   });
+
+  // If the renderer never reaches a first paint at all - it crashes outright, or the entry file
+  // itself fails to load - waiting out the fallback above would only delay an invisible window by
+  // readyToShowFallbackMs before showing a permanently blank one. Quit instead, but only when this
+  // window has never shown anything yet: the same events firing later, after a real session is
+  // already up, are a very different situation this isn't meant to react to.
+  const quitIfNeverShown = (): void => {
+    if (shown) return;
+    shown = true;
+    clearTimeout(showFallback);
+    app.quit();
+  };
+  window.webContents.once('render-process-gone', quitIfNeverShown);
+  window.webContents.once(
+    'did-fail-load',
+    (_event, _errorCode, _errorDescription, _url, isMainFrame) => {
+      if (isMainFrame) quitIfNeverShown();
+    },
+  );
+
   void window.loadURL(MAIN_WINDOW_WEBPACK_ENTRY);
   return window;
 };
