@@ -790,7 +790,11 @@ export function App(): React.JSX.Element {
   return (
     // The title bar stays where it is and only what is under it scrolls (ADR 0016).
     <div className="bg-background text-foreground flex h-screen flex-col">
-      <Titlebar desktop={bridge !== undefined} platform={bridge?.runtime.platform}>
+      <Titlebar
+        desktop={bridge !== undefined}
+        platform={bridge?.runtime.platform}
+        version={bridge?.runtime.version}
+      >
         {bridge !== undefined && (
           <ShareMenu
             onOpenChange={setSharePanelOpen}

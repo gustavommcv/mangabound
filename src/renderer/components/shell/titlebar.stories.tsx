@@ -62,3 +62,6 @@ export const OnMacOS: Story = { args: { platform: 'darwin' } };
 
 /** A plain browser preview has no desktop shell behind it. */
 export const Foundation: Story = { args: { desktop: false } };
+
+/** The running app version, shown low-key next to the name. */
+export const WithVersion: Story = { args: { version: '0.1.0-alpha.1' } };

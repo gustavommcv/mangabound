@@ -1,4 +1,4 @@
-import { BrowserWindow, type BrowserWindowConstructorOptions } from 'electron';
+import { app, BrowserWindow, type BrowserWindowConstructorOptions } from 'electron';
 
 export const createMainWindow = (): BrowserWindow => {
   const platformTitleBar: Pick<
@@ -23,6 +23,9 @@ export const createMainWindow = (): BrowserWindow => {
     width: 1180,
     ...platformTitleBar,
     webPreferences: {
+      // The preload runs sandboxed, with no access to the main-process-only `app` module; this is
+      // the standard way to hand it a value from main without a round trip through IPC.
+      additionalArguments: [`--app-version=${app.getVersion()}`],
       contextIsolation: true,
       nodeIntegration: false,
       preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY,
