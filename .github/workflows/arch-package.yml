@@ -25,11 +25,20 @@ jobs:
     steps:
       # Arch strongly discourages partial upgrades (installing new packages without syncing the
       # whole system risks shared-library version mismatches) - -Syu, not -Sy, before anything
-      # else. The base-devel image already has makepkg/fakeroot; git and nodejs/npm do not ship in
-      # it and checkout needs git.
-      - name: Update the system and install build dependencies
-        run: pacman -Syu --noconfirm git nodejs npm
+      # else. The base-devel image already has makepkg/fakeroot; git does not ship in it and
+      # checkout needs it. Node/npm come from setup-node below, not pacman's own nodejs/npm
+      # packages: Arch's rolling-release npm is newer than what every other job in this project
+      # pins (Node 24's bundled npm 11.x) and defaults to refusing this project's git-hosted
+      # @electron/node-gyp dependency (npm 12 made `allow-git` default to none) - confirmed by
+      # reading the actual failure, not assumed. setup-node keeps this job on the same Node/npm
+      # every other job uses instead of whatever Arch's repos currently carry.
+      - name: Install git
+        run: pacman -Syu --noconfirm git
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
       - run: npm ci
       - name: Cache the pinned mangabind/mangapress binaries
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
