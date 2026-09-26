@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   defaultMangapressSettings,
   defaultUpscaleFor,
+  resolveDeviceProfileFallback,
   validateMangapressSettings,
   withDeviceProfile,
 } from '@/domain/output-profile';
@@ -100,6 +101,27 @@ describe('mangapress default settings', () => {
       deviceProfile: 'KoAO',
       upscale: true,
     });
+  });
+});
+
+describe('resolving a device profile fallback', () => {
+  const paperwhite = { code: 'KPW6', name: 'Kindle Paperwhite 6' };
+  const scribe = { code: 'KS', name: 'Kindle Scribe 1/2' };
+
+  it('needs no fallback while the list has not loaded', () => {
+    expect(resolveDeviceProfileFallback('KPW6', [])).toBeUndefined();
+  });
+
+  it('needs no fallback when the chosen profile is offered', () => {
+    expect(resolveDeviceProfileFallback('KS', [paperwhite, scribe])).toBeUndefined();
+  });
+
+  it('falls back to the default profile when it is offered', () => {
+    expect(resolveDeviceProfileFallback('K999', [scribe, paperwhite])).toEqual(paperwhite);
+  });
+
+  it('falls back to the first offered profile when the default is not offered', () => {
+    expect(resolveDeviceProfileFallback('KPW6', [scribe])).toEqual(scribe);
   });
 });
 

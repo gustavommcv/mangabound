@@ -18,6 +18,7 @@ import { type MappingDraft, mappingSignature } from '@/domain/mapping';
 import {
   defaultMangapressSettings,
   type MangapressSettings,
+  resolveDeviceProfileFallback,
   validateMangapressSettings,
   withDeviceProfile,
 } from '@/domain/output-profile';
@@ -779,17 +780,12 @@ export function App(): React.JSX.Element {
   // A device the tools no longer list cannot be converted for, whether it came from the file or is
   // the default. This adjusts state while rendering, the way React documents for state that follows
   // other state, so the screen never shows it selected.
-  if (
-    profiles.length > 0 &&
-    !profiles.some((candidate) => candidate.code === settings.deviceProfile)
-  ) {
-    const fallback =
-      profiles.find((candidate) => candidate.code === defaultMangapressSettings.deviceProfile) ??
-      profiles[0]!;
+  const deviceProfileFallback = resolveDeviceProfileFallback(settings.deviceProfile, profiles);
+  if (deviceProfileFallback !== undefined) {
     notify(
-      `The device profile ${settings.deviceProfile} is not available, so ${fallback.name} is selected.`,
+      `The device profile ${settings.deviceProfile} is not available, so ${deviceProfileFallback.name} is selected.`,
     );
-    setSettings(withDeviceProfile(settings, fallback.code));
+    setSettings(withDeviceProfile(settings, deviceProfileFallback.code));
   }
   const deviceName =
     profiles.find((profile) => profile.code === settings.deviceProfile)?.name ??
