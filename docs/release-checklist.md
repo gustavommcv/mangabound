@@ -19,7 +19,7 @@ CI automates the repeatable launch and rendering checks. Compositor policy and r
 
 ## macOS
 
-- Test current macOS on Intel and Apple Silicon artifacts.
+- Test current macOS on the shipped Apple Silicon artifact (Intel is not built or tested — see [RELEASING.md](../RELEASING.md#5-macos-is-apple-silicon-only-on-purpose)).
 - Verify traffic-light placement, full screen, Spaces, Gatekeeper, and file associations.
 
 ## Linux

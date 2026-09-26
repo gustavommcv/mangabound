@@ -8,4 +8,4 @@ The React app. It has no Node access: everything outside the page goes through `
 - `lib/` is pure helpers, under the 100% coverage gate.
 - `styles.css` holds the design tokens (ADR 0002). The theme is one fixed graphite dark with a lavender accent; nothing else defines a color.
 
-Every component and screen has a Storybook story next to it, and the accessibility check runs on each one.
+Every component and screen is meant to have a Storybook story next to it, with the accessibility check running on each one; `docs/audit-2026-09.md` tracks the current gaps.
