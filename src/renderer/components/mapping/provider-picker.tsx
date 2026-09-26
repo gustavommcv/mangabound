@@ -1,6 +1,7 @@
 import { Check, ChevronDown } from 'lucide-react';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useId, useState } from 'react';
 
+import { useClickOutside } from '@/renderer/hooks/use-click-outside';
 import { cn } from '@/renderer/lib/utils';
 import type { MetadataProviderDescriptor } from '@/shared/workflow-contract';
 
@@ -53,19 +54,10 @@ export function ProviderPicker({
   );
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(selectedIndex);
-  const root = useRef<HTMLDivElement>(null);
+  const root = useClickOutside<HTMLDivElement>(open, () => {
+    setOpen(false);
+  });
   const chosen = selectedId === undefined ? undefined : options[selectedIndex];
-
-  useEffect(() => {
-    if (!open) return;
-    const close = (event: MouseEvent): void => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', close);
-    return () => {
-      document.removeEventListener('mousedown', close);
-    };
-  }, [open]);
 
   const show = (): void => {
     setActive(selectedIndex);

@@ -2,6 +2,7 @@ import { RadioTower, X } from 'lucide-react';
 import { useEffect, useId, useRef } from 'react';
 
 import { Button } from '@/renderer/components/ui/button';
+import { useClickOutside } from '@/renderer/hooks/use-click-outside';
 import { cn } from '@/renderer/lib/utils';
 
 export interface ShareMenuProps {
@@ -29,11 +30,13 @@ export function ShareMenu({
   sharing,
   children,
 }: ShareMenuProps): React.JSX.Element {
-  const wrapper = useRef<HTMLDivElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   // Set by the ways of closing that come from the keyboard or the panel's own button.
   const returnFocus = useRef(false);
   const panelId = useId();
+  const wrapper = useClickOutside<HTMLDivElement>(open, () => {
+    onOpenChange(false);
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -46,17 +49,6 @@ export function ShareMenu({
       returnFocus.current = false;
     };
   }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const away = (event: PointerEvent): void => {
-      if (!wrapper.current?.contains(event.target as Node)) onOpenChange(false);
-    };
-    document.addEventListener('pointerdown', away);
-    return () => {
-      document.removeEventListener('pointerdown', away);
-    };
-  }, [open, onOpenChange]);
 
   const close = (): void => {
     returnFocus.current = true;
