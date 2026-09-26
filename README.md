@@ -10,14 +10,15 @@ It is a graphical front end for two small command-line tools that it carries ins
 
 Grab the file that matches your system from the [latest release](https://github.com/gustavommcv/mangabound/releases/latest):
 
-| Platform                         | File                 |
-| -------------------------------- | -------------------- |
-| Windows x64                      | the `.exe` installer |
-| macOS, Apple Silicon             | the `.zip` archive   |
-| Linux, Debian/Ubuntu family, x64 | the `.deb` package   |
-| Linux, Fedora/RHEL family, x64   | the `.rpm` package   |
+| Platform                         | File                                            |
+| -------------------------------- | ----------------------------------------------- |
+| Windows x64                      | the `.exe` installer, or the portable `.zip`    |
+| macOS, Apple Silicon             | the `.zip` archive                              |
+| Linux, Debian/Ubuntu family, x64 | the `.deb` package                              |
+| Linux, Fedora/RHEL family, x64   | the `.rpm` package                              |
+| Linux, Arch, x64                 | the `.pkg.tar.zst` package (`pacman -U ./file`) |
 
-Intel Macs, Arch/AUR, and AppImage aren't built for this alpha — see the release notes for why.
+Intel Macs and AppImage aren't built for this alpha — see the release notes for why. Arch's package is a direct download, not an AUR submission — AUR is still out of scope.
 
 ## What it does
 

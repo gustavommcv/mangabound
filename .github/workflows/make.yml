@@ -1,0 +1,76 @@
+name: Make installers
+
+# Shared by ci.yml's make-verification job and release.yml's build job, so the two never drift the
+# way they once did (a SHA-pinning pass updated this job in one file and missed it in the other,
+# since they were separate copies). Nothing here talks to the GitHub Releases API; that stays the
+# exclusive job of release.yml's own publish job, downstream of this one.
+on:
+  workflow_call:
+    inputs:
+      artifact-name-prefix:
+        required: true
+        type: string
+      run-sandbox-diagnostic:
+        description: 'Run the Linux sandbox diagnostic step (ci.yml only; not a release gate).'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  make:
+    name: Make installer (${{ matrix.name }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows-latest
+            runner: windows-latest
+          - name: ubuntu-latest
+            runner: ubuntu-latest
+          # Pinned, not macos-latest: that alias has already moved from Intel to Apple Silicon
+          # once, silently, and this repo ships arm64-only for the alpha. A fixed, non-deprecated
+          # label keeps the architecture an explicit choice, not a default that drifts whenever
+          # GitHub repoints -latest.
+          - name: macos-15-arm64
+            runner: macos-15
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Cache the pinned mangabind/mangapress binaries
+        # Keyed on the lock file's own hash plus OS, so a change to either pin is a cache miss, not
+        # a stale hit - acquire-toolchain.mjs itself re-verifies every byte against the lock before
+        # trusting a cache restore, so a corrupted or tampered cache still falls back to a real
+        # download rather than being trusted.
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: vendor/toolchain
+          key: toolchain-${{ runner.os }}-${{ hashFiles('toolchain.lock.json') }}
+      - name: Install Linux maker dependencies
+        if: runner.os == 'Linux'
+        # MakerRpm needs the `rpmbuild` binary (apt's `rpm` package provides it on
+        # Debian/Ubuntu - there is no separate "rpmbuild" package there); MakerDeb needs
+        # `dpkg` (already present on any Debian-family runner) and `fakeroot`.
+        run: sudo apt-get update && sudo apt-get install --yes rpm fakeroot
+      - run: npm run make
+      - name: Upload installer artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ inputs.artifact-name-prefix }}${{ matrix.name }}
+          path: out/make/**
+          if-no-files-found: error
+      - name: 'Diagnostic: launch the real .deb with the sandbox enabled'
+        if: inputs.run-sandbox-diagnostic && runner.os == 'Linux'
+        # Not a release gate (always exits 0) - purely to observe and record real behavior before
+        # anyone documents a workaround for a problem that might not even apply here. Every other
+        # Electron launch in this repo's CI runs with --no-sandbox (see wdio.conf.ts); this is the
+        # one place that deliberately does not, so the result reflects what a real user gets.
+        shell: bash
+        run: .github/scripts/check-deb-sandbox.sh
