@@ -64,10 +64,16 @@ jobs:
           sed -i "s/^pkgver=.*/pkgver=$version/" packaging/arch/PKGBUILD
       - name: Build the package as a non-root user
         # makepkg refuses to run as root; the container otherwise runs everything as root.
+        # --nodeps: the packages in `depends` are this app's own runtime dependencies for whoever
+        # installs the finished .pkg.tar.zst, not build dependencies of this "-bin" package (there
+        # is nothing to compile or link against here) - makepkg otherwise refuses to proceed
+        # unless every one of them is already installed on the machine doing the packaging, which
+        # would mean installing a dozen unrelated system libraries into this container for no
+        # reason. pacman still resolves and installs them for real on the end user's machine.
         run: |
           useradd -m builder
           chown -R builder:builder packaging/arch
-          su builder -c "cd packaging/arch && makepkg -f --noconfirm"
+          su builder -c "cd packaging/arch && makepkg -f --noconfirm --nodeps"
       - name: 'Diagnostic: launch the installed package with the sandbox enabled'
         if: inputs.run-sandbox-diagnostic
         run: .github/scripts/check-pacman-sandbox.sh
