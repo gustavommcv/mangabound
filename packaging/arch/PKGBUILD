@@ -48,10 +48,16 @@ package() {
   install -dm755 "$pkgdir/opt/mangabound"
   cp -a "$payload/." "$pkgdir/opt/mangabound/"
 
-  # cp -a preserves whatever mode the packaged tree already had, which is not guaranteed to be
-  # executable-by-other - confirmed live: the first real build of this package produced a
-  # mangabound binary a non-root user could not execute ("Permission denied"). Set explicitly
-  # rather than trusting the source.
+  # cp -a re-applied the source payload directory's own mode (700 - confirmed live with `stat`;
+  # electron-forge's packaged output directory is not world-traversable) to
+  # $pkgdir/opt/mangabound itself even though install -dm755 above already set it correctly -
+  # cp -a's archive semantics cover the destination's own directory entry too, not just what is
+  # inside it, when the two directories are copied contents-first. A non-root user cannot reach
+  # any file under here at all without traverse (execute) permission on every directory in the
+  # path, no matter what mode the files themselves have - confirmed live: the first real build's
+  # mangabound binary itself was already 755 and still could not be executed by a non-root user
+  # ("Permission denied") because of this. Reasserted after the copy, not just before it.
+  chmod 755 "$pkgdir/opt/mangabound"
   chmod 755 "$pkgdir/opt/mangabound/mangabound"
 
   # The setuid bit does not survive being written by a non-root build user; fakeroot (which
