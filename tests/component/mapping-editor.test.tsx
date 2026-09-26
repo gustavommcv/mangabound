@@ -223,7 +223,24 @@ describe('mapping editor', () => {
     ).toEqual(['1', '12', '11', '13']);
   });
 
-  it('leaves the number in the box alone when a split is refused', async () => {
+  it('never offers the first chapter to split before, so a split can never be refused', () => {
+    render(
+      <MappingEditor
+        initialDraft={createMappingDraft({
+          mangaTitle: 'One Volume',
+          chapters,
+          volumes: [{ id: 'volume-1', number: '1', chapterIds: ['chapter-1', 'chapter-2'] }],
+        })}
+      />,
+    );
+
+    expect(screen.getByLabelText('Split before')).toHaveValue('chapter-2');
+    expect(
+      within(screen.getByLabelText('Split before')).queryByRole('option', { name: 'Chapter 1' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('shows a message and leaves the volume unchanged when the typed number is refused', async () => {
     const user = userEvent.setup();
     render(
       <MappingEditor
@@ -234,16 +251,15 @@ describe('mapping editor', () => {
         })}
       />,
     );
-    // The chapter chosen to split before is gone from the volume by the time the button is pressed.
-    const select = screen.getByLabelText('Split before');
-    Object.defineProperty(select, 'value', { configurable: true, value: 'chapter-1' });
 
-    await user.click(screen.getByRole('button', { name: 'Split volume 1' }));
+    const number = screen.getByLabelText('Volume number for volume 1');
+    await user.clear(number);
+    await user.type(number, 'abc');
+    await user.tab();
 
-    expect(screen.getByLabelText('New volume number')).toHaveValue('2');
-    expect(
-      screen.getByText('A split must leave at least one chapter in each volume.'),
-    ).toBeVisible();
+    expect(screen.getByText('Invalid volume number: abc')).toBeVisible();
+    // The draft itself kept "1": every other label still derived from it agrees.
+    expect(screen.getByRole('button', { name: 'Split volume 1' })).toBeVisible();
   });
 
   it('assigns an inclusive range and exposes split, merge, and validation states accessibly', async () => {
