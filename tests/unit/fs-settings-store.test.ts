@@ -180,6 +180,39 @@ describe('saving the settings file', () => {
     await expect(store.save(defaultPreferences)).rejects.toBeInstanceOf(SettingsSaveError);
   });
 
+  it('retries a rename that fails with a transient error, and keeps the save', async () => {
+    const { deps, files } = memoryDeps();
+    const rename = vi
+      .fn<FsSettingsStoreDeps['rename']>()
+      .mockRejectedValueOnce(errno('EBUSY'))
+      .mockRejectedValueOnce(errno('EPERM'))
+      .mockImplementation(((from: string, to: string) => {
+        files.set(to, files.get(from) ?? '');
+        files.delete(from);
+        return Promise.resolve();
+      }) as unknown as FsSettingsStoreDeps['rename']);
+    const store = new FsSettingsStore(settingsFile, { ...deps, rename });
+
+    await store.save(kept);
+
+    expect(rename).toHaveBeenCalledTimes(3);
+    expect(await new FsSettingsStore(settingsFile, deps).load()).toEqual({
+      settings: kept,
+      unreadable: false,
+    });
+  });
+
+  it('does not retry a rename that fails for a reason that trying again would not fix', async () => {
+    const { deps, calls } = memoryDeps();
+    const rename = vi.fn<FsSettingsStoreDeps['rename']>().mockRejectedValue(errno('ENOSPC'));
+    const store = new FsSettingsStore(settingsFile, { ...deps, rename });
+
+    await expect(store.save(kept)).rejects.toBeInstanceOf(SettingsSaveError);
+
+    expect(rename).toHaveBeenCalledTimes(1);
+    expect(calls).toContain(`rm ${settingsFile}.t1.tmp`);
+  });
+
   it('keeps saving after one save failed', async () => {
     const { deps, files } = memoryDeps();
     const writeFile = vi
