@@ -96,8 +96,26 @@ Exit: a folder whose names carry volumes converts without opening the mapping ed
 
 ## M8 — Release hardening
 
-- Complete custom-title-bar checks across Windows, macOS, X11, Wayland, and representative tiling window managers.
-- Complete keyboard, screen-reader, reduced-motion, scaling, update, recovery, and corrupt-library scenarios.
+Paused partway through to ship the first public alpha instead of finishing every item below first: `v0.1.0-alpha.1` and `v0.1.0-alpha.2` are both out (see `docs/releases/`), then work resumed on what M8 originally listed.
+
+**Done:**
+
+- GitHub Actions pinned to commit SHAs, not tags (PR #35).
+- Focus management for screen transitions and the Share panel: the six main screens' headings, and the running screen specifically, move focus on mount; SharePanel's start/stop transitions focus sensibly even when "Start sharing" is disabled (PR #36).
+- The real Windows bug the alpha surfaced - the app opening once via Squirrel's own post-install launch, then never again via the Start Menu shortcut, leaving idle background processes - root-caused (an Electron `<44.4.4` regression, `electron/electron#54025`) and fixed by the Electron bump plus dropping the app's dependence on `ready-to-show` entirely (`src/main/window.ts`).
+- A portable Windows build (`.zip`, unzip and run, no installer, no admin rights) ships alongside Squirrel.
+- A recurring Windows CI flake in `settings.e2e.ts` root-caused (a transient Windows file-rename failure when another process has the file open) and fixed with a bounded retry in `FsSettingsStore`, not just reruns.
+
+**Investigated and deferred, not abandoned - see [ADR 0021](adr/0021-windows-installer-stays-squirrel.md):**
+
+- A wizard-based Windows installer (`@electron-forge/maker-wix`, replacing Squirrel's silent install): the wizard itself worked; its shortcut mechanism is broken by a crashing vendored binary this project doesn't control.
+- AppImage as a fourth Linux artifact: a structural FUSE/`chrome-sandbox` incompatibility in the format itself (see `docs/releases/v0.1.0-alpha.1.md`'s "Known limitations").
+
+**Still open, waiting on a decision rather than blocked on anything technical:**
+
+- Arch/pacman packaging (`.pkg.tar.zst` via `makepkg`/a `PKGBUILD`, or an AUR submission) - not yet attempted; no Electron Forge maker exists for it, so this would be a hand-rolled build step outside Forge, not a maker config change.
 - Sign/notarize installers and document release provenance.
+- Complete custom-title-bar checks across Windows, macOS, X11, Wayland, and representative tiling window managers.
+- Complete keyboard, screen-reader, reduced-motion, scaling, update, recovery, and corrupt-library scenarios beyond what's covered above.
 
 Exit: release checklist, CI, and artifacts meet the accepted platform and quality constraints.
