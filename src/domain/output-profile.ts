@@ -119,6 +119,29 @@ export function withDeviceProfile(
   return { ...settings, deviceProfile, upscale: defaultUpscaleFor(deviceProfile) };
 }
 
+export interface DeviceProfileOption {
+  readonly code: string;
+  readonly name: string;
+}
+
+/**
+ * The device to fall back to when the chosen profile is not in the offered list, whether it came
+ * from a saved file or is the default: the default profile if it is offered, otherwise the first
+ * one offered. Returns undefined when no fallback is needed, including while the list has not
+ * loaded yet (an empty list never triggers a fallback).
+ */
+export function resolveDeviceProfileFallback(
+  deviceProfile: string,
+  availableProfiles: readonly DeviceProfileOption[],
+): DeviceProfileOption | undefined {
+  if (availableProfiles.length === 0) return undefined;
+  if (availableProfiles.some((profile) => profile.code === deviceProfile)) return undefined;
+  return (
+    availableProfiles.find((profile) => profile.code === defaultMangapressSettings.deviceProfile) ??
+    availableProfiles[0]
+  );
+}
+
 export function validateMangapressSettings(
   settings: MangapressSettings,
 ): readonly MangapressSettingIssue[] {
