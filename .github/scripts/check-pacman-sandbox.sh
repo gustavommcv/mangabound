@@ -25,22 +25,17 @@ if ! pacman -U --noconfirm "$pkg_file" >"$log_file" 2>&1; then
 fi
 
 binary_path="/opt/mangabound/mangabound"
-if [[ ! -e "$binary_path" ]]; then
-  echo "RESULT: inconclusive - installed but the executable is missing at $binary_path."
+if [[ ! -x "$binary_path" ]]; then
+  echo "RESULT: inconclusive - installed but the executable is missing (or not executable) at $binary_path."
   exit 0
 fi
 
-# Diagnostic detail, printed unconditionally: root's own -x test passes as long as any execute
-# bit is set anywhere on the file, which is not the same question as "can the non-root user
-# below actually run this" - print the real, exact state instead of inferring it.
-echo "--- $binary_path ---"
-ls -la "$binary_path" "$(dirname "$binary_path")"
-stat "$binary_path"
-echo "--- mount options for /opt ---"
-findmnt -T /opt || mount | grep -E ' / | /opt '
-echo "--- as builder, can it read/execute this file? ---"
-su builder -c "test -r '$binary_path' && echo readable || echo NOT readable"
-su builder -c "test -x '$binary_path' && echo executable || echo NOT executable"
+sandbox_path="$(dirname "$binary_path")/chrome-sandbox"
+if [[ -u "$sandbox_path" ]]; then
+  echo "chrome-sandbox has its setuid bit on the real installed file: $(stat -c '%A %U:%G' "$sandbox_path")."
+else
+  echo "chrome-sandbox does NOT have its setuid bit on the real installed file - the PKGBUILD's chown/chmod did not take effect."
+fi
 
 echo "Installed the package, launching '$binary_path' as a non-root user."
 pacman -Sy --noconfirm xorg-server-xvfb >>"$log_file" 2>&1
@@ -55,6 +50,16 @@ launch_log_content=$(cat "$launch_log" 2>/dev/null || true)
 
 if grep -qi 'SUID sandbox helper' <<<"$launch_log_content"; then
   echo "RESULT: BLOCKED - the sandbox helper is present but not usable in this environment."
+  echo "$launch_log_content"
+elif grep -qi 'failed to move to new namespace' <<<"$launch_log_content"; then
+  # A distinct failure from the one above: Chromium's own sandbox needs to create a user
+  # namespace, which this job's own container (archlinux:base-devel, run as a `container:` job -
+  # a nested Docker container, unlike check-deb-sandbox.sh's plain ubuntu-latest VM) does not
+  # permit by default. This is a property of nesting a container inside GitHub's own container,
+  # not evidence about a real Arch installation, which runs directly on the user's own kernel
+  # with no such nesting - the required manual smoke test in RELEASING.md is what actually
+  # verifies this on a real machine, same as every other platform.
+  echo "RESULT: NAMESPACE-RESTRICTED - this CI job's own container does not allow creating a user namespace; not evidence about a real (non-containerized) Arch install."
   echo "$launch_log_content"
 elif [[ "$launch_exit" -eq 124 ]]; then
   echo "RESULT: LAUNCHED - the app started and was still running when the timeout ended it."
