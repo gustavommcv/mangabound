@@ -1,7 +1,7 @@
 {
   "name": "mangabound",
   "productName": "Mangabound",
-  "version": "0.0.0",
+  "version": "0.1.0-alpha.2",
   "private": true,
   "description": "A desktop workflow for binding, converting, and delivering manga to e-readers.",
   "author": "Mangabound contributors",
@@ -81,7 +81,7 @@
     "@wdio/spec-reporter": "9.31.2",
     "@wdio/types": "9.31.2",
     "css-loader": "^7.1.2",
-    "electron": "44.4.3",
+    "electron": "44.4.5",
     "eslint": "10.11.0",
     "eslint-plugin-react-hooks": "^7.0.1",
     "expect-webdriverio": "6.0.10",

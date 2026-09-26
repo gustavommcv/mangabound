@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 import { $, browser } from '@wdio/globals';
+
+const { version } = JSON.parse(
+  readFileSync(new URL('../../package.json', import.meta.url), 'utf8'),
+) as { version: string };
 
 describe('packaged application shell', () => {
   it('launches with the packaged CLI binaries verified and ready, saying nothing about it', async () => {
@@ -9,6 +14,9 @@ describe('packaged application shell', () => {
     // Verified tools are mandatory, not a status: the queue enables once they are, with no banner.
     await $('button=Files').waitForEnabled();
     assert.equal(await $('section[aria-label="Bundled tool status"]').isExisting(), false);
+    // Proves app.getVersion() reaches the title bar through additionalArguments, for real - not
+    // just a mocked bridge in a component test.
+    assert.equal(await $('header').$(`span=v${version}`).isDisplayed(), true);
   });
 
   it('keeps the title bar in place while the page under it scrolls', async () => {

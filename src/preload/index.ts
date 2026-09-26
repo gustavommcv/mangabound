@@ -44,6 +44,13 @@ function droppedFilePath(file: File): string {
   }
 }
 
+/** Read the app version main handed the window at creation (see window.ts) - never IPC, since
+ * `runtime` is read synchronously and app.getVersion() is a main-process-only API. */
+function appVersion(): string {
+  const flag = process.argv.find((argument) => argument.startsWith('--app-version='));
+  return flag?.slice('--app-version='.length) ?? '0.0.0';
+}
+
 const bridge: MangaboundBridge = Object.freeze({
   getToolchainStatus: async () => {
     const status: unknown = await ipcRenderer.invoke('toolchain:get-status');
@@ -113,6 +120,7 @@ const bridge: MangaboundBridge = Object.freeze({
   runtime: Object.freeze({
     electron: process.versions.electron,
     platform: process.platform,
+    version: appVersion(),
   }),
 });
 

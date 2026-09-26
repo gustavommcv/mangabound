@@ -41,7 +41,7 @@ describe('application foundation', () => {
           ],
           message: 'Bundled conversion tools are verified and ready.',
         }),
-        runtime: { electron: '44.3.0', platform: 'win32' },
+        runtime: { electron: '44.3.0', platform: 'win32', version: '0.1.0-alpha.1' },
       },
     });
 
@@ -59,7 +59,7 @@ describe('application foundation', () => {
       configurable: true,
       value: {
         getToolchainStatus: vi.fn().mockRejectedValue(new Error('internal detail')),
-        runtime: { electron: '44.3.0', platform: 'win32' },
+        runtime: { electron: '44.3.0', platform: 'win32', version: '0.1.0-alpha.1' },
       },
     });
 
@@ -95,7 +95,7 @@ describe('application foundation', () => {
           ],
           message,
         }),
-        runtime: { electron: '44.3.0', platform: 'win32' },
+        runtime: { electron: '44.3.0', platform: 'win32', version: '0.1.0-alpha.1' },
       },
     });
 

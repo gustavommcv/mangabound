@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { FuseVersion, FuseV1Options } from '@electron/fuses';
@@ -14,6 +15,10 @@ import { mainConfig } from './webpack.main.config';
 import { rendererConfig } from './webpack.renderer.config';
 
 const buildForPackagedE2e = process.env.MANGABOUND_E2E === '1';
+
+const { version } = JSON.parse(
+  readFileSync(path.join(import.meta.dirname, 'package.json'), 'utf8'),
+) as { version: string };
 
 const acquireToolchain = (platform: string, arch: string): Promise<void> =>
   new Promise((resolve, reject) => {
@@ -38,6 +43,14 @@ const config: ForgeConfig = {
     asar: true,
     executableName: 'mangabound',
     extraResource: [path.join(import.meta.dirname, 'vendor', 'toolchain')],
+    // Apple documents CFBundleShortVersionString/CFBundleVersion as period-separated
+    // integers; electron-packager writes appVersion into both verbatim, with no
+    // validation. Strip the prerelease suffix only for that OS metadata - the full
+    // SemVer string (from package.json, untouched) is what app.getVersion() reads at
+    // runtime and what the UI shows, so nothing about the visible alpha label changes.
+    // Windows keeps the full string: its readable ProductVersion/FileVersion resources
+    // already display it correctly without any override (see RELEASING.md).
+    ...(process.platform === 'darwin' ? { appVersion: version.split('-')[0] } : {}),
   },
   hooks: {
     generateAssets: async (_configuration, platform, arch) => {
