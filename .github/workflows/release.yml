@@ -94,7 +94,10 @@ jobs:
         # are its own internal update-feed manifest, meaningless without update-feed
         # infrastructure this project doesn't have yet. They still exist in each platform's own
         # CI artifact (release-windows-latest, etc.) for anyone who needs them - this is only
-        # about what's public on the Release's download page. See RELEASING.md.
+        # about what's public on the Release's download page. See RELEASING.md. Windows now also
+        # produces a .zip (portable, unzip-and-run, no installer/no admin needed) alongside the
+        # Squirrel .exe; filenames already carry platform/arch/version, so the Windows and macOS
+        # .zip files never collide once copied flat into release-assets/.
         run: |
           mkdir -p release-assets
           find artifacts -type f \( \
