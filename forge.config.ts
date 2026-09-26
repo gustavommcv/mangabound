@@ -58,7 +58,20 @@ const config: ForgeConfig = {
     },
   },
   rebuildConfig: {},
-  makers: [new MakerSquirrel({}), new MakerZIP({}, ['darwin']), new MakerRpm({}), new MakerDeb({})],
+  makers: [
+    new MakerSquirrel({}),
+    // win32 added alongside darwin: unzip-and-run, no installer, no admin rights needed - this
+    // project's answer to a portable Windows build. Investigated a dedicated MSI wizard maker
+    // (@electron-forge/maker-wix) instead of/alongside Squirrel first: the wizard UI itself
+    // worked, but its shortcut mechanism turned out to be broken independent of anything in this
+    // config - electron-wix-msi's own vendored StubExecutable.exe crashes with a raw access
+    // violation even unmodified, straight from the npm package, with no arguments. Deferred for
+    // the same reason AppImage was: a real, structural defect in the dependency itself, not a
+    // fragile hack away from working. See RELEASING.md.
+    new MakerZIP({}, ['darwin', 'win32']),
+    new MakerRpm({}),
+    new MakerDeb({}),
+  ],
   plugins: [
     new WebpackPlugin({
       mainConfig,
