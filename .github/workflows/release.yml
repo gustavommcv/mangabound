@@ -29,55 +29,36 @@ jobs:
           echo "Tag matches package.json: $package_version"
 
   build:
-    name: Build (${{ matrix.name }})
+    name: Build
     needs: [check-version]
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: windows-latest
-            runner: windows-latest
-          - name: ubuntu-latest
-            runner: ubuntu-latest
-          # arm64-only for this alpha: darwin-x64 has never been built or tested (see
-          # RELEASING.md). Pinned, not macos-latest - see the same job in ci.yml for why.
-          - name: macos-15-arm64
-            runner: macos-15
-    env:
-      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 24
-          cache: npm
-      - run: npm ci
-      - name: Install Linux maker dependencies
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install --yes rpm fakeroot
-      - run: npm run make
-      # No GitHub Release interaction in this job on purpose: three platforms uploading assets to
-      # or creating the same Release concurrently is a real race (the first to finish wins the
-      # create, the rest either error or interleave uploads unpredictably). Each platform only ever
-      # produces and uploads its own ordinary CI build artifact; a single downstream job (below)
-      # is the only place that ever touches the Releases API.
-      - name: Upload installer artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: release-${{ matrix.name }}
-          path: out/make/**
-          if-no-files-found: error
+    # Shared with ci.yml's make-verification job - see make.yml for why this stopped being two
+    # copies. No GitHub Release interaction here on purpose: three platforms uploading assets to
+    # or creating the same Release concurrently is a real race (the first to finish wins the
+    # create, the rest either error or interleave uploads unpredictably). Each platform only ever
+    # produces and uploads its own ordinary CI build artifact; a single downstream job (below)
+    # is the only place that ever touches the Releases API.
+    uses: ./.github/workflows/make.yml
+    with:
+      artifact-name-prefix: release-
+
+  arch-package:
+    name: Make Arch package
+    needs: [check-version]
+    # Shared with ci.yml's arch-package-verification job - see arch-package.yml. Same
+    # no-Releases-API-here rule as `build` above: this only produces and uploads its own artifact.
+    uses: ./.github/workflows/arch-package.yml
+    with:
+      artifact-name: release-arch
 
   publish:
     name: Publish GitHub Release
-    # Depends on every build matrix leg succeeding - fail-fast is off above so a failing platform
-    # doesn't cancel the others mid-build, but the `build` job's own conclusion is still "failure"
-    # if any single leg fails, regardless of fail-fast, and `if: success()` here (the same thing
-    # `needs` already defaults to - spelled out so this guarantee isn't just implicit) means this
-    # job never starts in that case. No partial Release is ever created.
-    needs: [build]
+    # Depends on every build matrix leg, and the Arch package, succeeding - fail-fast is off above
+    # so a failing platform doesn't cancel the others mid-build, but each needed job's own
+    # conclusion is still "failure" if any single leg fails, regardless of fail-fast, and
+    # `if: success()` here (the same thing `needs` already defaults to - spelled out so this
+    # guarantee isn't just implicit) means this job never starts in that case. No partial Release
+    # is ever created.
+    needs: [build, arch-package]
     if: success()
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -97,11 +78,14 @@ jobs:
         # about what's public on the Release's download page. See RELEASING.md. Windows now also
         # produces a .zip (portable, unzip-and-run, no installer/no admin needed) alongside the
         # Squirrel .exe; filenames already carry platform/arch/version, so the Windows and macOS
-        # .zip files never collide once copied flat into release-assets/.
+        # .zip files never collide once copied flat into release-assets/. Arch's .pkg.tar.zst is
+        # named just "mangabound-<pkgver>-<pkgrel>-x86_64.pkg.tar.zst" by makepkg with no OS/distro
+        # marker in it (unlike the .deb/.rpm filenames), but the extension alone is already unique
+        # among everything else here.
         run: |
           mkdir -p release-assets
           find artifacts -type f \( \
-            -name '*.exe' -o -name '*.zip' -o -name '*.deb' -o -name '*.rpm' \
+            -name '*.exe' -o -name '*.zip' -o -name '*.deb' -o -name '*.rpm' -o -name '*.pkg.tar.zst' \
           \) -exec cp {} release-assets/ \;
           echo "Assets to publish:"
           ls -la release-assets

@@ -1,0 +1,75 @@
+# Maintainer: Mangabound contributors
+#
+# This is a "-bin" style package: it does not build anything from source. It packages the same
+# `electron-forge package` output the .deb and .rpm makers already consume (see forge.config.ts),
+# produced just before this PKGBUILD runs by the CI job that calls it - there is no Electron Forge
+# maker for Arch/pacman, so this is a hand-rolled equivalent, following the ArchWiki's Electron
+# package guidelines (a package that bundles its own Electron runtime installs the whole
+# distribution to /opt/<appname>).
+#
+# pkgver is substituted by CI from package.json's version before makepkg runs (see
+# .github/workflows/arch-package.yml); the placeholder below is only for a human running this by
+# hand. pacman forbids hyphens in pkgver, so a SemVer prerelease like 0.1.0-alpha.2 becomes
+# 0.1.0_alpha.2 - the exact same reason electron-installer-debian/-redhat also transform this
+# project's version string for their own formats (see RELEASING.md).
+pkgname=mangabound
+pkgver=0.0.0
+pkgrel=1
+pkgdesc="A desktop workflow for binding, converting, and delivering manga to e-readers"
+arch=('x86_64')
+url="https://github.com/gustavommcv/mangabound"
+license=('MIT')
+# The standard dependency set for a bundled-Electron app on Arch (the same libraries every
+# Chromium/Electron "-bin" AUR package declares) - this app does not use the system electron
+# package, so only Electron's own native library dependencies are needed, not electron itself.
+depends=(
+  'gtk3'
+  'nss'
+  'libxss'
+  'libnotify'
+  'libdrm'
+  'libxcomposite'
+  'libxdamage'
+  'libxrandr'
+  'mesa'
+  'alsa-lib'
+  'at-spi2-core'
+  'cups'
+)
+# Prebuilt Electron binaries: stripping breaks them, and there is nothing to build from source.
+options=('!strip')
+source=()
+sha256sums=()
+
+package() {
+  local payload="$startdir/payload"
+  local desktop="$startdir/mangabound.desktop"
+
+  install -dm755 "$pkgdir/opt/mangabound"
+  cp -a "$payload/." "$pkgdir/opt/mangabound/"
+
+  # cp -a re-applied the source payload directory's own mode (700 - confirmed live with `stat`;
+  # electron-forge's packaged output directory is not world-traversable) to
+  # $pkgdir/opt/mangabound itself even though install -dm755 above already set it correctly -
+  # cp -a's archive semantics cover the destination's own directory entry too, not just what is
+  # inside it, when the two directories are copied contents-first. A non-root user cannot reach
+  # any file under here at all without traverse (execute) permission on every directory in the
+  # path, no matter what mode the files themselves have - confirmed live: the first real build's
+  # mangabound binary itself was already 755 and still could not be executed by a non-root user
+  # ("Permission denied") because of this. Reasserted after the copy, not just before it.
+  chmod 755 "$pkgdir/opt/mangabound"
+  chmod 755 "$pkgdir/opt/mangabound/mangabound"
+
+  # The setuid bit does not survive being written by a non-root build user; fakeroot (which
+  # makepkg always runs package() under) records the chown/chmod below into the package's own
+  # metadata correctly, and pacman applies them for real, as actual root, on install - the same
+  # convention real AUR Electron packages use, confirmed by reading one directly. This is what
+  # keeps Chromium's sandbox usable without ever falling back to --no-sandbox.
+  chown root "$pkgdir/opt/mangabound/chrome-sandbox"
+  chmod 4755 "$pkgdir/opt/mangabound/chrome-sandbox"
+
+  install -dm755 "$pkgdir/usr/bin"
+  ln -s /opt/mangabound/mangabound "$pkgdir/usr/bin/mangabound"
+
+  install -Dm644 "$desktop" "$pkgdir/usr/share/applications/mangabound.desktop"
+}

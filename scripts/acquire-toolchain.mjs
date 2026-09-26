@@ -24,6 +24,36 @@ function valueAfter(flag) {
   return index === -1 ? undefined : process.argv[index + 1];
 }
 
+/**
+ * True when `targetDirectory` already holds exactly what `lock` pins for `target`: the same pin
+ * data recorded in its own manifest, and an executable whose bytes still hash to what that pin
+ * commits to. Lets a CI cache of `vendor/toolchain/` (keyed on the lock file's own hash) skip the
+ * network entirely instead of re-downloading and re-verifying binaries the cache already proved
+ * good - the pin is exact and content-addressed, so nothing is trusted that isn't re-hashed here.
+ */
+async function alreadyAcquired(targetDirectory, target, lock) {
+  let manifest;
+  try {
+    manifest = JSON.parse(await readFile(path.join(targetDirectory, 'manifest.json'), 'utf8'));
+  } catch {
+    return false;
+  }
+  if (manifest.target !== target) return false;
+  for (const toolName of ['mangabind', 'mangapress']) {
+    const pin = lock.tools[toolName].pin;
+    if (JSON.stringify(manifest.tools?.[toolName]?.pin) !== JSON.stringify(pin)) return false;
+    const executablePath = path.join(targetDirectory, toolSpecs[toolName].executableName(target));
+    let actualHash;
+    try {
+      actualHash = await sha256File(executablePath);
+    } catch {
+      return false;
+    }
+    if (actualHash !== pin.artifacts[target].executableSha256) return false;
+  }
+  return true;
+}
+
 async function runHandshake(toolName, executablePath, pin) {
   const expectedVersion = releaseVersion(pin.releaseTag);
   const versionResult = await execFileAsync(executablePath, toolSpecs[toolName].versionArguments, {
@@ -80,6 +110,12 @@ const expectedToolchainRoot = `${repositoryRoot}${path.sep}`;
 if (!toolchainRoot.startsWith(expectedToolchainRoot)) {
   throw new Error(`Refusing to write outside the repository: ${toolchainRoot}`);
 }
+
+if (await alreadyAcquired(path.join(toolchainRoot, target), target, lock)) {
+  console.log(`Toolchain already acquired and verified for ${target}.`);
+  process.exit(0);
+}
+
 await mkdir(toolchainRoot, { recursive: true });
 const stagingDirectory = await mkdtemp(path.join(toolchainRoot, `.staging-${target}-`));
 const workspaceDirectory = await mkdtemp(path.join(tmpdir(), 'mangabound-acquire-'));
