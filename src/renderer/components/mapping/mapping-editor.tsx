@@ -118,6 +118,11 @@ export function MappingEditor({
   const [rangeStart, setRangeStart] = useState(initialDraft.chapters[0]?.id ?? '');
   const [rangeEnd, setRangeEnd] = useState(initialDraft.chapters.at(-1)?.id ?? '');
   const [operationMessage, setOperationMessage] = useState<string>();
+  // The chapter chosen to split each volume before, by volume id. A stale choice (the volume
+  // changed since) falls back to the first chapter that can still be split before.
+  const [splitBeforeByVolume, setSplitBeforeByVolume] = useState<Readonly<Record<string, string>>>(
+    {},
+  );
   // The source is chosen by the caller when it keeps the choice across titles, or here when not.
   const [localProviderId, setLocalProviderId] = useState<string>();
   const generatedId = useRef(0);
@@ -555,104 +560,116 @@ export function MappingEditor({
               </div>
             ) : (
               <div className="mt-5 space-y-3">
-                {draft.volumes.map((volume, index) => (
-                  <article
-                    className="border-border bg-background rounded-lg border p-4"
-                    key={volume.id}
-                  >
-                    <div className="flex items-start gap-2">
-                      <div className="min-w-0 flex-1 space-y-2">
-                        <Label htmlFor={`volume-number-${volume.id}`}>Volume number</Label>
-                        <Input
-                          aria-label={`Volume number for volume ${volume.number}`}
-                          defaultValue={volume.number}
-                          id={`volume-number-${volume.id}`}
-                          inputMode="decimal"
-                          key={`${volume.id}-${volume.number}`}
-                          onBlur={(event) => {
-                            if (event.target.value !== volume.number) {
-                              dispatch({
-                                type: 'renumber-volume',
-                                volumeId: volume.id,
-                                number: event.target.value,
-                              });
-                            }
-                          }}
-                        />
-                      </div>
-                      <Button
-                        aria-label={`Remove volume ${volume.number}`}
-                        onClick={() => {
-                          dispatch({ type: 'remove-volume', volumeId: volume.id });
-                        }}
-                        size="icon"
-                        variant="ghost"
-                      >
-                        <Trash2 />
-                      </Button>
-                    </div>
-                    <p className="text-muted-foreground mt-3 text-xs">
-                      {String(volume.chapterIds.length)} chapter
-                      {volume.chapterIds.length === 1 ? '' : 's'}
-                    </p>
-                    {volume.chapterIds.length > 1 && (
-                      <div className="mt-3 space-y-2">
-                        <Label htmlFor={`split-${volume.id}`}>Split before</Label>
-                        <div className="flex gap-2">
-                          <NativeSelect
-                            id={`split-${volume.id}`}
-                            defaultValue={volume.chapterIds[1]}
-                          >
-                            {volume.chapterIds.slice(1).map((chapterId) => (
-                              <option key={chapterId} value={chapterId}>
-                                {draft.chapters.find((chapter) => chapter.id === chapterId)?.name}
-                              </option>
-                            ))}
-                          </NativeSelect>
-                          <Button
-                            aria-label={`Split volume ${volume.number}`}
-                            onClick={(event) => {
-                              const select =
-                                event.currentTarget.parentElement?.querySelector('select');
-                              if (select === undefined || select === null) return;
-                              const splitNumber = nextVolumeNumber(draft);
-                              const split = dispatch({
-                                type: 'split-volume',
-                                volumeId: volume.id,
-                                firstChapterId: select.value,
-                                newVolumeId: createVolumeId(),
-                                newVolumeNumber: splitNumber,
-                              });
-                              // The new volume took that number, so the next one is the one after.
-                              if (split) setNewVolumeNumber(String(Number(splitNumber) + 1));
+                {draft.volumes.map((volume, index) => {
+                  const splitOptions = volume.chapterIds.slice(1);
+                  const storedSplitBefore = splitBeforeByVolume[volume.id];
+                  const splitBefore =
+                    storedSplitBefore !== undefined && splitOptions.includes(storedSplitBefore)
+                      ? storedSplitBefore
+                      : splitOptions[0];
+                  return (
+                    <article
+                      className="border-border bg-background rounded-lg border p-4"
+                      key={volume.id}
+                    >
+                      <div className="flex items-start gap-2">
+                        <div className="min-w-0 flex-1 space-y-2">
+                          <Label htmlFor={`volume-number-${volume.id}`}>Volume number</Label>
+                          <Input
+                            aria-label={`Volume number for volume ${volume.number}`}
+                            defaultValue={volume.number}
+                            id={`volume-number-${volume.id}`}
+                            inputMode="decimal"
+                            key={`${volume.id}-${volume.number}`}
+                            onBlur={(event) => {
+                              if (event.target.value !== volume.number) {
+                                dispatch({
+                                  type: 'renumber-volume',
+                                  volumeId: volume.id,
+                                  number: event.target.value,
+                                });
+                              }
                             }}
-                            size="icon"
-                            variant="outline"
-                          >
-                            <Scissors />
-                          </Button>
+                          />
                         </div>
+                        <Button
+                          aria-label={`Remove volume ${volume.number}`}
+                          onClick={() => {
+                            dispatch({ type: 'remove-volume', volumeId: volume.id });
+                          }}
+                          size="icon"
+                          variant="ghost"
+                        >
+                          <Trash2 />
+                        </Button>
                       </div>
-                    )}
-                    {index > 0 && (
-                      <Button
-                        className="mt-3 w-full"
-                        onClick={() => {
-                          dispatch({
-                            type: 'merge-volumes',
-                            targetVolumeId: draft.volumes[index - 1]!.id,
-                            sourceVolumeId: volume.id,
-                          });
-                        }}
-                        size="sm"
-                        variant="ghost"
-                      >
-                        <GitMerge />
-                        Merge into volume {draft.volumes[index - 1]!.number}
-                      </Button>
-                    )}
-                  </article>
-                ))}
+                      <p className="text-muted-foreground mt-3 text-xs">
+                        {String(volume.chapterIds.length)} chapter
+                        {volume.chapterIds.length === 1 ? '' : 's'}
+                      </p>
+                      {volume.chapterIds.length > 1 && (
+                        <div className="mt-3 space-y-2">
+                          <Label htmlFor={`split-${volume.id}`}>Split before</Label>
+                          <div className="flex gap-2">
+                            <NativeSelect
+                              id={`split-${volume.id}`}
+                              onChange={(event) => {
+                                setSplitBeforeByVolume((current) => ({
+                                  ...current,
+                                  [volume.id]: event.target.value,
+                                }));
+                              }}
+                              value={splitBefore}
+                            >
+                              {splitOptions.map((chapterId) => (
+                                <option key={chapterId} value={chapterId}>
+                                  {draft.chapters.find((chapter) => chapter.id === chapterId)?.name}
+                                </option>
+                              ))}
+                            </NativeSelect>
+                            <Button
+                              aria-label={`Split volume ${volume.number}`}
+                              onClick={() => {
+                                if (splitBefore === undefined) return;
+                                const splitNumber = nextVolumeNumber(draft);
+                                const split = dispatch({
+                                  type: 'split-volume',
+                                  volumeId: volume.id,
+                                  firstChapterId: splitBefore,
+                                  newVolumeId: createVolumeId(),
+                                  newVolumeNumber: splitNumber,
+                                });
+                                // The new volume took that number, so the next one is the one after.
+                                if (split) setNewVolumeNumber(String(Number(splitNumber) + 1));
+                              }}
+                              size="icon"
+                              variant="outline"
+                            >
+                              <Scissors />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                      {index > 0 && (
+                        <Button
+                          className="mt-3 w-full"
+                          onClick={() => {
+                            dispatch({
+                              type: 'merge-volumes',
+                              targetVolumeId: draft.volumes[index - 1]!.id,
+                              sourceVolumeId: volume.id,
+                            });
+                          }}
+                          size="sm"
+                          variant="ghost"
+                        >
+                          <GitMerge />
+                          Merge into volume {draft.volumes[index - 1]!.number}
+                        </Button>
+                      )}
+                    </article>
+                  );
+                })}
               </div>
             )}
           </section>
