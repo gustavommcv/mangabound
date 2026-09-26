@@ -48,6 +48,12 @@ package() {
   install -dm755 "$pkgdir/opt/mangabound"
   cp -a "$payload/." "$pkgdir/opt/mangabound/"
 
+  # cp -a preserves whatever mode the packaged tree already had, which is not guaranteed to be
+  # executable-by-other - confirmed live: the first real build of this package produced a
+  # mangabound binary a non-root user could not execute ("Permission denied"). Set explicitly
+  # rather than trusting the source.
+  chmod 755 "$pkgdir/opt/mangabound/mangabound"
+
   # The setuid bit does not survive being written by a non-root build user; fakeroot (which
   # makepkg always runs package() under) records the chown/chmod below into the package's own
   # metadata correctly, and pacman applies them for real, as actual root, on install - the same
