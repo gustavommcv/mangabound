@@ -25,14 +25,22 @@ if ! pacman -U --noconfirm "$pkg_file" >"$log_file" 2>&1; then
 fi
 
 binary_path="/opt/mangabound/mangabound"
-if [[ ! -x "$binary_path" ]]; then
+if [[ ! -e "$binary_path" ]]; then
   echo "RESULT: inconclusive - installed but the executable is missing at $binary_path."
   exit 0
 fi
 
-if [[ ! -u "$binary_path" ]] && [[ ! -u "$(dirname "$binary_path")/chrome-sandbox" ]]; then
-  echo "RESULT: inconclusive - chrome-sandbox does not have its setuid bit; the PKGBUILD's package() step may not have applied."
-fi
+# Diagnostic detail, printed unconditionally: root's own -x test passes as long as any execute
+# bit is set anywhere on the file, which is not the same question as "can the non-root user
+# below actually run this" - print the real, exact state instead of inferring it.
+echo "--- $binary_path ---"
+ls -la "$binary_path" "$(dirname "$binary_path")"
+stat "$binary_path"
+echo "--- mount options for /opt ---"
+findmnt -T /opt || mount | grep -E ' / | /opt '
+echo "--- as builder, can it read/execute this file? ---"
+su builder -c "test -r '$binary_path' && echo readable || echo NOT readable"
+su builder -c "test -x '$binary_path' && echo executable || echo NOT executable"
 
 echo "Installed the package, launching '$binary_path' as a non-root user."
 pacman -Sy --noconfirm xorg-server-xvfb >>"$log_file" 2>&1
