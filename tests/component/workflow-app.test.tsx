@@ -249,6 +249,37 @@ describe('queue application workflow', () => {
     expect(releaseInput).toHaveBeenCalledWith('session');
   });
 
+  it('focuses the Queue heading as soon as the app opens', async () => {
+    installBridge(bridge());
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Queue' })).toHaveFocus();
+  });
+
+  it('focuses the running heading once a conversion starts', async () => {
+    const user = userEvent.setup();
+    const convert = vi.fn<MangaboundBridge['convert']>(() => new Promise(() => undefined));
+    installBridge(bridge({ convert }));
+    render(<App />);
+
+    await addFolder(user);
+    await chooseOutputFolder(user);
+    await user.click(await runButton('Convert 1 item'));
+
+    expect(await screen.findByRole('heading', { name: 'Converting Offline Work' })).toHaveFocus();
+  });
+
+  it('focuses the mangapress options heading when it is opened', async () => {
+    const user = userEvent.setup();
+    installBridge(bridge());
+    render(<App />);
+
+    await addFolder(user);
+    await user.click(screen.getByRole('button', { name: /mangapress options/u }));
+
+    expect(await screen.findByRole('heading', { name: 'mangapress options' })).toHaveFocus();
+  });
+
   it('shows a successful no-output plan before conversion and forgets it once anything changes', async () => {
     const user = userEvent.setup();
     const planConversion = vi.fn<MangaboundBridge['planConversion']>(() =>

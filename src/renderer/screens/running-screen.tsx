@@ -1,4 +1,5 @@
 import { LoaderCircle, Square } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 
 import type { ConversionProgress } from '@/domain/conversion';
 import { Button } from '@/renderer/components/ui/button';
@@ -23,6 +24,10 @@ export function RunningScreen({
     progress?.completed !== undefined && progress.total !== undefined
       ? Math.round((progress.completed / progress.total) * 100)
       : undefined;
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    titleRef.current?.focus();
+  }, []);
   return (
     <section className="mx-auto flex min-h-96 max-w-xl flex-col justify-center" aria-live="polite">
       <LoaderCircle aria-hidden="true" className="text-accent size-7 animate-spin" />
@@ -31,7 +36,13 @@ export function RunningScreen({
           ? (progress?.stage ?? 'Processing')
           : `Item ${String(position.index)} of ${String(position.total)}`}
       </p>
-      <h1 className="mt-2 text-2xl font-semibold">Converting {position?.name ?? 'your books'}</h1>
+      <h1
+        className="focus-visible:ring-ring focus-visible:ring-offset-background mt-2 rounded-md text-2xl font-semibold outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+        ref={titleRef}
+        tabIndex={-1}
+      >
+        Converting {position?.name ?? 'your books'}
+      </h1>
       <p className="text-muted-foreground mt-3 text-sm">{progress?.message}</p>
       {percentage !== undefined && (
         <div

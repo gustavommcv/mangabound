@@ -189,6 +189,14 @@ export function App(): React.JSX.Element {
   const rowsRef = useRef(rows);
   const attemptedInspection = useRef(new Set<string>());
   const cancelRequested = useRef(false);
+  // The options section is inline JSX, not its own component, so its heading can't get a plain
+  // mount-only focus effect the way the other five screens do; this fires whenever `step` becomes
+  // 'options', by which point the heading has already mounted (refs attach during commit, before
+  // effects run).
+  const optionsTitleRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (step === 'options') optionsTitleRef.current?.focus();
+  }, [step]);
 
   useEffect(() => {
     if (bridge === undefined) return;
@@ -896,7 +904,12 @@ export function App(): React.JSX.Element {
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
                     <p className="text-muted-foreground text-xs font-medium">Advanced</p>
-                    <h1 className="mt-2 text-3xl font-semibold tracking-tight" id="options-title">
+                    <h1
+                      className="focus-visible:ring-ring focus-visible:ring-offset-background mt-2 rounded-md text-3xl font-semibold tracking-tight outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                      id="options-title"
+                      ref={optionsTitleRef}
+                      tabIndex={-1}
+                    >
                       mangapress options
                     </h1>
                     <p className="text-muted-foreground mt-3 text-sm">

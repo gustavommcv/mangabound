@@ -1,5 +1,5 @@
 import { Copy, RadioTower } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/renderer/components/ui/button';
 import { Input } from '@/renderer/components/ui/input';
@@ -38,11 +38,28 @@ export function SharePanel({
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [copied, setCopied] = useState(false);
+  const shareUrlRef = useRef<HTMLInputElement>(null);
+  // Always present and never disabled in the "not active" branch, unlike "Start sharing" (which
+  // is disabled when no library or network interface is available) - the one safe universal
+  // target for the stop transition, whatever its label ("Choose a library" / "Change shared
+  // library") happens to say.
+  const libraryButtonRef = useRef<HTMLButtonElement>(null);
+  const previousActive = useRef(status.active);
 
   const selectedInterfaceAddress =
     interfaceAddress === '' ? (interfaces[0]?.address ?? '') : interfaceAddress;
   const canStart = library !== undefined && selectedInterfaceAddress !== '';
   const address = catalogAddress(status) ?? '';
+
+  // Moves focus only on a genuine start/stop, never on mount - reopening the panel while sharing
+  // is already active must not steal focus (share-menu.tsx already focuses the panel itself then).
+  useEffect(() => {
+    if (previousActive.current !== status.active) {
+      if (status.active) shareUrlRef.current?.focus();
+      else libraryButtonRef.current?.focus();
+    }
+    previousActive.current = status.active;
+  }, [status.active]);
 
   return (
     <section
@@ -65,7 +82,7 @@ export function SharePanel({
           <div>
             <Label htmlFor="share-url">Catalog address</Label>
             <div className="mt-1.5 flex gap-2">
-              <Input id="share-url" readOnly value={address} />
+              <Input id="share-url" readOnly ref={shareUrlRef} value={address} />
               <Button
                 aria-label="Copy the address"
                 onClick={() => {
@@ -96,7 +113,7 @@ export function SharePanel({
       ) : (
         <div className="mt-4 space-y-4">
           <div className="flex items-center gap-3">
-            <Button onClick={onChooseLibrary} size="sm" variant="outline">
+            <Button onClick={onChooseLibrary} ref={libraryButtonRef} size="sm" variant="outline">
               {library === undefined ? 'Choose a library to share' : 'Change shared library'}
             </Button>
             {library !== undefined && (

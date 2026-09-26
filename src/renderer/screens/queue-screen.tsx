@@ -7,6 +7,7 @@ import {
   LoaderCircle,
   X,
 } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 
 import { type QueueRow, summarizeQueue } from '@/domain/input-queue';
 import type { BookFormat } from '@/domain/conversion';
@@ -108,6 +109,10 @@ export function QueueScreen(props: QueueScreenProps): React.JSX.Element {
     settings,
     validating,
   } = props;
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    titleRef.current?.focus();
+  }, []);
   const summary = summarizeQueue(rows, mode);
   const mangapressRuns = mode !== 'bind-only';
   const canRun =
@@ -133,7 +138,12 @@ export function QueueScreen(props: QueueScreenProps): React.JSX.Element {
     >
       <div className="min-w-0 space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-base font-medium" id="queue-title">
+          <h1
+            className="focus-visible:ring-ring focus-visible:ring-offset-background rounded-md text-base font-medium outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+            id="queue-title"
+            ref={titleRef}
+            tabIndex={-1}
+          >
             Queue
           </h1>
           <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-xs">
