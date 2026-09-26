@@ -105,6 +105,9 @@ Paused partway through to ship the first public alpha instead of finishing every
 - The real Windows bug the alpha surfaced - the app opening once via Squirrel's own post-install launch, then never again via the Start Menu shortcut, leaving idle background processes - root-caused (an Electron `<44.4.4` regression, `electron/electron#54025`) and fixed by the Electron bump plus dropping the app's dependence on `ready-to-show` entirely (`src/main/window.ts`).
 - A portable Windows build (`.zip`, unzip and run, no installer, no admin rights) ships alongside Squirrel.
 - A recurring Windows CI flake in `settings.e2e.ts` root-caused (a transient Windows file-rename failure when another process has the file open) and fixed with a bounded retry in `FsSettingsStore`, not just reruns.
+- `ci.yml`'s `make-verification` job and `release.yml`'s `build` job, which had drifted into ~95% duplicate copies of each other (and once caused a real bug: a SHA-pinning pass updated one and missed the other), unified into one `workflow_call` reusable workflow (`.github/workflows/make.yml`), called from both.
+- The pinned mangabind/mangapress binaries no longer download over the network on every single CI job that needs them: `scripts/acquire-toolchain.mjs` gained a fast path that trusts (and re-verifies the hash of) an already-acquired, already-matching copy, and every job that needs the toolchain now caches `vendor/toolchain/` keyed on the lock file's hash.
+- Arch/pacman packaging: no Electron Forge maker exists for this, so it's a hand-rolled `PKGBUILD` (`packaging/arch/`) following the ArchWiki's Electron package guidelines, built in CI via a `workflow_call` reusable workflow (`.github/workflows/arch-package.yml`) shared between `ci.yml` and `release.yml`, the same pattern as `make.yml`. Publishes a `.pkg.tar.zst` a person installs with `pacman -U`, not an AUR submission (still out of scope).
 
 **Investigated and deferred, not abandoned - see [ADR 0021](adr/0021-windows-installer-stays-squirrel.md):**
 
@@ -113,7 +116,6 @@ Paused partway through to ship the first public alpha instead of finishing every
 
 **Still open, waiting on a decision rather than blocked on anything technical:**
 
-- Arch/pacman packaging (`.pkg.tar.zst` via `makepkg`/a `PKGBUILD`, or an AUR submission) - not yet attempted; no Electron Forge maker exists for it, so this would be a hand-rolled build step outside Forge, not a maker config change.
 - Sign/notarize installers and document release provenance.
 - Complete custom-title-bar checks across Windows, macOS, X11, Wayland, and representative tiling window managers.
 - Complete keyboard, screen-reader, reduced-motion, scaling, update, recovery, and corrupt-library scenarios beyond what's covered above.

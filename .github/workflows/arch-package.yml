@@ -1,0 +1,69 @@
+name: Make Arch package
+
+# Shared by ci.yml (verification on every push/PR) and release.yml (the real build feeding
+# publish). There is no Electron Forge maker for Arch/pacman - see docs/milestones.md and ADR
+# 0021's sibling note - so this packages the same `electron-forge package` output the .deb/.rpm
+# makers already consume, by hand, following the ArchWiki's Electron package guidelines.
+on:
+  workflow_call:
+    inputs:
+      artifact-name:
+        required: true
+        type: string
+      run-sandbox-diagnostic:
+        description: 'Run the sandbox launch diagnostic (ci.yml only; not a release gate).'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  arch-package:
+    name: Make Arch package
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    timeout-minutes: 30
+    steps:
+      # Arch strongly discourages partial upgrades (installing new packages without syncing the
+      # whole system risks shared-library version mismatches) - -Syu, not -Sy, before anything
+      # else. The base-devel image already has makepkg/fakeroot; git and nodejs/npm do not ship in
+      # it and checkout needs git.
+      - name: Update the system and install build dependencies
+        run: pacman -Syu --noconfirm git nodejs npm
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: npm ci
+      - name: Cache the pinned mangabind/mangapress binaries
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: vendor/toolchain
+          key: toolchain-Linux-${{ hashFiles('toolchain.lock.json') }}
+      - run: npm run package
+      - name: Stage the packaged app tree for the PKGBUILD
+        # electron-forge names this directory from packagerConfig's productName, arch, and
+        # platform - copied to a fixed name so the PKGBUILD does not need to guess it.
+        run: |
+          packaged=$(find out -maxdepth 1 -type d -iname 'Mangabound-linux-*' -print -quit)
+          if [[ -z "$packaged" ]]; then
+            echo "::error::Could not find electron-forge's packaged Linux output under out/"
+            exit 1
+          fi
+          cp -a "$packaged" packaging/arch/payload
+      - name: Set the package version from package.json
+        # pacman forbids hyphens in pkgver; RELEASING.md documents the same x.y.z-alpha.N shape
+        # every other maker's version transform starts from.
+        run: |
+          version=$(node -p "require('./package.json').version" | tr '-' '_')
+          sed -i "s/^pkgver=.*/pkgver=$version/" packaging/arch/PKGBUILD
+      - name: Build the package as a non-root user
+        # makepkg refuses to run as root; the container otherwise runs everything as root.
+        run: |
+          useradd -m builder
+          chown -R builder:builder packaging/arch
+          su builder -c "cd packaging/arch && makepkg -f --noconfirm"
+      - name: 'Diagnostic: launch the installed package with the sandbox enabled'
+        if: inputs.run-sandbox-diagnostic
+        run: .github/scripts/check-pacman-sandbox.sh
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: packaging/arch/*.pkg.tar.zst
+          if-no-files-found: error
