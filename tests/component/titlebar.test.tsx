@@ -18,6 +18,18 @@ describe('Titlebar', () => {
     expect(screen.queryByText('Desktop')).not.toBeInTheDocument();
   });
 
+  it('shows the running app version when it is known', () => {
+    render(<Titlebar desktop version="0.1.0-alpha.1" />);
+
+    expect(screen.getByText('v0.1.0-alpha.1')).toBeVisible();
+  });
+
+  it('shows no version label when it is not known', () => {
+    render(<Titlebar desktop />);
+
+    expect(screen.queryByText(/^v\d/u)).not.toBeInTheDocument();
+  });
+
   it('holds actions on its right, apart from the part the window is dragged by', () => {
     render(
       <Titlebar desktop>

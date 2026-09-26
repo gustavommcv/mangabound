@@ -1,0 +1,136 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Read-only by default (matches ci.yml); only the publish job below is granted write access, and
+# only to contents (creating the Release and uploading its assets) - the build jobs never touch
+# the Releases API at all, so they stay at this default.
+permissions:
+  contents: read
+
+jobs:
+  check-version:
+    name: Check tag matches package.json
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Compare the pushed tag against package.json's version
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          package_version="$(node -p "require('./package.json').version")"
+          if [[ "$tag_version" != "$package_version" ]]; then
+            echo "::error::Tag 'v$tag_version' does not match package.json's version '$package_version'. Fix one before releasing."
+            exit 1
+          fi
+          echo "Tag matches package.json: $package_version"
+
+  build:
+    name: Build (${{ matrix.name }})
+    needs: [check-version]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows-latest
+            runner: windows-latest
+          - name: ubuntu-latest
+            runner: ubuntu-latest
+          # arm64-only for this alpha: darwin-x64 has never been built or tested (see
+          # RELEASING.md). Pinned, not macos-latest - see the same job in ci.yml for why.
+          - name: macos-15-arm64
+            runner: macos-15
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Install Linux maker dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install --yes rpm fakeroot
+      - run: npm run make
+      # No GitHub Release interaction in this job on purpose: three platforms uploading assets to
+      # or creating the same Release concurrently is a real race (the first to finish wins the
+      # create, the rest either error or interleave uploads unpredictably). Each platform only ever
+      # produces and uploads its own ordinary CI build artifact; a single downstream job (below)
+      # is the only place that ever touches the Releases API.
+      - name: Upload installer artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-${{ matrix.name }}
+          path: out/make/**
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub Release
+    # Depends on every build matrix leg succeeding - fail-fast is off above so a failing platform
+    # doesn't cancel the others mid-build, but the `build` job's own conclusion is still "failure"
+    # if any single leg fails, regardless of fail-fast, and `if: success()` here (the same thing
+    # `needs` already defaults to - spelled out so this guarantee isn't just implicit) means this
+    # job never starts in that case. No partial Release is ever created.
+    needs: [build]
+    if: success()
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Download every platform's build artifact
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          path: artifacts
+      - name: Collect only the files a downloading user actually needs
+        # Deliberately narrower than everything `make` produces: Squirrel's .nupkg and RELEASES
+        # are its own internal update-feed manifest, meaningless without update-feed
+        # infrastructure this project doesn't have yet. They still exist in each platform's own
+        # CI artifact (release-windows-latest, etc.) for anyone who needs them - this is only
+        # about what's public on the Release's download page. See RELEASING.md.
+        run: |
+          mkdir -p release-assets
+          find artifacts -type f \( \
+            -name '*.exe' -o -name '*.zip' -o -name '*.deb' -o -name '*.rpm' \
+          \) -exec cp {} release-assets/ \;
+          echo "Assets to publish:"
+          ls -la release-assets
+      - name: Mark pre-releases from the tag, the way SemVer already does
+        id: prerelease
+        run: |
+          # A SemVer prerelease is exactly a version with a hyphen before the prerelease
+          # identifier (MAJOR.MINOR.PATCH-alpha.1, -beta.2, -rc.1, ...) - this isn't a
+          # separate convention invented for CI, it's what the version string already means.
+          if [[ "${GITHUB_REF_NAME}" == *-* ]]; then
+            echo "flag=--prerelease" >> "$GITHUB_OUTPUT"
+          else
+            echo "flag=" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Require hand-written release notes for this tag
+        # Not --generate-notes: for this project's first tag especially, that produces every
+        # merged PR back to the beginning - an internal changelog, not something written for a
+        # person deciding whether to install this. See RELEASING.md for what these notes should
+        # cover; failing here (rather than silently falling back to something else) means a
+        # release can never go out without them.
+        run: |
+          notes_file="docs/releases/${GITHUB_REF_NAME}.md"
+          if [[ ! -f "$notes_file" ]]; then
+            echo "::error::Missing $notes_file. Write the release notes for this tag before pushing it (see RELEASING.md)."
+            exit 1
+          fi
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            ${{ steps.prerelease.outputs.flag }} \
+            --title "${GITHUB_REF_NAME}" \
+            --notes-file "docs/releases/${GITHUB_REF_NAME}.md" \
+            release-assets/*

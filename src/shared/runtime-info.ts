@@ -24,6 +24,8 @@ import type { MappingDraft } from '@/domain/mapping';
 export interface RuntimeInfo {
   readonly electron: string;
   readonly platform: NodeJS.Platform;
+  /** The full app version, including any prerelease label (e.g. "0.1.0-alpha.1"). */
+  readonly version: string;
 }
 
 export interface MangaboundBridge {
