@@ -6,6 +6,8 @@
 
 `manga-named-volumes/Named Volumes` is one manga whose chapter folders carry the volume in their names (`Vol.01 Ch.0001 - First (en) [Group]`), so mangabind groups it into volumes 1 and 2 on its own.
 
+`manga-batch/Library` is a library of two manga, for the real-library e2e path: `Auto-Resolved Manga` groups by name like `manga-named-volumes`, and `Needs Mapping Manga` has plain `Chapter 1`/`Chapter 2` folders that still need manual volume assignment.
+
 Regenerate the checked-in PNG files from the repository root with:
 
 ```console
