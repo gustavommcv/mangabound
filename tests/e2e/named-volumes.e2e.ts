@@ -5,7 +5,7 @@ import path from 'node:path';
 
 import { $, $$, browser } from '@wdio/globals';
 
-import { chooseOutputFolder, queueOutputFolderButton, resetQueue } from './support';
+import { chooseOutputFolder, queueOutputFolderButton, readZipEntry, resetQueue } from './support';
 
 const temporaryDirectories: string[] = [];
 
@@ -90,5 +90,89 @@ describe('packaged folder whose names carry the volumes', () => {
     }
     // The names already said everything, so no mangabind.json was written into the source.
     await assert.rejects(readFile(path.join(inputPath, 'mangabind.json'), 'utf8'));
+  });
+
+  it('binds two volumes into one EPUB with chapters nested under each volume', async () => {
+    const testRoot = await mkdtemp(path.join(os.tmpdir(), 'mangabound-combined-e2e-'));
+    temporaryDirectories.push(testRoot);
+    const inputPath = path.join(testRoot, 'Named Volumes');
+    const libraryPath = path.join(testRoot, 'library');
+    await cp(
+      path.resolve('tests', 'fixtures', 'e2e', 'manga-named-volumes', 'Named Volumes'),
+      inputPath,
+      { recursive: true },
+    );
+    await mkdir(libraryPath);
+
+    const openDialog = await browser.electron.mock('dialog', 'showOpenDialog');
+    await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [inputPath] });
+    await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [libraryPath] });
+
+    await resetQueue();
+    await $('button=Folder').click();
+    await $('span=2 volumes').waitForDisplayed({ timeout: 30_000 });
+    await $('button=mangapress options').click();
+    await $('h1=mangapress options').waitForDisplayed();
+    await $('#combine-into-one-volume').click();
+    await $('button=Back').click();
+    await chooseOutputFolder(queueOutputFolderButton, libraryPath);
+    await $('button=Convert 1 item').click();
+    await $('h1=1 book saved').waitForDisplayed({ timeout: 120_000 });
+
+    const books = (await readdir(libraryPath)).filter((name) => name.endsWith('.epub'));
+    assert.equal(books.length, 1, 'two input volumes should produce exactly one EPUB');
+    const bookPath = path.join(libraryPath, books[0]!);
+    assert.equal((await readFile(bookPath)).subarray(0, 2).toString('ascii'), 'PK');
+
+    // Inspect the real EPUB XML. A flat list containing every label would not prove that a
+    // reader can expand each volume to find its chapters.
+    const ncx = await readZipEntry(bookPath, (name) => name.endsWith('toc.ncx'));
+    const nav = await readZipEntry(bookPath, (name) => name.endsWith('nav.xhtml'));
+    const toc = await browser.execute(
+      (ncxXml, navXml) => {
+        const parser = new DOMParser();
+        const ncxDoc = parser.parseFromString(ncxXml, 'application/xml');
+        const navDoc = parser.parseFromString(navXml, 'application/xml');
+        if (
+          ncxDoc.getElementsByTagName('parsererror').length > 0 ||
+          navDoc.getElementsByTagName('parsererror').length > 0
+        ) {
+          throw new Error('The EPUB table of contents contains invalid XML.');
+        }
+        const childrenNamed = (element: Element, localName: string): Element[] =>
+          Array.from(element.children).filter((child) => child.localName === localName);
+        const navMap = ncxDoc.getElementsByTagName('navMap')[0];
+        const navRoot = navDoc.getElementsByTagName('nav')[0];
+        if (navMap === undefined || navRoot === undefined) {
+          throw new Error('The EPUB is missing a table of contents.');
+        }
+        const volumes = childrenNamed(navMap, 'navPoint');
+        const navList = childrenNamed(navRoot, 'ol')[0];
+        return {
+          ncx: volumes.map((volume) => ({
+            label: volume.getElementsByTagName('text')[0]?.textContent ?? '',
+            chapters: childrenNamed(volume, 'navPoint').map(
+              (chapter) => chapter.getElementsByTagName('text')[0]?.textContent ?? '',
+            ),
+          })),
+          navChapterCounts:
+            navList === undefined
+              ? []
+              : childrenNamed(navList, 'li').map((volume) => {
+                  const chapterList = childrenNamed(volume, 'ol')[0];
+                  return chapterList === undefined ? 0 : childrenNamed(chapterList, 'li').length;
+                }),
+        };
+      },
+      ncx,
+      nav,
+    );
+
+    assert.equal(toc.ncx.length, 2);
+    assert.match(toc.ncx[0]!.label, /Vol\.01/u);
+    assert.match(toc.ncx[1]!.label, /Vol\.02/u);
+    assert.equal(toc.ncx[0]!.chapters.length, 2);
+    assert.equal(toc.ncx[1]!.chapters.length, 1);
+    assert.deepEqual(toc.navChapterCounts, [2, 1]);
   });
 });
