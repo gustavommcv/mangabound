@@ -16,8 +16,10 @@ import type { SelectedLibrary } from '@/shared/workflow-contract';
 export interface SharePanelProps {
   readonly library?: SelectedLibrary;
   readonly interfaces: readonly NetworkInterfaceOption[];
+  readonly selectedInterface?: NetworkInterfaceOption;
   readonly status: OpdsSharingStatus;
   readonly onChooseLibrary: () => void;
+  readonly onSelectInterface?: (selected: NetworkInterfaceOption) => void;
   readonly onStart: (interfaceAddress: string, auth: OpdsAuthConfig) => void;
   readonly onStop: () => void;
 }
@@ -29,12 +31,14 @@ export interface SharePanelProps {
 export function SharePanel({
   library,
   interfaces,
+  selectedInterface,
   status,
   onChooseLibrary,
+  onSelectInterface,
   onStart,
   onStop,
 }: SharePanelProps): React.JSX.Element {
-  const [interfaceAddress, setInterfaceAddress] = useState('');
+  const [localInterfaceAddress, setLocalInterfaceAddress] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [copied, setCopied] = useState(false);
@@ -47,7 +51,10 @@ export function SharePanel({
   const previousActive = useRef(status.active);
 
   const selectedInterfaceAddress =
-    interfaceAddress === '' ? (interfaces[0]?.address ?? '') : interfaceAddress;
+    selectedInterface?.address ??
+    interfaces.find((option) => option.address === localInterfaceAddress)?.address ??
+    interfaces[0]?.address ??
+    '';
   const canStart = library !== undefined && selectedInterfaceAddress !== '';
   const address = catalogAddress(status) ?? '';
 
@@ -129,7 +136,13 @@ export function SharePanel({
               <NativeSelect
                 id="share-interface"
                 onChange={(event) => {
-                  setInterfaceAddress(event.target.value);
+                  const selected = interfaces.find(
+                    (option) => option.address === event.target.value,
+                  );
+                  if (selected !== undefined) {
+                    setLocalInterfaceAddress(selected.address);
+                    onSelectInterface?.(selected);
+                  }
                 }}
                 value={selectedInterfaceAddress}
               >

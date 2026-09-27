@@ -4,6 +4,7 @@ import { type MangapressCliAdapter } from '@/adapters/mangapress/cli';
 import { OsNetworkInterfaces } from '@/adapters/network/os-network-interfaces';
 import { NodeOpdsServer } from '@/adapters/opds/http-server';
 import type { MetadataProviderPort } from '@/application/ports/metadata-provider';
+import type { NetworkInterfaceOption } from '@/application/ports/network-interfaces';
 import type { OpdsServerHandle } from '@/application/ports/opds-server';
 import { LibraryPublisher } from '@/application/workflows/library-publisher';
 import { type PreferencesWorkflow } from '@/application/workflows/preferences';
@@ -32,6 +33,7 @@ export interface MainContext {
   // Where a choose-file or choose-folder dialog should open next; kept in memory and mirrored to
   // disk so it survives a restart, but never told to the renderer, which never holds paths.
   lastPickerFolder: string | undefined;
+  preferredNetworkInterface: NetworkInterfaceOption | undefined;
   // The last preferences and output folder the renderer asked to save, kept so a dialog pick can be
   // written down on its own without reading the file back first: that read would race the
   // renderer's own save of the very same pick, and the slower of the two could lose it.
@@ -58,6 +60,7 @@ export function createMainContext(): MainContext {
     preferences: undefined,
     activeSharing: undefined,
     lastPickerFolder: undefined,
+    preferredNetworkInterface: undefined,
     currentPreferences: defaultPreferences,
     currentOutputFolder: undefined,
     workflow: undefined,

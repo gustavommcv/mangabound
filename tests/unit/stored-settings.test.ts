@@ -18,6 +18,7 @@ const file = (overrides: Record<string, unknown> = {}): string =>
     providerId: 'mangadex',
     outputFolder: '/books',
     lastPickerFolder: '/downloads',
+    preferredNetworkInterface: { name: 'Ethernet', address: '192.168.18.39' },
     ...overrides,
   });
 
@@ -30,12 +31,18 @@ describe('parseStoredSettings', () => {
       providerId: 'mangadex',
       outputFolder: '/books',
       lastPickerFolder: '/downloads',
+      preferredNetworkInterface: { name: 'Ethernet', address: '192.168.18.39' },
     });
   });
 
   it('leaves out the source and the folders when the file has none', () => {
     const parsed = parseStoredSettings(
-      file({ providerId: undefined, outputFolder: undefined, lastPickerFolder: undefined }),
+      file({
+        providerId: undefined,
+        outputFolder: undefined,
+        lastPickerFolder: undefined,
+        preferredNetworkInterface: undefined,
+      }),
     );
 
     expect(parsed).toEqual({
@@ -46,6 +53,7 @@ describe('parseStoredSettings', () => {
     expect(parsed).not.toHaveProperty('providerId');
     expect(parsed).not.toHaveProperty('outputFolder');
     expect(parsed).not.toHaveProperty('lastPickerFolder');
+    expect(parsed).not.toHaveProperty('preferredNetworkInterface');
   });
 
   it('drops a title, an author and any key it does not know', () => {
@@ -89,6 +97,14 @@ describe('parseStoredSettings', () => {
     ['an empty folder', file({ outputFolder: '' })],
     ['an empty picker folder', file({ lastPickerFolder: '' })],
     ['an empty source', file({ providerId: '' })],
+    [
+      'an interface without a name',
+      file({ preferredNetworkInterface: { name: '', address: '192.168.18.39' } }),
+    ],
+    [
+      'an interface without an IPv4 address',
+      file({ preferredNetworkInterface: { name: 'Ethernet', address: 'not-an-ip' } }),
+    ],
   ])('cannot use a file with %s', (_name, raw) => {
     expect(parseStoredSettings(raw)).toBeUndefined();
   });
@@ -100,6 +116,7 @@ describe('serializeStoredSettings', () => {
       ...defaultPreferences,
       outputFolder: '/books',
       lastPickerFolder: '/downloads',
+      preferredNetworkInterface: { name: 'Ethernet', address: '192.168.18.39' },
     });
 
     expect(text.endsWith('\n')).toBe(true);
@@ -110,6 +127,7 @@ describe('serializeStoredSettings', () => {
       'settings',
       'outputFolder',
       'lastPickerFolder',
+      'preferredNetworkInterface',
     ]);
   });
 
@@ -121,6 +139,7 @@ describe('serializeStoredSettings', () => {
       providerId: 'mangadex',
       outputFolder: 'C:\\Manga',
       lastPickerFolder: 'C:\\Manga\\Downloads',
+      preferredNetworkInterface: { name: 'Ethernet', address: '192.168.18.39' },
     };
 
     expect(parseStoredSettings(serializeStoredSettings(settings))).toEqual(settings);

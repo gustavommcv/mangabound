@@ -1,4 +1,5 @@
 import type { SettingsStorePort } from '@/application/ports/settings-store';
+import type { NetworkInterfaceOption } from '@/application/ports/network-interfaces';
 import type { Preferences } from '@/domain/preferences';
 
 export interface RestoredPreferences {
@@ -7,6 +8,7 @@ export interface RestoredPreferences {
   readonly outputFolder?: string;
   /** Where a choose-file or choose-folder dialog should open, when that folder is still there. */
   readonly lastPickerFolder?: string;
+  readonly preferredNetworkInterface?: NetworkInterfaceOption;
   /** What the person should be told about what could not be restored. */
   readonly notices: readonly string[];
 }
@@ -34,6 +36,7 @@ export class PreferencesWorkflow {
       providerId,
       outputFolder,
       lastPickerFolder,
+      preferredNetworkInterface,
     } = settings;
     let restoredFolder: string | undefined;
     if (outputFolder !== undefined) {
@@ -60,6 +63,7 @@ export class PreferencesWorkflow {
       },
       ...(restoredFolder === undefined ? {} : { outputFolder: restoredFolder }),
       ...(restoredPickerFolder === undefined ? {} : { lastPickerFolder: restoredPickerFolder }),
+      ...(preferredNetworkInterface === undefined ? {} : { preferredNetworkInterface }),
       notices,
     };
   }
@@ -72,11 +76,13 @@ export class PreferencesWorkflow {
     preferences: Preferences,
     outputFolder: string | undefined,
     lastPickerFolder: string | undefined,
+    preferredNetworkInterface?: NetworkInterfaceOption,
   ): Promise<void> {
     return this.store.save({
       ...preferences,
       ...(outputFolder === undefined ? {} : { outputFolder }),
       ...(lastPickerFolder === undefined ? {} : { lastPickerFolder }),
+      ...(preferredNetworkInterface === undefined ? {} : { preferredNetworkInterface }),
     });
   }
 

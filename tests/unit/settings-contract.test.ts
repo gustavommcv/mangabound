@@ -56,6 +56,22 @@ describe('the command that saves them', () => {
     });
   });
 
+  it('accepts a chosen network interface but rejects invalid addresses', () => {
+    const preferredNetworkInterface = { name: 'Ethernet', address: '192.168.18.39' };
+    expect(
+      saveSettingsCommandSchema.parse({
+        preferences: defaultPreferences,
+        preferredNetworkInterface,
+      }),
+    ).toEqual({ preferences: defaultPreferences, preferredNetworkInterface });
+    expect(
+      saveSettingsCommandSchema.safeParse({
+        preferences: defaultPreferences,
+        preferredNetworkInterface: { name: 'Ethernet', address: 'not-an-ip' },
+      }).success,
+    ).toBe(false);
+  });
+
   it('has no place for a path: only the id a dialog gave out', () => {
     const parsed = saveSettingsCommandSchema.parse({
       preferences: defaultPreferences,

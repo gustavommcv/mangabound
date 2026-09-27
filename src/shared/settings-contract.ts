@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import type { Preferences } from '@/domain/preferences';
 import { processModes } from '@/domain/process-mode';
+import type { NetworkInterfaceOption } from '@/shared/opds-contract';
 import {
   identifierSchema,
   persistedSettingsSchema,
@@ -19,20 +20,28 @@ export const preferencesSchema = z.object({
   providerId: z.string().min(1).max(64).optional(),
 });
 
+export const networkInterfacePreferenceSchema = z.object({
+  name: z.string().trim().min(1).max(256),
+  address: z.ipv4(),
+});
+
 export const saveSettingsCommandSchema = z.object({
   preferences: preferencesSchema,
   /** The output folder, named by the id the window was given for it and never by a path. */
   libraryId: identifierSchema.optional(),
+  preferredNetworkInterface: networkInterfacePreferenceSchema.optional(),
 });
 
 export interface SaveSettingsCommand {
   readonly preferences: Preferences;
   readonly libraryId?: string;
+  readonly preferredNetworkInterface?: NetworkInterfaceOption;
 }
 
-/** What the window starts from: the saved options, the folder if it is still there, and what to say. */
+/** What the window starts from: saved choices, an available folder, and any notices. */
 export interface RestoredSettings {
   readonly preferences: Preferences;
   readonly library?: SelectedLibrary;
+  readonly preferredNetworkInterface?: NetworkInterfaceOption;
   readonly notices: readonly string[];
 }

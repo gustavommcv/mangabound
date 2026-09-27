@@ -26,6 +26,7 @@ type InputsContext = Pick<
   | 'preferences'
   | 'currentPreferences'
   | 'currentOutputFolder'
+  | 'preferredNetworkInterface'
   | 'workflow'
 >;
 
@@ -50,18 +51,27 @@ async function registerInputPaths(
 
 /**
  * Updates where the next dialog opens, in memory now and on disk right away: writes the last
- * known preferences and output folder back unchanged, alongside the new picker folder, rather
- * than reading them from the file first (see `currentPreferences` for why).
+ * known preferences, output folder and sharing interface unchanged, alongside the new picker
+ * folder, rather than reading them from the file first (see `currentPreferences` for why).
  */
 function rememberPickerFolder(
   folder: string,
   context: Pick<
     InputsContext,
-    'lastPickerFolder' | 'preferences' | 'currentPreferences' | 'currentOutputFolder'
+    | 'lastPickerFolder'
+    | 'preferences'
+    | 'currentPreferences'
+    | 'currentOutputFolder'
+    | 'preferredNetworkInterface'
   >,
 ): void {
   context.lastPickerFolder = folder;
-  void context.preferences?.save(context.currentPreferences, context.currentOutputFolder, folder);
+  void context.preferences?.save(
+    context.currentPreferences,
+    context.currentOutputFolder,
+    folder,
+    context.preferredNetworkInterface,
+  );
 }
 
 /**

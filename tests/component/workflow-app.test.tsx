@@ -1735,6 +1735,8 @@ describe('process control in the queue', () => {
 
 describe('sharing to an e-reader', () => {
   const wifi = { name: 'Wi-Fi', address: '192.168.1.24' };
+  const radmin = { name: 'Radmin VPN', address: '26.97.251.250' };
+  const ethernet = { name: 'Ethernet', address: '192.168.18.39' };
   const sharingOn = {
     active: true as const,
     url: 'http://192.168.1.24:8080',
@@ -1753,6 +1755,75 @@ describe('sharing to an e-reader', () => {
     await user.click(await runButton('Convert 1 item'));
     await screen.findByRole('heading', { name: '1 book saved' });
   }
+
+  it('remembers an explicitly chosen interface when the panel closes and the app reopens', async () => {
+    const user = userEvent.setup();
+    const saveSettings = vi.fn<MangaboundBridge['saveSettings']>(() =>
+      Promise.resolve({ ok: true, value: undefined }),
+    );
+    installBridge(
+      bridge({
+        listNetworkInterfaces: () => Promise.resolve({ ok: true, value: [radmin, ethernet] }),
+        saveSettings,
+      }),
+    );
+    const firstWindow = render(<App />);
+    await user.click(await screen.findByRole('button', { name: 'Share' }));
+    await waitFor(() => {
+      expect(screen.getByLabelText('Network interface')).toHaveValue(radmin.address);
+    });
+    expect(saveSettings).not.toHaveBeenCalled();
+
+    await user.selectOptions(screen.getByLabelText('Network interface'), ethernet.address);
+    await waitFor(() => {
+      expect(saveSettings).toHaveBeenCalledWith({
+        preferences: defaultPreferences,
+        preferredNetworkInterface: ethernet,
+      });
+    });
+    await user.click(screen.getByRole('button', { name: 'Close sharing' }));
+    await user.click(screen.getByRole('button', { name: 'Share' }));
+    expect(screen.getByLabelText('Network interface')).toHaveValue(ethernet.address);
+
+    firstWindow.unmount();
+    installBridge(
+      bridge({
+        listNetworkInterfaces: () => Promise.resolve({ ok: true, value: [radmin, ethernet] }),
+        loadSettings: keptSettings({ preferredNetworkInterface: ethernet }),
+        saveSettings,
+      }),
+    );
+    render(<App />);
+    await user.click(await screen.findByRole('button', { name: 'Share' }));
+    await waitFor(() => {
+      expect(screen.getByLabelText('Network interface')).toHaveValue(ethernet.address);
+    });
+    expect(saveSettings).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses the current address of a remembered adapter after its IP changes', async () => {
+    const user = userEvent.setup();
+    const newEthernet = { name: 'Ethernet', address: '192.168.18.50' };
+    const startSharing = okStart();
+    installBridge(
+      bridge({
+        listNetworkInterfaces: () => Promise.resolve({ ok: true, value: [radmin, newEthernet] }),
+        loadSettings: keptSettings({ preferredNetworkInterface: ethernet }),
+        startSharing,
+      }),
+    );
+    render(<App />);
+    await user.click(await screen.findByRole('button', { name: 'Share' }));
+    await waitFor(() => {
+      expect(screen.getByLabelText('Network interface')).toHaveValue(newEthernet.address);
+    });
+    await user.click(screen.getByRole('button', { name: 'Choose a library to share' }));
+    await user.click(screen.getByRole('button', { name: 'Start sharing' }));
+    expect(startSharing).toHaveBeenCalledWith('library', newEthernet.address, {
+      username: '',
+      password: '',
+    });
+  });
 
   it('has one Share button, in the title bar, that says whether anything is shared', async () => {
     const user = userEvent.setup();
