@@ -5,10 +5,13 @@ export interface MangabindRunArguments {
   readonly dryRun: boolean;
   readonly batch?: boolean;
   readonly quiet?: boolean;
+  /** Write the whole manga as one .cbz instead of one per volume - see mangabind's ADR 0012. */
+  readonly combine?: boolean;
 }
 
 export function buildMangabindArguments({
   batch,
+  combine,
   dryRun,
   inputPath,
   metadataFilePath,
@@ -25,6 +28,7 @@ export function buildMangabindArguments({
     outputPath,
     ...(metadataFilePath === undefined ? [] : ['--metadata-file', metadataFilePath]),
     ...(batch === true ? ['--batch'] : []),
+    ...(combine === true ? ['--combine'] : []),
     ...(dryRun ? ['--dry-run'] : []),
     ...(quiet === true ? ['--quiet'] : []),
     '--json',

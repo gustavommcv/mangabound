@@ -71,6 +71,7 @@ const preferenceSettingFields = {
   language: z.string().trim().min(1).max(40),
   customWidth: z.number().int().min(1).optional(),
   customHeight: z.number().int().min(1).optional(),
+  combineIntoOneVolume: z.boolean(),
 };
 
 const customProfileNeedsASize = {

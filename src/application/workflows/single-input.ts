@@ -132,7 +132,10 @@ export class SingleInputWorkflow {
     },
   ): Promise<readonly ConversionArtifact[]> {
     const mode = request.mode ?? defaultProcessMode;
-    if (usesMangapress(mode) && validateMangapressSettings(request.settings).length > 0) {
+    if (
+      usesMangapress(mode) &&
+      validateMangapressSettings(request.settings, request.format).length > 0
+    ) {
       throw new ConversionWorkflowError(
         'invalid_settings',
         'Review the output settings before converting.',
@@ -166,15 +169,29 @@ export class SingleInputWorkflow {
         );
       }
       const mapping = trustedMapping(session.trustedDraft, request.mapping);
+      // Only meaningful when mangapress will actually build the book from it: mangapress settings
+      // are irrelevant, and the renderer sends the defaults for them, whenever it will not run
+      // (ADR 0009) - bind-only stays one file per volume regardless of this setting.
+      const combine = usesMangapress(mode) && request.settings.combineIntoOneVolume;
       onProgress({ stage: 'binding', message: 'Building volume files…' });
-      const bound = await this.binding.bind(session.workspaceId, mapping, signal);
-      if (bound.volumePaths.length === 0) {
-        throw new ConversionWorkflowError(
-          'no_volumes',
-          'No volume files were produced. Review the chapter mapping and try again.',
-        );
+      const bound = await this.binding.bind(session.workspaceId, mapping, signal, combine);
+      if (combine) {
+        if (bound.combinedOutputPath === undefined) {
+          throw new ConversionWorkflowError(
+            'no_volumes',
+            'No volume files were produced. Review the chapter mapping and try again.',
+          );
+        }
+        inputs = [bound.combinedOutputPath];
+      } else {
+        if (bound.volumePaths.length === 0) {
+          throw new ConversionWorkflowError(
+            'no_volumes',
+            'No volume files were produced. Review the chapter mapping and try again.',
+          );
+        }
+        inputs = bound.volumePaths;
       }
-      inputs = bound.volumePaths;
     }
 
     const artifacts: ConversionArtifact[] = [];
@@ -207,7 +224,10 @@ export class SingleInputWorkflow {
     { signal }: { readonly signal?: AbortSignal } = {},
   ): Promise<WorkflowPlan> {
     const mode = request.mode ?? defaultProcessMode;
-    if (usesMangapress(mode) && validateMangapressSettings(request.settings).length > 0) {
+    if (
+      usesMangapress(mode) &&
+      validateMangapressSettings(request.settings, request.format).length > 0
+    ) {
       throw new ConversionWorkflowError(
         'invalid_settings',
         'Review the output settings before validating the plan.',
@@ -310,7 +330,10 @@ export class SingleInputWorkflow {
     },
   ): Promise<readonly BatchTitleOutcome[]> {
     const mode = request.mode ?? defaultProcessMode;
-    if (usesMangapress(mode) && validateMangapressSettings(request.settings).length > 0) {
+    if (
+      usesMangapress(mode) &&
+      validateMangapressSettings(request.settings, request.format).length > 0
+    ) {
       throw new ConversionWorkflowError(
         'invalid_settings',
         'Review the output settings before converting.',

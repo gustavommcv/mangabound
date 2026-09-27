@@ -279,7 +279,7 @@ export function App(): React.JSX.Element {
   useEffect(() => {
     if (bridge?.saveSettings === undefined || !restored) return;
     // A value that is half typed is not kept: the last valid options stay saved until it is fixed.
-    if (validateMangapressSettings(settings).length > 0) return;
+    if (validateMangapressSettings(settings, format).length > 0) return;
     const command = settingsToKeep({
       mode,
       format,
@@ -968,6 +968,7 @@ export function App(): React.JSX.Element {
                 <MangapressSettingsEditor
                   format={format}
                   onFormat={setFormat}
+                  onNotify={notify}
                   onSettings={setSettings}
                   profiles={profiles}
                   settings={settings}
