@@ -7,7 +7,7 @@
       "internal": ["-json", "-protocol-version", "-version"]
     },
     "mangapress": {
-      "workflow": ["--output", "-o"],
+      "workflow": ["--nested-toc", "--output", "-o"],
       "user": [
         "--author",
         "--autolevel",

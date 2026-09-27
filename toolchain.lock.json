@@ -45,37 +45,37 @@
     "mangapress": {
       "sourceRepo": "https://github.com/gustavommcv/mangapress",
       "pin": {
-        "releaseTag": "v0.5.0",
+        "releaseTag": "v0.6.0",
         "protocolVersion": "1",
         "checksums": {
           "assetName": "checksums.txt",
-          "url": "https://github.com/gustavommcv/mangapress/releases/download/v0.5.0/checksums.txt",
-          "sha256": "d84ab147dda3cf83db6fd767b987872029bc981173ed111058349bb54c1099f7"
+          "url": "https://github.com/gustavommcv/mangapress/releases/download/v0.6.0/checksums.txt",
+          "sha256": "c23da2a38f27c12075e1cd504ca01af5973b6ffc55319bb641e2afc9ec44bbe2"
         },
         "artifacts": {
           "win32-x64": {
             "assetName": "mangapress-x86_64-pc-windows-msvc.zip",
-            "url": "https://github.com/gustavommcv/mangapress/releases/download/v0.5.0/mangapress-x86_64-pc-windows-msvc.zip",
-            "archiveSha256": "b8ade072b595fe5d821f3c7d34debf09345320bdd70636145757bbfbe8ee10af",
-            "executableSha256": "53f9c459fd9b2944f01c76f450c142a297696071278acdd6cf718541c539f041"
+            "url": "https://github.com/gustavommcv/mangapress/releases/download/v0.6.0/mangapress-x86_64-pc-windows-msvc.zip",
+            "archiveSha256": "d54ee6ca1172ed9ba9267cf429c16f4da9eb31014c83a7eda5729a9226acbc34",
+            "executableSha256": "3c18e77ac812a5875d5e83842133762e3c6f9d74b00636ff58830eb088ebf3cb"
           },
           "linux-x64": {
             "assetName": "mangapress-x86_64-unknown-linux-musl.tar.gz",
-            "url": "https://github.com/gustavommcv/mangapress/releases/download/v0.5.0/mangapress-x86_64-unknown-linux-musl.tar.gz",
-            "archiveSha256": "01cacc3429d7049151ecb191b623f06ad7762c65ee75a7421e8f5e8525863a37",
-            "executableSha256": "dc7537526269fd47b91dac8cddd130cb6e08fd495813eace125322bc0248eadf"
+            "url": "https://github.com/gustavommcv/mangapress/releases/download/v0.6.0/mangapress-x86_64-unknown-linux-musl.tar.gz",
+            "archiveSha256": "51f0c84df3cef7c17933123edfb8dd3c94ca5441a21bce63ae676e4a4f001a95",
+            "executableSha256": "04b03d715f3af1bdaf355c2a471dab82191d3b82101ac6aa5e4d5960f0fa3a7d"
           },
           "darwin-x64": {
             "assetName": "mangapress-x86_64-apple-darwin.tar.gz",
-            "url": "https://github.com/gustavommcv/mangapress/releases/download/v0.5.0/mangapress-x86_64-apple-darwin.tar.gz",
-            "archiveSha256": "0546821b92d2b2d5c5ce690d2a9a8c3b72b593a3da53738dd8b846edbf53f78e",
-            "executableSha256": "adbb0eba6549a405f152c145cc2a8bd7a0e4dcab3264d4a13c45bd2d9719708b"
+            "url": "https://github.com/gustavommcv/mangapress/releases/download/v0.6.0/mangapress-x86_64-apple-darwin.tar.gz",
+            "archiveSha256": "84078f6ccfcd1528ba852df0b48cee53e071b1d818d36241ea2964b8bbc8fc37",
+            "executableSha256": "c626c1adadd34765b01426d2b51c4a6617fcbb381ab57c33653f568b62c2d53e"
           },
           "darwin-arm64": {
             "assetName": "mangapress-aarch64-apple-darwin.tar.gz",
-            "url": "https://github.com/gustavommcv/mangapress/releases/download/v0.5.0/mangapress-aarch64-apple-darwin.tar.gz",
-            "archiveSha256": "0652fef0215dc3519d5e524ec2ac3bcea24e026683e9f2590d67583c2e6dec5c",
-            "executableSha256": "b6741414f98a5d1f006e4b0477d26a938fc7cb4b2814600bdc0425facbd57797"
+            "url": "https://github.com/gustavommcv/mangapress/releases/download/v0.6.0/mangapress-aarch64-apple-darwin.tar.gz",
+            "archiveSha256": "fc0cda718c9467dfea131152ba2566e961701bce13d443ed42ca3b7b3d6c4710",
+            "executableSha256": "c0251ae2be8bb833bec753593a55a478ca7818877587cc2c540a1510696f8a92"
           }
         }
       }
