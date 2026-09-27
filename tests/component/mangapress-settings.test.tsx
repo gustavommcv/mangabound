@@ -25,6 +25,14 @@ const profiles = [
     family: 'kindle',
   },
   {
+    code: 'KS',
+    name: 'Kindle Scribe',
+    width: 1860,
+    height: 2480,
+    grayLevels: 16,
+    family: 'kindle',
+  },
+  {
     code: 'OTHER',
     name: 'Custom',
     width: 0,
@@ -179,5 +187,78 @@ describe('mangapress settings editor', () => {
       'aria-invalid',
       'true',
     );
+  });
+
+  it('marks changed fields and restores only the chosen select, toggle, text, or number', async () => {
+    const user = userEvent.setup();
+    render(<StatefulEditor />);
+    expect(screen.queryByRole('button', { name: /^Restore default for/u })).not.toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText('Book format'), 'cbz');
+    await user.selectOptions(screen.getByLabelText('Double-page spreads'), 'rotate');
+    await user.click(screen.getByLabelText('Manga reading order'));
+    await user.type(screen.getByLabelText('Gamma (optional)'), '1.2');
+    await user.type(screen.getByLabelText('Title'), 'A new book');
+
+    for (const label of [
+      'Book format',
+      'Double-page spreads',
+      'Manga reading order',
+      'Gamma',
+      'Title',
+    ]) {
+      expect(screen.getByRole('button', { name: `Restore default for ${label}` })).toBeVisible();
+    }
+    expect(screen.getByText('Double-page spreads')).toHaveClass('text-accent');
+
+    await user.click(screen.getByRole('button', { name: 'Restore default for Gamma' }));
+    expect(screen.getByLabelText('Gamma (optional)')).toHaveDisplayValue('');
+    expect(screen.getByLabelText('Gamma (optional)')).toHaveFocus();
+    expect(
+      screen.queryByRole('button', { name: 'Restore default for Gamma' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Book format')).toHaveValue('cbz');
+
+    await user.click(screen.getByRole('button', { name: 'Restore default for Book format' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Restore default for Double-page spreads' }),
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'Restore default for Manga reading order' }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Restore default for Title' }));
+    expect(screen.getByLabelText('Book format')).toHaveValue('epub');
+    expect(screen.getByLabelText('Double-page spreads')).toHaveValue('both');
+    expect(screen.getByLabelText('Manga reading order')).toBeChecked();
+    expect(screen.getByLabelText('Title')).toHaveValue('');
+    expect(screen.queryByRole('button', { name: /^Restore default for/u })).not.toBeInTheDocument();
+  });
+
+  it('uses the selected device’s upscale default and restores a disabled modified field', async () => {
+    const user = userEvent.setup();
+    render(<StatefulEditor />);
+
+    await user.selectOptions(screen.getByLabelText('Device profile'), 'KS');
+    expect(screen.getByLabelText('Upscale small pages')).not.toBeChecked();
+    expect(
+      screen.queryByRole('button', { name: 'Restore default for Upscale small pages' }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByLabelText('Upscale small pages'));
+    await user.click(
+      screen.getByRole('button', { name: 'Restore default for Upscale small pages' }),
+    );
+    expect(screen.getByLabelText('Upscale small pages')).not.toBeChecked();
+
+    await user.type(screen.getByLabelText('JPEG quality (optional)'), '80');
+    await user.click(screen.getByLabelText('Dithered grayscale PNG'));
+    expect(screen.getByLabelText('JPEG quality (optional)')).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Restore default for JPEG quality' }));
+    expect(screen.getByLabelText('JPEG quality (optional)')).toHaveDisplayValue('');
+    expect(screen.getByLabelText('Dithered grayscale PNG')).toBeChecked();
+
+    await user.click(screen.getByRole('button', { name: 'Restore default for Device profile' }));
+    expect(screen.getByLabelText('Device profile')).toHaveValue('KPW6');
+    expect(screen.getByLabelText('Upscale small pages')).toBeChecked();
+    expect(screen.getByLabelText('Dithered grayscale PNG')).toBeChecked();
   });
 });

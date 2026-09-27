@@ -68,6 +68,15 @@ describe('process steps', () => {
     expect(convert()).toBeChecked();
     expect(convert()).toBeDisabled();
     expect(convert()).toHaveAccessibleDescription(/Keep at least one step on/u);
+    expect(
+      screen.getByRole('button', { name: 'Restore default for Group chapters into volumes' }),
+    ).toBeVisible();
+    await user.click(
+      screen.getByRole('button', { name: 'Restore default for Group chapters into volumes' }),
+    );
+    expect(group()).toBeChecked();
+    expect(convert()).toBeChecked();
+    expect(screen.queryByRole('button', { name: /^Restore default for/u })).not.toBeInTheDocument();
   });
 
   it('keeps a CBZ on the one process it has, with the reason visible', () => {
@@ -80,6 +89,7 @@ describe('process steps', () => {
     expect(convert()).toBeChecked();
     expect(convert()).toBeDisabled();
     expect(screen.getByText(/already one volume, so there is nothing to join/u)).toBeVisible();
+    expect(screen.queryByRole('button', { name: /^Restore default for/u })).not.toBeInTheDocument();
   });
 
   it('keeps a library grouped, since it is bound title by title', async () => {
@@ -101,6 +111,7 @@ describe('process steps', () => {
 
     expect(group()).toBeChecked();
     expect(convert()).toBeChecked();
+    expect(screen.queryByRole('button', { name: /^Restore default for/u })).not.toBeInTheDocument();
   });
 
   it('can be locked while a run is in progress', () => {

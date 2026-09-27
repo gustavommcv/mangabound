@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest';
 import {
   defaultMangapressSettings,
   defaultUpscaleFor,
+  defaultValueForSetting,
   resolveDeviceProfileFallback,
+  restoreSettingDefault,
   validateMangapressSettings,
   withDeviceProfile,
 } from '@/domain/output-profile';
@@ -99,6 +101,30 @@ describe('mangapress default settings', () => {
     expect(withDeviceProfile({ ...edited, upscale: false }, 'KoAO')).toEqual({
       ...edited,
       deviceProfile: 'KoAO',
+      upscale: true,
+    });
+  });
+
+  it('uses the current device for the upscale default and the app defaults for other fields', () => {
+    const scribe = withDeviceProfile(defaultMangapressSettings, 'KS');
+    expect(defaultValueForSetting(scribe, 'upscale')).toBe(false);
+    expect(defaultValueForSetting(defaultMangapressSettings, 'upscale')).toBe(true);
+    expect(defaultValueForSetting(scribe, 'gamma')).toBeUndefined();
+    expect(defaultValueForSetting(scribe, 'mangaStyle')).toBe(true);
+  });
+
+  it('restores one field without changing its neighbors, except the device-upscale pair', () => {
+    const edited = {
+      ...withDeviceProfile(defaultMangapressSettings, 'KS'),
+      gamma: 1.2,
+      quiet: true,
+      upscale: true,
+    };
+    expect(restoreSettingDefault(edited, 'gamma')).toEqual({ ...edited, gamma: undefined });
+    expect(restoreSettingDefault(edited, 'upscale')).toEqual({ ...edited, upscale: false });
+    expect(restoreSettingDefault(edited, 'deviceProfile')).toEqual({
+      ...edited,
+      deviceProfile: 'KPW6',
       upscale: true,
     });
   });

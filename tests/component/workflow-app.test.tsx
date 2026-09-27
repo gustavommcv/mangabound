@@ -1367,6 +1367,75 @@ describe('the options kept between sessions', () => {
       expect(screen.queryByRole('group', { name: 'Confirm reset' })).not.toBeInTheDocument();
     });
 
+    it('restores each changed queue option independently and keeps the general reset', async () => {
+      const user = userEvent.setup();
+      const saveSettings = okSave();
+      installBridge(bridge({ saveSettings, getDeviceProfiles: twoDevices() }));
+      render(<App />);
+      await changeEverything(user);
+
+      expect(screen.getByRole('button', { name: 'Reset to defaults' })).toHaveAttribute(
+        'aria-disabled',
+        'false',
+      );
+      for (const label of ['Device', 'Format', 'Group chapters into volumes']) {
+        expect(screen.getByRole('button', { name: `Restore default for ${label}` })).toBeVisible();
+      }
+
+      await user.click(screen.getByRole('button', { name: 'Restore default for Device' }));
+      expect(screen.getByLabelText('Device')).toHaveValue('KPW6');
+      expect(screen.getByRole('radio', { name: 'PDF' })).toBeChecked();
+      expect(
+        screen.getByRole('checkbox', { name: 'Group chapters into volumes' }),
+      ).not.toBeChecked();
+
+      await user.click(screen.getByRole('button', { name: 'Restore default for Format' }));
+      expect(screen.getByRole('radio', { name: 'EPUB' })).toBeChecked();
+      expect(
+        screen.getByRole('checkbox', { name: 'Group chapters into volumes' }),
+      ).not.toBeChecked();
+
+      await user.click(
+        screen.getByRole('button', { name: 'Restore default for Group chapters into volumes' }),
+      );
+      expect(screen.getByRole('checkbox', { name: 'Group chapters into volumes' })).toBeChecked();
+      expect(screen.getByRole('button', { name: 'Reset to defaults' })).toHaveAttribute(
+        'aria-disabled',
+        'true',
+      );
+      await waitFor(() => {
+        expect(saveCalls(saveSettings).at(-1)?.preferences).toEqual(defaultPreferences);
+      });
+    });
+
+    it('saves an individual restore from the detailed options without discarding other changes', async () => {
+      const user = userEvent.setup();
+      const saveSettings = okSave();
+      installBridge(bridge({ saveSettings }));
+      render(<App />);
+      await user.click(await screen.findByRole('button', { name: /mangapress options/u }));
+
+      await user.click(screen.getByLabelText('Dithered grayscale PNG'));
+      await user.type(screen.getByLabelText('Title'), 'My manga');
+      expect(screen.getByRole('button', { name: 'Restore default for Title' })).toBeVisible();
+      expect(
+        screen.getByRole('button', { name: 'Restore default for Dithered grayscale PNG' }),
+      ).toBeVisible();
+
+      await user.click(screen.getByRole('button', { name: 'Restore default for Title' }));
+      expect(screen.getByLabelText('Title')).toHaveValue('');
+      expect(screen.getByLabelText('Dithered grayscale PNG')).toBeChecked();
+      expect(screen.getByRole('button', { name: 'Reset to defaults' })).toHaveAttribute(
+        'aria-disabled',
+        'false',
+      );
+      await waitFor(() => {
+        const preferences = saveCalls(saveSettings).at(-1)?.preferences;
+        expect(preferences?.settings.forcePng).toBe(true);
+        expect(preferences?.settings).not.toHaveProperty('title');
+      });
+    });
+
     it('puts the steps, device, format and options back, keeps the folder, and saves that', async () => {
       const user = userEvent.setup();
       const saveSettings = okSave();

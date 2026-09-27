@@ -11,15 +11,15 @@ import { useEffect, useRef } from 'react';
 
 import { type QueueRow, summarizeQueue } from '@/domain/input-queue';
 import type { BookFormat } from '@/domain/conversion';
-import type { MangapressSettings } from '@/domain/output-profile';
-import { isDefaultMangapress } from '@/domain/preferences';
+import { defaultMangapressSettings, type MangapressSettings } from '@/domain/output-profile';
+import { defaultFormat, isDefaultMangapress } from '@/domain/preferences';
 import { defaultProcessMode, type ProcessMode } from '@/domain/process-mode';
 import { DropTarget } from '@/renderer/components/queue/drop-target';
 import { QueueRowItem } from '@/renderer/components/queue/queue-row';
 import { ProcessSteps } from '@/renderer/components/settings/process-steps';
 import { ResetOptions } from '@/renderer/components/settings/reset-options';
+import { SettingFieldHeader } from '@/renderer/components/settings/setting-field-header';
 import { Button } from '@/renderer/components/ui/button';
-import { Label } from '@/renderer/components/ui/label';
 import { NativeSelect } from '@/renderer/components/ui/native-select';
 import { SegmentedControl } from '@/renderer/components/ui/segmented-control';
 import type {
@@ -222,7 +222,15 @@ export function QueueScreen(props: QueueScreenProps): React.JSX.Element {
         <ProcessSteps input={stepsInput(rows)} mode={mode} onMode={onMode} />
 
         <div className="space-y-1.5">
-          <Label htmlFor="queue-device">Device</Label>
+          <SettingFieldHeader
+            changed={settings.deviceProfile !== defaultMangapressSettings.deviceProfile}
+            disabled={!mangapressRuns || profiles.length === 0}
+            id="queue-device"
+            label="Device"
+            onReset={() => {
+              onDeviceProfile(defaultMangapressSettings.deviceProfile);
+            }}
+          />
           <NativeSelect
             disabled={!mangapressRuns || profiles.length === 0}
             id="queue-device"
@@ -240,7 +248,14 @@ export function QueueScreen(props: QueueScreenProps): React.JSX.Element {
         </div>
 
         <div className="space-y-1.5">
-          <p className="text-sm leading-none font-medium">Format</p>
+          <SettingFieldHeader
+            changed={format !== defaultFormat}
+            disabled={!mangapressRuns}
+            label="Format"
+            onReset={() => {
+              onFormat(defaultFormat);
+            }}
+          />
           <SegmentedControl
             disabled={!mangapressRuns}
             label="Format"

@@ -21,6 +21,14 @@ const profiles = [
     grayLevels: 256,
     family: 'other',
   },
+  {
+    code: 'KS',
+    name: 'Kindle Scribe',
+    width: 1860,
+    height: 2480,
+    grayLevels: 16,
+    family: 'kindle',
+  },
 ] as const;
 
 const meta = {
@@ -49,6 +57,23 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Normal: Story = {};
+
+export const ModifiedOptions: Story = {
+  args: {
+    format: 'cbz',
+    settings: {
+      ...defaultMangapressSettings,
+      deviceProfile: 'KS',
+      upscale: false,
+      mangaStyle: false,
+      splitter: 'rotate',
+      gamma: 1.2,
+      jpegQuality: 80,
+      title: 'Example title',
+      quiet: true,
+    },
+  },
+};
 
 export const ConditionalControls: Story = {
   args: {

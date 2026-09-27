@@ -104,6 +104,13 @@ test('full output settings remain visually consistent', async ({ page }) => {
   await expect(page.locator('#storybook-root')).toHaveScreenshot('output-settings.png');
 });
 
+test('changed output settings show aligned labels and individual resets', async ({ page }) => {
+  await page.goto('/iframe.html?id=workflows-output-settings--modified-options&viewMode=story');
+  await expect(page.getByRole('button', { name: 'Restore default for Gamma' })).toBeVisible();
+  await page.evaluate(async () => document.fonts.ready);
+  await expect(page.locator('#storybook-root')).toHaveScreenshot('output-settings-modified.png');
+});
+
 test('an online source with its results remains visually consistent', async ({ page }) => {
   await page.goto(
     '/iframe.html?id=workflows-mapping-editor--with-metadata-suggestions&viewMode=story',
