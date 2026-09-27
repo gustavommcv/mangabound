@@ -15,6 +15,7 @@ const kept: StoredSettings = {
   settings: { ...defaultMangapressSettings, deviceProfile: 'KS' },
   providerId: 'mangadex',
   outputFolder: '/books',
+  preferredNetworkInterface: { name: 'Ethernet', address: '192.168.18.39' },
 };
 
 function store(load: SettingsLoad): {
@@ -42,6 +43,7 @@ describe('restoring the options', () => {
         providerId: 'mangadex',
       },
       outputFolder: '/books',
+      preferredNetworkInterface: { name: 'Ethernet', address: '192.168.18.39' },
       notices: [],
     });
     expect(directoryExists).toHaveBeenCalledExactlyOnceWith('/books');
@@ -116,13 +118,17 @@ describe('keeping the options', () => {
     const { port, save } = store({ settings: defaultPreferences, unreadable: false });
     const workflow = new PreferencesWorkflow(port, () => Promise.resolve(true));
 
-    await workflow.save({ ...defaultPreferences, format: 'cbz' }, '/books', '/downloads');
+    await workflow.save({ ...defaultPreferences, format: 'cbz' }, '/books', '/downloads', {
+      name: 'Ethernet',
+      address: '192.168.18.39',
+    });
 
     expect(save).toHaveBeenCalledExactlyOnceWith({
       ...defaultPreferences,
       format: 'cbz',
       outputFolder: '/books',
       lastPickerFolder: '/downloads',
+      preferredNetworkInterface: { name: 'Ethernet', address: '192.168.18.39' },
     });
   });
 

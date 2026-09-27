@@ -40,7 +40,7 @@ Two rules follow from this and are checked in review: **the renderer never touch
 
 ## What is kept between runs
 
-- **Options and the output folder** are in `settings.json` in the operating system's per-user app data folder, written atomically and read once at launch ([ADR 0014](adr/0014-persisted-settings-and-reset.md)).
+- **Options, the output folder and the chosen sharing interface** are in `settings.json` in the operating system's per-user app data folder, written atomically and read once at launch ([ADR 0014](adr/0014-persisted-settings-and-reset.md), [ADR 0022](adr/0022-remember-chosen-network-interface.md)). The OPDS server still starts only when requested.
 - **Each output library's catalog** is `<library>/.mangabound/library.json`.
 - Nothing else is: the queue, the drafts and the sessions are gone when the app closes, and the scratch workspaces are removed with them.
 

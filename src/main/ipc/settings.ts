@@ -18,7 +18,11 @@ import { failed, ok, toFailure } from './result';
 export function registerSettingsHandlers(
   context: Pick<
     MainContext,
-    'selectedLibraries' | 'currentPreferences' | 'currentOutputFolder' | 'lastPickerFolder'
+    | 'selectedLibraries'
+    | 'currentPreferences'
+    | 'currentOutputFolder'
+    | 'lastPickerFolder'
+    | 'preferredNetworkInterface'
   >,
   workflows: PreferencesWorkflow,
 ): void {
@@ -26,6 +30,7 @@ export function registerSettingsHandlers(
     try {
       const restored = await workflows.restore();
       context.lastPickerFolder = restored.lastPickerFolder;
+      context.preferredNetworkInterface = restored.preferredNetworkInterface;
       context.currentPreferences = restored.preferences;
       context.currentOutputFolder = restored.outputFolder;
       // The window is given the folder the way a dialog would give it: by an id, never a path.
@@ -37,6 +42,9 @@ export function registerSettingsHandlers(
       }
       return ok({
         preferences: restored.preferences,
+        ...(restored.preferredNetworkInterface === undefined
+          ? {}
+          : { preferredNetworkInterface: restored.preferredNetworkInterface }),
         ...(library === undefined ? {} : { library }),
         notices: restored.notices,
       });
@@ -56,7 +64,13 @@ export function registerSettingsHandlers(
             : context.selectedLibraries.get(command.libraryId);
         context.currentPreferences = command.preferences;
         context.currentOutputFolder = outputFolder;
-        await workflows.save(command.preferences, outputFolder, context.lastPickerFolder);
+        context.preferredNetworkInterface = command.preferredNetworkInterface;
+        await workflows.save(
+          command.preferences,
+          outputFolder,
+          context.lastPickerFolder,
+          context.preferredNetworkInterface,
+        );
         return ok(undefined);
       } catch (error) {
         return failed(toFailure(error));

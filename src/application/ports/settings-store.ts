@@ -1,11 +1,15 @@
 import type { Preferences } from '@/domain/preferences';
 
-/** Everything kept between sessions: the options, and where finished books are saved. */
+import type { NetworkInterfaceOption } from './network-interfaces';
+
+/** Everything kept between sessions: options, output location and sharing interface. */
 export interface StoredSettings extends Preferences {
   /** The absolute path of the output folder last used. */
   readonly outputFolder?: string;
   /** The folder a choose-file or choose-folder dialog last left the person in. */
   readonly lastPickerFolder?: string;
+  /** The network interface explicitly chosen for sharing, even if it is currently unavailable. */
+  readonly preferredNetworkInterface?: NetworkInterfaceOption;
 }
 
 export interface SettingsLoad {

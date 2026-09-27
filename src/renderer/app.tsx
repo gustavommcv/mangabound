@@ -39,6 +39,7 @@ import { ResetOptions } from '@/renderer/components/settings/reset-options';
 import { SendToKoreader } from '@/renderer/components/sharing/send-to-koreader';
 import { SharePanel } from '@/renderer/components/sharing/share-panel';
 import { ShareMenu } from '@/renderer/components/sharing/share-menu';
+import { resolveNetworkInterface } from '@/renderer/lib/sharing';
 import { Titlebar } from '@/renderer/components/shell/titlebar';
 import { Button } from '@/renderer/components/ui/button';
 import { LibraryScreen } from '@/renderer/screens/library-screen';
@@ -83,6 +84,7 @@ function settingsToKeep(values: {
   readonly settings: MangapressSettings;
   readonly providerId: string | undefined;
   readonly libraryId: string | undefined;
+  readonly preferredNetworkInterface: NetworkInterfaceOption | undefined;
 }): SaveSettingsCommand {
   return {
     preferences: {
@@ -92,6 +94,9 @@ function settingsToKeep(values: {
       ...(values.providerId === undefined ? {} : { providerId: values.providerId }),
     },
     ...(values.libraryId === undefined ? {} : { libraryId: values.libraryId }),
+    ...(values.preferredNetworkInterface === undefined
+      ? {}
+      : { preferredNetworkInterface: values.preferredNetworkInterface }),
   };
 }
 
@@ -175,6 +180,8 @@ export function App(): React.JSX.Element {
   const [sharePanelOpen, setSharePanelOpen] = useState(false);
   const [sharedLibrary, setSharedLibrary] = useState<SelectedLibrary>();
   const [interfaces, setInterfaces] = useState<readonly NetworkInterfaceOption[]>([]);
+  const [preferredNetworkInterface, setPreferredNetworkInterface] =
+    useState<NetworkInterfaceOption>();
   const [sharingStatus, setSharingStatus] = useState<OpdsSharingStatus>({ active: false });
   const [metadataProviders, setMetadataProviders] = useState<readonly MetadataProviderDescriptor[]>(
     [],
@@ -252,12 +259,14 @@ export function App(): React.JSX.Element {
             ...saved.preferences,
             providerId: saved.preferences.providerId,
             libraryId: saved.library?.libraryId,
+            preferredNetworkInterface: saved.preferredNetworkInterface,
           }),
         );
         setMode(saved.preferences.mode);
         setFormat(saved.preferences.format);
         setSettings(saved.preferences.settings);
         setSelectedProviderId(saved.preferences.providerId);
+        setPreferredNetworkInterface(saved.preferredNetworkInterface);
         if (saved.library !== undefined) setLibrary(saved.library);
         for (const notice of saved.notices) notify(notice);
         setRestored(true);
@@ -277,6 +286,7 @@ export function App(): React.JSX.Element {
       settings,
       providerId: selectedProviderId,
       libraryId: library?.libraryId,
+      preferredNetworkInterface,
     });
     const key = JSON.stringify(command);
     if (key === lastKept.current) return;
@@ -294,7 +304,17 @@ export function App(): React.JSX.Element {
         failedToSave('The settings could not be saved.');
       },
     );
-  }, [bridge, restored, mode, format, settings, selectedProviderId, library, notify]);
+  }, [
+    bridge,
+    restored,
+    mode,
+    format,
+    settings,
+    selectedProviderId,
+    library,
+    preferredNetworkInterface,
+    notify,
+  ]);
 
   useEffect(() => {
     if (bridge?.onConversionProgress === undefined) return;
@@ -774,6 +794,7 @@ export function App(): React.JSX.Element {
   const activeProviderId = metadataProviders.some((provider) => provider.id === selectedProviderId)
     ? selectedProviderId
     : undefined;
+  const selectedNetworkInterface = resolveNetworkInterface(interfaces, preferredNetworkInterface);
   // Both MappingEditor placements (a single input, one title of a library) offer the same online
   // sources the same way; only the draft, its confirm/skip behavior and where it came from differ.
   const metadataProviderProps: Pick<
@@ -828,6 +849,7 @@ export function App(): React.JSX.Element {
           >
             <SharePanel
               interfaces={interfaces}
+              selectedInterface={selectedNetworkInterface}
               library={sharedLibrary}
               onChooseLibrary={() => {
                 void chooseSharedLibrary();
@@ -835,6 +857,7 @@ export function App(): React.JSX.Element {
               onStart={(interfaceAddress, auth) => {
                 void startSharing(interfaceAddress, auth);
               }}
+              onSelectInterface={setPreferredNetworkInterface}
               onStop={() => {
                 void stopSharing();
               }}
