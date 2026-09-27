@@ -44,8 +44,10 @@ const profiles = [
 
 function StatefulEditor({
   onChange = vi.fn(),
+  onNotify = vi.fn(),
 }: {
   readonly onChange?: (value: MangapressSettings) => void;
+  readonly onNotify?: (message: string) => void;
 }) {
   const [settings, setSettings] = useState(defaultMangapressSettings);
   const [format, setFormat] = useState<BookFormat>('epub');
@@ -53,6 +55,7 @@ function StatefulEditor({
     <MangapressSettingsEditor
       format={format}
       onFormat={setFormat}
+      onNotify={onNotify}
       onSettings={(value) => {
         setSettings(value);
         onChange(value);
@@ -105,6 +108,7 @@ describe('mangapress settings editor', () => {
       'EPUB language',
       'Keep ComicInfo.xml',
       'Quiet mode',
+      'Bind the whole series as one volume',
     ]) {
       expect(screen.getByLabelText(label)).toBeInTheDocument();
     }
@@ -187,6 +191,34 @@ describe('mangapress settings editor', () => {
       'aria-invalid',
       'true',
     );
+  });
+
+  it('rules out CBZ and PDF while combining into one volume is on', async () => {
+    const user = userEvent.setup();
+    render(<StatefulEditor />);
+
+    const cbzOption: HTMLOptionElement = screen.getByRole('option', { name: 'CBZ' });
+    const pdfOption: HTMLOptionElement = screen.getByRole('option', { name: 'PDF' });
+    expect(cbzOption.disabled).toBe(false);
+    expect(pdfOption.disabled).toBe(false);
+
+    await user.click(screen.getByLabelText('Bind the whole series as one volume'));
+
+    expect(cbzOption.disabled).toBe(true);
+    expect(pdfOption.disabled).toBe(true);
+    expect(screen.getByLabelText('Book format')).toHaveValue('epub');
+  });
+
+  it('switches away from CBZ or PDF and says why when combining is turned on', async () => {
+    const user = userEvent.setup();
+    const onNotify = vi.fn();
+    render(<StatefulEditor onNotify={onNotify} />);
+
+    await user.selectOptions(screen.getByLabelText('Book format'), 'cbz');
+    await user.click(screen.getByLabelText('Bind the whole series as one volume'));
+
+    expect(screen.getByLabelText('Book format')).toHaveValue('epub');
+    expect(onNotify).toHaveBeenCalledWith(expect.stringContaining('Switched to EPUB'));
   });
 
   it('marks changed fields and restores only the chosen select, toggle, text, or number', async () => {

@@ -270,6 +270,64 @@ describe('single-input workflow', () => {
     });
   });
 
+  it('binds combined and converts the one combined file, not per volume, when the setting is on', async () => {
+    const ports = dependencies();
+    ports.bind.mockResolvedValue({
+      volumePaths: [],
+      combinedOutputPath: '/work/Trusted Manga.cbz',
+      issues: [],
+    });
+    const workflow = new SingleInputWorkflow(
+      ports.binding,
+      ports.conversion,
+      () => 'session',
+      ports.bookFiles,
+    );
+    const inspected = await workflow.inspect(folder);
+
+    const artifacts = await workflow.convert(
+      {
+        sessionId: inspected.sessionId,
+        libraryPath: '/library',
+        settings: { ...defaultMangapressSettings, combineIntoOneVolume: true },
+        format: 'epub',
+        mapping: mappedDraft(),
+      },
+      { onProgress: vi.fn() },
+    );
+
+    expect(ports.bind).toHaveBeenCalledWith('workspace-1', expect.anything(), undefined, true);
+    expect(ports.convert).toHaveBeenCalledTimes(1);
+    expect(ports.convert.mock.calls[0]?.[0].inputPath).toBe('/work/Trusted Manga.cbz');
+    expect(artifacts).toHaveLength(1);
+  });
+
+  it('reports no volumes when a combined bind produces no combined file', async () => {
+    const ports = dependencies();
+    ports.bind.mockResolvedValue({ volumePaths: [], issues: [] });
+    const workflow = new SingleInputWorkflow(
+      ports.binding,
+      ports.conversion,
+      () => 'session',
+      ports.bookFiles,
+    );
+    const inspected = await workflow.inspect(folder);
+
+    await expect(
+      workflow.convert(
+        {
+          sessionId: inspected.sessionId,
+          libraryPath: '/library',
+          settings: { ...defaultMangapressSettings, combineIntoOneVolume: true },
+          format: 'epub',
+          mapping: mappedDraft(),
+        },
+        { onProgress: vi.fn() },
+      ),
+    ).rejects.toMatchObject({ code: 'no_volumes' });
+    expect(ports.convert).not.toHaveBeenCalled();
+  });
+
   it('bypasses binding for a direct CBZ and propagates cancellation to conversion', async () => {
     const ports = dependencies();
     const workflow = new SingleInputWorkflow(

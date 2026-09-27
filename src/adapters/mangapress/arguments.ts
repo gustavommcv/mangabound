@@ -39,6 +39,8 @@ export interface MangapressRunArguments {
   readonly language?: string;
   readonly customWidth?: number;
   readonly customHeight?: number;
+  /** Build a nested volume/chapter table of contents instead of a flat one - EPUB only. */
+  readonly nestedToc?: boolean;
 }
 
 export function buildMangapressArguments(request: MangapressRunArguments): readonly string[] {
@@ -81,6 +83,7 @@ export function buildMangapressArguments(request: MangapressRunArguments): reado
     ...optionalValue('--language', request.language),
     ...optionalValue('--customwidth', request.customWidth),
     ...optionalValue('--customheight', request.customHeight),
+    ...enabled('--nested-toc', request.nestedToc),
     '--json-events',
   ];
 }

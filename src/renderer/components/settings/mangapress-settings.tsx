@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import type { BookFormat } from '@/domain/conversion';
 import {
   defaultValueForSetting,
+  FORMATS_SUPPORTING_COMBINED_VOLUME,
   type MangapressSettingField,
   type MangapressSettings,
   restoreSettingDefault,
@@ -19,6 +20,8 @@ import type { DeviceProfileSummary } from '@/shared/workflow-contract';
 interface MangapressSettingsProps {
   readonly format: BookFormat;
   readonly onFormat: (format: BookFormat) => void;
+  /** A short message shown to the person, the same mechanism used for saved-setting fallbacks. */
+  readonly onNotify: (message: string) => void;
   readonly onSettings: (settings: MangapressSettings) => void;
   readonly profiles: readonly DeviceProfileSummary[];
   readonly settings: MangapressSettings;
@@ -27,11 +30,12 @@ interface MangapressSettingsProps {
 export function MangapressSettingsEditor({
   format,
   onFormat,
+  onNotify,
   onSettings,
   profiles,
   settings,
 }: MangapressSettingsProps): React.JSX.Element {
-  const issues = validateMangapressSettings(settings);
+  const issues = validateMangapressSettings(settings, format);
   const errorFor = (field: MangapressSettingField): string | undefined =>
     issues.find((issue) => issue.field === field)?.message;
   const selectedProfile = profiles.find((candidate) => candidate.code === settings.deviceProfile);
@@ -108,10 +112,40 @@ export function MangapressSettingsEditor({
             value={format}
           >
             <option value="epub">EPUB</option>
-            <option value="cbz">CBZ</option>
-            <option value="pdf">PDF</option>
+            <option
+              disabled={
+                settings.combineIntoOneVolume && !FORMATS_SUPPORTING_COMBINED_VOLUME.has('cbz')
+              }
+              value="cbz"
+            >
+              CBZ
+            </option>
+            <option
+              disabled={
+                settings.combineIntoOneVolume && !FORMATS_SUPPORTING_COMBINED_VOLUME.has('pdf')
+              }
+              value="pdf"
+            >
+              PDF
+            </option>
           </NativeSelect>
         </SelectField>
+        <ToggleField
+          {...resetProps('combineIntoOneVolume')}
+          checked={settings.combineIntoOneVolume}
+          description="One file for the whole series, with volumes and chapters both in the table of contents. EPUB only for now."
+          id="combine-into-one-volume"
+          label="Bind the whole series as one volume"
+          onChecked={(checked) => {
+            if (checked && !FORMATS_SUPPORTING_COMBINED_VOLUME.has(format)) {
+              onFormat('epub');
+              onNotify(
+                'Switched to EPUB: binding the whole series as one volume isn’t available for CBZ or PDF yet.',
+              );
+            }
+            update('combineIntoOneVolume', checked);
+          }}
+        />
         <NumberField
           {...resetProps('customWidth')}
           description="Overrides the profile width. Required with height for the OTHER profile."

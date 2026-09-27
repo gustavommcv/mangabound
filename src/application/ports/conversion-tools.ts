@@ -45,6 +45,11 @@ export interface BindingBatchResult {
 
 export interface BindingResult {
   readonly volumePaths: readonly string[];
+  /**
+   * Set instead of volumePaths having an entry per volume, when combine was requested: the whole
+   * series in one file. volumePaths is empty when this is set.
+   */
+  readonly combinedOutputPath?: string;
   readonly issues: readonly PipelineIssue[];
 }
 
@@ -60,7 +65,12 @@ export interface BindingPlan {
 export interface BindingPort {
   inspect(inputPath: string, signal?: AbortSignal): Promise<BindingInspection>;
   plan(workspaceId: string, mapping: MappingDraft, signal?: AbortSignal): Promise<BindingPlan>;
-  bind(workspaceId: string, mapping: MappingDraft, signal?: AbortSignal): Promise<BindingResult>;
+  bind(
+    workspaceId: string,
+    mapping: MappingDraft,
+    signal?: AbortSignal,
+    combine?: boolean,
+  ): Promise<BindingResult>;
   release(workspaceId: string): Promise<void>;
   /** Reads a library (a folder of manga folders) with one mangabind `--batch` dry run. */
   planBatch(parentPath: string, signal?: AbortSignal): Promise<BindingBatchPlan>;

@@ -75,6 +75,10 @@ const mangaSchema = z
     name: z.string(),
     input_path: z.string(),
     metadata_file: z.string().optional(),
+    // Set instead of each volume having its own written file when -combine was used: the whole
+    // series lives in this one file. Additive field, mangabind protocol version 1 unchanged - see
+    // mangabind's ADR 0012.
+    combined_output_path: z.string().optional(),
     status: z.enum(['completed', 'completed_with_warnings', 'failed']),
     units: z.array(unitSchema),
     volumes: z.array(volumeSchema),

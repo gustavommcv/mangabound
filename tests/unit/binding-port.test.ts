@@ -259,6 +259,54 @@ describe('mangabind binding port', () => {
     expect(files.removeDirectory).toHaveBeenCalledWith(path.resolve(root));
   });
 
+  describe('binding the whole series into one combined volume', () => {
+    function combinableAdapter(root: string, combinedOutputPath?: string) {
+      const files = fakeFiles(root);
+      const cli = {
+        run: vi.fn<MangabindCliAdapter['run']>((request) => {
+          const report = structuredClone(groupedFixture);
+          if (!request.dryRun && request.combine === true) {
+            report.mode = 'execute';
+            report.manga[0]!.combined_output_path = combinedOutputPath;
+            // A combined run still reports each volume's own chapters and number, just with no
+            // file of its own - see mangabind's ADR 0012.
+            report.manga[0]!.volumes = report.manga[0]!.volumes.map((volume) => ({
+              ...volume,
+              output_path: combinedOutputPath ?? volume.output_path,
+              written: false,
+            }));
+          }
+          return Promise.resolve(result({ report }));
+        }),
+      };
+      const adapter = new MangabindBindingAdapter(cli, files, os.tmpdir(), () => 'combined');
+      return { adapter, cli };
+    }
+
+    it('passes --combine and returns the one combined output path, not per-volume paths', async () => {
+      const root = path.join(os.tmpdir(), 'mangabound-combine');
+      const combinedPath = path.join(root, 'volumes', 'Chainsaw Man.cbz');
+      const { adapter, cli } = combinableAdapter(root, combinedPath);
+
+      const inspection = await adapter.inspect('/input/Chainsaw Man');
+      const bound = await adapter.bind(inspection.workspaceId, inspection.draft, undefined, true);
+
+      expect(bound.volumePaths).toEqual([]);
+      expect(bound.combinedOutputPath).toBe(combinedPath);
+      expect(cli.run).toHaveBeenLastCalledWith(expect.objectContaining({ combine: true }), {});
+    });
+
+    it('throws a clear error when a combined run reports no combined output path', async () => {
+      const root = path.join(os.tmpdir(), 'mangabound-combine-missing');
+      const { adapter } = combinableAdapter(root, undefined);
+
+      const inspection = await adapter.inspect('/input/Chainsaw Man');
+      await expect(
+        adapter.bind(inspection.workspaceId, inspection.draft, undefined, true),
+      ).rejects.toThrow(/did not report a combined output path/u);
+    });
+  });
+
   describe('a folder whose names already carry the volumes', () => {
     function groupedAdapter(root: string) {
       const files = fakeFiles(root);

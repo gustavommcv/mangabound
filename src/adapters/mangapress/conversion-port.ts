@@ -30,7 +30,7 @@ export class MangapressConversionAdapter implements ConversionPort {
     },
     options: { readonly signal?: AbortSignal } = {},
   ): ReturnType<ConversionPort['plan']> {
-    const { deviceProfile, ...settings } = request.settings;
+    const { combineIntoOneVolume, deviceProfile, ...settings } = request.settings;
     const run = await this.cli.run(
       {
         inputPath: request.inputPath,
@@ -38,6 +38,7 @@ export class MangapressConversionAdapter implements ConversionPort {
         profile: deviceProfile,
         format: request.format,
         dryRun: true,
+        nestedToc: combineIntoOneVolume,
         ...settings,
       },
       options.signal === undefined ? {} : { signal: options.signal },
@@ -79,7 +80,7 @@ export class MangapressConversionAdapter implements ConversionPort {
       readonly onProgress: (progress: ConversionProgress) => void;
     },
   ): Promise<ConversionArtifact> {
-    const { deviceProfile, ...settings } = request.settings;
+    const { combineIntoOneVolume, deviceProfile, ...settings } = request.settings;
     const run = await this.cli.run(
       {
         inputPath: request.inputPath,
@@ -87,6 +88,7 @@ export class MangapressConversionAdapter implements ConversionPort {
         profile: deviceProfile,
         format: request.format,
         dryRun: false,
+        nestedToc: combineIntoOneVolume,
         ...settings,
       },
       {

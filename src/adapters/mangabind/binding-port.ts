@@ -100,6 +100,7 @@ export class MangabindBindingAdapter implements BindingPort {
     workspaceId: string,
     mapping: Parameters<BindingPort['bind']>[1],
     signal?: AbortSignal,
+    combine?: boolean,
   ): Promise<BindingResult> {
     const workspace = this.workspaces.get(workspaceId);
     if (workspace === undefined) {
@@ -130,10 +131,22 @@ export class MangabindBindingAdapter implements BindingPort {
         outputPath: workspace.volumesPath,
         metadataFilePath: workspace.metadataPath,
         dryRun: false,
+        combine,
       },
       signal === undefined ? {} : { signal },
     );
     assertSuccessful(result);
+    if (combine === true) {
+      const combinedOutputPath = result.report.manga[0]?.combined_output_path;
+      if (combinedOutputPath === undefined) {
+        throw new Error('Mangabind did not report a combined output path for a -combine run.');
+      }
+      return {
+        volumePaths: [],
+        combinedOutputPath: checkedChildPath(workspace.volumesPath, combinedOutputPath),
+        issues: collectIssues(result),
+      };
+    }
     const volumePaths = result.report.manga
       .flatMap((manga) => manga.volumes)
       .filter((volume) => volume.written)

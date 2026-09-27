@@ -56,6 +56,17 @@ describe('CLI argument builders', () => {
     ).toThrow(/cannot use a shared metadata file/u);
   });
 
+  it('builds a combined mangabind execution with --combine', () => {
+    expect(
+      buildMangabindArguments({
+        inputPath: '/manga/work',
+        outputPath: '/tmp/volumes',
+        dryRun: false,
+        combine: true,
+      }),
+    ).toEqual(['--input', '/manga/work', '--output', '/tmp/volumes', '--combine', '--json']);
+  });
+
   it('builds mangapress plan and execution arguments deterministically', () => {
     const request = {
       inputPath: '/tmp/Vol. 01.cbz',

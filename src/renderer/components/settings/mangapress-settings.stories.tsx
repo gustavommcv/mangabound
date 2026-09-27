@@ -1,6 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { useState } from 'react';
+import { expect, userEvent, within } from 'storybook/test';
 
-import { defaultMangapressSettings } from '@/domain/output-profile';
+import type { BookFormat } from '@/domain/conversion';
+import { defaultMangapressSettings, type MangapressSettings } from '@/domain/output-profile';
 
 import { MangapressSettingsEditor } from './mangapress-settings';
 
@@ -47,6 +50,7 @@ const meta = {
   args: {
     format: 'epub',
     onFormat: () => undefined,
+    onNotify: () => undefined,
     onSettings: () => undefined,
     profiles,
     settings: defaultMangapressSettings,
@@ -90,5 +94,47 @@ export const ConditionalControls: Story = {
 export const ValidationError: Story = {
   args: {
     settings: { ...defaultMangapressSettings, deviceProfile: 'OTHER' },
+  },
+};
+
+/** Combining is already on: CBZ and PDF are ruled out in the format list. */
+export const CombinedIntoOneVolume: Story = {
+  args: {
+    settings: { ...defaultMangapressSettings, combineIntoOneVolume: true },
+  },
+};
+
+/**
+ * A stateful stand-in for the parent that actually owns format/settings/notices (app.tsx), so the
+ * play function below can assert on real, visible results - the format field's own value changing,
+ * a notice appearing - rather than a mocked callback having been called with something.
+ */
+function Stateful({ initialFormat }: { readonly initialFormat: BookFormat }) {
+  const [format, setFormat] = useState(initialFormat);
+  const [settings, setSettings] = useState<MangapressSettings>(defaultMangapressSettings);
+  const [notice, setNotice] = useState<string>();
+  return (
+    <>
+      {notice !== undefined && <p role="status">{notice}</p>}
+      <MangapressSettingsEditor
+        format={format}
+        onFormat={setFormat}
+        onNotify={setNotice}
+        onSettings={setSettings}
+        profiles={profiles}
+        settings={settings}
+      />
+    </>
+  );
+}
+
+/** Checking the box while on CBZ or PDF switches to EPUB and says why. */
+export const CombiningSwitchesAwayFromCbz: Story = {
+  render: () => <Stateful initialFormat="cbz" />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole('checkbox', { name: /Bind the whole series/u }));
+    await expect(canvas.getByRole('combobox', { name: 'Book format' })).toHaveValue('epub');
+    await expect(canvas.getByRole('status')).toHaveTextContent('Switched to EPUB');
   },
 };

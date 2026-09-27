@@ -4,6 +4,7 @@ import {
   defaultMangapressSettings,
   defaultUpscaleFor,
   defaultValueForSetting,
+  FORMATS_SUPPORTING_COMBINED_VOLUME,
   resolveDeviceProfileFallback,
   restoreSettingDefault,
   validateMangapressSettings,
@@ -37,7 +38,7 @@ describe('mangapress default settings', () => {
     // Left to the device profile, as in KCC.
     expect(defaultMangapressSettings.gamma).toBeUndefined();
     expect(defaultMangapressSettings.jpegQuality).toBeUndefined();
-    expect(validateMangapressSettings(defaultMangapressSettings)).toEqual([]);
+    expect(validateMangapressSettings(defaultMangapressSettings, 'epub')).toEqual([]);
   });
 
   it('start on the Kindle Paperwhite KCC opens on, with the upscaling that device starts with', () => {
@@ -153,34 +154,40 @@ describe('resolving a device profile fallback', () => {
 
 describe('mangapress output settings', () => {
   it('accepts the defaults and complete custom-device overrides', () => {
-    expect(validateMangapressSettings(defaultMangapressSettings)).toEqual([]);
+    expect(validateMangapressSettings(defaultMangapressSettings, 'epub')).toEqual([]);
     expect(
-      validateMangapressSettings({
-        ...defaultMangapressSettings,
-        deviceProfile: 'OTHER',
-        customWidth: 1200,
-        customHeight: 1600,
-        croppingMinimum: 100,
-        preserveMargin: 100,
-        jpegQuality: 100,
-        gamma: 1,
-      }),
+      validateMangapressSettings(
+        {
+          ...defaultMangapressSettings,
+          deviceProfile: 'OTHER',
+          customWidth: 1200,
+          customHeight: 1600,
+          croppingMinimum: 100,
+          preserveMargin: 100,
+          jpegQuality: 100,
+          gamma: 1,
+        },
+        'epub',
+      ),
     ).toEqual([]);
   });
 
   it('reports empty, non-finite, and out-of-range values by field', () => {
-    const issues = validateMangapressSettings({
-      ...defaultMangapressSettings,
-      deviceProfile: ' ',
-      croppingPower: Number.NaN,
-      croppingMinimum: -1,
-      preserveMargin: 101,
-      jpegQuality: 0,
-      gamma: Number.POSITIVE_INFINITY,
-      customWidth: 0,
-      customHeight: 1.5,
-      language: ' ',
-    });
+    const issues = validateMangapressSettings(
+      {
+        ...defaultMangapressSettings,
+        deviceProfile: ' ',
+        croppingPower: Number.NaN,
+        croppingMinimum: -1,
+        preserveMargin: 101,
+        jpegQuality: 0,
+        gamma: Number.POSITIVE_INFINITY,
+        customWidth: 0,
+        customHeight: 1.5,
+        language: ' ',
+      },
+      'epub',
+    );
 
     expect(issues.map((issue) => issue.field)).toEqual([
       'deviceProfile',
@@ -204,23 +211,51 @@ describe('mangapress output settings', () => {
       ['customWidth', 1.5],
       ['customHeight', 0],
     ] as const) {
-      expect(validateMangapressSettings({ ...defaultMangapressSettings, [field]: value })).toEqual(
-        expect.arrayContaining([expect.objectContaining({ field })]),
-      );
+      expect(
+        validateMangapressSettings({ ...defaultMangapressSettings, [field]: value }, 'epub'),
+      ).toEqual(expect.arrayContaining([expect.objectContaining({ field })]));
     }
 
     expect(
-      validateMangapressSettings({
-        ...defaultMangapressSettings,
-        deviceProfile: 'OTHER',
-      }),
+      validateMangapressSettings(
+        {
+          ...defaultMangapressSettings,
+          deviceProfile: 'OTHER',
+        },
+        'epub',
+      ),
     ).toContainEqual(expect.objectContaining({ field: 'customWidth' }));
     expect(
-      validateMangapressSettings({
-        ...defaultMangapressSettings,
-        deviceProfile: 'OTHER',
-        customWidth: 1200,
-      }),
+      validateMangapressSettings(
+        {
+          ...defaultMangapressSettings,
+          deviceProfile: 'OTHER',
+          customWidth: 1200,
+        },
+        'epub',
+      ),
     ).toContainEqual(expect.objectContaining({ field: 'customHeight' }));
+  });
+
+  it('only offers combining into one volume for EPUB today', () => {
+    expect([...FORMATS_SUPPORTING_COMBINED_VOLUME]).toEqual(['epub']);
+  });
+
+  it('rejects combining into one volume for a format that does not support it yet', () => {
+    const combined = { ...defaultMangapressSettings, combineIntoOneVolume: true };
+    expect(validateMangapressSettings(combined, 'epub')).toEqual([]);
+    expect(validateMangapressSettings(combined, 'cbz')).toContainEqual(
+      expect.objectContaining({ field: 'combineIntoOneVolume' }),
+    );
+    expect(validateMangapressSettings(combined, 'pdf')).toContainEqual(
+      expect.objectContaining({ field: 'combineIntoOneVolume' }),
+    );
+    // Off, the format doesn't matter - nothing to reject.
+    expect(
+      validateMangapressSettings(
+        { ...defaultMangapressSettings, combineIntoOneVolume: false },
+        'cbz',
+      ),
+    ).toEqual([]);
   });
 });
