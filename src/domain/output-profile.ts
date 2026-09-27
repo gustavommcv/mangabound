@@ -119,6 +119,29 @@ export function withDeviceProfile(
   return { ...settings, deviceProfile, upscale: defaultUpscaleFor(deviceProfile) };
 }
 
+/** The current device owns the starting upscale value; all other fields use the app defaults. */
+export function defaultValueForSetting<K extends keyof MangapressSettings>(
+  settings: MangapressSettings,
+  field: K,
+): MangapressSettings[K] {
+  return (
+    field === 'upscale'
+      ? defaultUpscaleFor(settings.deviceProfile)
+      : defaultMangapressSettings[field]
+  ) as MangapressSettings[K];
+}
+
+/** Restoring a device follows the same coupled upscale rule as choosing that device normally. */
+export function restoreSettingDefault<K extends keyof MangapressSettings>(
+  settings: MangapressSettings,
+  field: K,
+): MangapressSettings {
+  if (field === 'deviceProfile') {
+    return withDeviceProfile(settings, defaultMangapressSettings.deviceProfile);
+  }
+  return { ...settings, [field]: defaultValueForSetting(settings, field) };
+}
+
 export interface DeviceProfileOption {
   readonly code: string;
   readonly name: string;

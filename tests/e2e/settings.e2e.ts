@@ -81,6 +81,19 @@ describe('packaged saved settings', () => {
     await $(`p=${libraryPath}`).waitForDisplayed({ timeout: 10_000 });
     assert.equal(await $('[role="status"][aria-label="Notices"]').isExisting(), false);
 
+    // Restore just the device; the format and chosen library must remain untouched and saved.
+    await $('button[aria-label="Restore default for Device"]').click();
+    await browser.waitUntil(
+      async () => (await readKept(settingsPath)).settings.deviceProfile === 'KPW6',
+      {
+        timeout: 15_000,
+        timeoutMsg: 'the individual device restore was not saved',
+      },
+    );
+    assert.equal(await $('#queue-device').getValue(), 'KPW6');
+    assert.equal(await formatRadio('PDF').getAttribute('aria-checked'), 'true');
+    assert.equal((await readKept(settingsPath)).outputFolder, libraryPath);
+
     // Put back to the defaults: asks first, keeps the folder, and is written down.
     await $('button=Reset to defaults').click();
     await $('[role="group"][aria-label="Confirm reset"]').waitForDisplayed({ timeout: 10_000 });

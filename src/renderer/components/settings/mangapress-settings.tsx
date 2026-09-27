@@ -2,14 +2,17 @@ import type { ReactNode } from 'react';
 
 import type { BookFormat } from '@/domain/conversion';
 import {
+  defaultValueForSetting,
   type MangapressSettingField,
   type MangapressSettings,
+  restoreSettingDefault,
   validateMangapressSettings,
   withDeviceProfile,
 } from '@/domain/output-profile';
+import { defaultFormat } from '@/domain/preferences';
+import { SettingFieldHeader } from '@/renderer/components/settings/setting-field-header';
 import { Checkbox } from '@/renderer/components/ui/checkbox';
 import { Input } from '@/renderer/components/ui/input';
-import { Label } from '@/renderer/components/ui/label';
 import { NativeSelect } from '@/renderer/components/ui/native-select';
 import type { DeviceProfileSummary } from '@/shared/workflow-contract';
 
@@ -38,6 +41,17 @@ export function MangapressSettingsEditor({
   ): void => {
     onSettings({ ...settings, [field]: value });
   };
+  const resetProps = (
+    field: keyof MangapressSettings,
+  ): {
+    readonly changed: boolean;
+    readonly onReset: () => void;
+  } => ({
+    changed: settings[field] !== defaultValueForSetting(settings, field),
+    onReset: () => {
+      onSettings(restoreSettingDefault(settings, field));
+    },
+  });
   const croppingDisabled = settings.cropping === 'disabled';
   const rotationDisabled = settings.splitter === 'split';
   const autolevelDisabled = settings.noAutoContrast;
@@ -50,6 +64,7 @@ export function MangapressSettingsEditor({
         title="Device & output"
       >
         <SelectField
+          {...resetProps('deviceProfile')}
           description={
             selectedProfile === undefined
               ? undefined
@@ -77,7 +92,14 @@ export function MangapressSettingsEditor({
             ))}
           </NativeSelect>
         </SelectField>
-        <SelectField id="output-format" label="Book format">
+        <SelectField
+          changed={format !== defaultFormat}
+          id="output-format"
+          label="Book format"
+          onReset={() => {
+            onFormat(defaultFormat);
+          }}
+        >
           <NativeSelect
             id="output-format"
             onChange={(event) => {
@@ -91,6 +113,7 @@ export function MangapressSettingsEditor({
           </NativeSelect>
         </SelectField>
         <NumberField
+          {...resetProps('customWidth')}
           description="Overrides the profile width. Required with height for the OTHER profile."
           error={errorFor('customWidth')}
           id="custom-width"
@@ -103,6 +126,7 @@ export function MangapressSettingsEditor({
           value={settings.customWidth}
         />
         <NumberField
+          {...resetProps('customHeight')}
           description="Overrides the profile height. Required with width for the OTHER profile."
           error={errorFor('customHeight')}
           id="custom-height"
@@ -122,6 +146,7 @@ export function MangapressSettingsEditor({
         title="Page layout"
       >
         <ToggleField
+          {...resetProps('mangaStyle')}
           checked={settings.mangaStyle}
           description="Use right-to-left reading and spread-split order."
           id="manga-style"
@@ -130,7 +155,7 @@ export function MangapressSettingsEditor({
             update('mangaStyle', checked);
           }}
         />
-        <SelectField id="splitter" label="Double-page spreads">
+        <SelectField {...resetProps('splitter')} id="splitter" label="Double-page spreads">
           <NativeSelect
             id="splitter"
             onChange={(event) => {
@@ -144,6 +169,7 @@ export function MangapressSettingsEditor({
           </NativeSelect>
         </SelectField>
         <ToggleField
+          {...resetProps('rotateRight')}
           checked={settings.rotateRight}
           description={
             rotationDisabled
@@ -157,7 +183,7 @@ export function MangapressSettingsEditor({
             update('rotateRight', checked);
           }}
         />
-        <SelectField id="cropping" label="Page cropping">
+        <SelectField {...resetProps('cropping')} id="cropping" label="Page cropping">
           <NativeSelect
             id="cropping"
             onChange={(event) => {
@@ -171,6 +197,7 @@ export function MangapressSettingsEditor({
           </NativeSelect>
         </SelectField>
         <NumberField
+          {...resetProps('croppingPower')}
           description={
             croppingDisabled
               ? 'Enable page cropping to adjust this.'
@@ -187,6 +214,7 @@ export function MangapressSettingsEditor({
           value={settings.croppingPower}
         />
         <NumberField
+          {...resetProps('croppingMinimum')}
           description={
             croppingDisabled
               ? 'Enable page cropping to adjust this.'
@@ -205,6 +233,7 @@ export function MangapressSettingsEditor({
           value={settings.croppingMinimum}
         />
         <NumberField
+          {...resetProps('preserveMargin')}
           description={
             croppingDisabled
               ? 'Enable page cropping to adjust this.'
@@ -223,6 +252,7 @@ export function MangapressSettingsEditor({
           value={settings.preserveMargin}
         />
         <SelectField
+          {...resetProps('interPanelCrop')}
           description="Removes empty gutters inside webtoon-style pages."
           id="inter-panel-crop"
           label="Inter-panel cropping"
@@ -241,6 +271,7 @@ export function MangapressSettingsEditor({
           </NativeSelect>
         </SelectField>
         <ToggleField
+          {...resetProps('upscale')}
           checked={settings.upscale}
           description={
             settings.wallpaper
@@ -255,6 +286,7 @@ export function MangapressSettingsEditor({
           }}
         />
         <ToggleField
+          {...resetProps('stretch')}
           checked={settings.stretch}
           description="Fill the target resolution without preserving aspect ratio."
           id="stretch"
@@ -264,6 +296,7 @@ export function MangapressSettingsEditor({
           }}
         />
         <ToggleField
+          {...resetProps('wallpaper')}
           checked={settings.wallpaper}
           description="Crop pages to fill the entire screen."
           id="wallpaper"
@@ -273,6 +306,7 @@ export function MangapressSettingsEditor({
           }}
         />
         <ToggleField
+          {...resetProps('whiteBorders')}
           checked={settings.whiteBorders}
           description={
             format === 'epub'
@@ -294,6 +328,7 @@ export function MangapressSettingsEditor({
         title="Image processing"
       >
         <ToggleField
+          {...resetProps('forcePng')}
           checked={settings.forcePng}
           description="Quantize to the device grayscale palette and save PNG pages."
           id="force-png"
@@ -303,6 +338,7 @@ export function MangapressSettingsEditor({
           }}
         />
         <NumberField
+          {...resetProps('jpegQuality')}
           description={
             settings.forcePng
               ? 'Not used while grayscale PNG output is enabled.'
@@ -321,6 +357,7 @@ export function MangapressSettingsEditor({
           value={settings.jpegQuality}
         />
         <NumberField
+          {...resetProps('gamma')}
           description="Leave empty for profile gamma; 1.0 leaves tones unchanged."
           error={errorFor('gamma')}
           id="gamma"
@@ -333,6 +370,7 @@ export function MangapressSettingsEditor({
           value={settings.gamma}
         />
         <ToggleField
+          {...resetProps('noAutoContrast')}
           checked={settings.noAutoContrast}
           description="Skip automatic contrast adjustment."
           id="no-auto-contrast"
@@ -342,6 +380,7 @@ export function MangapressSettingsEditor({
           }}
         />
         <ToggleField
+          {...resetProps('autoLevel')}
           checked={settings.autoLevel}
           description={
             autolevelDisabled
@@ -356,6 +395,7 @@ export function MangapressSettingsEditor({
           }}
         />
         <ToggleField
+          {...resetProps('eraseRainbow')}
           checked={settings.eraseRainbow}
           description="Attenuate rainbow interference on color e-ink displays."
           id="erase-rainbow"
@@ -372,6 +412,7 @@ export function MangapressSettingsEditor({
         title="Book metadata"
       >
         <TextField
+          {...resetProps('title')}
           description="Leave empty to derive the title from the input name."
           id="book-title"
           label="Title"
@@ -381,6 +422,7 @@ export function MangapressSettingsEditor({
           value={settings.title ?? ''}
         />
         <TextField
+          {...resetProps('author')}
           id="book-author"
           label="Author"
           onValue={(value) => {
@@ -389,6 +431,7 @@ export function MangapressSettingsEditor({
           value={settings.author ?? ''}
         />
         <SelectField
+          {...resetProps('metadataTitle')}
           description="Controls how ComicInfo.xml's Title field is applied."
           id="metadata-title"
           label="ComicInfo title"
@@ -407,6 +450,7 @@ export function MangapressSettingsEditor({
           </NativeSelect>
         </SelectField>
         <TextField
+          {...resetProps('language')}
           description={
             format === 'epub'
               ? 'Used for EPUB output.'
@@ -421,6 +465,7 @@ export function MangapressSettingsEditor({
           value={settings.language}
         />
         <ToggleField
+          {...resetProps('keepComicInfo')}
           checked={settings.keepComicInfo}
           description={
             format === 'cbz'
@@ -442,6 +487,7 @@ export function MangapressSettingsEditor({
         title="Tool behavior"
       >
         <ToggleField
+          {...resetProps('quiet')}
           checked={settings.quiet}
           description="The GUI already uses structured events, which suppress routine console chatter; this setting preserves exact --quiet parity in saved profiles."
           id="quiet"
@@ -478,13 +524,20 @@ function SettingsSection({
   );
 }
 
+interface ResettableFieldProps {
+  readonly changed: boolean;
+  readonly onReset: () => void;
+}
+
 function SelectField({
+  changed,
   children,
   description,
   error,
   id,
   label,
-}: {
+  onReset,
+}: ResettableFieldProps & {
   readonly children: ReactNode;
   readonly description?: string;
   readonly error?: string;
@@ -493,7 +546,7 @@ function SelectField({
 }): React.JSX.Element {
   return (
     <div className="space-y-2">
-      <Label htmlFor={id}>{label}</Label>
+      <SettingFieldHeader changed={changed} id={id} label={label} onReset={onReset} />
       {children}
       <FieldMessage description={description} error={error} id={`${id}-message`} />
     </div>
@@ -501,13 +554,15 @@ function SelectField({
 }
 
 function TextField({
+  changed,
   description,
   error,
   id,
   label,
   onValue,
+  onReset,
   value,
-}: {
+}: ResettableFieldProps & {
   readonly description?: string;
   readonly error?: string;
   readonly id: string;
@@ -517,7 +572,7 @@ function TextField({
 }): React.JSX.Element {
   return (
     <div className="space-y-2">
-      <Label htmlFor={id}>{label}</Label>
+      <SettingFieldHeader changed={changed} id={id} label={label} onReset={onReset} />
       <Input
         aria-describedby={
           description === undefined && error === undefined ? undefined : `${id}-message`
@@ -535,6 +590,7 @@ function TextField({
 }
 
 function NumberField({
+  changed,
   description,
   disabled,
   error,
@@ -543,10 +599,11 @@ function NumberField({
   max,
   min,
   onValue,
+  onReset,
   optional = false,
   step = 1,
   value,
-}: {
+}: ResettableFieldProps & {
   readonly description?: string;
   readonly disabled?: boolean;
   readonly error?: string;
@@ -561,15 +618,13 @@ function NumberField({
 }): React.JSX.Element {
   return (
     <div className="space-y-2">
-      <Label htmlFor={id}>
-        {label}
-        {optional && (
-          <>
-            {' '}
-            <span className="text-subtle-foreground font-normal">(optional)</span>
-          </>
-        )}
-      </Label>
+      <SettingFieldHeader
+        changed={changed}
+        id={id}
+        label={label}
+        onReset={onReset}
+        optional={optional}
+      />
       <Input
         aria-describedby={
           description === undefined && error === undefined ? undefined : `${id}-message`
@@ -598,13 +653,15 @@ function NumberField({
 }
 
 function ToggleField({
+  changed,
   checked,
   description,
   disabled,
   id,
   label,
   onChecked,
-}: {
+  onReset,
+}: ResettableFieldProps & {
   readonly checked: boolean;
   readonly description: string;
   readonly disabled?: boolean;
@@ -623,10 +680,14 @@ function ToggleField({
           onChecked(value === true);
         }}
       />
-      <div className="-mt-0.5">
-        <Label className={disabled ? 'text-muted-foreground' : undefined} htmlFor={id}>
-          {label}
-        </Label>
+      <div className="-mt-0.5 min-w-0 flex-1">
+        <SettingFieldHeader
+          changed={changed}
+          disabled={disabled}
+          id={id}
+          label={label}
+          onReset={onReset}
+        />
         <p className="text-muted-foreground mt-1 text-xs leading-relaxed" id={`${id}-message`}>
           {description}
         </p>
