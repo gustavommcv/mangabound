@@ -29,7 +29,10 @@ import {
   resolveMode,
   usesMangapress,
 } from '@/domain/process-mode';
-import { MappingEditor } from '@/renderer/components/mapping/mapping-editor';
+import {
+  MappingEditor,
+  type MappingEditorProps,
+} from '@/renderer/components/mapping/mapping-editor';
 import { Notices } from '@/renderer/components/shared/notices';
 import { MangapressSettingsEditor } from '@/renderer/components/settings/mangapress-settings';
 import { ResetOptions } from '@/renderer/components/settings/reset-options';
@@ -771,6 +774,24 @@ export function App(): React.JSX.Element {
   const activeProviderId = metadataProviders.some((provider) => provider.id === selectedProviderId)
     ? selectedProviderId
     : undefined;
+  // Both MappingEditor placements (a single input, one title of a library) offer the same online
+  // sources the same way; only the draft, its confirm/skip behavior and where it came from differ.
+  const metadataProviderProps: Pick<
+    MappingEditorProps,
+    | 'metadataProviders'
+    | 'onOpenProviderHomepage'
+    | 'onSearchMetadata'
+    | 'onSelectProvider'
+    | 'onSuggestVolumes'
+    | 'selectedProviderId'
+  > = {
+    metadataProviders,
+    onOpenProviderHomepage: openProviderHomepage,
+    onSearchMetadata: searchMetadata,
+    onSelectProvider: setSelectedProviderId,
+    onSuggestVolumes: suggestVolumes,
+    selectedProviderId: activeProviderId,
+  };
 
   const editingRow = rows.find((row) => row.id === editingId);
   const editingTitleEntry =
@@ -944,20 +965,15 @@ export function App(): React.JSX.Element {
                   </Button>
                   <MappingEditor
                     initialDraft={editingRow.mapping}
-                    metadataProviders={metadataProviders}
                     onConfirm={(_metadata, draft) => {
                       dispatch({ type: 'confirm-mapping', id: editingRow.id, mapping: draft });
                       setStep('queue');
                     }}
-                    onOpenProviderHomepage={openProviderHomepage}
-                    onSearchMetadata={searchMetadata}
-                    onSelectProvider={setSelectedProviderId}
                     onSkipGrouping={() => {
                       setMode('convert-only');
                       setStep('queue');
                     }}
-                    onSuggestVolumes={suggestVolumes}
-                    selectedProviderId={activeProviderId}
+                    {...metadataProviderProps}
                     startedFrom={
                       editingRow.proposedSignature !== undefined &&
                       editingRow.mapping.volumes.length > 0 &&
@@ -998,15 +1014,10 @@ export function App(): React.JSX.Element {
                   <MappingEditor
                     initialDraft={editingTitleEntry.draft}
                     key={editingTitleEntry.title}
-                    metadataProviders={metadataProviders}
                     onConfirm={(_metadata, draft) => {
                       void confirmTitleMapping(editingRow, editingTitleEntry.title, draft);
                     }}
-                    onOpenProviderHomepage={openProviderHomepage}
-                    onSearchMetadata={searchMetadata}
-                    onSelectProvider={setSelectedProviderId}
-                    onSuggestVolumes={suggestVolumes}
-                    selectedProviderId={activeProviderId}
+                    {...metadataProviderProps}
                     startedFrom={
                       editingTitleEntry.draft.volumes.length > 0 ? 'mangabind' : undefined
                     }
