@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ProviderPicker } from './provider-picker';
 
 import type { VolumeSuggestion } from '@/domain/mapping';
+import { InfoBanner } from '@/renderer/components/shared/info-banner';
 import { Button } from '@/renderer/components/ui/button';
 import { Input } from '@/renderer/components/ui/input';
 import { Label } from '@/renderer/components/ui/label';
@@ -55,14 +56,21 @@ export interface OnlineSource {
  * volumes below are edited the same way whichever is chosen; this only decides the starting point.
  */
 export function ChaptersFrom({
+  initialSource = 'names',
+  missingNamesGrouping = false,
   names,
   online,
+  onManualSelect,
 }: {
+  readonly initialSource?: Source;
+  /** A fresh folder whose names yielded no volumes, before any manual grouping. */
+  readonly missingNamesGrouping?: boolean;
   readonly names: NamesSource;
   /** Left out when there is no online source to offer. */
   readonly online?: OnlineSource | undefined;
+  readonly onManualSelect?: () => void;
 }): React.JSX.Element {
-  const [source, setSource] = useState<Source>('names');
+  const [source, setSource] = useState<Source>(initialSource);
   const tabs = [
     { id: 'names', label: 'File names' },
     ...(online === undefined ? [] : [{ id: 'online' as const, label: 'Online source' }]),
@@ -82,7 +90,10 @@ export function ChaptersFrom({
         <TabList
           group={group}
           label="Chapters from"
-          onChange={setSource}
+          onChange={(next) => {
+            setSource(next);
+            if (next === 'manual') onManualSelect?.();
+          }}
           tabs={tabs}
           value={shown}
         />
@@ -93,25 +104,43 @@ export function ChaptersFrom({
         id={panelId(group, shown)}
         role="tabpanel"
       >
-        {shown === 'names' && <NamesPanel {...names} />}
+        {shown === 'names' && <NamesPanel {...names} onlineAvailable={online !== undefined} />}
         {shown === 'online' && online !== undefined && <OnlinePanel {...online} />}
         {shown === 'manual' && (
-          <p className="text-muted-foreground text-sm">
-            Add a volume with the plus button, then assign chapters to it. Nothing here leaves this
-            computer.
-          </p>
+          <div className="space-y-3">
+            {missingNamesGrouping && (
+              <InfoBanner
+                message={
+                  online === undefined
+                    ? 'Build the volumes here; no online source is required.'
+                    : 'Build them here, or try Online source for a suggestion. Nothing is searched automatically.'
+                }
+                title="No volumes found in file names"
+              />
+            )}
+            <p className="text-muted-foreground text-sm">
+              Select chapters or a range to assign to volumes. You can move them later. Manual edits
+              stay on this computer.
+            </p>
+          </div>
         )}
       </div>
     </section>
   );
 }
 
-function NamesPanel({ changed, chapters, onStartOver, volumes }: NamesSource): React.JSX.Element {
+function NamesPanel({
+  changed,
+  chapters,
+  onStartOver,
+  onlineAvailable,
+  volumes,
+}: NamesSource & { readonly onlineAvailable: boolean }): React.JSX.Element {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
       <p className="text-muted-foreground max-w-xl text-sm">
         {volumes === 0
-          ? 'No volume could be read from the names of these folders. Use an online source, or group the chapters yourself.'
+          ? `No file-name grouping is available here. ${onlineAvailable ? 'Use an online source, or group the chapters yourself.' : 'Group the chapters yourself.'}`
           : `${plural(volumes, 'volume')} ${volumes === 1 ? 'was' : 'were'} read from the names of ${plural(chapters, 'chapter')}, without going online.`}
       </p>
       <Button disabled={!changed} onClick={onStartOver} size="sm" variant="outline">

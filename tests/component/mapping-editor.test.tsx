@@ -43,7 +43,11 @@ describe('mapping editor', () => {
     expect(screen.getByText('Manual mapping · Offline')).toBeVisible();
     expect(screen.getByRole('button', { name: 'Confirm mapping' })).toBeDisabled();
 
-    await user.click(screen.getByRole('button', { name: 'Add volume' }));
+    expect(screen.getByRole('button', { name: 'Create first volume' })).toHaveTextContent(
+      'Create volume 1',
+    );
+    await user.click(screen.getByRole('button', { name: 'Create first volume' }));
+    expect(screen.queryByRole('button', { name: 'Create first volume' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Select all' }));
     await user.click(screen.getByRole('button', { name: 'Assign selected' }));
 
@@ -89,12 +93,22 @@ describe('mapping editor', () => {
     );
 
     expect(screen.getByText('Grouped by mangabind · Offline')).toBeVisible();
+    const summary = screen.getByRole('region', { name: 'Proposed chapter mapping' });
+    expect(within(summary).getByText('2 volumes · 3 of 3 chapters assigned')).toBeVisible();
+    expect(within(summary).getByText(/first: Chapter 1 · last: Chapter 2/u)).toBeVisible();
+    expect(screen.queryByRole('checkbox', { name: 'Select Chapter 3' })).not.toBeInTheDocument();
+    // Nothing to fix: the proposal can be confirmed without opening the editor.
+    expect(screen.getByRole('button', { name: 'Confirm mapping' })).toBeEnabled();
+
+    await user.click(screen.getByRole('button', { name: 'Edit chapter mapping' }));
     const chapterThreeRow = screen
       .getByRole('checkbox', { name: 'Select Chapter 3' })
       .closest('div');
     expect(within(chapterThreeRow!).getByText('Volume 2')).toBeVisible();
-    // Nothing to fix: it can be confirmed without touching anything.
-    expect(screen.getByRole('button', { name: 'Confirm mapping' })).toBeEnabled();
+
+    await user.click(screen.getByRole('button', { name: 'Show mapping summary' }));
+    expect(screen.getByRole('region', { name: 'Proposed chapter mapping' })).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Edit chapter mapping' }));
 
     await user.click(screen.getByRole('checkbox', { name: 'Select Chapter 3' }));
     await user.selectOptions(
@@ -159,10 +173,19 @@ describe('mapping editor', () => {
             description: 'Community catalogue',
           },
         ]}
+        onSearchMetadata={() => Promise.resolve([])}
+        onSuggestVolumes={() => Promise.resolve({ volumes: [] })}
       />,
     );
 
     expect(screen.getByText('Suggested by MangaDex')).toBeVisible();
+    expect(screen.getByRole('tab', { name: 'Online source' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(screen.getByRole('combobox', { name: 'Source' })).toHaveTextContent('MangaDex');
+    expect(screen.getByRole('region', { name: 'Proposed chapter mapping' })).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Edit chapter mapping' }));
     await user.click(screen.getByRole('checkbox', { name: 'Select Chapter 2' }));
     await user.selectOptions(screen.getByLabelText('Move selected chapters to'), 'volume-2');
     await user.click(screen.getByRole('button', { name: 'Assign selected' }));
@@ -175,6 +198,30 @@ describe('mapping editor', () => {
     expect(within(chapterTwoRow!).getByText('Volume 1')).toBeVisible();
     await user.click(screen.getByRole('button', { name: 'Redo last mapping edit' }));
     expect(within(chapterTwoRow!).getByText('Volume 2')).toBeVisible();
+  });
+
+  it('opens a complete manual mapping for editing without any online lookup', async () => {
+    const user = userEvent.setup();
+    render(
+      <MappingEditor
+        initialDraft={createMappingDraft({
+          mangaTitle: 'Offline Work',
+          chapters,
+          volumes: [
+            { id: 'volume-1', number: '1', chapterIds: chapters.map((chapter) => chapter.id) },
+          ],
+        })}
+      />,
+    );
+
+    expect(screen.getByRole('region', { name: 'Proposed chapter mapping' })).toBeVisible();
+    expect(screen.getByRole('tab', { name: 'Manual' })).toHaveAttribute('aria-selected', 'true');
+    expect(
+      screen.queryByRole('status', { name: 'No volumes found in file names' }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: 'Manual' }));
+    expect(screen.getByRole('heading', { name: 'Chapters' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Show mapping summary' })).toBeEnabled();
   });
 
   it('says what the number beside Add is, and what Split before does with it', async () => {
@@ -192,14 +239,18 @@ describe('mapping editor', () => {
       />,
     );
 
+    await user.click(screen.getByRole('button', { name: 'Edit chapter mapping' }));
     // The box holds the number the next volume will get: one above the highest so far.
     const newNumber = screen.getByLabelText('New volume number');
     expect(newNumber).toHaveValue('12');
     // It is a visible label, not one only a screen reader gets, and the text beside it explains both controls.
     expect(screen.getByText('New volume number')).not.toHaveClass('sr-only');
     expect(newNumber).toHaveAccessibleDescription(
-      /Add creates an empty volume with the number in the box, which counts up by itself\..*Split before moves the chosen chapter and every one after it into a new volume, numbered one above the highest so far/u,
+      'Add creates a volume using this number. The next number increases automatically.',
     );
+    expect(
+      screen.getByText('This chapter and all later chapters move into a new volume.'),
+    ).toBeVisible();
 
     // Split before cuts the volume before the chosen chapter and gives the rest that next number.
     await user.click(screen.getByRole('button', { name: 'Split volume 1' }));
@@ -348,18 +399,23 @@ describe('mapping editor', () => {
       expect(screen.getByRole('button', { name: 'Start over from the names' })).toBeDisabled();
     });
 
-    it('says when the names gave nothing, and does not offer an online source with none to offer', () => {
+    it('opens manual grouping with a notice when names gave nothing and no provider exists', async () => {
+      const user = userEvent.setup();
       render(
         <MappingEditor initialDraft={createMappingDraft({ mangaTitle: 'Loose', chapters })} />,
       );
 
+      expect(screen.getByRole('tab', { name: 'Manual' })).toHaveAttribute('aria-selected', 'true');
       expect(
-        screen.getByText(
-          'No volume could be read from the names of these folders. Use an online source, or group the chapters yourself.',
-        ),
-      ).toBeVisible();
-      expect(screen.getByRole('tab', { name: 'Manual' })).toBeVisible();
+        screen.getByRole('status', { name: 'No volumes found in file names' }),
+      ).toHaveTextContent('Build the volumes here; no online source is required.');
+      expect(screen.getByRole('heading', { name: /^Chapters$/u })).toBeVisible();
       expect(screen.queryByRole('tab', { name: 'Online source' })).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole('tab', { name: 'File names' }));
+      expect(
+        screen.getByText('No file-name grouping is available here. Group the chapters yourself.'),
+      ).toBeVisible();
     });
 
     it('goes back to what the names gave after edits, and says a single volume in the singular', async () => {
@@ -378,6 +434,7 @@ describe('mapping editor', () => {
         screen.getByText('1 volume was read from the names of 1 chapter, without going online.'),
       ).toBeVisible();
 
+      await user.click(screen.getByRole('button', { name: 'Edit chapter mapping' }));
       await user.click(screen.getByRole('button', { name: 'Add volume' }));
       expect(screen.getByText('Manual mapping · Offline')).toBeVisible();
       await user.click(screen.getByRole('button', { name: 'Start over from the names' }));
@@ -391,7 +448,8 @@ describe('mapping editor', () => {
       render(ready());
 
       await user.click(screen.getByRole('tab', { name: 'Manual' }));
-      expect(screen.getByText(/Add a volume with the plus button/u)).toBeVisible();
+      expect(screen.getByText(/Select chapters or a range to assign to volumes/u)).toBeVisible();
+      expect(screen.getByRole('heading', { name: 'Chapters' })).toBeVisible();
       expect(screen.getByRole('tabpanel')).toHaveAccessibleName('Manual');
 
       screen.getByRole('tab', { name: 'File names' }).focus();
@@ -420,6 +478,10 @@ describe('mapping editor', () => {
       const onSearchMetadata = vi.fn(() => Promise.resolve([]));
       render(ready({ onSearchMetadata }));
 
+      expect(screen.getByRole('tab', { name: 'Manual' })).toHaveAttribute('aria-selected', 'true');
+      expect(
+        screen.getByRole('status', { name: 'No volumes found in file names' }),
+      ).toHaveTextContent('try Online source for a suggestion');
       await user.click(screen.getByRole('tab', { name: 'Online source' }));
 
       expect(screen.getByRole('combobox', { name: 'Source' })).toHaveTextContent('Select a source');
@@ -510,6 +572,33 @@ describe('mapping editor', () => {
       await user.click(screen.getByRole('button', { name: 'Undo last mapping edit' }));
       expect(screen.getByText('Manual mapping · Offline')).toBeVisible();
       expect(within(chapterOneRow!).getByText('Unassigned')).toBeVisible();
+    });
+
+    it('shows a complete online suggestion as a summary and confirms that exact mapping', async () => {
+      const user = userEvent.setup();
+      const onConfirm = vi.fn();
+      render(
+        ready({
+          onSearchMetadata: () =>
+            Promise.resolve([{ id: 'work-1', title: 'A Quiet Journey', provider: 'mangadex' }]),
+          onSuggestVolumes: () =>
+            Promise.resolve({ volumes: [{ number: '1', chapterNumbers: [1, 2, 3] }] }),
+          onConfirm,
+        }),
+      );
+
+      await chooseSource(user);
+      await user.click(screen.getByRole('button', { name: 'Search' }));
+      await user.click(await screen.findByRole('button', { name: 'Use these volumes' }));
+
+      const summary = await screen.findByRole('region', { name: 'Proposed chapter mapping' });
+      expect(within(summary).getByText('1 volume · 3 of 3 chapters assigned')).toBeVisible();
+      expect(screen.queryByRole('heading', { name: 'Chapters' })).not.toBeInTheDocument();
+      await user.click(within(summary).getByRole('button', { name: 'Confirm mapping' }));
+      expect(onConfirm).toHaveBeenCalledOnce();
+      expect(onConfirm.mock.calls[0]?.[0]).toContain(
+        '"source": {\n    "provider": "mangadex",\n    "id": "work-1"\n  }',
+      );
     });
 
     it('looks the volumes up in the language the folders declare', async () => {

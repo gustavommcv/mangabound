@@ -69,6 +69,8 @@ describe('packaged conversion pipeline', () => {
     await $('span=Needs volumes').waitForDisplayed({ timeout: 30_000 });
     await $('button[aria-label="Edit volumes for Mangabound E2E"]').click();
     await $('h1=Organize Mangabound E2E into volumes').waitForDisplayed({ timeout: 30_000 });
+    assert.equal(await $('[role="tab"][aria-selected="true"]').getText(), 'Manual');
+    await $('[role="status"][aria-label="No volumes found in file names"]').waitForDisplayed();
     await $('button=Select all').click();
     await $('button[aria-label="Add volume"]').click();
     await $('button=Assign selected').click();
