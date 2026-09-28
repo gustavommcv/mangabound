@@ -189,8 +189,8 @@ describe('packaged OPDS delivery', () => {
     await resetQueue();
     await $('button=Files').click();
     await $('span=Ready').waitForDisplayed({ timeout: 30_000 });
-    await $('button*=mangapress options').click();
-    await $('h1=mangapress options').waitForDisplayed({ timeout: 10_000 });
+    await $('button*=Advanced conversion options').click();
+    await $('h1=Conversion options').waitForDisplayed({ timeout: 10_000 });
     await $('#book-author').setValue('A Real Author');
     await $('button=Back').click();
     await $('h1=Queue').waitForDisplayed();
@@ -228,7 +228,7 @@ describe('packaged OPDS delivery', () => {
       assert.match(
         recentBody,
         /<name>A Real Author<\/name>/u,
-        'Expected the author set in mangapress options on the tracked entry.',
+        'Expected the author set in conversion options on the tracked entry.',
       );
 
       const otherBody = await (await fetch(`${url}/other`)).text();

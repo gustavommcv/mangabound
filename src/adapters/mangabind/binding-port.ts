@@ -217,7 +217,11 @@ export class MangabindBindingAdapter implements BindingPort {
     }
   }
 
-  async bindBatch(parentPath: string, signal?: AbortSignal): Promise<BindingBatchResult> {
+  async bindBatch(
+    parentPath: string,
+    signal?: AbortSignal,
+    combine?: boolean,
+  ): Promise<BindingBatchResult> {
     const rootPath = await this.files.createTemporaryDirectory(
       path.join(this.temporaryRoot, 'mangabound-'),
     );
@@ -232,20 +236,27 @@ export class MangabindBindingAdapter implements BindingPort {
     try {
       await this.files.createDirectory(volumesPath);
       const result = await this.cli.run(
-        { inputPath: parentPath, outputPath: volumesPath, dryRun: false, batch: true },
+        { inputPath: parentPath, outputPath: volumesPath, dryRun: false, batch: true, combine },
         signal === undefined ? {} : { signal },
       );
       return {
         workspaceId,
-        titles: result.report.manga.map((manga) => ({
-          title: manga.name,
-          status: manga.status,
-          volumePaths: manga.volumes
-            .filter((volume) => volume.written)
-            .sort((left, right) => left.number - right.number)
-            .map((volume) => checkedChildPath(volumesPath, volume.output_path)),
-          issues: manga.issues.map(toPipelineIssue),
-        })),
+        titles: result.report.manga.map((manga) => {
+          const combinedOutputPath =
+            combine === true && manga.combined_output_path !== undefined
+              ? checkedChildPath(volumesPath, manga.combined_output_path)
+              : undefined;
+          return {
+            title: manga.name,
+            status: manga.status,
+            volumePaths: manga.volumes
+              .filter((volume) => volume.written)
+              .sort((left, right) => left.number - right.number)
+              .map((volume) => checkedChildPath(volumesPath, volume.output_path)),
+            ...(combinedOutputPath === undefined ? {} : { combinedOutputPath }),
+            issues: manga.issues.map(toPipelineIssue),
+          };
+        }),
         issues: result.report.issues.map(toPipelineIssue),
       };
     } catch (error) {

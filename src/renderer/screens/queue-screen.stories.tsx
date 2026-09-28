@@ -128,6 +128,7 @@ const base: QueueScreenProps = {
   onOpenOptions: () => undefined,
   onRemove: () => undefined,
   onReset: () => undefined,
+  onSingleBook: () => undefined,
   onValidate: () => undefined,
   profiles: [
     {
@@ -150,6 +151,7 @@ const base: QueueScreenProps = {
   rejected: [],
   rows: [],
   settings: defaultMangapressSettings,
+  singleBook: false,
   validating: false,
 };
 
@@ -258,4 +260,11 @@ export const PlanValidated: Story = {
 
 export const ToolsNotReady: Story = {
   args: { disabled: true },
+};
+
+export const SingleBookActive: Story = {
+  args: {
+    rows: rows.slice(0, 1),
+    singleBook: true,
+  },
 };

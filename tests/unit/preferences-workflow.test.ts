@@ -12,6 +12,7 @@ import { defaultPreferences } from '@/domain/preferences';
 const kept: StoredSettings = {
   mode: 'convert-only',
   format: 'pdf',
+  singleBook: false,
   settings: { ...defaultMangapressSettings, deviceProfile: 'KS' },
   providerId: 'mangadex',
   outputFolder: '/books',
@@ -39,6 +40,7 @@ describe('restoring the options', () => {
       preferences: {
         mode: 'convert-only',
         format: 'pdf',
+        singleBook: false,
         settings: kept.settings,
         providerId: 'mangadex',
       },

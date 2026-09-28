@@ -46,7 +46,7 @@ describe('packaged process control', () => {
     // Turn the conversion step off: only the joining remains.
     await setSteps({ group: true, convert: false });
     await $('button=Join 1 item').waitForExist({ timeout: 10_000 });
-    assert.equal(await $('button*=mangapress options').isExisting(), false);
+    assert.equal(await $('button*=Advanced conversion options').isExisting(), false);
 
     await chooseOutputFolder(queueOutputFolderButton, libraryPath);
     await $('button=Validate plan').click();

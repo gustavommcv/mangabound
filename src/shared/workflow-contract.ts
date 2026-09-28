@@ -71,7 +71,7 @@ const preferenceSettingFields = {
   language: z.string().trim().min(1).max(40),
   customWidth: z.number().int().min(1).optional(),
   customHeight: z.number().int().min(1).optional(),
-  combineIntoOneVolume: z.boolean(),
+  combineIntoOneVolume: z.boolean().default(false),
 };
 
 const customProfileNeedsASize = {
@@ -105,6 +105,7 @@ export const conversionCommandSchema = z.object({
   format: z.enum(['epub', 'cbz', 'pdf']),
   mapping: mappingDraftSchema.optional(),
   mode: z.enum(processModes).optional(),
+  singleBook: z.boolean().optional(),
 });
 
 /** A library is named by the session it was read in, never by a path. */
@@ -121,6 +122,7 @@ export const libraryConversionCommandSchema = z.object({
   format: z.enum(['epub', 'cbz', 'pdf']),
   titles: z.array(z.string().min(1)).max(1000).optional(),
   mode: z.enum(batchProcessModes).optional(),
+  singleBook: z.boolean().optional(),
 });
 
 export const writeTitleMappingCommandSchema = z.object({
@@ -227,6 +229,7 @@ export interface ConversionCommand {
   readonly format: BookFormat;
   readonly mapping?: MappingDraft;
   readonly mode?: ProcessMode;
+  readonly singleBook?: boolean;
 }
 
 export interface ConversionProgressPayload extends ConversionProgress {
@@ -246,6 +249,7 @@ export interface LibraryConversionCommand {
   readonly format: BookFormat;
   readonly titles?: readonly string[];
   readonly mode?: BatchProcessMode;
+  readonly singleBook?: boolean;
 }
 
 export interface LibraryTitleResult {

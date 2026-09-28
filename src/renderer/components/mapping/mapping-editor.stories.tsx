@@ -100,6 +100,10 @@ export const PreGrouped: Story = {
   },
 };
 
+export const SingleBookActive: Story = {
+  args: { ...PreGrouped.args, singleBook: true },
+};
+
 export const ProviderSuggested: Story = {
   args: {
     metadataProviders: [mangaDex],

@@ -749,4 +749,60 @@ describe('mapping editor', () => {
       );
     });
   });
+
+  describe('single-book mode integration', () => {
+    it('disables "Skip grouping" and displays the informational banner when singleBook is true', () => {
+      const onSkip = vi.fn();
+      render(
+        <MappingEditor
+          initialDraft={createMappingDraft({ mangaTitle: 'Offline Work', chapters })}
+          onSkipGrouping={onSkip}
+          singleBook={true}
+        />,
+      );
+
+      const skipButton = screen.getByRole('button', { name: 'Skip grouping' });
+      expect(skipButton).toBeDisabled();
+      expect(
+        screen.getByText('Single book mode requires grouping chapters into volumes.'),
+      ).toBeVisible();
+
+      const banner = screen.getByRole('status', { name: 'Single book for the series' });
+      expect(banner).toBeVisible();
+      expect(banner.parentElement).toBe(
+        screen.getByRole('region', { name: /Organize Offline Work into volumes/u }),
+      );
+      expect(
+        screen.getByText(
+          'Mapped volumes will form top-level entries in the table of contents of the unified EPUB, with chapters nested under them.',
+        ),
+      ).toBeVisible();
+    });
+
+    it('enables "Skip grouping" and omits the banner when singleBook is false', async () => {
+      const user = userEvent.setup();
+      const onSkip = vi.fn();
+      render(
+        <MappingEditor
+          initialDraft={createMappingDraft({ mangaTitle: 'Offline Work', chapters })}
+          onSkipGrouping={onSkip}
+          singleBook={false}
+        />,
+      );
+
+      const skipButton = screen.getByRole('button', { name: 'Skip grouping' });
+      expect(skipButton).toBeEnabled();
+      expect(
+        screen.getByText(
+          'Send the folder to mangapress as one book, without grouping chapters into volumes.',
+        ),
+      ).toBeVisible();
+      expect(
+        screen.queryByRole('status', { name: 'Single book for the series' }),
+      ).not.toBeInTheDocument();
+
+      await user.click(skipButton);
+      expect(onSkip).toHaveBeenCalledOnce();
+    });
+  });
 });

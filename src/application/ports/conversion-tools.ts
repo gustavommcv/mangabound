@@ -38,6 +38,7 @@ export interface BindingBatchResult {
     readonly title: string;
     readonly status: BindingTitleStatus;
     readonly volumePaths: readonly string[];
+    readonly combinedOutputPath?: string;
     readonly issues: readonly PipelineIssue[];
   }[];
   readonly issues: readonly PipelineIssue[];
@@ -75,7 +76,11 @@ export interface BindingPort {
   /** Reads a library (a folder of manga folders) with one mangabind `--batch` dry run. */
   planBatch(parentPath: string, signal?: AbortSignal): Promise<BindingBatchPlan>;
   /** Joins every title of a library with one mangabind `--batch` run. */
-  bindBatch(parentPath: string, signal?: AbortSignal): Promise<BindingBatchResult>;
+  bindBatch(
+    parentPath: string,
+    signal?: AbortSignal,
+    combine?: boolean,
+  ): Promise<BindingBatchResult>;
   /** Saves the mapping a user confirmed for one title as that title folder's mangabind.json. */
   writeTitleMapping(inputPath: string, mapping: MappingDraft): Promise<void>;
 }
@@ -87,6 +92,7 @@ export interface ConversionPort {
       readonly outputDirectory: string;
       readonly settings: MangapressSettings;
       readonly format: BookFormat;
+      readonly nestedToc?: boolean;
     },
     options?: { readonly signal?: AbortSignal },
   ): Promise<{
@@ -103,6 +109,7 @@ export interface ConversionPort {
       readonly outputDirectory: string;
       readonly settings: MangapressSettings;
       readonly format: BookFormat;
+      readonly nestedToc?: boolean;
     },
     options: {
       readonly signal?: AbortSignal;

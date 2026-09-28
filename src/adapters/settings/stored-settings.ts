@@ -28,11 +28,27 @@ export function parseStoredSettings(raw: string): StoredSettings | undefined {
   } catch {
     return undefined;
   }
+  if (typeof json === 'object' && json !== null) {
+    const rawObj = json as Record<string, unknown>;
+    const rawSettings = rawObj.settings as Record<string, unknown> | undefined;
+    if (rawObj.singleBook === undefined) {
+      if (rawObj.combineIntoOneVolume === true || rawSettings?.combineIntoOneVolume === true) {
+        rawObj.singleBook = true;
+      }
+    }
+    if (rawSettings && 'combineIntoOneVolume' in rawSettings) {
+      delete rawSettings.combineIntoOneVolume;
+    }
+    if ('combineIntoOneVolume' in rawObj) {
+      delete rawObj.combineIntoOneVolume;
+    }
+  }
   const parsed = storedSettingsSchema.safeParse(json);
   if (!parsed.success) return undefined;
   const {
     mode,
     format,
+    singleBook,
     settings,
     providerId,
     outputFolder,
@@ -42,7 +58,8 @@ export function parseStoredSettings(raw: string): StoredSettings | undefined {
   return {
     mode,
     format,
-    settings,
+    singleBook,
+    settings: { ...settings, combineIntoOneVolume: false },
     ...(providerId === undefined ? {} : { providerId }),
     ...(outputFolder === undefined ? {} : { outputFolder }),
     ...(lastPickerFolder === undefined ? {} : { lastPickerFolder }),

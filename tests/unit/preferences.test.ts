@@ -15,6 +15,7 @@ describe('the defaults everything starts from', () => {
     expect(defaultPreferences).toEqual({
       mode: defaultProcessMode,
       format: 'epub',
+      singleBook: false,
       settings: defaultMangapressSettings,
     });
     expect(defaultFormat).toBe('epub');

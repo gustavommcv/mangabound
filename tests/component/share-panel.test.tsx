@@ -62,6 +62,8 @@ describe('SharePanel', () => {
     );
 
     expect(screen.getByText('C:\\Books')).toBeVisible();
+    expect(screen.getByLabelText('Username')).toHaveAttribute('placeholder', 'No username');
+    expect(screen.getByLabelText('Password')).toHaveAttribute('placeholder', 'No password');
     await user.selectOptions(screen.getByLabelText('Network interface'), '10.0.0.5');
     await user.click(screen.getByRole('button', { name: 'Start sharing' }));
 

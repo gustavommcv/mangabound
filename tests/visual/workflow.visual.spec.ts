@@ -111,6 +111,31 @@ test('changed output settings show aligned labels and individual resets', async 
   await expect(page.locator('#storybook-root')).toHaveScreenshot('output-settings-modified.png');
 });
 
+test('single-book notices span their editor and share the warning treatment', async ({ page }) => {
+  await page.goto('/iframe.html?id=workflows-mapping-editor--single-book-active&viewMode=story');
+  const mapping = page.getByRole('region', { name: /Organize A Quiet Journey into volumes/u });
+  const mappingNotice = page.getByRole('status', { name: 'Single book for the series' });
+  await expect(mappingNotice).toBeVisible();
+  const mappingBox = await mapping.boundingBox();
+  const mappingNoticeBox = await mappingNotice.boundingBox();
+  expect(mappingBox).not.toBeNull();
+  expect(mappingNoticeBox).not.toBeNull();
+  expect(Math.abs(mappingNoticeBox!.x - mappingBox!.x)).toBeLessThan(1);
+  expect(Math.abs(mappingNoticeBox!.width - mappingBox!.width)).toBeLessThan(1);
+  await expect(mappingNotice).toHaveClass(/border-status-warning\/40/u);
+
+  await page.goto('/iframe.html?id=workflows-output-settings--single-book-active&viewMode=story');
+  const settingsNotice = page.getByRole('status', { name: 'Single book for the series' });
+  await expect(settingsNotice).toBeVisible();
+  const settingsBox = await settingsNotice.boundingBox();
+  const settingsParentBox = await settingsNotice.locator('..').boundingBox();
+  expect(settingsBox).not.toBeNull();
+  expect(settingsParentBox).not.toBeNull();
+  expect(Math.abs(settingsBox!.x - settingsParentBox!.x)).toBeLessThan(1);
+  expect(Math.abs(settingsBox!.width - settingsParentBox!.width)).toBeLessThan(1);
+  await expect(settingsNotice).toHaveClass(/border-status-warning\/40/u);
+});
+
 test('an online source with its results remains visually consistent', async ({ page }) => {
   await page.goto(
     '/iframe.html?id=workflows-mapping-editor--with-metadata-suggestions&viewMode=story',

@@ -114,6 +114,7 @@ export function registerConversionHandlers(context: ConversionContext): void {
                 format: command.format,
                 ...(command.mapping === undefined ? {} : { mapping: command.mapping }),
                 ...(command.mode === undefined ? {} : { mode: command.mode }),
+                ...(command.singleBook === undefined ? {} : { singleBook: command.singleBook }),
               },
               { signal: controller.signal },
             ),
@@ -154,6 +155,7 @@ export function registerConversionHandlers(context: ConversionContext): void {
               format: command.format,
               ...(command.mapping === undefined ? {} : { mapping: command.mapping }),
               ...(command.mode === undefined ? {} : { mode: command.mode }),
+              ...(command.singleBook === undefined ? {} : { singleBook: command.singleBook }),
             },
             {
               signal: controller.signal,
@@ -242,6 +244,7 @@ export function registerConversionHandlers(context: ConversionContext): void {
               format: command.format,
               ...(command.titles === undefined ? {} : { titles: command.titles }),
               ...(command.mode === undefined ? {} : { mode: command.mode }),
+              ...(command.singleBook === undefined ? {} : { singleBook: command.singleBook }),
             },
             {
               signal: controller.signal,

@@ -163,6 +163,7 @@ export function SharePanel({
                 onChange={(event) => {
                   setUsername(event.target.value);
                 }}
+                placeholder="No username"
                 value={username}
               />
             </div>
@@ -173,6 +174,7 @@ export function SharePanel({
                 onChange={(event) => {
                   setPassword(event.target.value);
                 }}
+                placeholder="No password"
                 type="password"
                 value={password}
               />

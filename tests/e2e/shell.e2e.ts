@@ -64,6 +64,93 @@ describe('packaged application shell', () => {
     assert.equal(measured.windowScrolled, 0, 'the window itself does not scroll');
   });
 
+  it('has one scrollbar when single-book options make the queue taller than the window', async () => {
+    await $('#combine-into-one-volume').click();
+    const measured = JSON.parse(
+      await browser.execute(() => {
+        const bar = document.querySelector('header.window-titlebar');
+        const scroller = bar?.nextElementSibling;
+        const scrollables = Array.from(document.querySelectorAll('*'))
+          .filter((element): element is HTMLElement => element instanceof HTMLElement)
+          .filter((element) => {
+            const overflow = getComputedStyle(element).overflowY;
+            return (
+              (overflow === 'auto' || overflow === 'scroll') &&
+              element.scrollHeight - element.clientHeight > 1
+            );
+          })
+          .map((element) => ({
+            tag: element.tagName,
+            className: element.className,
+            left: element.getBoundingClientRect().left,
+            right: element.getBoundingClientRect().right,
+            range: element.scrollHeight - element.clientHeight,
+          }));
+        return JSON.stringify({
+          viewportWidth: window.innerWidth,
+          documentOverflow: getComputedStyle(document.documentElement).overflowY,
+          bodyOverflow: getComputedStyle(document.body).overflowY,
+          contentRange:
+            scroller instanceof HTMLElement ? scroller.scrollHeight - scroller.clientHeight : -1,
+          scrollables,
+        });
+      }),
+    ) as {
+      viewportWidth: number;
+      documentOverflow: string;
+      bodyOverflow: string;
+      contentRange: number;
+      scrollables: readonly {
+        tag: string;
+        className: string;
+        left: number;
+        right: number;
+        range: number;
+      }[];
+    };
+    assert.ok(measured.contentRange > 0, JSON.stringify(measured));
+    assert.equal(measured.documentOverflow, 'hidden', JSON.stringify(measured));
+    assert.equal(measured.bodyOverflow, 'hidden', JSON.stringify(measured));
+    assert.equal(measured.scrollables.length, 1, JSON.stringify(measured));
+    assert.equal(measured.scrollables[0]?.right, measured.viewportWidth, JSON.stringify(measured));
+    await $('#combine-into-one-volume').click();
+  });
+
+  it('has only the content area scroll on the long options page', async () => {
+    await $('button=Advanced conversion options').click();
+    await $('h1=Conversion options').waitForDisplayed();
+    assert.equal(await $('#jpeg-quality').getAttribute('placeholder'), '85%');
+    assert.equal(await $('#gamma').getAttribute('placeholder'), '1.0');
+    assert.equal(await $('#custom-width').getAttribute('placeholder'), '1272');
+    await $('#device-profile').selectByAttribute('value', 'KS');
+    assert.equal(await $('#jpeg-quality').getAttribute('placeholder'), '90%');
+    assert.equal(await $('#custom-width').getAttribute('placeholder'), '1860');
+    await $('#device-profile').selectByAttribute('value', 'KPW6');
+
+    const measured = JSON.parse(
+      await browser.execute(() => {
+        const bar = document.querySelector('header.window-titlebar');
+        const scroller = bar?.nextElementSibling;
+        return JSON.stringify({
+          documentRange: document.documentElement.scrollHeight - window.innerHeight,
+          bodyRange: document.body.scrollHeight - window.innerHeight,
+          contentRange:
+            scroller instanceof HTMLElement ? scroller.scrollHeight - scroller.clientHeight : -1,
+        });
+      }),
+    ) as { documentRange: number; bodyRange: number; contentRange: number };
+
+    assert.ok(
+      measured.contentRange > 0,
+      `the options content must scroll: ${JSON.stringify(measured)}`,
+    );
+    assert.ok(
+      measured.documentRange <= 1,
+      `the document must not scroll: ${JSON.stringify(measured)}`,
+    );
+    assert.ok(measured.bodyRange <= 1, `the body must not scroll: ${JSON.stringify(measured)}`);
+  });
+
   it('opens the share panel from the title bar, and Escape puts it away', async () => {
     const share = $('header').$('button=Share');
     await share.click();
