@@ -5,6 +5,30 @@ import { expect, test } from '@playwright/test';
 test.describe('at the size the window opens at', () => {
   test.use({ viewport: { height: 760, width: 1180 } });
 
+  test('enabled actions show a pointer while unavailable controls do not', async ({ page }) => {
+    await page.goto('/iframe.html?id=workflows-queue--empty&viewMode=story');
+    await expect(page.getByRole('heading', { name: 'Queue' })).toBeVisible();
+    await expect(page.getByTestId('drop-target')).toHaveCSS('cursor', 'pointer');
+    await expect(page.getByRole('button', { name: 'Files', exact: true })).toHaveCSS(
+      'cursor',
+      'pointer',
+    );
+    await expect(page.getByRole('radio', { name: 'CBZ' })).toHaveCSS('cursor', 'pointer');
+    await expect(page.getByLabel('Device')).toHaveCSS('cursor', 'pointer');
+    await expect(page.getByRole('button', { name: 'Advanced conversion options' })).toHaveCSS(
+      'cursor',
+      'pointer',
+    );
+    await expect(page.getByRole('button', { name: 'Reset to defaults' })).toHaveCSS(
+      'cursor',
+      'default',
+    );
+
+    await page.goto('/iframe.html?id=workflows-queue--single-book-active&viewMode=story');
+    await expect(page.getByRole('radio', { name: 'CBZ' })).toBeDisabled();
+    await expect(page.getByRole('radio', { name: 'CBZ' })).not.toHaveCSS('cursor', 'pointer');
+  });
+
   test('the empty queue remains visually consistent', async ({ page }) => {
     await page.goto('/iframe.html?id=workflows-queue--empty&viewMode=story');
     await expect(page.getByRole('heading', { name: 'Queue' })).toBeVisible();
