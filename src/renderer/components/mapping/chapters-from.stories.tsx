@@ -57,7 +57,21 @@ export const FromNames: Story = {};
 
 /** The names gave nothing to work with: every chapter is still loose. */
 export const NoVolumesFromNames: Story = {
-  args: { names: { volumes: 0, chapters: 8, changed: false, onStartOver: () => undefined } },
+  args: {
+    initialSource: 'manual',
+    missingNamesGrouping: true,
+    names: { volumes: 0, chapters: 8, changed: false, onStartOver: () => undefined },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole('tab', { name: 'Manual' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    await expect(
+      canvas.getByRole('status', { name: 'No volumes found in file names' }),
+    ).toBeVisible();
+  },
 };
 
 /** Editing has moved away from what mangabind proposed, so starting over is live. */
@@ -155,6 +169,8 @@ export const Manual: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole('tab', { name: 'Manual' }));
-    await expect(canvas.getByText(/Add a volume with the plus button/u)).toBeVisible();
+    await expect(
+      canvas.getByText(/Select chapters or a range to assign to volumes/u),
+    ).toBeVisible();
   },
 };

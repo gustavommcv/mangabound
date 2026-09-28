@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { userEvent, within } from 'storybook/test';
+import { expect, userEvent, within } from 'storybook/test';
 
 import { createMappingDraft } from '@/domain/mapping';
 import type { MetadataProviderDescriptor } from '@/shared/workflow-contract';
@@ -84,6 +84,16 @@ export const ManualOffline: Story = {
       chapters,
     }),
   },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole('tab', { name: 'Manual' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    await expect(
+      canvas.getByRole('status', { name: 'No volumes found in file names' }),
+    ).toBeVisible();
+  },
 };
 
 export const PreGrouped: Story = {
@@ -132,6 +142,21 @@ export const OnlineSourceNoneChosen: Story = {
   play: async ({ canvasElement }) => {
     await userEvent.click(within(canvasElement).getByRole('tab', { name: 'Online source' }));
     await within(canvasElement).findByRole('combobox', { name: 'Source' });
+  },
+};
+
+/** No file-name grouping, with an optional online suggestion available but not selected. */
+export const ManualWithOnlineOption: Story = {
+  args: OnlineSourceNoneChosen.args ?? {},
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole('tab', { name: 'Manual' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    await expect(
+      canvas.getByRole('status', { name: 'No volumes found in file names' }),
+    ).toHaveTextContent('try Online source for a suggestion');
   },
 };
 

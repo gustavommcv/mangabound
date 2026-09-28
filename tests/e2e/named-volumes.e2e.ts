@@ -43,6 +43,9 @@ describe('packaged folder whose names carry the volumes', () => {
 
     await $('button[aria-label="Edit volumes for Named Volumes"]').click();
     await $('h1=Organize Named Volumes into volumes').waitForDisplayed({ timeout: 30_000 });
+    assert.match(await $('main').getText(), /Proposed chapter mapping/u);
+    assert.match(await $('main').getText(), /2 volumes · 3 of 3 chapters assigned/u);
+    await $('button=Edit chapter mapping').click();
     const scroll = JSON.parse(
       await browser.execute(() => {
         const chapters = document.querySelector('section[aria-labelledby="chapters-title"]');

@@ -31,6 +31,7 @@ import {
   validateMapping,
 } from '@/domain/mapping';
 import { ChaptersFrom } from './chapters-from';
+import { MappingSummary } from './mapping-summary';
 
 import { InfoBanner } from '@/renderer/components/shared/info-banner';
 import { Button } from '@/renderer/components/ui/button';
@@ -121,13 +122,16 @@ export function MappingEditor({
   const [rangeStart, setRangeStart] = useState(initialDraft.chapters[0]?.id ?? '');
   const [rangeEnd, setRangeEnd] = useState(initialDraft.chapters.at(-1)?.id ?? '');
   const [operationMessage, setOperationMessage] = useState<string>();
+  const [editorExpanded, setEditorExpanded] = useState(false);
   // The chapter chosen to split each volume before, by volume id. A stale choice (the volume
   // changed since) falls back to the first chapter that can still be split before.
   const [splitBeforeByVolume, setSplitBeforeByVolume] = useState<Readonly<Record<string, string>>>(
     {},
   );
   // The source is chosen by the caller when it keeps the choice across titles, or here when not.
-  const [localProviderId, setLocalProviderId] = useState<string>();
+  const [localProviderId, setLocalProviderId] = useState<string | undefined>(
+    initialDraft.source?.provider,
+  );
   const generatedId = useRef(0);
   const titleRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
@@ -140,6 +144,8 @@ export function MappingEditor({
   const issues = useMemo(() => validateMapping(draft), [draft]);
   const errors = issues.filter((issue) => issue.severity === 'error');
   const warnings = issues.filter((issue) => issue.severity === 'warning');
+  // An incomplete or conflicting proposal must never hide the controls needed to fix it.
+  const showEditor = editorExpanded || issues.length > 0 || draft.volumes.length === 0;
 
   const createVolumeId = (): string => {
     let id: string;
@@ -151,6 +157,8 @@ export function MappingEditor({
   };
 
   const dispatch = (command: MappingCommand): boolean => {
+    // Once editing starts, completing the last missing assignment must not close the controls.
+    setEditorExpanded(true);
     try {
       const next = dispatchMappingCommand(history, command);
       setHistory(next);
@@ -232,8 +240,9 @@ export function MappingEditor({
             Organize {draft.mangaTitle || 'untitled manga'} into volumes
           </h1>
           <p className="text-muted-foreground max-w-2xl text-sm leading-6">
-            Select chapters, assign them to a volume, and fix any conflicts before continuing.
-            Assigning an already placed chapter moves it.
+            {showEditor
+              ? 'Select chapters, assign them to a volume, and fix any conflicts before continuing. Assigning an already placed chapter moves it.'
+              : 'Review the proposed volumes below, or open the editor to change chapter assignments.'}
           </p>
         </div>
         {onSkipGrouping !== undefined && (
@@ -253,42 +262,55 @@ export function MappingEditor({
             </p>
           </div>
         )}
-        <div className="flex items-center gap-1" aria-label="Edit history" role="group">
-          <Button
-            aria-label="Undo last mapping edit"
-            disabled={history.past.length === 0}
-            onClick={() => {
-              setHistory(undoMappingCommand(history));
-            }}
-            size="icon"
-            variant="ghost"
-          >
-            <Undo2 />
-          </Button>
-          <Button
-            aria-label="Redo last mapping edit"
-            disabled={history.future.length === 0}
-            onClick={() => {
-              setHistory(redoMappingCommand(history));
-            }}
-            size="icon"
-            variant="ghost"
-          >
-            <Redo2 />
-          </Button>
-          <Button
-            aria-label="Reset all mapping edits"
-            disabled={history.past.length === 0}
-            onClick={() => {
-              setHistory(createMappingHistory(initialDraft));
-              setSelectedChapterIds(new Set());
-              setOperationMessage(undefined);
-            }}
-            size="icon"
-            variant="ghost"
-          >
-            <RotateCcw />
-          </Button>
+        <div className="flex items-center gap-2">
+          {showEditor && issues.length === 0 && draft.volumes.length > 0 && (
+            <Button
+              onClick={() => {
+                setEditorExpanded(false);
+              }}
+              size="sm"
+              variant="outline"
+            >
+              Show mapping summary
+            </Button>
+          )}
+          <div className="flex items-center gap-1" aria-label="Edit history" role="group">
+            <Button
+              aria-label="Undo last mapping edit"
+              disabled={history.past.length === 0}
+              onClick={() => {
+                setHistory(undoMappingCommand(history));
+              }}
+              size="icon"
+              variant="ghost"
+            >
+              <Undo2 />
+            </Button>
+            <Button
+              aria-label="Redo last mapping edit"
+              disabled={history.future.length === 0}
+              onClick={() => {
+                setHistory(redoMappingCommand(history));
+              }}
+              size="icon"
+              variant="ghost"
+            >
+              <Redo2 />
+            </Button>
+            <Button
+              aria-label="Reset all mapping edits"
+              disabled={history.past.length === 0}
+              onClick={() => {
+                setHistory(createMappingHistory(initialDraft));
+                setSelectedChapterIds(new Set());
+                setOperationMessage(undefined);
+              }}
+              size="icon"
+              variant="ghost"
+            >
+              <RotateCcw />
+            </Button>
+          </div>
         </div>
       </header>
       {singleBook && (
@@ -299,10 +321,26 @@ export function MappingEditor({
       )}
 
       <ChaptersFrom
+        initialSource={
+          initialDraft.source !== undefined &&
+          metadataProviders.some((provider) => provider.id === initialDraft.source?.provider) &&
+          onSearchMetadata !== undefined &&
+          onSuggestVolumes !== undefined
+            ? 'online'
+            : startedFrom === 'mangabind'
+              ? 'names'
+              : 'manual'
+        }
+        missingNamesGrouping={
+          initialDraft.source === undefined && initialDraft.volumes.length === 0
+        }
+        onManualSelect={() => {
+          setEditorExpanded(true);
+        }}
         names={{
-          volumes: initialDraft.volumes.length,
+          volumes: startedFrom === 'mangabind' ? initialDraft.volumes.length : 0,
           chapters: initialDraft.chapters.length,
-          changed: history.past.length > 0,
+          changed: history.past.length > 0 && initialDraft.source === undefined,
           onStartOver: () => {
             setHistory(createMappingHistory(initialDraft));
             setSelectedChapterIds(new Set());
@@ -323,16 +361,33 @@ export function MappingEditor({
                 onSearch: onSearchMetadata,
                 onSuggest: onSuggestVolumes,
                 onApply: (result, volumes) => {
-                  dispatch({
-                    type: 'apply-suggestion',
-                    suggestions: volumes.map((volume) => ({ ...volume, id: createVolumeId() })),
-                    source: { provider: result.provider, id: result.id },
-                  });
+                  if (
+                    dispatch({
+                      type: 'apply-suggestion',
+                      suggestions: volumes.map((volume) => ({ ...volume, id: createVolumeId() })),
+                      source: { provider: result.provider, id: result.id },
+                    })
+                  ) {
+                    // A complete online suggestion can be reviewed as a summary; incomplete
+                    // suggestions still expose the editor through validation issues.
+                    setEditorExpanded(false);
+                  }
                 },
               }
             : undefined
         }
       />
+
+      {showEditor && draft.volumes.length === 0 && (
+        <div className="border-border bg-surface flex flex-wrap items-center justify-between gap-3 rounded-xl border p-5">
+          <p className="text-muted-foreground text-sm">
+            Start by creating a volume, then assign chapters to it.
+          </p>
+          <Button aria-label="Create first volume" onClick={addNewVolume} size="sm">
+            <Plus /> Create volume {newVolumeNumber}
+          </Button>
+        </div>
+      )}
 
       {operationMessage !== undefined && (
         <div
@@ -348,400 +403,426 @@ export function MappingEditor({
         </div>
       )}
 
-      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(20rem,1fr)]">
-        <section
-          aria-labelledby="chapters-title"
-          className="border-border bg-surface overflow-hidden rounded-xl border"
-        >
-          <div className="border-border flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4">
-            <div>
-              <h2 id="chapters-title" className="text-sm font-semibold">
-                Chapters
-              </h2>
-              <p className="text-muted-foreground mt-1 text-xs">
-                {String(selectedChapterIds.size)} of {String(draft.chapters.length)} selected
-              </p>
-            </div>
-            <Button
-              onClick={() => {
-                setSelectedChapterIds(
-                  selectedChapterIds.size === draft.chapters.length
-                    ? new Set()
-                    : new Set(draft.chapters.map((chapter) => chapter.id)),
-                );
-              }}
-              size="sm"
-              variant="ghost"
-            >
-              {selectedChapterIds.size === draft.chapters.length ? 'Clear all' : 'Select all'}
-            </Button>
-          </div>
-          <div>
-            {draft.chapters.map((chapter) => {
-              const volumeId = assignedVolumeId(draft, chapter.id);
-              return (
-                <div
-                  className="border-border hover:bg-muted/50 flex items-center gap-3 border-b px-5 py-3 last:border-b-0"
-                  key={chapter.id}
-                >
-                  <Checkbox
-                    aria-label={`Select ${chapter.name}`}
-                    checked={selectedChapterIds.has(chapter.id)}
-                    id={`chapter-${chapter.id}`}
-                    onCheckedChange={(checked) => {
-                      toggleChapter(chapter.id, checked === true);
-                    }}
-                  />
-                  <Label
-                    className="min-w-0 flex-1 cursor-pointer"
-                    htmlFor={`chapter-${chapter.id}`}
-                  >
-                    <span className="block truncate">{chapter.name}</span>
-                    <span className="text-subtle-foreground mt-0.5 block text-xs font-normal">
-                      {String(chapter.pageCount)} pages
-                    </span>
-                  </Label>
-                  <span
-                    className={
-                      volumeId === undefined
-                        ? 'text-status-warning text-xs'
-                        : 'text-muted-foreground text-xs'
-                    }
-                  >
-                    {volumeName(draft, volumeId)}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-          <div className="border-border bg-muted/30 space-y-4 border-t p-5">
-            <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
-              <div className="space-y-2">
-                <Label htmlFor="target-volume">Move selected chapters to</Label>
-                <NativeSelect
-                  disabled={draft.volumes.length === 0}
-                  id="target-volume"
-                  onChange={(event) => {
-                    setTargetVolumeId(event.target.value);
-                  }}
-                  value={effectiveTargetVolumeId}
-                >
-                  {draft.volumes.length === 0 && <option value="">Create a volume first</option>}
-                  {draft.volumes.map((volume) => (
-                    <option key={volume.id} value={volume.id}>
-                      Volume {volume.number}
-                    </option>
-                  ))}
-                </NativeSelect>
-              </div>
-              <Button
-                disabled={selectedChapterIds.size === 0 || effectiveTargetVolumeId === ''}
-                onClick={assignSelected}
-              >
-                <ArrowDownToLine />
-                Assign selected
-              </Button>
-              <Button
-                disabled={selectedChapterIds.size === 0}
-                onClick={unassignSelected}
-                variant="outline"
-              >
-                Unassign
-              </Button>
-            </div>
+      {!showEditor && (
+        <MappingSummary
+          draft={draft}
+          onConfirm={confirm}
+          onEdit={() => {
+            setEditorExpanded(true);
+          }}
+        />
+      )}
 
-            <fieldset className="border-border grid gap-3 rounded-lg border p-4 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
-              <legend className="text-muted-foreground px-1 text-xs font-medium">
-                Assign an inclusive range
-              </legend>
-              <div className="space-y-2">
-                <Label htmlFor="range-start">From</Label>
-                <NativeSelect
-                  id="range-start"
-                  onChange={(event) => {
-                    setRangeStart(event.target.value);
-                  }}
-                  value={rangeStart}
-                >
-                  {draft.chapters.map((chapter) => (
-                    <option key={chapter.id} value={chapter.id}>
-                      {chapter.name}
-                    </option>
-                  ))}
-                </NativeSelect>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="range-end">Through</Label>
-                <NativeSelect
-                  id="range-end"
-                  onChange={(event) => {
-                    setRangeEnd(event.target.value);
-                  }}
-                  value={rangeEnd}
-                >
-                  {draft.chapters.map((chapter) => (
-                    <option key={chapter.id} value={chapter.id}>
-                      {chapter.name}
-                    </option>
-                  ))}
-                </NativeSelect>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="range-volume">Volume</Label>
-                <NativeSelect
-                  disabled={draft.volumes.length === 0}
-                  id="range-volume"
-                  onChange={(event) => {
-                    setTargetVolumeId(event.target.value);
-                  }}
-                  value={effectiveTargetVolumeId}
-                >
-                  {draft.volumes.length === 0 && <option value="">Create a volume first</option>}
-                  {draft.volumes.map((volume) => (
-                    <option key={volume.id} value={volume.id}>
-                      Volume {volume.number}
-                    </option>
-                  ))}
-                </NativeSelect>
-              </div>
-              <Button
-                disabled={rangeStart === '' || rangeEnd === '' || effectiveTargetVolumeId === ''}
-                onClick={() => {
-                  dispatch({
-                    type: 'assign-range',
-                    volumeId: effectiveTargetVolumeId,
-                    firstChapterId: rangeStart,
-                    lastChapterId: rangeEnd,
-                  });
-                }}
-                variant="outline"
-              >
-                Assign range
-              </Button>
-            </fieldset>
-          </div>
-        </section>
-
-        <div className="space-y-6">
+      {showEditor && (
+        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(20rem,1fr)]">
           <section
-            aria-labelledby="volumes-title"
-            className="border-border bg-surface rounded-xl border p-5"
+            aria-labelledby="chapters-title"
+            className="border-border bg-surface overflow-hidden rounded-xl border"
           >
-            <div className="flex items-end justify-between gap-3">
+            <div className="border-border flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4">
               <div>
-                <h2 id="volumes-title" className="text-sm font-semibold">
-                  Volumes
+                <h2 id="chapters-title" className="text-sm font-semibold">
+                  Chapters
                 </h2>
                 <p className="text-muted-foreground mt-1 text-xs">
-                  {String(draft.volumes.length)} created
+                  {String(selectedChapterIds.size)} of {String(draft.chapters.length)} selected
                 </p>
               </div>
-              <div className="flex items-end gap-2">
-                <div className="flex items-center gap-2">
-                  <Label
-                    className="text-muted-foreground text-xs font-normal"
-                    htmlFor="new-volume-number"
+              <Button
+                onClick={() => {
+                  setSelectedChapterIds(
+                    selectedChapterIds.size === draft.chapters.length
+                      ? new Set()
+                      : new Set(draft.chapters.map((chapter) => chapter.id)),
+                  );
+                }}
+                size="sm"
+                variant="ghost"
+              >
+                {selectedChapterIds.size === draft.chapters.length ? 'Clear all' : 'Select all'}
+              </Button>
+            </div>
+            <div>
+              {draft.chapters.map((chapter) => {
+                const volumeId = assignedVolumeId(draft, chapter.id);
+                return (
+                  <div
+                    className="border-border hover:bg-muted/50 flex items-center gap-3 border-b px-5 py-3 last:border-b-0"
+                    key={chapter.id}
                   >
-                    New volume number
-                  </Label>
-                  <Input
-                    aria-describedby="new-volume-help"
-                    className="w-20"
-                    id="new-volume-number"
-                    inputMode="decimal"
+                    <Checkbox
+                      aria-label={`Select ${chapter.name}`}
+                      checked={selectedChapterIds.has(chapter.id)}
+                      id={`chapter-${chapter.id}`}
+                      onCheckedChange={(checked) => {
+                        toggleChapter(chapter.id, checked === true);
+                      }}
+                    />
+                    <Label
+                      className="min-w-0 flex-1 cursor-pointer"
+                      htmlFor={`chapter-${chapter.id}`}
+                    >
+                      <span className="block truncate">{chapter.name}</span>
+                      <span className="text-subtle-foreground mt-0.5 block text-xs font-normal">
+                        {String(chapter.pageCount)} pages
+                      </span>
+                    </Label>
+                    <span
+                      className={
+                        volumeId === undefined
+                          ? 'text-status-warning text-xs'
+                          : 'text-muted-foreground text-xs'
+                      }
+                    >
+                      {volumeName(draft, volumeId)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="border-border bg-muted/30 space-y-4 border-t p-5">
+              <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
+                <div className="space-y-2">
+                  <Label htmlFor="target-volume">Move selected chapters to</Label>
+                  <NativeSelect
+                    disabled={draft.volumes.length === 0}
+                    id="target-volume"
                     onChange={(event) => {
-                      setNewVolumeNumber(event.target.value);
+                      setTargetVolumeId(event.target.value);
                     }}
-                    value={newVolumeNumber}
-                  />
+                    value={effectiveTargetVolumeId}
+                  >
+                    {draft.volumes.length === 0 && <option value="">Create a volume first</option>}
+                    {draft.volumes.map((volume) => (
+                      <option key={volume.id} value={volume.id}>
+                        Volume {volume.number}
+                      </option>
+                    ))}
+                  </NativeSelect>
                 </div>
-                <Button aria-label="Add volume" onClick={addNewVolume}>
-                  <Plus /> Add
+                <Button
+                  disabled={selectedChapterIds.size === 0 || effectiveTargetVolumeId === ''}
+                  onClick={assignSelected}
+                >
+                  <ArrowDownToLine />
+                  Assign selected
+                </Button>
+                <Button
+                  disabled={selectedChapterIds.size === 0}
+                  onClick={unassignSelected}
+                  variant="outline"
+                >
+                  Unassign
                 </Button>
               </div>
+
+              <fieldset className="border-border grid gap-3 rounded-lg border p-4 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
+                <legend className="text-muted-foreground px-1 text-xs font-medium">
+                  Assign a chapter range
+                </legend>
+                <p className="text-muted-foreground text-xs sm:col-span-4">
+                  The first and last chapter are both included.
+                </p>
+                <div className="space-y-2">
+                  <Label htmlFor="range-start">From</Label>
+                  <NativeSelect
+                    id="range-start"
+                    onChange={(event) => {
+                      setRangeStart(event.target.value);
+                    }}
+                    value={rangeStart}
+                  >
+                    {draft.chapters.map((chapter) => (
+                      <option key={chapter.id} value={chapter.id}>
+                        {chapter.name}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="range-end">Through</Label>
+                  <NativeSelect
+                    id="range-end"
+                    onChange={(event) => {
+                      setRangeEnd(event.target.value);
+                    }}
+                    value={rangeEnd}
+                  >
+                    {draft.chapters.map((chapter) => (
+                      <option key={chapter.id} value={chapter.id}>
+                        {chapter.name}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="range-volume">Volume</Label>
+                  <NativeSelect
+                    disabled={draft.volumes.length === 0}
+                    id="range-volume"
+                    onChange={(event) => {
+                      setTargetVolumeId(event.target.value);
+                    }}
+                    value={effectiveTargetVolumeId}
+                  >
+                    {draft.volumes.length === 0 && <option value="">Create a volume first</option>}
+                    {draft.volumes.map((volume) => (
+                      <option key={volume.id} value={volume.id}>
+                        Volume {volume.number}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </div>
+                <Button
+                  disabled={rangeStart === '' || rangeEnd === '' || effectiveTargetVolumeId === ''}
+                  onClick={() => {
+                    dispatch({
+                      type: 'assign-range',
+                      volumeId: effectiveTargetVolumeId,
+                      firstChapterId: rangeStart,
+                      lastChapterId: rangeEnd,
+                    });
+                  }}
+                  variant="outline"
+                >
+                  Assign range
+                </Button>
+              </fieldset>
             </div>
-            <p className="text-muted-foreground mt-3 text-xs leading-relaxed" id="new-volume-help">
-              Add creates an empty volume with the number in the box, which counts up by itself.
-              Split before moves the chosen chapter and every one after it into a new volume,
-              numbered one above the highest so far; renumber it afterward if you like.
-            </p>
-
-            {draft.volumes.length === 0 ? (
-              <div className="border-border text-muted-foreground mt-5 rounded-lg border border-dashed px-4 py-8 text-center text-sm">
-                Create the first volume, then assign chapters to it.
-              </div>
-            ) : (
-              <div className="mt-5 space-y-3">
-                {draft.volumes.map((volume, index) => {
-                  const splitOptions = volume.chapterIds.slice(1);
-                  const storedSplitBefore = splitBeforeByVolume[volume.id];
-                  const splitBefore =
-                    storedSplitBefore !== undefined && splitOptions.includes(storedSplitBefore)
-                      ? storedSplitBefore
-                      : splitOptions[0];
-                  return (
-                    <article
-                      className="border-border bg-background rounded-lg border p-4"
-                      key={volume.id}
-                    >
-                      <div className="flex items-start gap-2">
-                        <div className="min-w-0 flex-1 space-y-2">
-                          <Label htmlFor={`volume-number-${volume.id}`}>Volume number</Label>
-                          <Input
-                            aria-label={`Volume number for volume ${volume.number}`}
-                            defaultValue={volume.number}
-                            id={`volume-number-${volume.id}`}
-                            inputMode="decimal"
-                            key={`${volume.id}-${volume.number}`}
-                            onBlur={(event) => {
-                              if (event.target.value !== volume.number) {
-                                dispatch({
-                                  type: 'renumber-volume',
-                                  volumeId: volume.id,
-                                  number: event.target.value,
-                                });
-                              }
-                            }}
-                          />
-                        </div>
-                        <Button
-                          aria-label={`Remove volume ${volume.number}`}
-                          onClick={() => {
-                            dispatch({ type: 'remove-volume', volumeId: volume.id });
-                          }}
-                          size="icon"
-                          variant="ghost"
-                        >
-                          <Trash2 />
-                        </Button>
-                      </div>
-                      <p className="text-muted-foreground mt-3 text-xs">
-                        {String(volume.chapterIds.length)} chapter
-                        {volume.chapterIds.length === 1 ? '' : 's'}
-                      </p>
-                      {volume.chapterIds.length > 1 && (
-                        <div className="mt-3 space-y-2">
-                          <Label htmlFor={`split-${volume.id}`}>Split before</Label>
-                          <div className="flex gap-2">
-                            <NativeSelect
-                              id={`split-${volume.id}`}
-                              onChange={(event) => {
-                                setSplitBeforeByVolume((current) => ({
-                                  ...current,
-                                  [volume.id]: event.target.value,
-                                }));
-                              }}
-                              value={splitBefore}
-                            >
-                              {splitOptions.map((chapterId) => (
-                                <option key={chapterId} value={chapterId}>
-                                  {draft.chapters.find((chapter) => chapter.id === chapterId)?.name}
-                                </option>
-                              ))}
-                            </NativeSelect>
-                            <Button
-                              aria-label={`Split volume ${volume.number}`}
-                              onClick={() => {
-                                if (splitBefore === undefined) return;
-                                const splitNumber = nextVolumeNumber(draft);
-                                const split = dispatch({
-                                  type: 'split-volume',
-                                  volumeId: volume.id,
-                                  firstChapterId: splitBefore,
-                                  newVolumeId: createVolumeId(),
-                                  newVolumeNumber: splitNumber,
-                                });
-                                // The new volume took that number, so the next one is the one after.
-                                if (split) setNewVolumeNumber(String(Number(splitNumber) + 1));
-                              }}
-                              size="icon"
-                              variant="outline"
-                            >
-                              <Scissors />
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-                      {index > 0 && (
-                        <Button
-                          className="mt-3 w-full"
-                          onClick={() => {
-                            dispatch({
-                              type: 'merge-volumes',
-                              targetVolumeId: draft.volumes[index - 1]!.id,
-                              sourceVolumeId: volume.id,
-                            });
-                          }}
-                          size="sm"
-                          variant="ghost"
-                        >
-                          <GitMerge />
-                          Merge into volume {draft.volumes[index - 1]!.number}
-                        </Button>
-                      )}
-                    </article>
-                  );
-                })}
-              </div>
-            )}
           </section>
 
-          <section
-            aria-labelledby="validation-title"
-            className="border-border bg-surface rounded-xl border p-5"
-          >
-            <h2 id="validation-title" className="text-sm font-semibold">
-              Ready check
-            </h2>
-            {issues.length === 0 ? (
-              <div className="text-status-complete mt-4 flex items-center gap-2 text-sm">
-                <CheckCircle2 aria-hidden="true" className="size-4" />
-                All chapters are ready to bind.
-              </div>
-            ) : (
-              <div className="mt-4 space-y-4">
-                {errors.length > 0 && (
-                  <div aria-label="Mapping errors" role="alert">
-                    <p className="text-status-failed text-xs font-medium">Fix before continuing</p>
-                    <ul className="mt-2 space-y-2">
-                      {errors.map((issue, index) => (
-                        <li
-                          className="text-muted-foreground text-sm leading-5"
-                          key={`${issue.code}-${String(index)}`}
-                        >
-                          {issue.message}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {warnings.length > 0 && (
-                  <div aria-label="Mapping warnings" role="group">
-                    <p className="text-status-warning text-xs font-medium">Check these chapters</p>
-                    <ul className="mt-2 space-y-2">
-                      {warnings.map((issue, index) => (
-                        <li
-                          className="text-muted-foreground text-sm leading-5"
-                          key={`${issue.code}-${String(index)}`}
-                        >
-                          {issue.message}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            )}
-            <Button
-              className="mt-5 w-full"
-              disabled={errors.length > 0 || draft.volumes.length === 0}
-              onClick={confirm}
+          <div className="space-y-6">
+            <section
+              aria-labelledby="volumes-title"
+              className="border-border bg-surface rounded-xl border p-5"
             >
-              Confirm mapping
-            </Button>
-          </section>
+              <div className="flex items-end justify-between gap-3">
+                <div>
+                  <h2 id="volumes-title" className="text-sm font-semibold">
+                    Volumes
+                  </h2>
+                  <p className="text-muted-foreground mt-1 text-xs">
+                    {String(draft.volumes.length)} created
+                  </p>
+                </div>
+                <div className="flex items-end gap-2">
+                  <div className="flex items-center gap-2">
+                    <Label
+                      className="text-muted-foreground text-xs font-normal"
+                      htmlFor="new-volume-number"
+                    >
+                      New volume number
+                    </Label>
+                    <Input
+                      aria-describedby="new-volume-help"
+                      className="w-20"
+                      id="new-volume-number"
+                      inputMode="decimal"
+                      onChange={(event) => {
+                        setNewVolumeNumber(event.target.value);
+                      }}
+                      value={newVolumeNumber}
+                    />
+                  </div>
+                  <Button aria-label="Add volume" onClick={addNewVolume}>
+                    <Plus /> Add
+                  </Button>
+                </div>
+              </div>
+              <p
+                className="text-muted-foreground mt-3 text-xs leading-relaxed"
+                id="new-volume-help"
+              >
+                Add creates a volume using this number. The next number increases automatically.
+              </p>
+
+              {draft.volumes.length === 0 ? (
+                <div className="border-border text-muted-foreground mt-5 rounded-lg border border-dashed px-4 py-8 text-center text-sm">
+                  No volumes yet.
+                </div>
+              ) : (
+                <div className="mt-5 space-y-3">
+                  {draft.volumes.map((volume, index) => {
+                    const splitOptions = volume.chapterIds.slice(1);
+                    const storedSplitBefore = splitBeforeByVolume[volume.id];
+                    const splitBefore =
+                      storedSplitBefore !== undefined && splitOptions.includes(storedSplitBefore)
+                        ? storedSplitBefore
+                        : splitOptions[0];
+                    return (
+                      <article
+                        className="border-border bg-background rounded-lg border p-4"
+                        key={volume.id}
+                      >
+                        <div className="flex items-start gap-2">
+                          <div className="min-w-0 flex-1 space-y-2">
+                            <Label htmlFor={`volume-number-${volume.id}`}>Volume number</Label>
+                            <Input
+                              aria-label={`Volume number for volume ${volume.number}`}
+                              defaultValue={volume.number}
+                              id={`volume-number-${volume.id}`}
+                              inputMode="decimal"
+                              key={`${volume.id}-${volume.number}`}
+                              onBlur={(event) => {
+                                if (event.target.value !== volume.number) {
+                                  dispatch({
+                                    type: 'renumber-volume',
+                                    volumeId: volume.id,
+                                    number: event.target.value,
+                                  });
+                                }
+                              }}
+                            />
+                          </div>
+                          <Button
+                            aria-label={`Remove volume ${volume.number}`}
+                            onClick={() => {
+                              dispatch({ type: 'remove-volume', volumeId: volume.id });
+                            }}
+                            size="icon"
+                            variant="ghost"
+                          >
+                            <Trash2 />
+                          </Button>
+                        </div>
+                        <p className="text-muted-foreground mt-3 text-xs">
+                          {String(volume.chapterIds.length)} chapter
+                          {volume.chapterIds.length === 1 ? '' : 's'}
+                        </p>
+                        {volume.chapterIds.length > 1 && (
+                          <div className="mt-3 space-y-2">
+                            <Label htmlFor={`split-${volume.id}`}>Split before</Label>
+                            <div className="flex gap-2">
+                              <NativeSelect
+                                id={`split-${volume.id}`}
+                                onChange={(event) => {
+                                  setSplitBeforeByVolume((current) => ({
+                                    ...current,
+                                    [volume.id]: event.target.value,
+                                  }));
+                                }}
+                                value={splitBefore}
+                              >
+                                {splitOptions.map((chapterId) => (
+                                  <option key={chapterId} value={chapterId}>
+                                    {
+                                      draft.chapters.find((chapter) => chapter.id === chapterId)
+                                        ?.name
+                                    }
+                                  </option>
+                                ))}
+                              </NativeSelect>
+                              <Button
+                                aria-label={`Split volume ${volume.number}`}
+                                onClick={() => {
+                                  if (splitBefore === undefined) return;
+                                  const splitNumber = nextVolumeNumber(draft);
+                                  const split = dispatch({
+                                    type: 'split-volume',
+                                    volumeId: volume.id,
+                                    firstChapterId: splitBefore,
+                                    newVolumeId: createVolumeId(),
+                                    newVolumeNumber: splitNumber,
+                                  });
+                                  // The new volume took that number, so the next one is the one after.
+                                  if (split) setNewVolumeNumber(String(Number(splitNumber) + 1));
+                                }}
+                                size="sm"
+                                variant="outline"
+                              >
+                                <Scissors /> Split
+                              </Button>
+                            </div>
+                            <p className="text-muted-foreground text-xs">
+                              This chapter and all later chapters move into a new volume.
+                            </p>
+                          </div>
+                        )}
+                        {index > 0 && (
+                          <Button
+                            className="mt-3 w-full"
+                            onClick={() => {
+                              dispatch({
+                                type: 'merge-volumes',
+                                targetVolumeId: draft.volumes[index - 1]!.id,
+                                sourceVolumeId: volume.id,
+                              });
+                            }}
+                            size="sm"
+                            variant="ghost"
+                          >
+                            <GitMerge />
+                            Merge into volume {draft.volumes[index - 1]!.number}
+                          </Button>
+                        )}
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+
+            <section
+              aria-labelledby="validation-title"
+              className="border-border bg-surface rounded-xl border p-5"
+            >
+              <h2 id="validation-title" className="text-sm font-semibold">
+                Ready check
+              </h2>
+              {issues.length === 0 ? (
+                <div className="text-status-complete mt-4 flex items-center gap-2 text-sm">
+                  <CheckCircle2 aria-hidden="true" className="size-4" />
+                  All chapters are ready to bind.
+                </div>
+              ) : (
+                <div className="mt-4 space-y-4">
+                  {errors.length > 0 && (
+                    <div aria-label="Mapping errors" role="alert">
+                      <p className="text-status-failed text-xs font-medium">
+                        Fix before continuing
+                      </p>
+                      <ul className="mt-2 space-y-2">
+                        {errors.map((issue, index) => (
+                          <li
+                            className="text-muted-foreground text-sm leading-5"
+                            key={`${issue.code}-${String(index)}`}
+                          >
+                            {issue.message}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {warnings.length > 0 && (
+                    <div aria-label="Mapping warnings" role="group">
+                      <p className="text-status-warning text-xs font-medium">
+                        Check these chapters
+                      </p>
+                      <ul className="mt-2 space-y-2">
+                        {warnings.map((issue, index) => (
+                          <li
+                            className="text-muted-foreground text-sm leading-5"
+                            key={`${issue.code}-${String(index)}`}
+                          >
+                            {issue.message}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+              <Button
+                className="mt-5 w-full"
+                disabled={errors.length > 0 || draft.volumes.length === 0}
+                onClick={confirm}
+              >
+                Confirm mapping
+              </Button>
+            </section>
+          </div>
         </div>
-      </div>
+      )}
     </section>
   );
 }
