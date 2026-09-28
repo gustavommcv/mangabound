@@ -127,9 +127,8 @@ export function DropTarget({
       </DropdownMenu>
       {empty && !over && (
         <p className="text-subtle-foreground mt-1 max-w-sm text-center text-xs text-balance">
-          A folder has its chapters grouped into volumes automatically. A loose .cbz is treated as
-          one complete volume already — for chapters downloaded as separate .cbz files, add their
-          folder instead.
+          Folders group chapters into volumes automatically. A single CBZ becomes one volume; for
+          separate chapter CBZs, add their folder.
         </p>
       )}
     </div>

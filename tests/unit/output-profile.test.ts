@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  defaultJpegQualityFor,
   defaultMangapressSettings,
   defaultUpscaleFor,
   defaultValueForSetting,
@@ -12,6 +13,17 @@ import {
 } from '@/domain/output-profile';
 
 describe('mangapress default settings', () => {
+  it.each([
+    ['KPW6', 85],
+    ['KV', 85],
+    ['OTHER', 85],
+    ['KS', 90],
+    ['KS3', 90],
+    ['KCS', 90],
+  ])('matches mangapress JPEG quality for %s', (profile, quality) => {
+    expect(defaultJpegQualityFor(profile)).toBe(quality);
+  });
+
   it('start in the state Kindle Comic Converter opens in', () => {
     expect(defaultMangapressSettings).toMatchObject({
       // On by default in KCC's window.

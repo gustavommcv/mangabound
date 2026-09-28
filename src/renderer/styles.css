@@ -77,6 +77,15 @@ body,
   min-height: 100%;
 }
 
+/* Only the Electron document owns a fixed-height shell. Storybook reuses these tokens but lets
+   its stories set their own page height and scroll behavior. */
+html.mangabound-app,
+html.mangabound-app body,
+html.mangabound-app #root {
+  height: 100%;
+  overflow: hidden;
+}
+
 body {
   margin: 0;
   overflow-x: hidden;

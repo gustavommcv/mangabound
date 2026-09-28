@@ -4,12 +4,14 @@ import { useEffect, useRef } from 'react';
 import { isPendingTitle, isWaitingTitle, type LibraryTitle } from '@/domain/input-queue';
 import { unassignedChapterCount } from '@/domain/input-queue';
 import { Button } from '@/renderer/components/ui/button';
+import { InfoBanner } from '@/renderer/components/shared/info-banner';
 import { cn } from '@/renderer/lib/utils';
 
 export interface LibraryScreenProps {
   readonly name: string;
   readonly onBack: () => void;
   readonly onEdit: (title: string) => void;
+  readonly singleBook?: boolean;
   readonly titles: readonly LibraryTitle[];
 }
 
@@ -21,6 +23,7 @@ export function LibraryScreen({
   name,
   onBack,
   onEdit,
+  singleBook,
   titles,
 }: LibraryScreenProps): React.JSX.Element {
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -45,6 +48,13 @@ export function LibraryScreen({
           {plural(titles.length, 'title')}. A title with no volumes is left out of a run until you
           group it.
         </p>
+        {singleBook && (
+          <InfoBanner
+            className="mt-3"
+            message="Each title in the library will be produced as its own single-series EPUB."
+            title="Single book mode"
+          />
+        )}
       </div>
       <ul aria-label="Titles" className="space-y-0.5">
         {titles.map((title) => (

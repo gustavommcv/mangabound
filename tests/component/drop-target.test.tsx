@@ -31,6 +31,11 @@ describe('DropTarget', () => {
     const hint = screen.getByRole('button', {
       name: 'Drop manga folders, libraries or .cbz files here, or click to choose.',
     });
+    expect(
+      screen.getByText(
+        'Folders group chapters into volumes automatically. A single CBZ becomes one volume; for separate chapter CBZs, add their folder.',
+      ),
+    ).toBeVisible();
     expect(hint).toHaveAttribute('aria-haspopup', 'menu');
     expect(hint).toHaveAttribute('aria-expanded', 'false');
 

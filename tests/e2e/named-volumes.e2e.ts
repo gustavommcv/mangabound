@@ -43,6 +43,32 @@ describe('packaged folder whose names carry the volumes', () => {
 
     await $('button[aria-label="Edit volumes for Named Volumes"]').click();
     await $('h1=Organize Named Volumes into volumes').waitForDisplayed({ timeout: 30_000 });
+    const scroll = JSON.parse(
+      await browser.execute(() => {
+        const chapters = document.querySelector('section[aria-labelledby="chapters-title"]');
+        const list = chapters?.children[1];
+        const bar = document.querySelector('header.window-titlebar');
+        const page = bar?.nextElementSibling;
+        if (!(list instanceof HTMLElement) || !(page instanceof HTMLElement)) {
+          return JSON.stringify({ found: false });
+        }
+        const filler = document.createElement('div');
+        filler.style.height = '1200px';
+        list.appendChild(filler);
+        const result = {
+          found: true,
+          listRange: list.scrollHeight - list.clientHeight,
+          pageRange: page.scrollHeight - page.clientHeight,
+          documentRange: document.documentElement.scrollHeight - window.innerHeight,
+        };
+        filler.remove();
+        return JSON.stringify(result);
+      }),
+    ) as { found: boolean; listRange: number; pageRange: number; documentRange: number };
+    assert.equal(scroll.found, true);
+    assert.equal(scroll.listRange, 0, 'the chapter list must not have its own scrollbar');
+    assert.ok(scroll.pageRange > 0, 'the app content remains scrollable');
+    assert.ok(scroll.documentRange <= 1, 'the document itself must not gain a scrollbar');
     const editor = await $('main').getText();
     assert.match(editor, /Grouped by mangabind/u);
     assert.doesNotMatch(editor, /Unassigned/u);
@@ -111,11 +137,12 @@ describe('packaged folder whose names carry the volumes', () => {
     await resetQueue();
     await $('button=Folder').click();
     await $('span=2 volumes').waitForDisplayed({ timeout: 30_000 });
-    await $('button=mangapress options').click();
-    await $('h1=mangapress options').waitForDisplayed();
     await $('#combine-into-one-volume').click();
-    await $('button=Back').click();
     await chooseOutputFolder(queueOutputFolderButton, libraryPath);
+    await $('button=Validate plan').click();
+    await $('h2=Plan validated').waitForDisplayed({ timeout: 30_000 });
+    assert.match(await $('main').getText(), /One EPUB for Named Volumes/u);
+    assert.doesNotMatch(await $('[aria-labelledby="plans-title"]').getText(), /Vol\.01\.cbz/u);
     await $('button=Convert 1 item').click();
     await $('h1=1 book saved').waitForDisplayed({ timeout: 120_000 });
 

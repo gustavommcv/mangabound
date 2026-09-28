@@ -45,9 +45,11 @@ const profiles = [
 function StatefulEditor({
   onChange = vi.fn(),
   onNotify = vi.fn(),
+  singleBook,
 }: {
   readonly onChange?: (value: MangapressSettings) => void;
   readonly onNotify?: (message: string) => void;
+  readonly singleBook?: boolean;
 }) {
   const [settings, setSettings] = useState(defaultMangapressSettings);
   const [format, setFormat] = useState<BookFormat>('epub');
@@ -62,11 +64,54 @@ function StatefulEditor({
       }}
       profiles={profiles}
       settings={settings}
+      singleBook={singleBook}
     />
   );
 }
 
 describe('mangapress settings editor', () => {
+  it('shows meaningful placeholders only where a blank value is allowed', () => {
+    render(<StatefulEditor />);
+
+    expect(screen.getByLabelText('Custom width (optional)')).toHaveAttribute('placeholder', '1272');
+    expect(screen.getByLabelText('Custom height (optional)')).toHaveAttribute(
+      'placeholder',
+      '1696',
+    );
+    expect(screen.getByLabelText('JPEG quality (optional)')).toHaveAttribute('placeholder', '85%');
+    expect(screen.getByLabelText('Gamma (optional)')).toHaveAttribute('placeholder', '1.0');
+    expect(screen.getByLabelText('Title')).toHaveAttribute('placeholder', 'Use input name');
+    expect(screen.getByLabelText('Author')).toHaveAttribute(
+      'placeholder',
+      'Leave blank if unknown',
+    );
+    expect(screen.getByLabelText('EPUB language')).not.toHaveAttribute('placeholder');
+  });
+
+  it('updates effective hints when the selected device changes', async () => {
+    const user = userEvent.setup();
+    render(<StatefulEditor />);
+
+    await user.selectOptions(screen.getByLabelText('Device profile'), 'KS');
+    expect(screen.getByLabelText('Custom width (optional)')).toHaveAttribute('placeholder', '1860');
+    expect(screen.getByLabelText('Custom height (optional)')).toHaveAttribute(
+      'placeholder',
+      '2480',
+    );
+    expect(screen.getByLabelText('JPEG quality (optional)')).toHaveAttribute('placeholder', '90%');
+
+    await user.selectOptions(screen.getByLabelText('Device profile'), 'OTHER');
+    expect(screen.getByLabelText('Custom width (optional)')).toHaveAttribute(
+      'placeholder',
+      'Enter width',
+    );
+    expect(screen.getByLabelText('Custom height (optional)')).toHaveAttribute(
+      'placeholder',
+      'Enter height',
+    );
+    expect(screen.getByLabelText('JPEG quality (optional)')).toHaveAttribute('placeholder', '85%');
+  });
+
   it('exposes every user-facing mangapress capability in organized sections', () => {
     render(<StatefulEditor />);
 
@@ -108,7 +153,6 @@ describe('mangapress settings editor', () => {
       'EPUB language',
       'Keep ComicInfo.xml',
       'Quiet mode',
-      'Bind the whole series as one volume',
     ]) {
       expect(screen.getByLabelText(label)).toBeInTheDocument();
     }
@@ -193,32 +237,25 @@ describe('mangapress settings editor', () => {
     );
   });
 
-  it('rules out CBZ and PDF while combining into one volume is on', async () => {
-    const user = userEvent.setup();
-    render(<StatefulEditor />);
+  it('rules out CBZ and PDF and disables format selection when singleBook is active', () => {
+    const { rerender } = render(<StatefulEditor singleBook={false} />);
 
     const cbzOption: HTMLOptionElement = screen.getByRole('option', { name: 'CBZ' });
     const pdfOption: HTMLOptionElement = screen.getByRole('option', { name: 'PDF' });
     expect(cbzOption.disabled).toBe(false);
     expect(pdfOption.disabled).toBe(false);
+    expect(screen.getByLabelText('Book format')).toBeEnabled();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
 
-    await user.click(screen.getByLabelText('Bind the whole series as one volume'));
+    rerender(<StatefulEditor singleBook={true} />);
 
     expect(cbzOption.disabled).toBe(true);
     expect(pdfOption.disabled).toBe(true);
-    expect(screen.getByLabelText('Book format')).toHaveValue('epub');
-  });
-
-  it('switches away from CBZ or PDF and says why when combining is turned on', async () => {
-    const user = userEvent.setup();
-    const onNotify = vi.fn();
-    render(<StatefulEditor onNotify={onNotify} />);
-
-    await user.selectOptions(screen.getByLabelText('Book format'), 'cbz');
-    await user.click(screen.getByLabelText('Bind the whole series as one volume'));
-
-    expect(screen.getByLabelText('Book format')).toHaveValue('epub');
-    expect(onNotify).toHaveBeenCalledWith(expect.stringContaining('Switched to EPUB'));
+    expect(screen.getByLabelText('Book format')).toBeDisabled();
+    expect(screen.getByRole('status')).toHaveTextContent('Single book for the series');
+    expect(
+      screen.getByText('Turn off “Create one book for the series” to change this.'),
+    ).toBeVisible();
   });
 
   it('marks changed fields and restores only the chosen select, toggle, text, or number', async () => {

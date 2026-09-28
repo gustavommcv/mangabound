@@ -66,6 +66,14 @@ export interface PlannedBook {
   readonly pageCount: number;
 }
 
+/** A combined series is one planned EPUB; its volumes remain table-of-contents sections. */
+export function plannedSingleBook(title: string, volumes: readonly PlannedBook[]): PlannedBook {
+  return {
+    name: `One EPUB for ${title}`,
+    pageCount: volumes.reduce((total, volume) => total + volume.pageCount, 0),
+  };
+}
+
 export interface WorkflowPlan {
   readonly tool: 'mangabind' | 'mangapress';
   readonly title: string;
@@ -100,6 +108,7 @@ export interface ConversionRequest {
   readonly mapping?: MappingDraft;
   /** Defaults to running both tools when omitted. */
   readonly mode?: ProcessMode;
+  readonly singleBook?: boolean;
 }
 
 export class ConversionWorkflowError extends Error {

@@ -45,6 +45,11 @@ export interface MangapressSettings {
  */
 export const FORMATS_SUPPORTING_COMBINED_VOLUME: ReadonlySet<BookFormat> = new Set(['epub']);
 
+/** Mirrors the pinned mangapress profile default (v0.6.0): Scribe/Colorsoft use 90, others 85. */
+export function defaultJpegQualityFor(deviceProfile: string): number {
+  return deviceProfile.startsWith('KS') || deviceProfile === 'KCS' ? 90 : 85;
+}
+
 export interface OutputProfile {
   readonly id: string;
   readonly name: string;

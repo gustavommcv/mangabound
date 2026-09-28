@@ -1,7 +1,7 @@
 import { ArrowLeft, Boxes, ChevronLeft, CircleAlert, Library, RadioTower } from 'lucide-react';
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 
-import type { BookFormat, ConversionProgress } from '@/domain/conversion';
+import { type BookFormat, type ConversionProgress, plannedSingleBook } from '@/domain/conversion';
 import {
   describeRow,
   emptyQueue,
@@ -82,6 +82,7 @@ function settingsToKeep(values: {
   readonly mode: ProcessMode;
   readonly format: BookFormat;
   readonly settings: MangapressSettings;
+  readonly singleBook: boolean;
   readonly providerId: string | undefined;
   readonly libraryId: string | undefined;
   readonly preferredNetworkInterface: NetworkInterfaceOption | undefined;
@@ -91,6 +92,7 @@ function settingsToKeep(values: {
       mode: values.mode,
       format: values.format,
       settings: persistedSettings(values.settings),
+      singleBook: values.singleBook,
       ...(values.providerId === undefined ? {} : { providerId: values.providerId }),
     },
     ...(values.libraryId === undefined ? {} : { libraryId: values.libraryId }),
@@ -110,14 +112,18 @@ function libraryPlanSummary(
   row: InspectedRow,
   planned: LibraryPlanSummary,
   process: ProcessMode,
+  singleBook: boolean,
 ): PlanSummary {
   const pending = new Set((row.titles ?? []).filter(isPendingTitle).map((title) => title.title));
   const titles = planned.titles.filter((title) => pending.has(title.title));
-  const books = titles.flatMap((title) => title.volumes);
+  const volumes = titles.flatMap((title) => title.volumes);
+  const books = singleBook
+    ? titles.map((title) => plannedSingleBook(title.title, title.volumes))
+    : volumes;
   return {
     tool: 'mangabind',
     title: row.displayName,
-    message: `mangabind validated ${plural(titles.length, 'title')} · ${plural(books.length, 'volume')}${process === 'bind-only' ? ' · saved as CBZ files, mangapress not run' : ''} · no library files written`,
+    message: `mangabind validated ${plural(titles.length, 'title')} · ${plural(volumes.length, 'volume')}${singleBook ? ` · ${plural(books.length, 'EPUB')} (one per series)` : process === 'bind-only' ? ' · saved as CBZ files, mangapress not run' : ''} · no library files written`,
     books,
     issues: planned.issues,
   };
@@ -162,6 +168,11 @@ export function App(): React.JSX.Element {
   const [settings, setSettings] = useState<MangapressSettings>(defaultMangapressSettings);
   const [format, setFormat] = useState<BookFormat>(defaultFormat);
   const [mode, setMode] = useState<ProcessMode>(defaultProcessMode);
+  const [singleBook, setSingleBook] = useState(false);
+  // A standalone CBZ is already one book. Keep the saved choice for a later folder, but do not
+  // present its grouping/EPUB locks as active while the queue contains only CBZ files.
+  const singleBookActive =
+    singleBook && !(rows.length > 0 && rows.every((row) => row.kind === 'cbz'));
   const [jobId, setJobId] = useState<string>();
   const [progress, setProgress] = useState<ConversionProgress>();
   const [runPosition, setRunPosition] = useState<{
@@ -254,17 +265,29 @@ export function App(): React.JSX.Element {
           notify('The saved settings could not be loaded.');
           return;
         }
+        const restoredSingleBook = Boolean(saved.preferences.singleBook);
+        const resolvedMode = restoredSingleBook ? 'bind-and-convert' : saved.preferences.mode;
+        const resolvedFormat = restoredSingleBook ? 'epub' : saved.preferences.format;
+        const resolvedSettings = {
+          ...saved.preferences.settings,
+          combineIntoOneVolume: false,
+        };
         lastKept.current = JSON.stringify(
           settingsToKeep({
             ...saved.preferences,
+            mode: resolvedMode,
+            format: resolvedFormat,
+            singleBook: restoredSingleBook,
+            settings: resolvedSettings,
             providerId: saved.preferences.providerId,
             libraryId: saved.library?.libraryId,
             preferredNetworkInterface: saved.preferredNetworkInterface,
           }),
         );
-        setMode(saved.preferences.mode);
-        setFormat(saved.preferences.format);
-        setSettings(saved.preferences.settings);
+        setSingleBook(restoredSingleBook);
+        setMode(resolvedMode);
+        setFormat(resolvedFormat);
+        setSettings(resolvedSettings);
         setSelectedProviderId(saved.preferences.providerId);
         setPreferredNetworkInterface(saved.preferredNetworkInterface);
         if (saved.library !== undefined) setLibrary(saved.library);
@@ -284,6 +307,7 @@ export function App(): React.JSX.Element {
       mode,
       format,
       settings,
+      singleBook,
       providerId: selectedProviderId,
       libraryId: library?.libraryId,
       preferredNetworkInterface,
@@ -310,6 +334,7 @@ export function App(): React.JSX.Element {
     mode,
     format,
     settings,
+    singleBook,
     selectedProviderId,
     library,
     preferredNetworkInterface,
@@ -469,6 +494,7 @@ export function App(): React.JSX.Element {
     jobId: commandJobId,
     sessionId: row.sessionId,
     libraryId,
+    singleBook: row.kind === 'cbz' ? false : singleBook,
     ...withRunSettings(rowProcess),
     ...(row.mapping === undefined || rowProcess === 'convert-only' ? {} : { mapping: row.mapping }),
   });
@@ -478,6 +504,7 @@ export function App(): React.JSX.Element {
     mode,
     format,
     settings,
+    singleBook,
     library?.libraryId,
     rows.map((row) => [
       row.id,
@@ -510,7 +537,7 @@ export function App(): React.JSX.Element {
           }
           collected.push({
             name: row.displayName,
-            plan: libraryPlanSummary(row, planned.value, rowProcess),
+            plan: libraryPlanSummary(row, planned.value, rowProcess, singleBook),
           });
           continue;
         }
@@ -553,6 +580,7 @@ export function App(): React.JSX.Element {
           jobId: nextJobId,
           sessionId: row.sessionId,
           libraryId: library.libraryId,
+          singleBook,
           ...withRunSettings(resolveMode('library', rowProcess)),
           titles: (row.titles ?? []).filter(isPendingTitle).map((title) => title.title),
         });
@@ -787,7 +815,33 @@ export function App(): React.JSX.Element {
 
   const resetAll = (): void => {
     setMode(defaultProcessMode);
+    setSingleBook(false);
     resetMangapress();
+  };
+
+  const handleSingleBook = (nextSingleBook: boolean): void => {
+    setSingleBook(nextSingleBook);
+    setSettings((prev) =>
+      prev.combineIntoOneVolume ? { ...prev, combineIntoOneVolume: false } : prev,
+    );
+    if (nextSingleBook) {
+      setMode('bind-and-convert');
+      setFormat('epub');
+    }
+  };
+
+  const handleMode = (nextMode: ProcessMode): void => {
+    if (!singleBookActive) {
+      if (singleBook) setSingleBook(false);
+      setMode(nextMode);
+    }
+  };
+
+  const handleFormat = (nextFormat: BookFormat): void => {
+    if (!singleBookActive) {
+      if (singleBook && nextFormat !== 'epub') setSingleBook(false);
+      setFormat(nextFormat);
+    }
   };
 
   // The source chosen last time only counts while the list still has it.
@@ -911,8 +965,8 @@ export function App(): React.JSX.Element {
                   void addDropped(files);
                 }}
                 onEdit={openEditor}
-                onFormat={setFormat}
-                onMode={setMode}
+                onFormat={handleFormat}
+                onMode={handleMode}
                 onOpenOptions={() => {
                   setStep('options');
                 }}
@@ -920,6 +974,7 @@ export function App(): React.JSX.Element {
                   removeRows([id]);
                 }}
                 onReset={resetAll}
+                onSingleBook={handleSingleBook}
                 onValidate={() => {
                   void validatePlans();
                 }}
@@ -928,6 +983,7 @@ export function App(): React.JSX.Element {
                 rejected={rejected}
                 rows={rows}
                 settings={settings}
+                singleBook={singleBook}
                 validating={validating}
               />
             )}
@@ -950,11 +1006,11 @@ export function App(): React.JSX.Element {
                       ref={optionsTitleRef}
                       tabIndex={-1}
                     >
-                      mangapress options
+                      Conversion options
                     </h1>
                     <p className="text-muted-foreground mt-3 text-sm">
-                      Every setting mangapress supports. They apply to everything in the queue, and
-                      are kept for next time.
+                      Fine-tune page layout, images, metadata, and output for everything in the
+                      queue. Your choices are saved for next time.
                     </p>
                   </div>
                   <div className="w-72 shrink-0">
@@ -967,11 +1023,12 @@ export function App(): React.JSX.Element {
                 </div>
                 <MangapressSettingsEditor
                   format={format}
-                  onFormat={setFormat}
+                  onFormat={handleFormat}
                   onNotify={notify}
                   onSettings={setSettings}
                   profiles={profiles}
                   settings={settings}
+                  singleBook={singleBookActive}
                 />
               </section>
             )}
@@ -997,6 +1054,7 @@ export function App(): React.JSX.Element {
                       setMode('convert-only');
                       setStep('queue');
                     }}
+                    singleBook={singleBook}
                     {...metadataProviderProps}
                     startedFrom={
                       editingRow.proposedSignature !== undefined &&
@@ -1020,6 +1078,7 @@ export function App(): React.JSX.Element {
                     setEditingTitle(title);
                     setStep('editing-title');
                   }}
+                  singleBook={singleBook}
                   titles={editingRow.titles}
                 />
               )}
@@ -1041,6 +1100,7 @@ export function App(): React.JSX.Element {
                     onConfirm={(_metadata, draft) => {
                       void confirmTitleMapping(editingRow, editingTitleEntry.title, draft);
                     }}
+                    singleBook={singleBook}
                     {...metadataProviderProps}
                     startedFrom={
                       editingTitleEntry.draft.volumes.length > 0 ? 'mangabind' : undefined

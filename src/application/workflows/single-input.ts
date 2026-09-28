@@ -16,10 +16,15 @@ import {
   type InspectedInput,
   type InspectedTitle,
   type LibraryPlan,
+  plannedSingleBook,
   type WorkflowPlan,
 } from '@/domain/conversion';
 import { createMappingDraft, type MappingDraft, validateMapping } from '@/domain/mapping';
-import { type MangapressSettings, validateMangapressSettings } from '@/domain/output-profile';
+import {
+  FORMATS_SUPPORTING_COMBINED_VOLUME,
+  type MangapressSettings,
+  validateMangapressSettings,
+} from '@/domain/output-profile';
 import {
   type BatchProcessMode,
   defaultProcessMode,
@@ -132,6 +137,7 @@ export class SingleInputWorkflow {
     },
   ): Promise<readonly ConversionArtifact[]> {
     const mode = request.mode ?? defaultProcessMode;
+    const requestedSingleBook = Boolean(request.singleBook);
     if (
       usesMangapress(mode) &&
       validateMangapressSettings(request.settings, request.format).length > 0
@@ -153,6 +159,23 @@ export class SingleInputWorkflow {
     if (unsupported !== undefined)
       throw new ConversionWorkflowError('unsupported_mode', unsupported);
 
+    const isCbz = session.selection.kind === 'cbz';
+    const singleBook = isCbz ? false : requestedSingleBook;
+    if (requestedSingleBook && !isCbz) {
+      if (mode !== 'bind-and-convert') {
+        throw new ConversionWorkflowError(
+          'invalid_settings',
+          'Single book mode requires both binding and converting.',
+        );
+      }
+      if (!FORMATS_SUPPORTING_COMBINED_VOLUME.has(request.format)) {
+        throw new ConversionWorkflowError(
+          'invalid_settings',
+          'Binding the whole series as one volume is only available for EPUB right now.',
+        );
+      }
+    }
+
     let inputs: readonly string[];
     if (session.selection.kind === 'cbz' || mode === 'convert-only') {
       // Already one book (or explicitly not grouped): straight to mangapress, no mapping needed.
@@ -169,13 +192,9 @@ export class SingleInputWorkflow {
         );
       }
       const mapping = trustedMapping(session.trustedDraft, request.mapping);
-      // Only meaningful when mangapress will actually build the book from it: mangapress settings
-      // are irrelevant, and the renderer sends the defaults for them, whenever it will not run
-      // (ADR 0009) - bind-only stays one file per volume regardless of this setting.
-      const combine = usesMangapress(mode) && request.settings.combineIntoOneVolume;
       onProgress({ stage: 'binding', message: 'Building volume files…' });
-      const bound = await this.binding.bind(session.workspaceId, mapping, signal, combine);
-      if (combine) {
+      const bound = await this.binding.bind(session.workspaceId, mapping, signal, singleBook);
+      if (singleBook) {
         if (bound.combinedOutputPath === undefined) {
           throw new ConversionWorkflowError(
             'no_volumes',
@@ -203,6 +222,7 @@ export class SingleInputWorkflow {
           libraryPath: request.libraryPath,
           settings: request.settings,
           format: request.format,
+          nestedToc: singleBook,
         },
         { volume: `${String(index + 1)} of ${String(inputs.length)}`, onProgress, signal },
       );
@@ -224,6 +244,7 @@ export class SingleInputWorkflow {
     { signal }: { readonly signal?: AbortSignal } = {},
   ): Promise<WorkflowPlan> {
     const mode = request.mode ?? defaultProcessMode;
+    const requestedSingleBook = Boolean(request.singleBook);
     if (
       usesMangapress(mode) &&
       validateMangapressSettings(request.settings, request.format).length > 0
@@ -244,6 +265,24 @@ export class SingleInputWorkflow {
     const unsupported = unsupportedModeReason(session.selection.kind, mode);
     if (unsupported !== undefined)
       throw new ConversionWorkflowError('unsupported_mode', unsupported);
+
+    const isCbz = session.selection.kind === 'cbz';
+    const singleBook = isCbz ? false : requestedSingleBook;
+    if (requestedSingleBook && !isCbz) {
+      if (mode !== 'bind-and-convert') {
+        throw new ConversionWorkflowError(
+          'invalid_settings',
+          'Single book mode requires both binding and converting.',
+        );
+      }
+      if (!FORMATS_SUPPORTING_COMBINED_VOLUME.has(request.format)) {
+        throw new ConversionWorkflowError(
+          'invalid_settings',
+          'Binding the whole series as one volume is only available for EPUB right now.',
+        );
+      }
+    }
+
     if (session.selection.kind === 'cbz' || mode === 'convert-only') {
       const plan = await this.conversion.plan(
         {
@@ -251,6 +290,7 @@ export class SingleInputWorkflow {
           outputDirectory: request.libraryPath,
           settings: request.settings,
           format: request.format,
+          nestedToc: false,
         },
         signal === undefined ? {} : { signal },
       );
@@ -277,8 +317,8 @@ export class SingleInputWorkflow {
     return {
       tool: 'mangabind',
       title: plan.title,
-      message: `mangabind validated ${String(plan.volumes.length)} volume${plan.volumes.length === 1 ? '' : 's'}${mode === 'bind-only' ? ' · saved as CBZ files, mangapress not run' : ''} · no library files written`,
-      books: plan.volumes,
+      message: `mangabind validated ${String(plan.volumes.length)} volume${plan.volumes.length === 1 ? '' : 's'}${singleBook ? ' · single book for the series' : mode === 'bind-only' ? ' · saved as CBZ files, mangapress not run' : ''} · no library files written`,
+      books: singleBook ? [plannedSingleBook(plan.title, plan.volumes)] : plan.volumes,
       issues: plan.issues,
     };
   }
@@ -318,6 +358,7 @@ export class SingleInputWorkflow {
       readonly format: BookFormat;
       readonly titles?: readonly string[];
       readonly mode?: BatchProcessMode;
+      readonly singleBook?: boolean;
     },
     {
       onArtifact,
@@ -330,6 +371,7 @@ export class SingleInputWorkflow {
     },
   ): Promise<readonly BatchTitleOutcome[]> {
     const mode = request.mode ?? defaultProcessMode;
+    const singleBook = Boolean(request.singleBook);
     if (
       usesMangapress(mode) &&
       validateMangapressSettings(request.settings, request.format).length > 0
@@ -339,8 +381,22 @@ export class SingleInputWorkflow {
         'Review the output settings before converting.',
       );
     }
+    if (singleBook) {
+      if (mode !== 'bind-and-convert') {
+        throw new ConversionWorkflowError(
+          'invalid_settings',
+          'Single book mode requires both binding and converting.',
+        );
+      }
+      if (!FORMATS_SUPPORTING_COMBINED_VOLUME.has(request.format)) {
+        throw new ConversionWorkflowError(
+          'invalid_settings',
+          'Binding the whole series as one volume is only available for EPUB right now.',
+        );
+      }
+    }
     const { session } = this.librarySession(request.sessionId);
-    const bound = await this.binding.bindBatch(session.selection.inputPath, signal);
+    const bound = await this.binding.bindBatch(session.selection.inputPath, signal, singleBook);
     const titles =
       request.titles === undefined
         ? bound.titles
@@ -350,42 +406,82 @@ export class SingleInputWorkflow {
     try {
       for (const title of titles) {
         if (signal?.aborted === true) break;
-        if (title.status === 'failed' || title.volumePaths.length === 0) {
-          outcomes.push({
-            title: title.title,
-            status: 'failed',
-            artifacts: [],
-            error: new ConversionWorkflowError(
-              'binding_failed',
-              'No volume files were produced. Review the chapter mapping and try again.',
-            ),
-          });
-          continue;
-        }
-        const artifacts: ConversionArtifact[] = [];
-        try {
-          for (const [index, volumePath] of title.volumePaths.entries()) {
+        if (singleBook) {
+          if (title.status === 'failed' || title.combinedOutputPath === undefined) {
+            outcomes.push({
+              title: title.title,
+              status: 'failed',
+              artifacts: [],
+              error: new ConversionWorkflowError(
+                'binding_failed',
+                'No volume files were produced. Review the chapter mapping and try again.',
+              ),
+            });
+            continue;
+          }
+          const artifacts: ConversionArtifact[] = [];
+          try {
             const artifact = await this.produceBook(
               mode,
               {
-                inputPath: volumePath,
+                inputPath: title.combinedOutputPath,
                 libraryPath: request.libraryPath,
                 settings: request.settings,
                 format: request.format,
+                nestedToc: true,
               },
               {
                 title: title.title,
-                volume: `${String(index + 1)} of ${String(title.volumePaths.length)}`,
+                volume: '1 of 1',
                 onProgress,
                 signal,
               },
             );
             artifacts.push(artifact);
             onArtifact?.(artifact);
+            outcomes.push({ title: title.title, status: 'done', artifacts });
+          } catch (error) {
+            outcomes.push({ title: title.title, status: 'failed', artifacts, error });
           }
-          outcomes.push({ title: title.title, status: 'done', artifacts });
-        } catch (error) {
-          outcomes.push({ title: title.title, status: 'failed', artifacts, error });
+        } else {
+          if (title.status === 'failed' || title.volumePaths.length === 0) {
+            outcomes.push({
+              title: title.title,
+              status: 'failed',
+              artifacts: [],
+              error: new ConversionWorkflowError(
+                'binding_failed',
+                'No volume files were produced. Review the chapter mapping and try again.',
+              ),
+            });
+            continue;
+          }
+          const artifacts: ConversionArtifact[] = [];
+          try {
+            for (const [index, volumePath] of title.volumePaths.entries()) {
+              const artifact = await this.produceBook(
+                mode,
+                {
+                  inputPath: volumePath,
+                  libraryPath: request.libraryPath,
+                  settings: request.settings,
+                  format: request.format,
+                  nestedToc: false,
+                },
+                {
+                  title: title.title,
+                  volume: `${String(index + 1)} of ${String(title.volumePaths.length)}`,
+                  onProgress,
+                  signal,
+                },
+              );
+              artifacts.push(artifact);
+              onArtifact?.(artifact);
+            }
+            outcomes.push({ title: title.title, status: 'done', artifacts });
+          } catch (error) {
+            outcomes.push({ title: title.title, status: 'failed', artifacts, error });
+          }
         }
       }
     } finally {
@@ -405,6 +501,7 @@ export class SingleInputWorkflow {
       readonly libraryPath: string;
       readonly settings: MangapressSettings;
       readonly format: BookFormat;
+      readonly nestedToc?: boolean;
     },
     context: {
       readonly title?: string;
@@ -432,6 +529,7 @@ export class SingleInputWorkflow {
         outputDirectory: request.libraryPath,
         settings: request.settings,
         format: request.format,
+        nestedToc: request.nestedToc,
       },
       {
         ...(context.signal === undefined ? {} : { signal: context.signal }),

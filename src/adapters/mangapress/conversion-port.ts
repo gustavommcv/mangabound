@@ -27,10 +27,13 @@ export class MangapressConversionAdapter implements ConversionPort {
       readonly outputDirectory: string;
       readonly settings: MangapressSettings;
       readonly format: BookFormat;
+      readonly nestedToc?: boolean;
     },
     options: { readonly signal?: AbortSignal } = {},
   ): ReturnType<ConversionPort['plan']> {
     const { combineIntoOneVolume, deviceProfile, ...settings } = request.settings;
+    void combineIntoOneVolume;
+    const nestedToc = Boolean(request.nestedToc);
     const run = await this.cli.run(
       {
         inputPath: request.inputPath,
@@ -38,7 +41,7 @@ export class MangapressConversionAdapter implements ConversionPort {
         profile: deviceProfile,
         format: request.format,
         dryRun: true,
-        nestedToc: combineIntoOneVolume,
+        nestedToc,
         ...settings,
       },
       options.signal === undefined ? {} : { signal: options.signal },
@@ -74,6 +77,7 @@ export class MangapressConversionAdapter implements ConversionPort {
       readonly outputDirectory: string;
       readonly settings: MangapressSettings;
       readonly format: BookFormat;
+      readonly nestedToc?: boolean;
     },
     options: {
       readonly signal?: AbortSignal;
@@ -81,6 +85,8 @@ export class MangapressConversionAdapter implements ConversionPort {
     },
   ): Promise<ConversionArtifact> {
     const { combineIntoOneVolume, deviceProfile, ...settings } = request.settings;
+    void combineIntoOneVolume;
+    const nestedToc = Boolean(request.nestedToc);
     const run = await this.cli.run(
       {
         inputPath: request.inputPath,
@@ -88,7 +94,7 @@ export class MangapressConversionAdapter implements ConversionPort {
         profile: deviceProfile,
         format: request.format,
         dryRun: false,
-        nestedToc: combineIntoOneVolume,
+        nestedToc,
         ...settings,
       },
       {

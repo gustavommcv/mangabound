@@ -2,8 +2,8 @@ import type { ReactNode } from 'react';
 
 import type { BookFormat } from '@/domain/conversion';
 import {
+  defaultJpegQualityFor,
   defaultValueForSetting,
-  FORMATS_SUPPORTING_COMBINED_VOLUME,
   type MangapressSettingField,
   type MangapressSettings,
   restoreSettingDefault,
@@ -11,7 +11,9 @@ import {
   withDeviceProfile,
 } from '@/domain/output-profile';
 import { defaultFormat } from '@/domain/preferences';
+import { singleBookLockReason } from '@/domain/process-mode';
 import { SettingFieldHeader } from '@/renderer/components/settings/setting-field-header';
+import { InfoBanner } from '@/renderer/components/shared/info-banner';
 import { Checkbox } from '@/renderer/components/ui/checkbox';
 import { Input } from '@/renderer/components/ui/input';
 import { NativeSelect } from '@/renderer/components/ui/native-select';
@@ -21,24 +23,27 @@ interface MangapressSettingsProps {
   readonly format: BookFormat;
   readonly onFormat: (format: BookFormat) => void;
   /** A short message shown to the person, the same mechanism used for saved-setting fallbacks. */
-  readonly onNotify: (message: string) => void;
+  readonly onNotify?: (message: string) => void;
   readonly onSettings: (settings: MangapressSettings) => void;
   readonly profiles: readonly DeviceProfileSummary[];
   readonly settings: MangapressSettings;
+  readonly singleBook?: boolean;
 }
 
 export function MangapressSettingsEditor({
   format,
   onFormat,
-  onNotify,
   onSettings,
   profiles,
   settings,
+  singleBook,
 }: MangapressSettingsProps): React.JSX.Element {
+  const singleBookActive = Boolean(singleBook);
   const issues = validateMangapressSettings(settings, format);
   const errorFor = (field: MangapressSettingField): string | undefined =>
     issues.find((issue) => issue.field === field)?.message;
   const selectedProfile = profiles.find((candidate) => candidate.code === settings.deviceProfile);
+  const jpegQualityDefault = defaultJpegQualityFor(settings.deviceProfile);
   const update = <K extends keyof MangapressSettings>(
     field: K,
     value: MangapressSettings[K],
@@ -62,6 +67,12 @@ export function MangapressSettingsEditor({
 
   return (
     <div className="space-y-5">
+      {singleBookActive && (
+        <InfoBanner
+          message="Active from the queue: the series will be produced as a single EPUB with volumes and chapters in the table of contents. Book format and process steps are locked."
+          title="Single book for the series"
+        />
+      )}
       <SettingsSection
         description="Choose the reader target, book format, and optional resolution overrides."
         eyebrow="Basic"
@@ -98,13 +109,18 @@ export function MangapressSettingsEditor({
         </SelectField>
         <SelectField
           changed={format !== defaultFormat}
+          description={singleBookActive ? singleBookLockReason : undefined}
+          disabled={singleBookActive}
           id="output-format"
           label="Book format"
           onReset={() => {
-            onFormat(defaultFormat);
+            if (!singleBookActive) {
+              onFormat(defaultFormat);
+            }
           }}
         >
           <NativeSelect
+            disabled={singleBookActive}
             id="output-format"
             onChange={(event) => {
               onFormat(event.target.value as BookFormat);
@@ -112,40 +128,14 @@ export function MangapressSettingsEditor({
             value={format}
           >
             <option value="epub">EPUB</option>
-            <option
-              disabled={
-                settings.combineIntoOneVolume && !FORMATS_SUPPORTING_COMBINED_VOLUME.has('cbz')
-              }
-              value="cbz"
-            >
+            <option disabled={singleBookActive} value="cbz">
               CBZ
             </option>
-            <option
-              disabled={
-                settings.combineIntoOneVolume && !FORMATS_SUPPORTING_COMBINED_VOLUME.has('pdf')
-              }
-              value="pdf"
-            >
+            <option disabled={singleBookActive} value="pdf">
               PDF
             </option>
           </NativeSelect>
         </SelectField>
-        <ToggleField
-          {...resetProps('combineIntoOneVolume')}
-          checked={settings.combineIntoOneVolume}
-          description="One file for the whole series, with volumes and chapters both in the table of contents. EPUB only for now."
-          id="combine-into-one-volume"
-          label="Bind the whole series as one volume"
-          onChecked={(checked) => {
-            if (checked && !FORMATS_SUPPORTING_COMBINED_VOLUME.has(format)) {
-              onFormat('epub');
-              onNotify(
-                'Switched to EPUB: binding the whole series as one volume isn’t available for CBZ or PDF yet.',
-              );
-            }
-            update('combineIntoOneVolume', checked);
-          }}
-        />
         <NumberField
           {...resetProps('customWidth')}
           description="Overrides the profile width. Required with height for the OTHER profile."
@@ -153,6 +143,11 @@ export function MangapressSettingsEditor({
           id="custom-width"
           label="Custom width"
           min={1}
+          placeholder={
+            selectedProfile !== undefined && selectedProfile.width > 0
+              ? String(selectedProfile.width)
+              : 'Enter width'
+          }
           onValue={(value) => {
             update('customWidth', value);
           }}
@@ -166,6 +161,11 @@ export function MangapressSettingsEditor({
           id="custom-height"
           label="Custom height"
           min={1}
+          placeholder={
+            selectedProfile !== undefined && selectedProfile.height > 0
+              ? String(selectedProfile.height)
+              : 'Enter height'
+          }
           onValue={(value) => {
             update('customHeight', value);
           }}
@@ -376,7 +376,7 @@ export function MangapressSettingsEditor({
           description={
             settings.forcePng
               ? 'Not used while grayscale PNG output is enabled.'
-              : 'Leave empty for the device profile default.'
+              : `Leave empty for the device profile default (${String(jpegQualityDefault)}%).`
           }
           disabled={settings.forcePng}
           error={errorFor('jpegQuality')}
@@ -384,6 +384,7 @@ export function MangapressSettingsEditor({
           label="JPEG quality"
           max={100}
           min={1}
+          placeholder={`${String(jpegQualityDefault)}%`}
           onValue={(value) => {
             update('jpegQuality', value);
           }}
@@ -396,6 +397,7 @@ export function MangapressSettingsEditor({
           error={errorFor('gamma')}
           id="gamma"
           label="Gamma"
+          placeholder="1.0"
           onValue={(value) => {
             update('gamma', value);
           }}
@@ -450,6 +452,7 @@ export function MangapressSettingsEditor({
           description="Leave empty to derive the title from the input name."
           id="book-title"
           label="Title"
+          placeholder="Use input name"
           onValue={(value) => {
             update('title', value === '' ? undefined : value);
           }}
@@ -459,6 +462,7 @@ export function MangapressSettingsEditor({
           {...resetProps('author')}
           id="book-author"
           label="Author"
+          placeholder="Leave blank if unknown"
           onValue={(value) => {
             update('author', value === '' ? undefined : value);
           }}
@@ -567,6 +571,7 @@ function SelectField({
   changed,
   children,
   description,
+  disabled,
   error,
   id,
   label,
@@ -574,13 +579,20 @@ function SelectField({
 }: ResettableFieldProps & {
   readonly children: ReactNode;
   readonly description?: string;
+  readonly disabled?: boolean;
   readonly error?: string;
   readonly id: string;
   readonly label: string;
 }): React.JSX.Element {
   return (
     <div className="space-y-2">
-      <SettingFieldHeader changed={changed} id={id} label={label} onReset={onReset} />
+      <SettingFieldHeader
+        changed={changed}
+        disabled={disabled}
+        id={id}
+        label={label}
+        onReset={onReset}
+      />
       {children}
       <FieldMessage description={description} error={error} id={`${id}-message`} />
     </div>
@@ -595,6 +607,7 @@ function TextField({
   label,
   onValue,
   onReset,
+  placeholder,
   value,
 }: ResettableFieldProps & {
   readonly description?: string;
@@ -602,6 +615,7 @@ function TextField({
   readonly id: string;
   readonly label: string;
   readonly onValue: (value: string) => void;
+  readonly placeholder?: string;
   readonly value: string;
 }): React.JSX.Element {
   return (
@@ -616,6 +630,7 @@ function TextField({
         onChange={(event) => {
           onValue(event.target.value);
         }}
+        placeholder={placeholder}
         value={value}
       />
       <FieldMessage description={description} error={error} id={`${id}-message`} />
@@ -635,6 +650,7 @@ function NumberField({
   onValue,
   onReset,
   optional = false,
+  placeholder,
   step = 1,
   value,
 }: ResettableFieldProps & {
@@ -647,6 +663,7 @@ function NumberField({
   readonly min?: number;
   readonly onValue: (value: number | undefined) => void;
   readonly optional?: boolean;
+  readonly placeholder?: string;
   readonly step?: number;
   readonly value: number | undefined;
 }): React.JSX.Element {
@@ -677,6 +694,7 @@ function NumberField({
           const parsed = Number(raw);
           if (Number.isFinite(parsed)) onValue(parsed);
         }}
+        placeholder={placeholder}
         step={step}
         type="number"
         value={value ?? ''}

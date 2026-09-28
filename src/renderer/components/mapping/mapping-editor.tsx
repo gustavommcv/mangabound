@@ -32,6 +32,7 @@ import {
 } from '@/domain/mapping';
 import { ChaptersFrom } from './chapters-from';
 
+import { InfoBanner } from '@/renderer/components/shared/info-banner';
 import { Button } from '@/renderer/components/ui/button';
 import { Checkbox } from '@/renderer/components/ui/checkbox';
 import { Input } from '@/renderer/components/ui/input';
@@ -43,6 +44,7 @@ export interface MappingEditorProps {
   readonly initialDraft: MappingDraft;
   /** Set when `initialDraft` already carries mangabind's own grouping (volumes read from names). */
   readonly startedFrom?: 'mangabind' | undefined;
+  readonly singleBook?: boolean;
   readonly onConfirm?: (metadata: string, draft: MappingDraft) => void;
   /** Offered when the folder can skip grouping and go straight to mangapress as one book. */
   readonly onSkipGrouping?: () => void;
@@ -100,6 +102,7 @@ function volumeName(draft: MappingDraft, volumeId: string | undefined): string {
 export function MappingEditor({
   initialDraft,
   startedFrom,
+  singleBook,
   onConfirm,
   metadataProviders = [],
   onOpenProviderHomepage,
@@ -237,13 +240,16 @@ export function MappingEditor({
           <div className="space-y-1">
             <Button
               aria-describedby="skip-grouping-detail"
+              disabled={singleBook}
               onClick={onSkipGrouping}
               variant="outline"
             >
               Skip grouping
             </Button>
             <p className="text-muted-foreground max-w-56 text-xs" id="skip-grouping-detail">
-              Send the folder to mangapress as one book, without grouping chapters into volumes.
+              {singleBook
+                ? 'Single book mode requires grouping chapters into volumes.'
+                : 'Send the folder to mangapress as one book, without grouping chapters into volumes.'}
             </p>
           </div>
         )}
@@ -285,6 +291,12 @@ export function MappingEditor({
           </Button>
         </div>
       </header>
+      {singleBook && (
+        <InfoBanner
+          message="Mapped volumes will form top-level entries in the table of contents of the unified EPUB, with chapters nested under them."
+          title="Single book for the series"
+        />
+      )}
 
       <ChaptersFrom
         names={{
@@ -364,7 +376,7 @@ export function MappingEditor({
               {selectedChapterIds.size === draft.chapters.length ? 'Clear all' : 'Select all'}
             </Button>
           </div>
-          <div className="max-h-96 overflow-y-auto">
+          <div>
             {draft.chapters.map((chapter) => {
               const volumeId = assignedVolumeId(draft, chapter.id);
               return (

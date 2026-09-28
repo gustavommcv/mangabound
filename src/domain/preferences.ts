@@ -12,6 +12,7 @@ export type PersistedMangapressSettings = Omit<MangapressSettings, 'title' | 'au
 export interface Preferences {
   readonly mode: ProcessMode;
   readonly format: BookFormat;
+  readonly singleBook: boolean;
   readonly settings: PersistedMangapressSettings;
   /** The id of the online source chosen for volume data, when one was. */
   readonly providerId?: string;
@@ -23,6 +24,7 @@ export const defaultFormat: BookFormat = 'epub';
 export const defaultPreferences: Preferences = Object.freeze({
   mode: defaultProcessMode,
   format: defaultFormat,
+  singleBook: false,
   settings: defaultMangapressSettings,
 });
 

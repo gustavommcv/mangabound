@@ -269,15 +269,15 @@ describe('queue application workflow', () => {
     expect(await screen.findByRole('heading', { name: 'Converting Offline Work' })).toHaveFocus();
   });
 
-  it('focuses the mangapress options heading when it is opened', async () => {
+  it('focuses the conversion options heading when it is opened', async () => {
     const user = userEvent.setup();
     installBridge(bridge());
     render(<App />);
 
     await addFolder(user);
-    await user.click(screen.getByRole('button', { name: /mangapress options/u }));
+    await user.click(screen.getByRole('button', { name: /Advanced conversion options/u }));
 
-    expect(await screen.findByRole('heading', { name: 'mangapress options' })).toHaveFocus();
+    expect(await screen.findByRole('heading', { name: 'Conversion options' })).toHaveFocus();
   });
 
   it('shows a successful no-output plan before conversion and forgets it once anything changes', async () => {
@@ -897,17 +897,15 @@ describe('queue application workflow', () => {
     );
   });
 
-  it('shows the mangapress options for the whole queue and comes back to it', async () => {
+  it('shows the conversion options for the whole queue and comes back to it', async () => {
     const user = userEvent.setup();
     installBridge(bridge());
     render(<App />);
 
     await addFolder(user);
-    await user.click(screen.getByRole('button', { name: /mangapress options/u }));
-    expect(await screen.findByRole('heading', { name: 'mangapress options' })).toBeVisible();
-    expect(
-      screen.getByText(/They apply to everything in the queue, and are kept for next time\./u),
-    ).toBeVisible();
+    await user.click(screen.getByRole('button', { name: /Advanced conversion options/u }));
+    expect(await screen.findByRole('heading', { name: 'Conversion options' })).toBeVisible();
+    expect(screen.getByText(/Your choices are saved for next time\./u)).toBeVisible();
 
     await user.click(screen.getByRole('button', { name: /Back/u }));
     expect(await screen.findByRole('heading', { name: 'Queue' })).toBeVisible();
@@ -1057,6 +1055,7 @@ describe('the options kept between sessions', () => {
           preferences: {
             mode: 'convert-only',
             format: 'pdf',
+            singleBook: false,
             settings: { ...defaultMangapressSettings, deviceProfile: 'KS', upscale: false },
           },
           library: savedFolder,
@@ -1091,7 +1090,7 @@ describe('the options kept between sessions', () => {
 
     await chooseOutputFolder(user);
     await user.click(screen.getByRole('radio', { name: 'PDF' }));
-    await user.click(screen.getByRole('button', { name: /mangapress options/u }));
+    await user.click(screen.getByRole('button', { name: /Advanced conversion options/u }));
     await user.type(await screen.findByLabelText('Title'), 'Only for this book');
 
     await waitFor(() => {
@@ -1100,6 +1099,7 @@ describe('the options kept between sessions', () => {
         preferences: {
           mode: 'bind-and-convert',
           format: 'pdf',
+          singleBook: false,
           settings: defaultMangapressSettings,
         },
         libraryId: 'library',
@@ -1332,7 +1332,7 @@ describe('the options kept between sessions', () => {
     const saveSettings = okSave();
     installBridge(bridge({ saveSettings }));
     render(<App />);
-    await user.click(await screen.findByRole('button', { name: /mangapress options/u }));
+    await user.click(await screen.findByRole('button', { name: /Advanced conversion options/u }));
 
     const quality = await screen.findByLabelText(/JPEG quality/u);
     await user.type(quality, '500');
@@ -1346,6 +1346,53 @@ describe('the options kept between sessions', () => {
     expect(
       saveCalls(saveSettings).some((command) => command.preferences.settings.jpegQuality === 500),
     ).toBe(false);
+  });
+
+  it('opens with singleBook kept from previous session and saves singleBook: false when turned off', async () => {
+    const user = userEvent.setup();
+    const saveSettings = okSave();
+    installBridge(
+      bridge({
+        saveSettings,
+        loadSettings: keptSettings({
+          preferences: {
+            ...defaultPreferences,
+            singleBook: true,
+            mode: 'bind-and-convert',
+            format: 'epub',
+          },
+        }),
+      }),
+    );
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Queue' })).toBeVisible();
+    const singleBookCheckbox = screen.getByRole('checkbox', {
+      name: 'Create one book for the series',
+    });
+    expect(singleBookCheckbox).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Group chapters into volumes' })).toBeDisabled();
+    expect(screen.getByRole('checkbox', { name: 'Convert for e-reader' })).toBeDisabled();
+    expect(screen.getByRole('radio', { name: 'EPUB' })).toBeDisabled();
+    expect(
+      screen.getAllByText('Turn off “Create one book for the series” to change this.'),
+    ).toHaveLength(3);
+
+    await user.click(singleBookCheckbox);
+
+    expect(singleBookCheckbox).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Group chapters into volumes' })).toBeEnabled();
+    expect(screen.getByRole('checkbox', { name: 'Convert for e-reader' })).toBeEnabled();
+    expect(screen.getByRole('radio', { name: 'EPUB' })).toBeEnabled();
+    expect(
+      screen.queryByText('Turn off “Create one book for the series” to change this.'),
+    ).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(saveCalls(saveSettings).at(-1)?.preferences).toMatchObject({
+        singleBook: false,
+      });
+    });
   });
 
   describe('putting the options back to their defaults', () => {
@@ -1413,7 +1460,7 @@ describe('the options kept between sessions', () => {
       const saveSettings = okSave();
       installBridge(bridge({ saveSettings }));
       render(<App />);
-      await user.click(await screen.findByRole('button', { name: /mangapress options/u }));
+      await user.click(await screen.findByRole('button', { name: /Advanced conversion options/u }));
 
       await user.click(screen.getByLabelText('Dithered grayscale PNG'));
       await user.type(screen.getByLabelText('Title'), 'My manga');
@@ -1499,8 +1546,8 @@ describe('the options kept between sessions', () => {
       installBridge(bridge({ getDeviceProfiles: twoDevices() }));
       render(<App />);
       await changeEverything(user);
-      await user.click(screen.getByRole('button', { name: /mangapress options/u }));
-      await screen.findByRole('heading', { name: 'mangapress options' });
+      await user.click(screen.getByRole('button', { name: /Advanced conversion options/u }));
+      await screen.findByRole('heading', { name: 'Conversion options' });
       expect(screen.getByLabelText('Device profile')).toHaveValue('KS');
 
       await user.click(screen.getByRole('button', { name: 'Reset to defaults' }));
@@ -1539,7 +1586,9 @@ describe('process control in the queue', () => {
 
     expect(screen.getByLabelText('Device')).toBeDisabled();
     expect(screen.getByRole('radio', { name: 'PDF' })).toBeDisabled();
-    expect(screen.queryByRole('button', { name: /mangapress options/u })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Advanced conversion options/u }),
+    ).not.toBeInTheDocument();
     await chooseOutputFolder(user);
     await user.click(await runButton('Join 1 item'));
 
@@ -1799,6 +1848,132 @@ describe('process control in the queue', () => {
     expect(screen.getByRole('checkbox', { name: 'Convert for e-reader' })).toBeDisabled();
     expect(screen.getByRole('checkbox', { name: 'Convert for e-reader' })).toBeChecked();
     expect(screen.getByText('Keep at least one step on.')).toBeVisible();
+  });
+
+  it('locks steps and format when "Create one book for the series" is checked, and unlocks them when unchecked', async () => {
+    const user = userEvent.setup();
+    installBridge(bridge());
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Queue' })).toBeVisible();
+    const singleBookCheckbox = screen.getByRole('checkbox', {
+      name: 'Create one book for the series',
+    });
+    expect(singleBookCheckbox).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Group chapters into volumes' })).toBeEnabled();
+    expect(screen.getByRole('checkbox', { name: 'Convert for e-reader' })).toBeEnabled();
+    expect(screen.getByRole('radio', { name: 'EPUB' })).toBeEnabled();
+
+    await user.click(singleBookCheckbox);
+
+    expect(singleBookCheckbox).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Group chapters into volumes' })).toBeDisabled();
+    expect(screen.getByRole('checkbox', { name: 'Group chapters into volumes' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Convert for e-reader' })).toBeDisabled();
+    expect(screen.getByRole('checkbox', { name: 'Convert for e-reader' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: 'EPUB' })).toBeDisabled();
+    expect(screen.getByRole('radio', { name: 'EPUB' })).toBeChecked();
+    expect(
+      screen.getAllByText('Turn off “Create one book for the series” to change this.'),
+    ).toHaveLength(3);
+
+    // Individual restore for "Create one book for the series"
+    await user.click(
+      screen.getByRole('button', { name: 'Restore default for Create one book for the series' }),
+    );
+
+    expect(singleBookCheckbox).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Group chapters into volumes' })).toBeEnabled();
+    expect(screen.getByRole('checkbox', { name: 'Convert for e-reader' })).toBeEnabled();
+    expect(screen.getByRole('radio', { name: 'EPUB' })).toBeEnabled();
+    expect(
+      screen.queryByText('Turn off “Create one book for the series” to change this.'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('disables "Create one book for the series" when only CBZ files are in the queue', async () => {
+    const user = userEvent.setup();
+    installBridge(
+      bridge({
+        chooseInputs: () => Promise.resolve({ ok: true, value: { inputs: [cbz], rejected: [] } }),
+      }),
+    );
+    render(<App />);
+    await user.click(await screen.findByRole('button', { name: 'Files' }));
+    await waitFor(() => {
+      expect(screen.getByText('Ready')).toBeVisible();
+    });
+
+    const singleBookCheckbox = screen.getByRole('checkbox', {
+      name: 'Create one book for the series',
+    });
+    expect(singleBookCheckbox).toBeDisabled();
+    expect(screen.getByText('Not available for standalone .cbz files.')).toBeVisible();
+  });
+
+  it('keeps the saved mode available but does not lock a CBZ-only queue', async () => {
+    const user = userEvent.setup();
+    installBridge(
+      bridge({
+        chooseInputs: () => Promise.resolve({ ok: true, value: { inputs: [cbz], rejected: [] } }),
+        loadSettings: keptSettings({
+          preferences: { ...defaultPreferences, singleBook: true },
+        }),
+      }),
+    );
+    render(<App />);
+
+    const singleBookCheckbox = await screen.findByRole('checkbox', {
+      name: 'Create one book for the series',
+    });
+    await waitFor(() => expect(singleBookCheckbox).toBeChecked());
+    await user.click(screen.getByRole('button', { name: 'Files' }));
+    await waitFor(() => expect(screen.getByText('Ready')).toBeVisible());
+
+    expect(singleBookCheckbox).toBeEnabled();
+    expect(
+      screen.getByText('Saved for manga folders. A standalone CBZ is already one book.'),
+    ).toBeVisible();
+    expect(screen.getByRole('radio', { name: 'PDF' })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: 'Advanced conversion options' }));
+    expect(
+      screen.queryByRole('status', { name: 'Single book for the series' }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+
+    await user.click(screen.getByRole('radio', { name: 'PDF' }));
+    expect(
+      screen.getByRole('checkbox', { name: 'Create one book for the series' }),
+    ).not.toBeChecked();
+    expect(screen.getByRole('radio', { name: 'PDF' })).toBeChecked();
+  });
+
+  it('enables "Create one book for the series" when both folders and CBZ files are in the queue', async () => {
+    const user = userEvent.setup();
+    installBridge(
+      bridge({
+        chooseInputs: () =>
+          Promise.resolve({
+            ok: true,
+            value: { inputs: [folder(), cbz], rejected: [] },
+          }),
+      }),
+    );
+    render(<App />);
+    await user.click(await screen.findByRole('button', { name: 'Files' }));
+    await waitFor(() => {
+      expect(screen.getByText('Ready')).toBeVisible();
+    });
+
+    const singleBookCheckbox = screen.getByRole('checkbox', {
+      name: 'Create one book for the series',
+    });
+    expect(singleBookCheckbox).toBeEnabled();
+    expect(
+      screen.getByText(
+        'Produces a single EPUB with volumes and chapters in the table of contents.',
+      ),
+    ).toBeVisible();
   });
 });
 
@@ -2502,6 +2677,30 @@ describe('libraries in the queue', () => {
     ).toBeVisible();
     expect(screen.getByText('Good Manga - Vol.01.cbz')).toBeVisible();
     expect(screen.queryByText('Broken Manga - Vol.01.cbz')).not.toBeInTheDocument();
+  });
+
+  it('plans one EPUB per ready library title in single-book mode', async () => {
+    const user = userEvent.setup();
+    installBridge(
+      libraryBridge([goodTitle, looseTitle], {
+        planLibrary: () =>
+          Promise.resolve({ ok: true, value: { titles: [goodTitle, looseTitle], issues: [] } }),
+      }),
+    );
+    render(<App />);
+    await addFolder(user);
+    await chooseOutputFolder(user);
+    await user.click(screen.getByRole('checkbox', { name: 'Create one book for the series' }));
+    await user.click(screen.getByRole('button', { name: 'Validate plan' }));
+
+    expect(await screen.findByRole('heading', { name: 'Plan validated' })).toBeVisible();
+    expect(
+      screen.getByText(
+        'mangabind validated 1 title · 1 volume · 1 EPUB (one per series) · no library files written',
+      ),
+    ).toBeVisible();
+    expect(screen.getByText('One EPUB for Good Manga')).toBeVisible();
+    expect(screen.queryByText('Good Manga - Vol.01.cbz')).not.toBeInTheDocument();
   });
 
   it('says when the plan of a library could not be read', async () => {

@@ -695,6 +695,28 @@ describe('mangabind binding port', () => {
     expect(files.removeDirectory).toHaveBeenCalledWith(path.resolve(root));
   });
 
+  it('passes --combine to batch binding and returns combined output paths', async () => {
+    const root = path.join(os.tmpdir(), 'mangabound-batch-combine');
+    const files = fakeFiles(root);
+    const report = batchReport(path.join(root, 'volumes'));
+    report.mode = 'execute';
+    report.manga[0]!.combined_output_path = path.join(root, 'volumes', 'Good Manga.cbz');
+    report.manga[0]!.volumes = report.manga[0]!.volumes.map((v) => ({ ...v, written: false }));
+    const cli = {
+      run: vi.fn<MangabindCliAdapter['run']>(() => Promise.resolve(result({ report }))),
+    };
+    const adapter = new MangabindBindingAdapter(cli, files, os.tmpdir(), () => 'batch-combine');
+
+    const bound = await adapter.bindBatch('/library', undefined, true);
+
+    expect(cli.run).toHaveBeenCalledWith(
+      expect.objectContaining({ inputPath: '/library', batch: true, combine: true, dryRun: false }),
+      {},
+    );
+    expect(bound.titles[0]!.combinedOutputPath).toBe(path.join(root, 'volumes', 'Good Manga.cbz'));
+    expect(bound.titles[0]!.volumePaths).toEqual([]);
+  });
+
   it('releases the batch workspace when the process itself fails', async () => {
     const root = path.join(os.tmpdir(), 'mangabound-batch-crash');
     const files = fakeFiles(root);

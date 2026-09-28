@@ -13,13 +13,14 @@ import { type QueueRow, summarizeQueue } from '@/domain/input-queue';
 import type { BookFormat } from '@/domain/conversion';
 import { defaultMangapressSettings, type MangapressSettings } from '@/domain/output-profile';
 import { defaultFormat, isDefaultMangapress } from '@/domain/preferences';
-import { defaultProcessMode, type ProcessMode } from '@/domain/process-mode';
+import { defaultProcessMode, type ProcessMode, singleBookLockReason } from '@/domain/process-mode';
 import { DropTarget } from '@/renderer/components/queue/drop-target';
 import { QueueRowItem } from '@/renderer/components/queue/queue-row';
 import { ProcessSteps } from '@/renderer/components/settings/process-steps';
 import { ResetOptions } from '@/renderer/components/settings/reset-options';
 import { SettingFieldHeader } from '@/renderer/components/settings/setting-field-header';
 import { Button } from '@/renderer/components/ui/button';
+import { Checkbox } from '@/renderer/components/ui/checkbox';
 import { NativeSelect } from '@/renderer/components/ui/native-select';
 import { SegmentedControl } from '@/renderer/components/ui/segmented-control';
 import type {
@@ -54,6 +55,7 @@ export interface QueueScreenProps {
   readonly onRemove: (id: string) => void;
   /** Puts the steps, device, format and every mangapress option back to their defaults. */
   readonly onReset: () => void;
+  readonly onSingleBook: (singleBook: boolean) => void;
   readonly onValidate: () => void;
   readonly plans?: readonly RowPlan[];
   readonly profiles: readonly DeviceProfileSummary[];
@@ -61,6 +63,7 @@ export interface QueueScreenProps {
   readonly rejected: readonly { readonly name: string; readonly reason: string }[];
   readonly rows: readonly QueueRow[];
   readonly settings: MangapressSettings;
+  readonly singleBook: boolean;
   readonly validating: boolean;
 }
 
@@ -101,12 +104,14 @@ export function QueueScreen(props: QueueScreenProps): React.JSX.Element {
     onOpenOptions,
     onRemove,
     onReset,
+    onSingleBook,
     onValidate,
     plans,
     profiles,
     rejected,
     rows,
     settings,
+    singleBook,
     validating,
   } = props;
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -130,6 +135,8 @@ export function QueueScreen(props: QueueScreenProps): React.JSX.Element {
             : summary.skipped > 0
               ? `${plural(summary.skipped, 'item')} will be left out. Use the pencil on a row to fix it.`
               : undefined;
+  const onlyCbz = rows.length > 0 && rows.every((row) => row.kind === 'cbz');
+  const singleBookActive = singleBook && !onlyCbz;
 
   return (
     <section
@@ -219,7 +226,47 @@ export function QueueScreen(props: QueueScreenProps): React.JSX.Element {
         aria-label="Conversion options"
         className="border-border bg-surface h-fit space-y-5 rounded-xl border p-5"
       >
-        <ProcessSteps input={stepsInput(rows)} mode={mode} onMode={onMode} />
+        <ProcessSteps
+          disabled={disabled}
+          input={stepsInput(rows)}
+          mode={mode}
+          onMode={onMode}
+          singleBook={singleBookActive}
+        />
+
+        <div className="flex items-start gap-3">
+          <Checkbox
+            aria-describedby="combine-into-one-volume-message"
+            checked={singleBook}
+            className="mt-0.5"
+            disabled={disabled || (onlyCbz && !singleBook)}
+            id="combine-into-one-volume"
+            onCheckedChange={(value) => {
+              onSingleBook(value === true);
+            }}
+          />
+          <div className="min-w-0 flex-1 space-y-0.5">
+            <SettingFieldHeader
+              changed={singleBook}
+              disabled={disabled || (onlyCbz && !singleBook)}
+              id="combine-into-one-volume"
+              label="Create one book for the series"
+              onReset={() => {
+                onSingleBook(false);
+              }}
+            />
+            <p
+              className="text-muted-foreground text-xs leading-relaxed"
+              id="combine-into-one-volume-message"
+            >
+              {onlyCbz
+                ? singleBook
+                  ? 'Saved for manga folders. A standalone CBZ is already one book.'
+                  : 'Not available for standalone .cbz files.'
+                : 'Produces a single EPUB with volumes and chapters in the table of contents.'}
+            </p>
+          </div>
+        </div>
 
         <div className="space-y-1.5">
           <SettingFieldHeader
@@ -250,19 +297,24 @@ export function QueueScreen(props: QueueScreenProps): React.JSX.Element {
         <div className="space-y-1.5">
           <SettingFieldHeader
             changed={format !== defaultFormat}
-            disabled={!mangapressRuns}
+            disabled={!mangapressRuns || singleBookActive}
             label="Format"
             onReset={() => {
-              onFormat(defaultFormat);
+              if (!singleBookActive) {
+                onFormat(defaultFormat);
+              }
             }}
           />
           <SegmentedControl
-            disabled={!mangapressRuns}
+            disabled={!mangapressRuns || singleBookActive}
             label="Format"
             onChange={onFormat}
             options={formatOptions}
             value={format}
           />
+          {singleBookActive && (
+            <p className="text-muted-foreground text-xs leading-relaxed">{singleBookLockReason}</p>
+          )}
         </div>
 
         <div className="space-y-1.5">
@@ -288,14 +340,16 @@ export function QueueScreen(props: QueueScreenProps): React.JSX.Element {
             onClick={onOpenOptions}
             type="button"
           >
-            mangapress options
+            Advanced conversion options
             <ChevronRight aria-hidden="true" className="size-4" />
           </button>
         )}
 
         <div className="border-border border-t pt-3">
           <ResetOptions
-            changed={mode !== defaultProcessMode || !isDefaultMangapress(format, settings)}
+            changed={
+              mode !== defaultProcessMode || singleBook || !isDefaultMangapress(format, settings)
+            }
             onReset={onReset}
             scope="the steps, device, format and every mangapress option"
           />
