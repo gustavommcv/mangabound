@@ -38,6 +38,20 @@ export const SingleItemInProgress: Story = {
   },
 };
 
+/** Pages copied from the source are visible while mangabind builds its CBZ volumes. */
+export const BindingVolumeFiles: Story = {
+  args: {
+    position: { name: 'Chainsaw Man', index: 1, total: 1 },
+    progress: {
+      stage: 'binding',
+      message: 'Building volume 3 of 11…',
+      bindingState: 'advanced',
+      completed: 414,
+      total: 1976,
+    },
+  },
+};
+
 /** The calm summary stays put; a reader may open the live progress for each volume. */
 export const MultipleVolumes: Story = {
   args: {

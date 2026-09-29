@@ -100,6 +100,8 @@ export interface VolumeConversionProgress {
 export interface ConversionProgress {
   readonly stage: 'binding' | 'processing' | 'saving';
   readonly message: string;
+  /** The final page can be copied before the CBZ archive has closed successfully. */
+  readonly bindingState?: 'started' | 'advanced' | 'completed';
   readonly title?: string;
   readonly volume?: string;
   readonly chapter?: string;

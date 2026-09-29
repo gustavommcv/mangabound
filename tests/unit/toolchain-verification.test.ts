@@ -92,6 +92,40 @@ describe('bundled toolchain verification', () => {
         { name: 'mangapress', state: 'ready' },
       ],
     });
+    expect(status.tools.find((tool) => tool.name === 'mangabind')?.capabilities).toEqual([
+      'report',
+    ]);
+  });
+
+  it('preserves optional progress capability from the verified handshake', async () => {
+    const status = await verifyBundledToolchain({
+      arch: 'x64',
+      dependencies: {
+        ...successfulDependencies,
+        run: (executablePath, arguments_) => {
+          const tool = toolFromPath(executablePath);
+          const version = manifest.tools[tool].pin.releaseTag.slice(1);
+          return Promise.resolve({
+            stderr: '',
+            stdout:
+              arguments_[0] === '--version'
+                ? `${tool} ${version}\n`
+                : protocolFor(
+                    tool,
+                    tool === 'mangabind' ? { capabilities: ['report', 'progress-json'] } : {},
+                  ),
+          });
+        },
+      },
+      manifest,
+      platform: 'win32',
+      toolchainRoot: 'C:\\bundled-tools',
+    });
+
+    expect(status.tools.find((tool) => tool.name === 'mangabind')?.capabilities).toEqual([
+      'report',
+      'progress-json',
+    ]);
   });
 
   it('accepts a conventional v prefix in human version output', async () => {

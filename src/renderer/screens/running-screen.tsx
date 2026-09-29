@@ -60,7 +60,13 @@ export function RunningScreen({
   readonly position?: RunPosition;
   readonly progress?: ConversionProgress;
 }): React.JSX.Element {
-  const percentage = percentageOf(progress?.completed, progress?.total);
+  const reportedPercentage = percentageOf(progress?.completed, progress?.total);
+  const percentage =
+    progress?.stage === 'binding' &&
+    progress.bindingState !== 'completed' &&
+    reportedPercentage !== undefined
+      ? Math.min(99, reportedPercentage)
+      : reportedPercentage;
   const [detailsOpen, setDetailsOpen] = useState(false);
   const detailsId = useId();
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -80,7 +86,8 @@ export function RunningScreen({
         ref={titleRef}
         tabIndex={-1}
       >
-        Converting {position?.name ?? 'your books'}
+        {progress?.stage === 'binding' ? 'Building volume files for' : 'Converting'}{' '}
+        {position?.name ?? 'your books'}
       </h1>
       <p aria-live="polite" className="text-muted-foreground mt-3 text-sm">
         {progress?.message}
@@ -88,6 +95,13 @@ export function RunningScreen({
       {percentage !== undefined && (
         <div className="mt-5">
           <ProgressMeter label={`${String(percentage)}% complete`} percentage={percentage} />
+          {progress?.stage === 'binding' &&
+            progress.completed !== undefined &&
+            progress.total !== undefined && (
+              <p className="text-muted-foreground mt-2 text-xs">
+                {String(progress.completed)} of {String(progress.total)} pages copied
+              </p>
+            )}
         </div>
       )}
       {progress?.volumes !== undefined && progress.volumes.length > 1 && (

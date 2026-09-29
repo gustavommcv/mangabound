@@ -7,6 +7,7 @@ export interface MangabindRunArguments {
   readonly quiet?: boolean;
   /** Write the whole manga as one .cbz instead of one per volume - see mangabind's ADR 0012. */
   readonly combine?: boolean;
+  readonly progressJson?: boolean;
 }
 
 export function buildMangabindArguments({
@@ -17,6 +18,7 @@ export function buildMangabindArguments({
   metadataFilePath,
   outputPath,
   quiet,
+  progressJson,
 }: MangabindRunArguments): readonly string[] {
   if (batch === true && metadataFilePath !== undefined) {
     throw new TypeError('Mangabind batch mode cannot use a shared metadata file.');
@@ -32,5 +34,6 @@ export function buildMangabindArguments({
     ...(dryRun ? ['--dry-run'] : []),
     ...(quiet === true ? ['--quiet'] : []),
     '--json',
+    ...(progressJson === true ? ['--progress-json'] : []),
   ];
 }

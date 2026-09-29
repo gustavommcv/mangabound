@@ -215,8 +215,17 @@ describe('single-input workflow', () => {
   it('binds a trusted folder mapping and converts volumes strictly sequentially', async () => {
     const ports = dependencies();
     const order: string[] = [];
-    ports.bind.mockImplementation(() => {
+    ports.bind.mockImplementation((_workspace, _mapping, _signal, _combine, onBindingProgress) => {
       order.push('bind');
+      onBindingProgress?.({
+        stage: 'write',
+        state: 'advanced',
+        manga: 'Trusted Manga',
+        volumeIndex: 1,
+        volumeCount: 2,
+        completedPages: 2,
+        totalPages: 5,
+      });
       return Promise.resolve({
         volumePaths: ['/work/volume-1.cbz', '/work/volume-2.cbz'],
         issues: [],
@@ -275,6 +284,15 @@ describe('single-input workflow', () => {
       id: 'suggestion-id',
     });
     expect(artifacts).toHaveLength(2);
+    expect(onProgress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stage: 'binding',
+        bindingState: 'advanced',
+        message: 'Building volume 1 of 2…',
+        completed: 2,
+        total: 5,
+      }),
+    );
     expect(onProgress).toHaveBeenCalledWith(expect.objectContaining({ completed: 2, total: 2 }));
     expect(onProgress).toHaveBeenLastCalledWith({
       stage: 'saving',
@@ -532,7 +550,13 @@ describe('single-input workflow', () => {
       { onProgress: vi.fn() },
     );
 
-    expect(ports.bind).toHaveBeenCalledWith('workspace-1', expect.anything(), undefined, true);
+    expect(ports.bind).toHaveBeenCalledWith(
+      'workspace-1',
+      expect.anything(),
+      undefined,
+      true,
+      expect.any(Function),
+    );
     expect(ports.convert).toHaveBeenCalledTimes(1);
     expect(ports.convert.mock.calls[0]?.[0].inputPath).toBe('/work/Trusted Manga.cbz');
     expect(artifacts).toHaveLength(1);
@@ -1278,7 +1302,12 @@ describe('single-input workflow', () => {
         { onProgress },
       );
 
-      expect(ports.bindBatch).toHaveBeenCalledExactlyOnceWith('/input/Library', undefined, false);
+      expect(ports.bindBatch).toHaveBeenCalledExactlyOnceWith(
+        '/input/Library',
+        undefined,
+        false,
+        expect.any(Function),
+      );
       expect(ports.convert).toHaveBeenCalledTimes(2);
       expect(outcomes).toMatchObject([
         {
@@ -1336,7 +1365,12 @@ describe('single-input workflow', () => {
         { onProgress },
       );
 
-      expect(ports.bindBatch).toHaveBeenCalledExactlyOnceWith('/input/Library', undefined, true);
+      expect(ports.bindBatch).toHaveBeenCalledExactlyOnceWith(
+        '/input/Library',
+        undefined,
+        true,
+        expect.any(Function),
+      );
       // Good Manga was converted as 1 book with nestedToc: true
       expect(ports.convert).toHaveBeenCalledTimes(1);
       expect(ports.convert).toHaveBeenCalledWith(
@@ -1532,7 +1566,7 @@ describe('single-input workflow process modes', () => {
     ]);
     expect(landed).toEqual(artifacts);
     expect(progress).toEqual([
-      { stage: 'binding', message: 'Building volume files…' },
+      { stage: 'binding', message: 'Organizing 2 chapters into volume files…' },
       { stage: 'saving', volume: '1 of 2', message: 'Saving volume 1 of 2…' },
       { stage: 'saving', volume: '2 of 2', message: 'Saving volume 2 of 2…' },
       { stage: 'saving', message: '2 books saved.' },
@@ -1824,6 +1858,7 @@ describe('single-input workflow process modes', () => {
       ]);
       expect(landed).toEqual(['good-vol-1.cbz', 'good-vol-2.cbz']);
       expect(progress).toEqual([
+        { stage: 'binding', message: 'Building volume files for the library…' },
         {
           stage: 'saving',
           title: 'Good Manga',
@@ -1880,6 +1915,11 @@ describe('single-input workflow process modes', () => {
 
     it('keeps the title in aggregate progress when its volumes convert concurrently', async () => {
       const ports = dependencies();
+      const originalBindBatch = ports.bindBatch.getMockImplementation()!;
+      ports.bindBatch.mockImplementation((parentPath, signal, combine, onBindingProgress) => {
+        onBindingProgress?.({ stage: 'inspect', state: 'started', manga: 'Good Manga' });
+        return originalBindBatch(parentPath, signal, combine, onBindingProgress);
+      });
       const { workflow, sessionId } = await openLibrary(ports, 2);
       const progress: ConversionProgress[] = [];
 
@@ -1889,6 +1929,11 @@ describe('single-input workflow process modes', () => {
       );
 
       expect(outcomes[0]).toMatchObject({ title: 'Good Manga', status: 'done' });
+      expect(progress).toContainEqual({
+        stage: 'binding',
+        title: 'Good Manga',
+        message: 'Inspecting Good Manga…',
+      });
       expect(progress).toContainEqual(
         expect.objectContaining({
           title: 'Good Manga',

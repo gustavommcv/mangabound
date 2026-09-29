@@ -18,6 +18,10 @@ const mangapressFixture = fs.readFileSync(
   path.join(repositoryRoot, 'tests', 'fixtures', 'protocol', 'mangapress-v1-events.jsonl'),
   'utf8',
 );
+const mangabindProgressFixture = fs.readFileSync(
+  path.join(repositoryRoot, 'tests', 'fixtures', 'protocol', 'mangabind-v1-progress.jsonl'),
+  'utf8',
+);
 
 function runnerReturning(
   stdout: string,
@@ -78,6 +82,74 @@ describe('CLI process adapters', () => {
     await expect(
       adapter.run({ inputPath: '/missing', outputPath: '/tmp/output', dryRun: false }),
     ).resolves.toMatchObject({ exitCode: 1, stderr: 'detail', report: { status: 'failed' } });
+  });
+
+  it('uses live progress only when the verified CLI advertises it', async () => {
+    const run = vi.fn<ProcessRunner['run']>((_request, options) => {
+      const cut = Math.floor(mangabindProgressFixture.length / 2);
+      options?.onChunk?.({ stream: 'stderr', text: mangabindProgressFixture.slice(0, cut) });
+      options?.onChunk?.({ stream: 'stderr', text: mangabindProgressFixture.slice(cut) });
+      return Promise.resolve({
+        stdout: mangabindFixture,
+        stderr: mangabindProgressFixture,
+        exitCode: 0,
+        signal: null,
+      });
+    });
+    const onProgress = vi.fn();
+    const onChunk = vi.fn();
+    const request = { inputPath: '/source', outputPath: '/output', dryRun: false };
+    const adapter = new MangabindCliAdapter('mangabind', { run }, true);
+    const controller = new AbortController();
+    const result = await adapter.run(request, { onProgress, onChunk, signal: controller.signal });
+
+    expect(result.stderr).toBe('');
+    expect(onProgress).toHaveBeenCalledTimes(8);
+    expect(onChunk).toHaveBeenCalledTimes(2);
+    expect(run.mock.calls[0]?.[0].arguments).toContain('--progress-json');
+    expect(run.mock.calls[0]?.[1]).toMatchObject({ signal: controller.signal });
+
+    const legacyRun = runnerReturning(mangabindFixture);
+    await new MangabindCliAdapter('mangabind', legacyRun.runner).run(request, { onProgress });
+    expect(legacyRun.run.mock.calls[0]?.[0].arguments).not.toContain('--progress-json');
+    expect(onProgress).toHaveBeenCalledTimes(8);
+
+    const legacyChunks = vi.fn();
+    await new MangabindCliAdapter('mangabind', legacyRun.runner).run(request, {
+      onChunk: legacyChunks,
+    });
+    expect(legacyChunks).toHaveBeenCalled();
+  });
+
+  it('rejects malformed progress before interpreting the final report', async () => {
+    const adapter = new MangabindCliAdapter(
+      'mangabind',
+      runnerReturning(mangabindFixture, 0, '{').runner,
+      true,
+    );
+    await expect(
+      adapter.run(
+        { inputPath: '/source', outputPath: '/output', dryRun: false },
+        { onProgress: vi.fn() },
+      ),
+    ).rejects.toMatchObject({ code: 'incomplete_line' });
+  });
+
+  it('delivers the final progress event even when stderr has no trailing newline', async () => {
+    const onProgress = vi.fn();
+    const adapter = new MangabindCliAdapter(
+      'mangabind',
+      runnerReturning(mangabindFixture, 0, mangabindProgressFixture.trimEnd()).runner,
+      true,
+    );
+    await adapter.run(
+      { inputPath: '/source', outputPath: '/output', dryRun: false },
+      { onProgress },
+    );
+    expect(onProgress).toHaveBeenCalledTimes(8);
+    expect(onProgress).toHaveBeenLastCalledWith(
+      expect.objectContaining({ stage: 'write', state: 'completed' }),
+    );
   });
 
   it('decodes mangapress progress while it runs and returns its final result', async () => {

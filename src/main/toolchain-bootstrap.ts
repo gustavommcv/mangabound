@@ -55,6 +55,9 @@ export async function bootstrapToolchain(
     const mangabindCli = new MangabindCliAdapter(
       executablePath(toolchainRoot, toolchainStatus.target, 'mangabind'),
       runner,
+      toolchainStatus.tools
+        .find((tool) => tool.name === 'mangabind')
+        ?.capabilities?.includes('progress-json') === true,
     );
     context.mangapressCli = new MangapressCliAdapter(
       executablePath(toolchainRoot, toolchainStatus.target, 'mangapress'),

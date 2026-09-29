@@ -6,6 +6,8 @@ export interface ToolVerificationStatus {
   readonly releaseTag: string;
   readonly state: 'ready' | 'failed';
   readonly message: string;
+  /** Advertised by the verified executable's protocol handshake. */
+  readonly capabilities?: readonly string[];
 }
 
 export interface ToolchainStatus {
