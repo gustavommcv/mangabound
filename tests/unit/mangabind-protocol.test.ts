@@ -4,7 +4,12 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { parseMangabindProtocolInfo, parseMangabindReport } from '@/adapters/mangabind/protocol';
+import {
+  MangabindProgressDecoder,
+  parseMangabindProgressLine,
+  parseMangabindProtocolInfo,
+  parseMangabindReport,
+} from '@/adapters/mangabind/protocol';
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const fixture = fs.readFileSync(
@@ -110,5 +115,64 @@ describe('recorded mangabind 0.4.0 reports', () => {
 
     expect(units.map((unit) => unit.disposition)).toEqual(['unassigned', 'included', 'included']);
     expect(units[0]!.effective_volume).toBeUndefined();
+  });
+});
+
+describe('mangabind progress side channel', () => {
+  const progressFixture = fs.readFileSync(
+    path.join(repositoryRoot, 'tests', 'fixtures', 'protocol', 'mangabind-v1-progress.jsonl'),
+    'utf8',
+  );
+
+  it('parses events recorded from the real sample manga and split process chunks', () => {
+    const decoder = new MangabindProgressDecoder();
+    const middle = Math.floor(progressFixture.length / 2);
+    const events = [
+      ...decoder.push(progressFixture.slice(0, 13)),
+      ...decoder.push(progressFixture.slice(13, middle).replace(/\n/gu, '\r\n')),
+      ...decoder.push(progressFixture.slice(middle)),
+      ...decoder.finish(),
+    ];
+
+    expect(events[0]).toMatchObject({ stage: 'inspect', state: 'started' });
+    expect(events.at(-1)).toMatchObject({ stage: 'write', state: 'completed', completed_pages: 4 });
+    expect(
+      events.filter((event) => event.stage === 'write' && event.state === 'advanced'),
+    ).toHaveLength(4);
+  });
+
+  it('accepts an unterminated final line and empty tail', () => {
+    const decoder = new MangabindProgressDecoder();
+    const line = progressFixture.trimEnd().split('\n')[0]!;
+    expect(decoder.push(line)).toEqual([]);
+    expect(decoder.finish()).toEqual([parseMangabindProgressLine(line)]);
+    expect(decoder.finish()).toEqual([]);
+  });
+
+  it.each([
+    ['malformed_json', '{'],
+    [
+      'unsupported_protocol',
+      progressFixture.split('\n')[0]!.replace('"protocol_version":1', '"protocol_version":2'),
+    ],
+    ['invalid_payload', '{"protocol_version":1,"tool":"mangabind","kind":"progress"}'],
+  ])('rejects %s progress', (code, line) => {
+    expect(() => parseMangabindProgressLine(line)).toThrowError(expect.objectContaining({ code }));
+  });
+
+  it('rejects an incomplete final line', () => {
+    const decoder = new MangabindProgressDecoder();
+    decoder.push('{');
+    expect(() => decoder.finish()).toThrowError(
+      expect.objectContaining({ code: 'incomplete_line' }),
+    );
+  });
+
+  it('keeps a complete but invalid final event as a protocol error', () => {
+    const decoder = new MangabindProgressDecoder();
+    decoder.push('{"protocol_version":1,"tool":"mangabind","kind":"progress"}');
+    expect(() => decoder.finish()).toThrowError(
+      expect.objectContaining({ code: 'invalid_payload' }),
+    );
   });
 });

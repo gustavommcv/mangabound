@@ -129,8 +129,39 @@ const protocolInfoSchema = z
   })
   .passthrough();
 
+const progressBase = {
+  protocol_version: z.literal(protocolVersion),
+  tool: z.literal('mangabind'),
+  tool_version: z.string().min(1),
+  kind: z.literal('progress'),
+  manga: z.string().min(1),
+};
+
+const progressSchema = z.discriminatedUnion('stage', [
+  z
+    .object({
+      ...progressBase,
+      stage: z.literal('inspect'),
+      state: z.enum(['started', 'completed']),
+    })
+    .passthrough(),
+  z
+    .object({
+      ...progressBase,
+      stage: z.literal('write'),
+      state: z.enum(['started', 'advanced', 'completed']),
+      volume_index: z.number().int().positive(),
+      volume_count: z.number().int().positive(),
+      volume_number: z.number(),
+      completed_pages: z.number().int().nonnegative(),
+      total_pages: z.number().int().positive(),
+    })
+    .passthrough(),
+]);
+
 export type MangabindReport = z.infer<typeof reportSchema>;
 export type MangabindProtocolInfo = z.infer<typeof protocolInfoSchema>;
+export type MangabindProgressEvent = z.infer<typeof progressSchema>;
 
 function parseJson(input: string): unknown {
   try {
@@ -174,4 +205,38 @@ export function parseMangabindReport(input: string): MangabindReport {
 
 export function parseMangabindProtocolInfo(input: string): MangabindProtocolInfo {
   return parsePayload(protocolInfoSchema, input);
+}
+
+export function parseMangabindProgressLine(input: string): MangabindProgressEvent {
+  return parsePayload(progressSchema, input);
+}
+
+/** The progress side channel is line-delimited; chunks may split anywhere. */
+export class MangabindProgressDecoder {
+  private buffer = '';
+
+  push(chunk: string): MangabindProgressEvent[] {
+    this.buffer += chunk;
+    const lines = this.buffer.split('\n');
+    this.buffer = lines.pop()!;
+    return lines.map((line) => parseMangabindProgressLine(line.replace(/\r$/u, '')));
+  }
+
+  finish(): MangabindProgressEvent[] {
+    if (this.buffer === '') return [];
+    const line = this.buffer.replace(/\r$/u, '');
+    this.buffer = '';
+    try {
+      return [parseMangabindProgressLine(line)];
+    } catch (error) {
+      if (error instanceof CliProtocolError && error.code === 'malformed_json') {
+        throw new CliProtocolError(
+          'incomplete_line',
+          'mangabind ended with an incomplete progress event.',
+          error,
+        );
+      }
+      throw error;
+    }
+  }
 }

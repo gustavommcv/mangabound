@@ -1,0 +1,8 @@
+{"protocol_version":1,"tool":"mangabind","tool_version":"dev","kind":"progress","stage":"inspect","state":"started","manga":"sample_manga"}
+{"protocol_version":1,"tool":"mangabind","tool_version":"dev","kind":"progress","stage":"inspect","state":"completed","manga":"sample_manga"}
+{"protocol_version":1,"tool":"mangabind","tool_version":"dev","kind":"progress","stage":"write","state":"started","manga":"sample_manga","volume_index":1,"volume_count":1,"volume_number":1,"completed_pages":0,"total_pages":4}
+{"protocol_version":1,"tool":"mangabind","tool_version":"dev","kind":"progress","stage":"write","state":"advanced","manga":"sample_manga","volume_index":1,"volume_count":1,"volume_number":1,"completed_pages":1,"total_pages":4}
+{"protocol_version":1,"tool":"mangabind","tool_version":"dev","kind":"progress","stage":"write","state":"advanced","manga":"sample_manga","volume_index":1,"volume_count":1,"volume_number":1,"completed_pages":2,"total_pages":4}
+{"protocol_version":1,"tool":"mangabind","tool_version":"dev","kind":"progress","stage":"write","state":"advanced","manga":"sample_manga","volume_index":1,"volume_count":1,"volume_number":1,"completed_pages":3,"total_pages":4}
+{"protocol_version":1,"tool":"mangabind","tool_version":"dev","kind":"progress","stage":"write","state":"advanced","manga":"sample_manga","volume_index":1,"volume_count":1,"volume_number":1,"completed_pages":4,"total_pages":4}
+{"protocol_version":1,"tool":"mangabind","tool_version":"dev","kind":"progress","stage":"write","state":"completed","manga":"sample_manga","volume_index":1,"volume_count":1,"volume_number":1,"completed_pages":4,"total_pages":4}

@@ -94,4 +94,33 @@ describe('RunningScreen', () => {
     );
     expect(screen.queryByRole('button', { name: 'Show details' })).not.toBeInTheDocument();
   });
+
+  it('shows actual binding pages without claiming the archive is complete before it closes', () => {
+    const base: ConversionProgress = {
+      stage: 'binding',
+      message: 'Building volume 1 of 1…',
+      bindingState: 'advanced',
+      completed: 4,
+      total: 4,
+    };
+    const { rerender } = render(
+      <RunningScreen
+        onCancel={vi.fn()}
+        position={{ name: 'A Work', index: 1, total: 1 }}
+        progress={base}
+      />,
+    );
+    expect(screen.getByRole('heading', { name: 'Building volume files for A Work' })).toBeVisible();
+    expect(screen.getByText('4 of 4 pages copied')).toBeVisible();
+    expect(screen.getByRole('progressbar', { name: '99% complete' })).toBeVisible();
+
+    rerender(
+      <RunningScreen
+        onCancel={vi.fn()}
+        position={{ name: 'A Work', index: 1, total: 1 }}
+        progress={{ ...base, bindingState: 'completed' }}
+      />,
+    );
+    expect(screen.getByRole('progressbar', { name: '100% complete' })).toBeVisible();
+  });
 });

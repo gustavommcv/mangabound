@@ -5,12 +5,14 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import type { MangabindCliAdapter, MangabindRunResult } from './cli';
+import type { MangabindProgressEvent } from './protocol';
 import { mappingDraftFromMangabindReport } from './mapping-draft';
 import type { MangabindReport } from './protocol';
 
 import type {
   BindingBatchPlan,
   BindingBatchResult,
+  BindingProgress,
   BindingInspection,
   BindingPlan,
   BindingPort,
@@ -101,6 +103,7 @@ export class MangabindBindingAdapter implements BindingPort {
     mapping: Parameters<BindingPort['bind']>[1],
     signal?: AbortSignal,
     combine?: boolean,
+    onProgress?: (progress: BindingProgress) => void,
   ): Promise<BindingResult> {
     const workspace = this.workspaces.get(workspaceId);
     if (workspace === undefined) {
@@ -133,7 +136,16 @@ export class MangabindBindingAdapter implements BindingPort {
         dryRun: false,
         combine,
       },
-      signal === undefined ? {} : { signal },
+      {
+        ...(signal === undefined ? {} : { signal }),
+        ...(onProgress === undefined
+          ? {}
+          : {
+              onProgress: (event: MangabindProgressEvent) => {
+                onProgress(toBindingProgress(event));
+              },
+            }),
+      },
     );
     assertSuccessful(result);
     if (combine === true) {
@@ -221,6 +233,7 @@ export class MangabindBindingAdapter implements BindingPort {
     parentPath: string,
     signal?: AbortSignal,
     combine?: boolean,
+    onProgress?: (progress: BindingProgress) => void,
   ): Promise<BindingBatchResult> {
     const rootPath = await this.files.createTemporaryDirectory(
       path.join(this.temporaryRoot, 'mangabound-'),
@@ -237,7 +250,16 @@ export class MangabindBindingAdapter implements BindingPort {
       await this.files.createDirectory(volumesPath);
       const result = await this.cli.run(
         { inputPath: parentPath, outputPath: volumesPath, dryRun: false, batch: true, combine },
-        signal === undefined ? {} : { signal },
+        {
+          ...(signal === undefined ? {} : { signal }),
+          ...(onProgress === undefined
+            ? {}
+            : {
+                onProgress: (event: MangabindProgressEvent) => {
+                  onProgress(toBindingProgress(event));
+                },
+              }),
+        },
       );
       return {
         workspaceId,
@@ -310,6 +332,21 @@ function toPipelineIssue(issue: MangabindReport['issues'][number]): PipelineIssu
     ...(issue.volume === undefined ? {} : { volume: String(issue.volume) }),
     ...(issue.chapter === undefined ? {} : { chapter: String(issue.chapter) }),
     ...(issue.path === undefined ? {} : { path: issue.path }),
+  };
+}
+
+function toBindingProgress(event: MangabindProgressEvent): BindingProgress {
+  if (event.stage === 'inspect') {
+    return { stage: 'inspect', state: event.state, manga: event.manga };
+  }
+  return {
+    stage: 'write',
+    state: event.state,
+    manga: event.manga,
+    volumeIndex: event.volume_index,
+    volumeCount: event.volume_count,
+    completedPages: event.completed_pages,
+    totalPages: event.total_pages,
   };
 }
 

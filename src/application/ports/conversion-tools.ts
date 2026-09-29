@@ -63,6 +63,23 @@ export interface BindingPlan {
   readonly issues: readonly PipelineIssue[];
 }
 
+/** Actual work reported by mangabind; counts are pages copied, not an estimate. */
+export type BindingProgress =
+  | {
+      readonly stage: 'inspect';
+      readonly state: 'started' | 'completed';
+      readonly manga: string;
+    }
+  | {
+      readonly stage: 'write';
+      readonly state: 'started' | 'advanced' | 'completed';
+      readonly manga: string;
+      readonly volumeIndex: number;
+      readonly volumeCount: number;
+      readonly completedPages: number;
+      readonly totalPages: number;
+    };
+
 export interface BindingPort {
   inspect(inputPath: string, signal?: AbortSignal): Promise<BindingInspection>;
   plan(workspaceId: string, mapping: MappingDraft, signal?: AbortSignal): Promise<BindingPlan>;
@@ -71,6 +88,7 @@ export interface BindingPort {
     mapping: MappingDraft,
     signal?: AbortSignal,
     combine?: boolean,
+    onProgress?: (progress: BindingProgress) => void,
   ): Promise<BindingResult>;
   release(workspaceId: string): Promise<void>;
   /** Reads a library (a folder of manga folders) with one mangabind `--batch` dry run. */
@@ -80,6 +98,7 @@ export interface BindingPort {
     parentPath: string,
     signal?: AbortSignal,
     combine?: boolean,
+    onProgress?: (progress: BindingProgress) => void,
   ): Promise<BindingBatchResult>;
   /** Saves the mapping a user confirmed for one title as that title folder's mangabind.json. */
   writeTitleMapping(inputPath: string, mapping: MappingDraft): Promise<void>;

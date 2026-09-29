@@ -85,7 +85,7 @@ function verifyProtocolOutput(
   releaseTag: string,
   protocolVersion: string,
   stdout: string,
-): void {
+): readonly string[] {
   const version = expectedVersion(releaseTag);
   if (toolName === 'mangabind') {
     const handshake = parseMangabindProtocolInfo(stdout);
@@ -96,7 +96,7 @@ function verifyProtocolOutput(
     ) {
       throw new Error('mangabind reports an incompatible machine protocol.');
     }
-    return;
+    return handshake.capabilities;
   }
 
   const events = parseMangapressEventStream(stdout);
@@ -111,6 +111,8 @@ function verifyProtocolOutput(
   ) {
     throw new Error('mangapress reports an incompatible machine protocol.');
   }
+  // The known protocol event was already validated against z.array(z.string()) by its parser.
+  return handshake.capabilities as string[];
 }
 
 async function verifyTool(
@@ -133,11 +135,17 @@ async function verifyTool(
     const versionResult = await dependencies.run(executablePath, ['--version']);
     verifyVersionOutput(toolName, pin.releaseTag, versionResult.stdout);
     const protocolResult = await dependencies.run(executablePath, ['--protocol-version']);
-    verifyProtocolOutput(toolName, pin.releaseTag, pin.protocolVersion, protocolResult.stdout);
+    const capabilities = verifyProtocolOutput(
+      toolName,
+      pin.releaseTag,
+      pin.protocolVersion,
+      protocolResult.stdout,
+    );
     return {
       name: toolName,
       releaseTag: pin.releaseTag,
       state: 'ready',
+      capabilities,
       message: `${toolName} ${pin.releaseTag} is verified.`,
     };
   } catch {

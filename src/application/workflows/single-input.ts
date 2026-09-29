@@ -1,4 +1,5 @@
 import type { BookFileStorePort, SavedBookFile } from '@/application/ports/book-file-store';
+import { presentBindingProgress } from '@/application/workflows/binding-progress';
 import type {
   BindingBatchPlan,
   BindingBatchTitle,
@@ -194,8 +195,19 @@ export class SingleInputWorkflow {
         );
       }
       const mapping = trustedMapping(session.trustedDraft, request.mapping);
-      onProgress({ stage: 'binding', message: 'Building volume files…' });
-      const bound = await this.binding.bind(session.workspaceId, mapping, signal, singleBook);
+      onProgress({
+        stage: 'binding',
+        message: `Organizing ${String(mapping.chapters.length)} chapters into volume files…`,
+      });
+      const bound = await this.binding.bind(
+        session.workspaceId,
+        mapping,
+        signal,
+        singleBook,
+        (p) => {
+          onProgress(presentBindingProgress(p));
+        },
+      );
       if (singleBook) {
         if (bound.combinedOutputPath === undefined) {
           throw new ConversionWorkflowError(
@@ -405,7 +417,18 @@ export class SingleInputWorkflow {
       }
     }
     const { session } = this.librarySession(request.sessionId);
-    const bound = await this.binding.bindBatch(session.selection.inputPath, signal, singleBook);
+    onProgress({
+      stage: 'binding',
+      message: 'Building volume files for the library…',
+    });
+    const bound = await this.binding.bindBatch(
+      session.selection.inputPath,
+      signal,
+      singleBook,
+      (progress) => {
+        onProgress(presentBindingProgress(progress));
+      },
+    );
     const titles =
       request.titles === undefined
         ? bound.titles

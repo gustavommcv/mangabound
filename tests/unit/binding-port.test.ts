@@ -148,7 +148,7 @@ describe('mangabind binding port', () => {
     const root = path.join(os.tmpdir(), 'tests', 'mangabound-workspace');
     const files = fakeFiles(root);
     const cli = {
-      run: vi.fn<MangabindCliAdapter['run']>((request) => {
+      run: vi.fn<MangabindCliAdapter['run']>((request, options) => {
         const report = structuredClone(fixture);
         if (request.dryRun && request.metadataFilePath !== undefined) {
           report.status = 'completed';
@@ -169,6 +169,34 @@ describe('mangabind binding port', () => {
             },
           ];
         } else if (!request.dryRun) {
+          options?.onProgress?.({
+            protocol_version: 1,
+            tool: 'mangabind',
+            tool_version: 'test',
+            kind: 'progress',
+            stage: 'write',
+            state: 'started',
+            manga: 'Mangá São José',
+            volume_index: 1,
+            volume_count: 2,
+            volume_number: 1,
+            completed_pages: 0,
+            total_pages: 3,
+          });
+          options?.onProgress?.({
+            protocol_version: 1,
+            tool: 'mangabind',
+            tool_version: 'test',
+            kind: 'progress',
+            stage: 'write',
+            state: 'advanced',
+            manga: 'Mangá São José',
+            volume_index: 1,
+            volume_count: 2,
+            volume_number: 1,
+            completed_pages: 1,
+            total_pages: 3,
+          });
           report.mode = 'execute';
           report.status = 'completed';
           report.issues = [
@@ -241,12 +269,31 @@ describe('mangabind binding port', () => {
       { name: 'planned-v2.cbz', pageCount: 1 },
     ]);
     expect(files.writeTextAtomically).not.toHaveBeenCalled();
-    const bound = await adapter.bind(inspection.workspaceId, completeMapping(), controller.signal);
+    const onProgress = vi.fn();
+    const bound = await adapter.bind(
+      inspection.workspaceId,
+      completeMapping(),
+      controller.signal,
+      false,
+      onProgress,
+    );
     expect(bound.volumePaths.map((volumePath) => path.basename(volumePath))).toEqual([
       'v1.cbz',
       'v2.cbz',
     ]);
     expect(bound.issues[0]).toMatchObject({ diagnostic: 'detail', volume: '1', chapter: '3' });
+    expect(onProgress).toHaveBeenCalledWith({
+      stage: 'write',
+      state: 'advanced',
+      manga: 'Mangá São José',
+      volumeIndex: 1,
+      volumeCount: 2,
+      completedPages: 1,
+      totalPages: 3,
+    });
+    expect(onProgress).toHaveBeenCalledWith(
+      expect.objectContaining({ state: 'started', completedPages: 0 }),
+    );
     expect(files.writeText).toHaveBeenCalledWith(
       path.join(root, 'mangabind.json'),
       expect.stringContaining('"schema_version": 1'),
@@ -664,19 +711,35 @@ describe('mangabind binding port', () => {
     const report = batchReport(path.join(root, 'volumes'));
     report.mode = 'execute';
     const cli = {
-      run: vi.fn<MangabindCliAdapter['run']>(() =>
-        Promise.resolve(result({ report, exitCode: 1 })),
-      ),
+      run: vi.fn<MangabindCliAdapter['run']>((_request, options) => {
+        options?.onProgress?.({
+          protocol_version: 1,
+          tool: 'mangabind',
+          tool_version: 'test',
+          kind: 'progress',
+          stage: 'inspect',
+          state: 'started',
+          manga: 'Good Manga',
+        });
+        return Promise.resolve(result({ report, exitCode: 1 }));
+      }),
     };
     const adapter = new MangabindBindingAdapter(cli, files, os.tmpdir(), () => 'batch-workspace');
     const controller = new AbortController();
 
-    const bound = await adapter.bindBatch('/library', controller.signal);
+    const onProgress = vi.fn();
+    const bound = await adapter.bindBatch('/library', controller.signal, false, onProgress);
 
     expect(cli.run).toHaveBeenCalledWith(
       expect.objectContaining({ inputPath: '/library', batch: true, dryRun: false }),
-      { signal: controller.signal },
+      expect.objectContaining({ signal: controller.signal }),
     );
+    expect(cli.run.mock.calls[0]?.[1]?.onProgress).toEqual(expect.any(Function));
+    expect(onProgress).toHaveBeenCalledWith({
+      stage: 'inspect',
+      state: 'started',
+      manga: 'Good Manga',
+    });
 
     expect(bound.workspaceId).toBe('batch-workspace');
     expect(bound.titles[0]).toMatchObject({

@@ -139,6 +139,18 @@ test('a running item remains visually consistent', async ({ page }) => {
   await expect(page.locator('#storybook-root')).toHaveScreenshot('running.png');
 });
 
+test('building volume files shows measured page progress without visual drift', async ({
+  page,
+}) => {
+  await page.goto('/iframe.html?id=workflows-running--binding-volume-files&viewMode=story');
+  await expect(
+    page.getByRole('heading', { name: 'Building volume files for Chainsaw Man' }),
+  ).toBeVisible();
+  await expect(page.getByText('414 of 1976 pages copied')).toBeVisible();
+  await page.evaluate(async () => document.fonts.ready);
+  await expect(page.locator('#storybook-root')).toHaveScreenshot('binding-progress.png');
+});
+
 test('expanded volume progress uses the page scroll, not another scrollbar', async ({ page }) => {
   await page.setViewportSize({ width: 900, height: 600 });
   await page.goto('/iframe.html?id=workflows-running--multiple-volumes&viewMode=story');
