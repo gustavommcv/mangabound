@@ -9,7 +9,7 @@ Concrete implementations of the application's ports: versioned CLI processes, on
 | `process/`            | Starts a subprocess, streams its structured output, and cancels it.                                                                                                         |
 | `toolchain/`          | Validates the committed release manifest, executable hashes, release versions and protocol handshakes before any job can run. Only this verified toolchain can be executed. |
 | `metadata-providers/` | Online sources for volume data, behind one port, with a shared request that names the service in errors. See `docs/adding-a-metadata-provider.md`.                          |
-| `library/`            | The output library's catalog and the atomic copy of a finished book into it.                                                                                                |
+| `library/`            | Catalogs, isolated persistent pending runs, and safe export copies into user-chosen destinations.                                                                           |
 | `settings/`           | The versioned settings file, written by rename so it is never half written.                                                                                                 |
 | `input/`              | Checks the paths a person added against the disk.                                                                                                                           |
 | `opds/`, `network/`   | The OPDS HTTP server and the list of network interfaces it may bind to.                                                                                                     |

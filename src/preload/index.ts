@@ -21,6 +21,9 @@ import type {
   MetadataProviderDescriptor,
   MetadataSearchResult,
   PlanSummary,
+  PlanConversionCommand,
+  PendingRunSummary,
+  SaveAllResult,
   RegisteredInputs,
   SelectedLibrary,
   VolumeSuggestion,
@@ -69,7 +72,13 @@ const bridge: MangaboundBridge = Object.freeze({
   getDeviceProfiles: () => invoke<readonly DeviceProfileSummary[]>('workflow:get-device-profiles'),
   convert: (command: ConversionCommand) =>
     invoke<readonly ArtifactSummary[]>('workflow:convert', command),
-  planConversion: (command: ConversionCommand) => invoke<PlanSummary>('workflow:plan', command),
+  planConversion: (command: PlanConversionCommand) => invoke<PlanSummary>('workflow:plan', command),
+  createPendingRun: () => invoke<string>('pending:create'),
+  listPendingRuns: () => invoke<readonly PendingRunSummary[]>('pending:list'),
+  saveArtifactAs: (artifactId: string) =>
+    invoke<{ saved: boolean; warning?: string }>('pending:save-as', artifactId),
+  saveAllArtifacts: (artifactIds: readonly string[]) =>
+    invoke<SaveAllResult | null>('pending:save-all', artifactIds),
   cancelConversion: (jobId: string) => invoke<undefined>('workflow:cancel', jobId),
   planLibrary: (jobId: string, sessionId: string) =>
     invoke<LibraryPlanSummary>('workflow:plan-library', { jobId, sessionId }),

@@ -1,16 +1,15 @@
-import { randomUUID } from 'node:crypto';
-
 import { ipcMain } from 'electron';
 
 import type { PreferencesWorkflow } from '@/application/workflows/preferences';
 import { type RestoredSettings, saveSettingsCommandSchema } from '@/shared/settings-contract';
-import type { SelectedLibrary, WorkflowResult } from '@/shared/workflow-contract';
+import type { WorkflowResult } from '@/shared/workflow-contract';
 
 import type { MainContext } from '../context';
 import { failed, ok, toFailure } from './result';
 
 /**
- * Loading and saving the renderer's preferences and its chosen output library. `workflows` is
+ * Loading and saving renderer preferences. A legacy output folder is retained only as the next
+ * native Save dialog's suggested location. `workflows` is
  * passed separately from the shared context: it is guaranteed constructed by the time this is
  * called, unlike the context's own optional `preferences` field (kept for the handlers that may
  * run before or without it, such as remembering a picker folder).
@@ -18,34 +17,24 @@ import { failed, ok, toFailure } from './result';
 export function registerSettingsHandlers(
   context: Pick<
     MainContext,
-    | 'selectedLibraries'
-    | 'currentPreferences'
-    | 'currentOutputFolder'
-    | 'lastPickerFolder'
-    | 'preferredNetworkInterface'
+    'currentPreferences' | 'lastSaveFolder' | 'lastPickerFolder' | 'preferredNetworkInterface'
   >,
   workflows: PreferencesWorkflow,
 ): void {
   ipcMain.handle('settings:load', async (): Promise<WorkflowResult<RestoredSettings>> => {
     try {
       const restored = await workflows.restore();
+      // An old output-folder preference is only a starting place for a native Save dialog.
+      // Restoring it must never silently send new conversions to that folder.
       context.lastPickerFolder = restored.lastPickerFolder;
       context.preferredNetworkInterface = restored.preferredNetworkInterface;
       context.currentPreferences = restored.preferences;
-      context.currentOutputFolder = restored.outputFolder;
-      // The window is given the folder the way a dialog would give it: by an id, never a path.
-      let library: SelectedLibrary | undefined;
-      if (restored.outputFolder !== undefined) {
-        const libraryId = randomUUID();
-        context.selectedLibraries.set(libraryId, restored.outputFolder);
-        library = { libraryId, displayPath: restored.outputFolder };
-      }
+      context.lastSaveFolder = restored.outputFolder;
       return ok({
         preferences: restored.preferences,
         ...(restored.preferredNetworkInterface === undefined
           ? {}
           : { preferredNetworkInterface: restored.preferredNetworkInterface }),
-        ...(library === undefined ? {} : { library }),
         notices: restored.notices,
       });
     } catch (error) {
@@ -58,12 +47,8 @@ export function registerSettingsHandlers(
     async (_event, rawCommand: unknown): Promise<WorkflowResult<undefined>> => {
       try {
         const command = saveSettingsCommandSchema.parse(rawCommand);
-        const outputFolder =
-          command.libraryId === undefined
-            ? undefined
-            : context.selectedLibraries.get(command.libraryId);
+        const outputFolder = context.lastSaveFolder;
         context.currentPreferences = command.preferences;
-        context.currentOutputFolder = outputFolder;
         context.preferredNetworkInterface = command.preferredNetworkInterface;
         await workflows.save(
           command.preferences,

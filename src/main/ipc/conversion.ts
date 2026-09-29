@@ -1,12 +1,14 @@
 import { ipcMain, type IpcMainInvokeEvent } from 'electron';
 
 import type { ConversionArtifact } from '@/domain/conversion';
+import { toLibraryRelativePath } from '@/library/paths';
 import {
   type ArtifactSummary,
   conversionCommandSchema,
   type DeviceProfileSummary,
   identifierSchema,
   libraryConversionCommandSchema,
+  planConversionCommandSchema,
   type LibraryPlanSummary,
   type LibraryTitleResult,
   planLibraryCommandSchema,
@@ -27,6 +29,8 @@ type ConversionContext = Pick<
   | 'workflow'
   | 'artifactPaths'
   | 'libraryPublisher'
+  | 'pendingRuns'
+  | 'pendingArtifacts'
 >;
 
 /**
@@ -35,7 +39,8 @@ type ConversionContext = Pick<
  */
 function trackArtifacts(
   libraryPath: string,
-  context: Pick<ConversionContext, 'artifactPaths' | 'libraryPublisher'>,
+  context: Pick<ConversionContext, 'artifactPaths' | 'libraryPublisher' | 'pendingArtifacts'>,
+  runId: string,
 ): {
   readonly add: (artifact: ConversionArtifact) => void;
   readonly settled: () => Promise<void>;
@@ -47,6 +52,10 @@ function trackArtifacts(
   return {
     add: (artifact) => {
       context.artifactPaths.set(artifact.id, artifact.path);
+      context.pendingArtifacts.set(artifact.id, {
+        runId,
+        relativePath: toLibraryRelativePath(libraryPath, artifact.path),
+      });
       chain = chain.then(async () => {
         try {
           await context.libraryPublisher.publish(libraryPath, artifact);
@@ -94,11 +103,9 @@ export function registerConversionHandlers(context: ConversionContext): void {
       rawCommand: unknown,
     ): Promise<WorkflowResult<PlanSummary>> => {
       try {
-        const command = conversionCommandSchema.parse(rawCommand);
-        const libraryPath = context.selectedLibraries.get(command.libraryId);
-        if (libraryPath === undefined) {
-          return failed({ code: 'library_not_found', message: 'Choose the output folder again.' });
-        }
+        const command = planConversionCommandSchema.parse(rawCommand);
+        const libraryPath = await context.pendingRuns?.prepare();
+        if (libraryPath === undefined) throw new Error('Pending storage is unavailable.');
         if (context.activeJobs.has(command.jobId)) {
           return failed({ code: 'job_exists', message: 'That validation is already running.' });
         }
@@ -138,14 +145,17 @@ export function registerConversionHandlers(context: ConversionContext): void {
         const command = conversionCommandSchema.parse(rawCommand);
         const libraryPath = context.selectedLibraries.get(command.libraryId);
         if (libraryPath === undefined) {
-          return failed({ code: 'library_not_found', message: 'Choose the output folder again.' });
+          return failed({
+            code: 'library_not_found',
+            message: 'The pending conversion is no longer available.',
+          });
         }
         if (context.activeJobs.has(command.jobId)) {
           return failed({ code: 'job_exists', message: 'That conversion is already running.' });
         }
         const controller = new AbortController();
         context.activeJobs.set(command.jobId, controller);
-        const tracked = trackArtifacts(libraryPath, context);
+        const tracked = trackArtifacts(libraryPath, context, command.libraryId);
         try {
           const artifacts = await requireWorkflow(context).convert(
             {
@@ -227,14 +237,17 @@ export function registerConversionHandlers(context: ConversionContext): void {
         const command = libraryConversionCommandSchema.parse(rawCommand);
         const libraryPath = context.selectedLibraries.get(command.libraryId);
         if (libraryPath === undefined) {
-          return failed({ code: 'library_not_found', message: 'Choose the output folder again.' });
+          return failed({
+            code: 'library_not_found',
+            message: 'The pending conversion is no longer available.',
+          });
         }
         if (context.activeJobs.has(command.jobId)) {
           return failed({ code: 'job_exists', message: 'That conversion is already running.' });
         }
         const controller = new AbortController();
         context.activeJobs.set(command.jobId, controller);
-        const tracked = trackArtifacts(libraryPath, context);
+        const tracked = trackArtifacts(libraryPath, context, command.libraryId);
         try {
           const outcomes = await requireWorkflow(context).convertLibrary(
             {

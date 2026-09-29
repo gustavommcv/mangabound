@@ -25,7 +25,7 @@ type InputsContext = Pick<
   | 'lastPickerFolder'
   | 'preferences'
   | 'currentPreferences'
-  | 'currentOutputFolder'
+  | 'lastSaveFolder'
   | 'preferredNetworkInterface'
   | 'workflow'
 >;
@@ -51,7 +51,7 @@ async function registerInputPaths(
 
 /**
  * Updates where the next dialog opens, in memory now and on disk right away: writes the last
- * known preferences, output folder and sharing interface unchanged, alongside the new picker
+ * known preferences, last Save-dialog folder and sharing interface unchanged, alongside the new picker
  * folder, rather than reading them from the file first (see `currentPreferences` for why).
  */
 function rememberPickerFolder(
@@ -61,22 +61,25 @@ function rememberPickerFolder(
     | 'lastPickerFolder'
     | 'preferences'
     | 'currentPreferences'
-    | 'currentOutputFolder'
+    | 'lastSaveFolder'
     | 'preferredNetworkInterface'
   >,
 ): void {
   context.lastPickerFolder = folder;
-  void context.preferences?.save(
+  const saved = context.preferences?.save(
     context.currentPreferences,
-    context.currentOutputFolder,
+    context.lastSaveFolder,
     folder,
     context.preferredNetworkInterface,
   );
+  void saved?.catch((error: unknown) => {
+    console.error('Could not remember the last input dialog location.', error);
+  });
 }
 
 /**
  * Choosing and preparing what a job runs against: files, folders, a library to read, and the
- * output library to save into. Every handler here ends in a selection the renderer can only ever
+ * a library to share. Every handler here ends in a selection the renderer can only ever
  * refer to by an id these register.
  */
 export function registerInputHandlers(context: InputsContext): void {
@@ -159,7 +162,7 @@ export function registerInputHandlers(context: InputsContext): void {
     async (): Promise<WorkflowResult<SelectedLibrary | null>> => {
       try {
         const result = await dialog.showOpenDialog({
-          title: 'Choose the output library',
+          title: 'Choose a library to share',
           buttonLabel: 'Use this folder',
           properties: ['openDirectory', 'createDirectory'],
           ...(context.lastPickerFolder === undefined

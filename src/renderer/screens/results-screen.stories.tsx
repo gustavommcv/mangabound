@@ -49,8 +49,10 @@ const meta = {
     onFix: () => undefined,
     onOpen: () => undefined,
     onShow: () => undefined,
+    onSaveAs: () => undefined,
+    onSaveAll: () => undefined,
     outcomes: saved,
-    summary: 'Kobo Libra Colour · EPUB · D:\\Manga\\Library',
+    summary: 'Kobo Libra Colour · EPUB',
   },
 } satisfies Meta<typeof ResultsScreen>;
 
@@ -65,6 +67,7 @@ export const Saved: Story = {
 
 export const SavedAndSharing: Story = {
   args: {
+    savedIds: new Set(['one', 'two', 'three']),
     aside: (
       <SendToKoreader
         onOpen={() => undefined}
@@ -77,6 +80,10 @@ export const SavedAndSharing: Story = {
       />
     ),
   },
+};
+
+export const PartlySaved: Story = {
+  args: { savedIds: new Set(['one']) },
 };
 
 export const SavedWithSomethingSkipped: Story = {

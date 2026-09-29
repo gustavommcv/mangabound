@@ -4,7 +4,7 @@ import type { Preferences } from '@/domain/preferences';
 
 export interface RestoredPreferences {
   readonly preferences: Preferences;
-  /** The output folder from the last session, when it is still there. */
+  /** The last Save-dialog folder from the previous session, when it is still there. */
   readonly outputFolder?: string;
   /** Where a choose-file or choose-folder dialog should open, when that folder is still there. */
   readonly lastPickerFolder?: string;
@@ -44,9 +44,7 @@ export class PreferencesWorkflow {
       if (await this.directoryExists(outputFolder)) {
         restoredFolder = outputFolder;
       } else {
-        notices.push(
-          `The output folder ${outputFolder} is not available. Choose another to save to.`,
-        );
+        // A missing legacy folder only affected the suggested Save dialog location.
       }
     }
     // Just a dialog convenience, not a saved choice: gone silently means a dialog opens where it

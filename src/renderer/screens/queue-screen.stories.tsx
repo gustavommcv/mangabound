@@ -112,11 +112,9 @@ const libraryRow: QueueRow = {
 const base: QueueScreenProps = {
   disabled: false,
   format: 'epub',
-  library: { libraryId: 'library', displayPath: 'D:\\Manga\\Library' },
   mode: 'bind-and-convert',
   onAddFiles: () => undefined,
   onAddFolders: () => undefined,
-  onChooseLibrary: () => undefined,
   onClear: () => undefined,
   onConvert: () => undefined,
   onDeviceProfile: () => undefined,
@@ -194,16 +192,26 @@ export const WithLibrary: Story = {
   args: { rows: [libraryRow, ...rows.slice(2, 3)] },
 };
 
+export const ReadyBooks: Story = {
+  args: {
+    pendingRuns: [
+      {
+        libraryId: 'run-one',
+        artifacts: [
+          { id: 'book-one', name: 'Vol.01.epub', bytes: 18_400_000, format: 'epub', saved: false },
+        ],
+      },
+    ],
+    onOpenPending: () => undefined,
+  },
+};
+
 export const LibraryNeedsVolumes: Story = {
   args: { rows: [{ ...libraryRow, titles: libraryTitles.slice(2) }] },
 };
 
 export const LibraryWhenNotGrouping: Story = {
   args: { rows: [libraryRow], mode: 'convert-only' },
-};
-
-export const NoOutputFolderYet: Story = {
-  args: { rows: rows.slice(0, 1), library: undefined },
 };
 
 export const JoinOnly: Story = {

@@ -17,7 +17,12 @@ import { failed, ok, toFailure } from './result';
 
 type OpdsContext = Pick<
   MainContext,
-  'selectedLibraries' | 'activeSharing' | 'libraryStore' | 'opdsServer' | 'networkInterfaces'
+  | 'selectedLibraries'
+  | 'activeSharing'
+  | 'libraryStore'
+  | 'opdsServer'
+  | 'networkInterfaces'
+  | 'pendingRuns'
 >;
 
 function toSharingStatus(handle: OpdsServerHandle | undefined): OpdsSharingStatus {
@@ -43,7 +48,7 @@ export function registerOpdsHandlers(context: OpdsContext): void {
         const command = startSharingCommandSchema.parse(rawCommand);
         const libraryPath = context.selectedLibraries.get(command.libraryId);
         if (libraryPath === undefined) {
-          return failed({ code: 'library_not_found', message: 'Choose the output folder again.' });
+          return failed({ code: 'library_not_found', message: 'Choose a library to share again.' });
         }
         if (context.activeSharing !== undefined) {
           return failed({
@@ -64,9 +69,12 @@ export function registerOpdsHandlers(context: OpdsContext): void {
             message: 'The output library catalog could not be read.',
           });
         }
+        const isPendingRun =
+          context.pendingRuns !== undefined &&
+          path.dirname(path.resolve(libraryPath)) === path.resolve(context.pendingRuns.root);
         context.activeSharing = await context.opdsServer.start({
           libraryPath,
-          libraryTitle: path.basename(libraryPath),
+          libraryTitle: isPendingRun ? 'Mangabound ready books' : path.basename(libraryPath),
           interfaceAddress: command.interfaceAddress,
           port: opdsPort,
           auth: command.auth,

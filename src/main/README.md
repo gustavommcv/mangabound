@@ -8,6 +8,6 @@ Electron's main process: the only place that builds the adapters, holds paths, a
 - **`constants.ts`** — fixed configuration values, such as the OPDS port.
 - **`toolchain-bootstrap.ts`** — verifies the bundled tools and, only if they match the lock, builds the workflow around the mangabind and mangapress adapters onto the context.
 - **`window.ts`** — opens the window with the sandbox on, context isolation on, Node integration off, and navigation denied.
-- **`ipc/*.ts`** — one file per handler group (inputs, conversion, metadata, artifacts, OPDS, settings). Every handler parses its payload with the schema from `src/shared` before using it, and returns a `WorkflowResult`, never throws across the boundary. Selections, sessions, output libraries and saved books are handed to the page as opaque ids that these files resolve back to paths — the page never sends a path it typed.
+- **`ipc/*.ts`** — one file per handler group (inputs, conversion, pending books, metadata, artifacts, OPDS, settings). Every handler parses its payload with the schema from `src/shared` before using it, and returns a `WorkflowResult`, never throws across the boundary. Selections, sessions, pending runs and books are handed to the page as opaque ids that these files resolve back to paths. Native Save dialogs run here; the page never supplies an export path.
 
 This whole layer is deliberately thin: behavior belongs in `src/application` and `src/adapters`, where it is unit-tested. `src/main` is covered by the packaged end-to-end tests instead.

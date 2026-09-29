@@ -4,6 +4,8 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import started from 'electron-squirrel-startup';
 
 import { directoryExists } from '@/adapters/library/directory-exists';
+import { FsPendingRuns } from '@/adapters/library/fs-pending-runs';
+import { pendingRoot } from '@/adapters/library/pending-path';
 import { FsSettingsStore } from '@/adapters/settings/fs-settings-store';
 import { PreferencesWorkflow } from '@/application/workflows/preferences';
 
@@ -13,6 +15,7 @@ import { registerConversionHandlers } from './ipc/conversion';
 import { registerInputHandlers } from './ipc/inputs';
 import { registerMetadataHandlers } from './ipc/metadata';
 import { registerOpdsHandlers } from './ipc/opds';
+import { registerPendingHandlers } from './ipc/pending';
 import { registerSettingsHandlers } from './ipc/settings';
 import { bootstrapToolchain } from './toolchain-bootstrap';
 import { createMainWindow } from './window';
@@ -31,12 +34,20 @@ void app.whenReady().then(async () => {
     directoryExists,
   );
   context.preferences = preferencesWorkflow;
+  context.pendingRuns = new FsPendingRuns(
+    pendingRoot(process.platform, process.env, app.getPath('home')),
+    context.libraryStore,
+  );
+  await context.pendingRuns.pruneCompleted().catch((error: unknown) => {
+    console.error('Could not clear previously exported pending books.', error);
+  });
 
   registerSettingsHandlers(context, preferencesWorkflow);
   registerInputHandlers(context);
   registerConversionHandlers(context);
   registerMetadataHandlers(context);
   registerArtifactHandlers(context);
+  registerPendingHandlers(context);
   registerOpdsHandlers(context);
 
   createMainWindow();
@@ -55,9 +66,16 @@ app.on('before-quit', (event) => {
     context.workflow?.releaseAll(),
     context.activeSharing?.stop(),
     context.preferences?.settled(),
-  ]).finally(() => {
-    app.quit();
-  });
+  ])
+    .then(async () => {
+      await context.pendingRuns?.pruneCompleted();
+    })
+    .catch((error: unknown) => {
+      console.error('Could not clear exported pending books.', error);
+    })
+    .finally(() => {
+      app.quit();
+    });
 });
 
 app.on('window-all-closed', () => {

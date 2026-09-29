@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { inflateRawSync } from 'node:zlib';
 
 import { $, browser } from '@wdio/globals';
@@ -40,31 +41,30 @@ export async function readZipEntry(
   throw new Error(`${filePath} has no entry that matched.`);
 }
 
-/**
- * The output-folder button on the queue screen, however it is labelled at the time ("Choose" before
- * a folder is picked, "Change" after). The visible text is only "Choose" or "Change", so it is found
- * by its accessible name.
- */
-export const queueOutputFolderButton = 'button[aria-label$="output folder"]';
+/** Save a single ready book through the real Save As handler and a mocked native picker. */
+export async function saveBookAs(name: string, filePath: string): Promise<void> {
+  const saveDialog = await browser.electron.mock('dialog', 'showSaveDialog');
+  await saveDialog.mockResolvedValueOnce({ canceled: false, filePath });
+  await $(`button[aria-label="Save ${name} as"]`).click();
+  await browser.waitUntil(() => existsSync(filePath), {
+    timeout: 30_000,
+    timeoutMsg: `${name} was not exported to ${filePath}.`,
+  });
+}
 
-/**
- * Clicks one of the output-folder buttons and waits until the app is actually showing the folder
- * the mocked dialog returned.
- *
- * chooseLibrary() is asynchronous (an IPC round trip through the dialog before the library state
- * updates) and click() only confirms the click was dispatched, so the next step can otherwise run
- * against the previously chosen library: the app reports its books saved while the folder the test
- * is watching stays empty.
- *
- * The wait matches the full path exactly. A partial match on a word like "output" is already
- * satisfied by unrelated helper text ("Used for EPUB output."), which makes the wait a no-op.
- */
-export async function chooseOutputFolder(
-  buttonSelector: string,
-  libraryPath: string,
-): Promise<void> {
-  await $(buttonSelector).click();
-  await $(`p=${libraryPath}`).waitForDisplayed({ timeout: 10_000 });
+/** The caller queues the native folder-dialog response after its input picker responses. */
+export async function saveAllBooks(): Promise<void> {
+  await $('button=Save all to folder…').click();
+  await browser.waitUntil(
+    () =>
+      browser.execute(() => {
+        const rows = Array.from(document.querySelectorAll('ul[aria-label="Ready books"] li'));
+        return (
+          rows.length > 0 && rows.every((row) => row.textContent?.includes(' · Saved') === true)
+        );
+      }),
+    { timeout: 30_000, timeoutMsg: 'The ready books were not all marked saved.' },
+  );
 }
 
 /**

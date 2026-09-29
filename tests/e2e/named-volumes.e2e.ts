@@ -5,7 +5,7 @@ import path from 'node:path';
 
 import { $, $$, browser } from '@wdio/globals';
 
-import { chooseOutputFolder, queueOutputFolderButton, readZipEntry, resetQueue } from './support';
+import { readZipEntry, resetQueue, saveAllBooks, saveBookAs } from './support';
 
 const temporaryDirectories: string[] = [];
 
@@ -103,9 +103,9 @@ describe('packaged folder whose names carry the volumes', () => {
 
     await $('button=Confirm mapping').click();
     await $('h1=Queue').waitForDisplayed();
-    await chooseOutputFolder(queueOutputFolderButton, libraryPath);
-    await $('button=Convert 1 item').click();
-    await $('h1=2 books saved').waitForDisplayed({ timeout: 120_000 });
+    await $('button=Process 1 item').click();
+    await $('h1=2 books ready').waitForDisplayed({ timeout: 120_000 });
+    await saveAllBooks();
 
     assert.deepEqual((await readdir(libraryPath)).sort(), [
       '.mangabound',
@@ -135,19 +135,25 @@ describe('packaged folder whose names carry the volumes', () => {
 
     const openDialog = await browser.electron.mock('dialog', 'showOpenDialog');
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [inputPath] });
-    await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [libraryPath] });
 
     await resetQueue();
     await $('button=Folder').click();
     await $('span=2 volumes').waitForDisplayed({ timeout: 30_000 });
     await $('#combine-into-one-volume').click();
-    await chooseOutputFolder(queueOutputFolderButton, libraryPath);
     await $('button=Validate plan').click();
     await $('h2=Plan validated').waitForDisplayed({ timeout: 30_000 });
     assert.match(await $('main').getText(), /One EPUB for Named Volumes/u);
     assert.doesNotMatch(await $('[aria-labelledby="plans-title"]').getText(), /Vol\.01\.cbz/u);
-    await $('button=Convert 1 item').click();
-    await $('h1=1 book saved').waitForDisplayed({ timeout: 120_000 });
+    await $('button=Process 1 item').click();
+    await $('h1=1 book ready').waitForDisplayed({ timeout: 120_000 });
+
+    const singleBookButton = $('ul[aria-label="Ready books"] button[aria-label^="Save "]');
+    const singleBookName = (await singleBookButton.getAttribute('aria-label'))?.replace(
+      /^Save | as$/gu,
+      '',
+    );
+    if (singleBookName === undefined) throw new Error('The single book has no save action.');
+    await saveBookAs(singleBookName, path.join(libraryPath, singleBookName));
 
     const books = (await readdir(libraryPath)).filter((name) => name.endsWith('.epub'));
     assert.equal(books.length, 1, 'two input volumes should produce exactly one EPUB');

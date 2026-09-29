@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
 import { $, browser } from '@wdio/globals';
 
-import { chooseOutputFolder, queueOutputFolderButton, resetQueue } from './support';
+import { resetQueue } from './support';
 
 const temporaryDirectories: string[] = [];
 
@@ -43,26 +43,16 @@ describe('packaged saved settings', () => {
   it('keeps what was changed in the user data folder, brings it back, and resets it', async () => {
     const userData = await browser.electron.execute((electron) => electron.app.getPath('userData'));
     const settingsPath = path.join(userData, 'settings.json');
-    const testRoot = await mkdtemp(path.join(os.tmpdir(), 'mangabound-settings-e2e-'));
-    temporaryDirectories.push(testRoot);
-    const libraryPath = path.join(testRoot, 'library');
-    await mkdir(libraryPath);
-
-    const openDialog = await browser.electron.mock('dialog', 'showOpenDialog');
-    await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [libraryPath] });
-
     await resetQueue();
     await $('#queue-device').waitForEnabled({ timeout: 30_000 });
     // Opening the app changes nothing, so nothing is written.
     assert.equal(existsSync(settingsPath), false, 'a first launch should leave no settings file');
 
-    // Change the device, the format, and the output folder.
+    // Change the device and format. No destination is chosen on the queue screen.
     await $('#queue-device').selectByAttribute('value', 'KS');
     await formatRadio('PDF').click();
-    await chooseOutputFolder(queueOutputFolderButton, libraryPath);
     await browser.waitUntil(
-      async () =>
-        existsSync(settingsPath) && (await readKept(settingsPath)).outputFolder === libraryPath,
+      async () => existsSync(settingsPath) && (await readKept(settingsPath)).format === 'pdf',
       { timeout: 15_000, timeoutMsg: 'the settings file did not get the changes' },
     );
     const kept = await readKept(settingsPath);
@@ -74,14 +64,14 @@ describe('packaged saved settings', () => {
     assert.equal('title' in kept.settings, false);
     assert.equal('author' in kept.settings, false);
 
-    // Opened again, the window is as it was left, folder included.
+    // Opened again, the conversion choices return without a destination control.
     await reopen();
     assert.equal(await $('#queue-device').getValue(), 'KS');
     assert.equal(await formatRadio('PDF').getAttribute('aria-checked'), 'true');
-    await $(`p=${libraryPath}`).waitForDisplayed({ timeout: 10_000 });
+    assert.equal(await $('button[aria-label$="output folder"]').isExisting(), false);
     assert.equal(await $('[role="status"][aria-label="Notices"]').isExisting(), false);
 
-    // Restore just the device; the format and chosen library must remain untouched and saved.
+    // Restore just the device; the format remains untouched and saved.
     await $('button[aria-label="Restore default for Device"]').click();
     await browser.waitUntil(
       async () => (await readKept(settingsPath)).settings.deviceProfile === 'KPW6',
@@ -92,9 +82,9 @@ describe('packaged saved settings', () => {
     );
     assert.equal(await $('#queue-device').getValue(), 'KPW6');
     assert.equal(await formatRadio('PDF').getAttribute('aria-checked'), 'true');
-    assert.equal((await readKept(settingsPath)).outputFolder, libraryPath);
+    assert.equal((await readKept(settingsPath)).outputFolder, undefined);
 
-    // Put back to the defaults: asks first, keeps the folder, and is written down.
+    // Put back to the defaults and write that choice down.
     await $('button=Reset to defaults').click();
     await $('[role="group"][aria-label="Confirm reset"]').waitForDisplayed({ timeout: 10_000 });
     await $('[role="group"][aria-label="Confirm reset"]').$('button=Reset').click();
@@ -104,7 +94,7 @@ describe('packaged saved settings', () => {
     });
     const reset = await readKept(settingsPath);
     assert.equal(reset.settings.deviceProfile, 'KPW6');
-    assert.equal(reset.outputFolder, libraryPath);
+    assert.equal(reset.outputFolder, undefined);
     assert.equal(await $('#queue-device').getValue(), 'KPW6');
     assert.equal(await formatRadio('EPUB').getAttribute('aria-checked'), 'true');
   });
@@ -131,7 +121,7 @@ describe('packaged saved settings', () => {
     assert.equal((await readKept(settingsPath)).format, 'cbz');
   });
 
-  it('says which output folder is gone and asks for another', async () => {
+  it('ignores an unavailable legacy save location without blocking processing', async () => {
     const userData = await browser.electron.execute((electron) => electron.app.getPath('userData'));
     const settingsPath = path.join(userData, 'settings.json');
     const gone = path.join(os.tmpdir(), 'mangabound-settings-e2e-gone', 'library');
@@ -140,13 +130,8 @@ describe('packaged saved settings', () => {
 
     await reopen();
 
-    await $(`li*=The output folder ${gone} is not available`).waitForDisplayed({
-      timeout: 10_000,
-    });
-    assert.equal(
-      await $(queueOutputFolderButton).getAttribute('aria-label'),
-      'Choose output folder',
-    );
+    assert.equal(await $('button[aria-label$="output folder"]').isExisting(), false);
+    assert.equal(await $(`li*=The output folder ${gone} is not available`).isExisting(), false);
     // The rest of what was kept still came back.
     assert.equal(await formatRadio('CBZ').getAttribute('aria-checked'), 'true');
   });

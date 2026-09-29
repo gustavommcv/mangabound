@@ -13,6 +13,9 @@ import type {
   MetadataProviderDescriptor,
   MetadataSearchResult,
   PlanSummary,
+  PlanConversionCommand,
+  PendingRunSummary,
+  SaveAllResult,
   RegisteredInputs,
   SelectedLibrary,
   VolumeSuggestion,
@@ -44,7 +47,15 @@ export interface MangaboundBridge {
   readonly convert: (
     command: ConversionCommand,
   ) => Promise<WorkflowResult<readonly ArtifactSummary[]>>;
-  readonly planConversion: (command: ConversionCommand) => Promise<WorkflowResult<PlanSummary>>;
+  readonly planConversion: (command: PlanConversionCommand) => Promise<WorkflowResult<PlanSummary>>;
+  readonly createPendingRun: () => Promise<WorkflowResult<string>>;
+  readonly listPendingRuns: () => Promise<WorkflowResult<readonly PendingRunSummary[]>>;
+  readonly saveArtifactAs: (
+    artifactId: string,
+  ) => Promise<WorkflowResult<{ saved: boolean; warning?: string }>>;
+  readonly saveAllArtifacts: (
+    artifactIds: readonly string[],
+  ) => Promise<WorkflowResult<SaveAllResult | null>>;
   readonly cancelConversion: (jobId: string) => Promise<WorkflowResult<undefined>>;
   /** Reads a library again, after a title's mapping was saved. */
   readonly planLibrary: (
@@ -89,8 +100,8 @@ export interface MangaboundBridge {
   ) => Promise<WorkflowResult<OpdsSharingStatus>>;
   readonly stopSharing: () => Promise<WorkflowResult<undefined>>;
   readonly getSharingStatus: () => Promise<WorkflowResult<OpdsSharingStatus>>;
-  /** The options kept from the last session, and the output folder when it is still there. */
+  /** The options kept from the last session. */
   readonly loadSettings: () => Promise<WorkflowResult<RestoredSettings>>;
-  /** Keeps the options. The output folder is named by the id it was given, never by a path. */
+  /** Keeps the options; the last native Save-dialog folder remains main-process state. */
   readonly saveSettings: (command: SaveSettingsCommand) => Promise<WorkflowResult<undefined>>;
 }

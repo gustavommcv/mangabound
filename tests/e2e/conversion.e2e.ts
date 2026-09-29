@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
-import { cp, mkdir, mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
 import { $, browser } from '@wdio/globals';
 
-import { chooseOutputFolder, queueOutputFolderButton, readZipEntry, resetQueue } from './support';
+import { readZipEntry, resetQueue, saveAllBooks, saveBookAs } from './support';
 
 const temporaryDirectories: string[] = [];
 
@@ -59,7 +59,6 @@ describe('packaged conversion pipeline', () => {
 
     const openDialog = await browser.electron.mock('dialog', 'showOpenDialog');
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [inputPath] });
-    await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [libraryPath] });
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [directCbzPath] });
 
     await resetQueue();
@@ -76,13 +75,47 @@ describe('packaged conversion pipeline', () => {
     await $('button=Assign selected').click();
     await $('button=Confirm mapping').click();
     await $('span=1 volume').waitForDisplayed({ timeout: 10_000 });
-    await chooseOutputFolder(queueOutputFolderButton, libraryPath);
     await $('button=Validate plan').click();
     await $('h2=Plan validated').waitForDisplayed({ timeout: 30_000 });
     assert.deepEqual(await readdir(libraryPath), []);
     await assert.rejects(readFile(path.join(inputPath, 'mangabind.json'), 'utf8'));
-    await $('button=Convert 1 item').click();
-    await $('h1=1 book saved').waitForDisplayed({ timeout: 120_000 });
+    await $('button=Process 1 item').click();
+    await $('h1=1 book ready').waitForDisplayed({ timeout: 120_000 });
+    assert.deepEqual(
+      await readdir(libraryPath),
+      [],
+      'processing must not save before the user chooses a destination',
+    );
+    const pendingShare = await browser.execute(async () => {
+      const bridge = window.mangabound;
+      if (bridge === undefined) throw new Error('The app bridge is unavailable.');
+      const listed = await bridge.listPendingRuns();
+      if (!listed.ok) throw new Error(listed.error.message);
+      const run = listed.value.find((candidate) =>
+        candidate.artifacts.some((artifact) => artifact.name === 'Mangabound E2E - Vol.01.epub'),
+      );
+      if (run === undefined)
+        throw new Error('The newly converted book was not registered as pending.');
+      const started = await bridge.startSharing(run.libraryId, '127.0.0.1', {
+        username: '',
+        password: '',
+      });
+      if (!started.ok) throw new Error(started.error.message);
+      return started.value;
+    });
+    try {
+      if (pendingShare.url === undefined) throw new Error('The pending catalog has no address.');
+      const catalog = await fetch(pendingShare.url);
+      assert.equal(catalog.status, 200);
+      assert.match(await catalog.text(), /<title>Mangabound ready books<\/title>/u);
+      const recent = await fetch(`${pendingShare.url}/recent`);
+      assert.equal(recent.status, 200);
+      assert.match(await recent.text(), /Mangabound E2E - Vol\.01/u);
+    } finally {
+      await browser.execute(async () => {
+        await window.mangabound?.stopSharing();
+      });
+    }
 
     const metadata = JSON.parse(await readFile(path.join(inputPath, 'mangabind.json'), 'utf8')) as {
       schema_version: number;
@@ -96,6 +129,7 @@ describe('packaged conversion pipeline', () => {
       volumes: [{ number: '1', chapters: ['1', '2'] }],
     });
     const folderBook = path.join(libraryPath, 'Mangabound E2E - Vol.01.epub');
+    await saveBookAs('Mangabound E2E - Vol.01.epub', folderBook);
     const folderBytes = await readFile(folderBook);
     assert.ok(folderBytes.length > 1_024);
     assert.equal(folderBytes.subarray(0, 2).toString('ascii'), 'PK');
@@ -119,10 +153,11 @@ describe('packaged conversion pipeline', () => {
       '.mangabound',
       'Mangabound E2E - Vol.01.epub',
     ]);
-    await $('button=Convert 1 item').click();
-    await $('h1=1 book saved').waitForDisplayed({ timeout: 120_000 });
+    await $('button=Process 1 item').click();
+    await $('h1=1 book ready').waitForDisplayed({ timeout: 120_000 });
 
     const directBook = path.join(libraryPath, 'Mangabound Direct.epub');
+    await saveBookAs('Mangabound Direct.epub', directBook);
     const directBytes = await readFile(directBook);
     assert.ok(directBytes.length > 1_024);
     assert.equal(directBytes.subarray(0, 2).toString('ascii'), 'PK');
@@ -135,7 +170,7 @@ describe('packaged conversion pipeline', () => {
       'Mangabound Direct.epub',
       'Mangabound E2E - Vol.01.epub',
     ]);
-    assert.equal(openDialog.mock.calls.length, 3);
+    assert.equal(openDialog.mock.calls.length, 2);
   });
 
   it('reads a real library from the queue, fixes one title, and converts both with the pinned tools', async () => {
@@ -151,6 +186,8 @@ describe('packaged conversion pipeline', () => {
 
     const openDialog = await browser.electron.mock('dialog', 'showOpenDialog');
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [libraryParentPath] });
+    await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [outputLibraryPath] });
+    await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [outputLibraryPath] });
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [outputLibraryPath] });
 
     // The previous test left the app on its "book saved" screen: return to the queue first.
@@ -186,11 +223,29 @@ describe('packaged conversion pipeline', () => {
 
     await $('button=Queue').click();
     await $('span=2 titles').waitForDisplayed({ timeout: 30_000 });
-    // The prior test already chose a library, so this reads "Change output folder" here: either
-    // label opens the same picker and this test supplies its own fresh directory.
-    await chooseOutputFolder(queueOutputFolderButton, outputLibraryPath);
-    await $('button=Convert 1 item').click();
-    await $('h1=2 books saved').waitForDisplayed({ timeout: 120_000 });
+    await $('button=Process 1 item').click();
+    await $('h1=2 books ready').waitForDisplayed({ timeout: 120_000 });
+    assert.deepEqual(await readdir(outputLibraryPath), []);
+    // A file blocking the catalog directory lets the books copy but produces a warning.
+    // Retrying after removing the obstruction must not require another conversion.
+    const catalogPath = path.join(outputLibraryPath, '.mangabound');
+    await writeFile(catalogPath, 'blocked');
+    await saveAllBooks();
+    await $('li*=destination catalog could not be updated').waitForDisplayed({ timeout: 30_000 });
+    const pendingAfterWarning = await browser.execute(async () => {
+      const listed = await window.mangabound?.listPendingRuns();
+      if (listed === undefined || !listed.ok) throw new Error('Pending books could not be read.');
+      return listed.value
+        .flatMap((run) => run.artifacts)
+        .filter((artifact) => artifact.name.includes('Manga - Vol.01.epub'))
+        .map((artifact) => artifact.saved);
+    });
+    assert.deepEqual(pendingAfterWarning, [false, false]);
+    const bookNames = ['Auto-Resolved Manga - Vol.01.epub', 'Needs Mapping Manga - Vol.01.epub'];
+    await rm(catalogPath);
+    for (const name of bookNames) await rm(path.join(outputLibraryPath, name));
+    await $('button[aria-label="Dismiss these notices"]').click();
+    await $('button=Save all to folder…').click();
     await waitForEntryCount(outputLibraryPath, 3, 120_000, () => $('main').getText());
 
     const entries = (await readdir(outputLibraryPath)).sort();
@@ -205,6 +260,36 @@ describe('packaged conversion pipeline', () => {
       assert.ok(bytes.length > 1_024);
       assert.equal(bytes.subarray(0, 2).toString('ascii'), 'PK');
     }
-    assert.equal(openDialog.mock.calls.length, 2);
+    // A clean export is retryable too: removing a copy from the wrong folder must not make
+    // Save All disappear or force the person to process the source again.
+    for (const name of savedBooks) await rm(path.join(outputLibraryPath, name));
+    await $('button=Save all to folder…').click();
+    await waitForEntryCount(outputLibraryPath, 3, 30_000, () => $('main').getText());
+    assert.deepEqual((await readdir(outputLibraryPath)).sort(), entries);
+    assert.equal(openDialog.mock.calls.length, 4);
+  });
+
+  it('recovers an unsaved book after the window reloads', async () => {
+    const testRoot = await mkdtemp(path.join(os.tmpdir(), 'mangabound-restart-e2e-'));
+    temporaryDirectories.push(testRoot);
+    const directCbzPath = path.resolve('tests', 'fixtures', 'e2e', 'cbz', 'Mangabound Direct.cbz');
+    const destination = path.join(testRoot, 'Recovered.epub');
+    const openDialog = await browser.electron.mock('dialog', 'showOpenDialog');
+    await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [directCbzPath] });
+
+    await resetQueue();
+    await $('button=Files').click();
+    await $('span=Ready').waitForDisplayed({ timeout: 30_000 });
+    await $('button=Process 1 item').click();
+    await $('h1=1 book ready').waitForDisplayed({ timeout: 120_000 });
+    assert.deepEqual(await readdir(testRoot), []);
+
+    await browser.refresh();
+    await $('h1=Queue').waitForDisplayed({ timeout: 30_000 });
+    await $('h2=Ready books').waitForDisplayed({ timeout: 30_000 });
+    await $('button=View books').click();
+    await $('h1=1 book ready').waitForDisplayed();
+    await saveBookAs('Mangabound Direct.epub', destination);
+    assert.equal((await readFile(destination)).subarray(0, 2).toString('ascii'), 'PK');
   });
 });
