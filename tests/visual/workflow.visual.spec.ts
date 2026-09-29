@@ -128,6 +128,22 @@ test('a running item remains visually consistent', async ({ page }) => {
   await expect(page.locator('#storybook-root')).toHaveScreenshot('running.png');
 });
 
+test('expanded volume progress uses the page scroll, not another scrollbar', async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 600 });
+  await page.goto('/iframe.html?id=workflows-running--multiple-volumes&viewMode=story');
+  const details = page.getByRole('region', { name: 'Volume details' });
+  await expect(details).toBeVisible();
+  const panel = await details.evaluate((element) => ({
+    range: element.scrollHeight - element.clientHeight,
+    overflow: getComputedStyle(element).overflowY,
+  }));
+  expect(panel.range).toBeLessThanOrEqual(1);
+  expect(panel.overflow).toBe('visible');
+  expect(
+    await page.evaluate(() => document.documentElement.scrollHeight - innerHeight),
+  ).toBeGreaterThan(0);
+});
+
 test('the titles of a library remain visually consistent', async ({ page }) => {
   await page.goto('/iframe.html?id=workflows-library-titles--every-state&viewMode=story');
   await expect(page.getByRole('heading', { name: 'Manga Library' })).toBeVisible();

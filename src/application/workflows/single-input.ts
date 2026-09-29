@@ -17,6 +17,7 @@ import {
   type InspectedTitle,
   type LibraryPlan,
   plannedSingleBook,
+  type VolumeConversionProgress,
   type WorkflowPlan,
 } from '@/domain/conversion';
 import { createMappingDraft, type MappingDraft, validateMapping } from '@/domain/mapping';
@@ -54,6 +55,7 @@ export class SingleInputWorkflow {
     private readonly conversion: ConversionPort,
     private readonly createId: () => string,
     private readonly bookFiles: BookFileStorePort,
+    private readonly maxParallelConversions = 1,
   ) {}
 
   async inspect(selection: InputSelection, signal?: AbortSignal): Promise<InspectedInput> {
@@ -214,24 +216,31 @@ export class SingleInputWorkflow {
     }
 
     const artifacts: ConversionArtifact[] = [];
-    for (const [index, inputPath] of inputs.entries()) {
-      const artifact = await this.produceBook(
-        mode,
-        {
-          inputPath,
-          libraryPath: request.libraryPath,
-          settings: request.settings,
-          format: request.format,
-          nestedToc: singleBook,
-        },
-        { volume: `${String(index + 1)} of ${String(inputs.length)}`, onProgress, signal },
-      );
-      artifacts.push(artifact);
-      onArtifact?.(artifact);
-    }
+    await this.produceVolumes(
+      inputs,
+      mode,
+      {
+        libraryPath: request.libraryPath,
+        settings: request.settings,
+        format: request.format,
+        nestedToc: singleBook,
+      },
+      { onArtifact, onProgress, signal },
+      artifacts,
+    );
     onProgress({
       stage: 'saving',
       message: `${String(artifacts.length)} book${artifacts.length === 1 ? '' : 's'} saved.`,
+      ...(mode === 'bind-only' || inputs.length === 1
+        ? {}
+        : {
+            completed: inputs.length,
+            total: inputs.length,
+            volumes: inputs.map((_input, index) => ({
+              number: index + 1,
+              status: 'done' as const,
+            })),
+          }),
     });
     // A finished session is spent: this frees the scratch copies of the joined volumes now instead
     // of when the user starts over. A failed or cancelled run keeps it, so a retry needs no re-scan.
@@ -458,26 +467,18 @@ export class SingleInputWorkflow {
           }
           const artifacts: ConversionArtifact[] = [];
           try {
-            for (const [index, volumePath] of title.volumePaths.entries()) {
-              const artifact = await this.produceBook(
-                mode,
-                {
-                  inputPath: volumePath,
-                  libraryPath: request.libraryPath,
-                  settings: request.settings,
-                  format: request.format,
-                  nestedToc: false,
-                },
-                {
-                  title: title.title,
-                  volume: `${String(index + 1)} of ${String(title.volumePaths.length)}`,
-                  onProgress,
-                  signal,
-                },
-              );
-              artifacts.push(artifact);
-              onArtifact?.(artifact);
-            }
+            await this.produceVolumes(
+              title.volumePaths,
+              mode,
+              {
+                libraryPath: request.libraryPath,
+                settings: request.settings,
+                format: request.format,
+                nestedToc: false,
+              },
+              { title: title.title, onArtifact, onProgress, signal },
+              artifacts,
+            );
             outcomes.push({ title: title.title, status: 'done', artifacts });
           } catch (error) {
             outcomes.push({ title: title.title, status: 'failed', artifacts, error });
@@ -488,6 +489,149 @@ export class SingleInputWorkflow {
       await this.binding.release(bound.workspaceId);
     }
     return outcomes;
+  }
+
+  /** Converts a title's volumes with a small worker pool, but reports books in volume order. */
+  private async produceVolumes(
+    inputs: readonly string[],
+    mode: ProcessMode,
+    request: {
+      readonly libraryPath: string;
+      readonly settings: MangapressSettings;
+      readonly format: BookFormat;
+      readonly nestedToc: boolean;
+    },
+    context: {
+      readonly title?: string;
+      readonly onArtifact?: (artifact: ConversionArtifact) => void;
+      readonly onProgress: (progress: ConversionProgress) => void;
+      readonly signal?: AbortSignal;
+    },
+    artifacts: ConversionArtifact[],
+  ): Promise<void> {
+    const convertAt = (
+      index: number,
+      signal: AbortSignal | undefined,
+      onProgress: (progress: ConversionProgress) => void,
+    ): Promise<ConversionArtifact> =>
+      this.produceBook(
+        mode,
+        { inputPath: inputs[index]!, ...request },
+        {
+          ...(context.title === undefined ? {} : { title: context.title }),
+          volume: `${String(index + 1)} of ${String(inputs.length)}`,
+          onProgress,
+          signal,
+        },
+      );
+
+    // Copying bound CBZs is cheap and must not compete for the destination. One book needs no pool.
+    if (mode === 'bind-only' || inputs.length === 1) {
+      for (const index of inputs.keys()) {
+        context.signal?.throwIfAborted();
+        const artifact = await convertAt(index, context.signal, context.onProgress);
+        artifacts.push(artifact);
+        context.onArtifact?.(artifact);
+      }
+      return;
+    }
+
+    context.signal?.throwIfAborted();
+    const controller = new AbortController();
+    const cancel = (): void => {
+      controller.abort(context.signal?.reason);
+    };
+    context.signal?.addEventListener('abort', cancel, { once: true });
+    const ordered: (ConversionArtifact | undefined)[] = Array.from({ length: inputs.length });
+    const fractions = inputs.map(() => 0);
+    const volumes: VolumeConversionProgress[] = inputs.map((_input, index) => ({
+      number: index + 1,
+      status: 'waiting',
+    }));
+    let next = 0;
+    let nextToPublish = 0;
+    let failure: { readonly error: unknown } | undefined;
+
+    const publishReady = (): void => {
+      while (ordered[nextToPublish] !== undefined) {
+        const artifact = ordered[nextToPublish]!;
+        nextToPublish += 1;
+        artifacts.push(artifact);
+        context.onArtifact?.(artifact);
+      }
+    };
+
+    const progressFor = (index: number, progress?: ConversionProgress): void => {
+      if (progress !== undefined) {
+        const previous = volumes[index]!;
+        volumes[index] = {
+          ...previous,
+          status: progress.stage === 'saving' ? 'saving' : 'processing',
+          ...(progress.completed === undefined || progress.total === undefined
+            ? {}
+            : { completed: progress.completed, total: progress.total }),
+        };
+      }
+      if (progress?.completed !== undefined && progress.total !== undefined && progress.total > 0) {
+        fractions[index] = Math.max(
+          fractions[index]!,
+          Math.min(0.99, progress.completed / progress.total),
+        );
+      }
+      const done = ordered.filter((artifact) => artifact !== undefined).length;
+      context.onProgress({
+        stage: 'processing',
+        ...(context.title === undefined ? {} : { title: context.title }),
+        volume: `${String(index + 1)} of ${String(inputs.length)}`,
+        message: `${context.title === undefined ? '' : `${context.title} · `}${String(done)} of ${String(inputs.length)} volumes converted.`,
+        completed: fractions.reduce((sum, fraction) => sum + fraction, 0),
+        total: inputs.length,
+        volumes: [...volumes],
+      });
+    };
+
+    const worker = async (): Promise<void> => {
+      while (!controller.signal.aborted && failure === undefined && next < inputs.length) {
+        const index = next++;
+        try {
+          const artifact = await convertAt(index, controller.signal, (progress) => {
+            progressFor(index, progress);
+          });
+          ordered[index] = artifact;
+          fractions[index] = 1;
+          const currentVolume = volumes[index]!;
+          volumes[index] = {
+            ...currentVolume,
+            status: 'done',
+            ...(currentVolume.total === undefined ? {} : { completed: currentVolume.total }),
+          };
+          progressFor(index);
+          publishReady();
+        } catch (error) {
+          if (failure === undefined) {
+            failure = { error };
+          }
+        }
+      }
+    };
+
+    try {
+      progressFor(0);
+      await Promise.all(
+        Array.from({ length: Math.min(this.maxParallelConversions, inputs.length) }, worker),
+      );
+    } finally {
+      context.signal?.removeEventListener('abort', cancel);
+    }
+    // A failed volume can leave a gap in the ordered prefix. Keep later completed books too.
+    for (const artifact of ordered.slice(nextToPublish)) {
+      if (artifact !== undefined) {
+        artifacts.push(artifact);
+        context.onArtifact?.(artifact);
+      }
+    }
+    if (failure !== undefined) throw failure.error;
+    context.signal?.throwIfAborted();
   }
 
   /**
