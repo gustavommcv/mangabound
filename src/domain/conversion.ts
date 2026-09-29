@@ -89,6 +89,14 @@ export interface BatchTitleOutcome {
   readonly error?: unknown;
 }
 
+export interface VolumeConversionProgress {
+  /** 1-based position in the bound series. */
+  readonly number: number;
+  readonly status: 'waiting' | 'processing' | 'saving' | 'done';
+  readonly completed?: number;
+  readonly total?: number;
+}
+
 export interface ConversionProgress {
   readonly stage: 'binding' | 'processing' | 'saving';
   readonly message: string;
@@ -98,6 +106,8 @@ export interface ConversionProgress {
   readonly page?: number;
   readonly completed?: number;
   readonly total?: number;
+  /** Snapshot for the optional per-volume details; absent for a single book. */
+  readonly volumes?: readonly VolumeConversionProgress[];
 }
 
 export interface ConversionRequest {

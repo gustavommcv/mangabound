@@ -171,7 +171,7 @@ const libraryRead = createMappingDraft({
 });
 
 /** A workflow whose first input is a library, read the way mangabind reads one. */
-async function openLibrary(ports: ReturnType<typeof dependencies>) {
+async function openLibrary(ports: ReturnType<typeof dependencies>, maxParallelConversions = 1) {
   ports.inspect.mockResolvedValue({ workspaceId: 'workspace-1', draft: libraryRead, issues: [] });
   let id = 0;
   const workflow = new SingleInputWorkflow(
@@ -179,6 +179,7 @@ async function openLibrary(ports: ReturnType<typeof dependencies>) {
     ports.conversion,
     () => `id-${String(++id)}`,
     ports.bookFiles,
+    maxParallelConversions,
   );
   const inspected = await workflow.inspect(library);
   return { workflow, sessionId: inspected.sessionId };
@@ -274,10 +275,234 @@ describe('single-input workflow', () => {
       id: 'suggestion-id',
     });
     expect(artifacts).toHaveLength(2);
+    expect(onProgress).toHaveBeenCalledWith(expect.objectContaining({ completed: 2, total: 2 }));
     expect(onProgress).toHaveBeenLastCalledWith({
       stage: 'saving',
       message: '2 books saved.',
+      completed: 2,
+      total: 2,
+      volumes: [
+        { number: 1, status: 'done' },
+        { number: 2, status: 'done' },
+      ],
     });
+  });
+
+  it('converts at most the configured number of volumes while preserving result and catalog order', async () => {
+    const paths = [1, 2, 3, 4].map((number) => `/work/volume-${String(number)}.cbz`);
+    const ports = dependencies({ volumePaths: paths });
+    const pending = new Map<string, (artifact: ConversionArtifact) => void>();
+    const active = new Set<string>();
+    let peak = 0;
+    ports.convert.mockImplementation(
+      (request, options) =>
+        new Promise((resolve) => {
+          active.add(request.inputPath);
+          peak = Math.max(peak, active.size);
+          options.onProgress({
+            stage: 'processing',
+            message: 'Processed page 1 of 2.',
+            completed: 1,
+            total: 2,
+          });
+          if (request.inputPath === paths[1]) {
+            options.onProgress({ stage: 'saving', message: 'Saving the finished book…' });
+          }
+          pending.set(request.inputPath, (artifact) => {
+            active.delete(request.inputPath);
+            resolve(artifact);
+          });
+        }),
+    );
+    const workflow = new SingleInputWorkflow(
+      ports.binding,
+      ports.conversion,
+      () => 'session',
+      ports.bookFiles,
+      2,
+    );
+    const inspected = await workflow.inspect(folder);
+    const progress: ConversionProgress[] = [];
+    const published: string[] = [];
+    const run = workflow.convert(
+      {
+        sessionId: inspected.sessionId,
+        libraryPath: '/library',
+        settings: defaultMangapressSettings,
+        format: 'epub',
+        mapping: mappedDraft(),
+      },
+      {
+        onProgress: (update) => progress.push(update),
+        onArtifact: (artifact) => published.push(artifact.id),
+      },
+    );
+    const finish = (number: number): void => {
+      const inputPath = paths[number - 1]!;
+      pending.get(inputPath)?.({
+        id: `artifact-${String(number)}`,
+        name: `volume-${String(number)}.epub`,
+        path: `/library/volume-${String(number)}.epub`,
+        bytes: 100,
+        format: 'epub',
+        title: 'Trusted Manga',
+        author: 'Unknown',
+      });
+    };
+
+    await vi.waitFor(() => {
+      expect(ports.convert).toHaveBeenCalledTimes(2);
+    });
+    expect(active.size).toBe(2);
+    finish(2);
+    await vi.waitFor(() => {
+      expect(ports.convert).toHaveBeenCalledTimes(3);
+    });
+    finish(3);
+    await vi.waitFor(() => {
+      expect(ports.convert).toHaveBeenCalledTimes(4);
+    });
+    finish(4);
+    finish(1);
+    const artifacts = await run;
+
+    expect(peak).toBe(2);
+    expect(artifacts.map((artifact) => artifact.id)).toEqual([
+      'artifact-1',
+      'artifact-2',
+      'artifact-3',
+      'artifact-4',
+    ]);
+    expect(published).toEqual(artifacts.map((artifact) => artifact.id));
+    const aggregate = progress.filter(
+      (update) => update.stage === 'processing' && update.total === 4,
+    );
+    expect(aggregate.length).toBeGreaterThan(0);
+    expect(aggregate[0]?.volumes?.map((volume) => volume.status)).toEqual([
+      'waiting',
+      'waiting',
+      'waiting',
+      'waiting',
+    ]);
+    expect(aggregate.map((update) => update.completed)).toEqual(
+      [...aggregate.map((update) => update.completed)].sort((a, b) => (a ?? 0) - (b ?? 0)),
+    );
+    expect(aggregate.at(-1)).toMatchObject({ completed: 4, total: 4 });
+    expect(aggregate.every((update) => /^\d of 4 volumes converted\.$/u.test(update.message))).toBe(
+      true,
+    );
+    expect(
+      aggregate.some(
+        (update) => update.volumes?.[1]?.status === 'saving' && update.volumes[1].completed === 1,
+      ),
+    ).toBe(true);
+    expect(aggregate.at(-1)?.volumes?.map((volume) => volume.status)).toEqual([
+      'done',
+      'done',
+      'done',
+      'done',
+    ]);
+  });
+
+  it('stops scheduling after a failure, lets active work finish and retains completed books', async () => {
+    const paths = [1, 2, 3].map((number) => `/work/volume-${String(number)}.cbz`);
+    const ports = dependencies({ volumePaths: paths });
+    let failFirst: ((error: Error) => void) | undefined;
+    let finishSecond: ((artifact: ConversionArtifact) => void) | undefined;
+    let secondSignal: AbortSignal | undefined;
+    ports.convert.mockImplementation((request, options) => {
+      if (request.inputPath === paths[0]) {
+        return new Promise((_resolve, reject) => {
+          failFirst = reject;
+        });
+      }
+      secondSignal = options.signal;
+      return new Promise((resolve) => {
+        finishSecond = resolve;
+      });
+    });
+    const workflow = new SingleInputWorkflow(
+      ports.binding,
+      ports.conversion,
+      () => 'session',
+      ports.bookFiles,
+      2,
+    );
+    const inspected = await workflow.inspect(folder);
+    const published: string[] = [];
+    const run = workflow.convert(
+      {
+        sessionId: inspected.sessionId,
+        libraryPath: '/library',
+        settings: defaultMangapressSettings,
+        format: 'epub',
+        mapping: mappedDraft(),
+      },
+      {
+        onProgress: vi.fn(),
+        onArtifact: (artifact) => published.push(artifact.id),
+      },
+    );
+    await vi.waitFor(() => {
+      expect(ports.convert).toHaveBeenCalledTimes(2);
+    });
+    failFirst?.(new Error('volume 1 failed'));
+    expect(secondSignal?.aborted).toBe(false);
+    finishSecond?.({
+      id: 'artifact-2',
+      name: 'volume-2.epub',
+      path: '/library/volume-2.epub',
+      bytes: 100,
+      format: 'epub',
+      title: 'Trusted Manga',
+      author: 'Unknown',
+    });
+    await expect(run).rejects.toThrow('volume 1 failed');
+    expect(ports.convert).toHaveBeenCalledTimes(2);
+    expect(published).toEqual(['artifact-2']);
+    expect(ports.release).not.toHaveBeenCalled();
+  });
+
+  it('fans user cancellation out to every active conversion without starting later volumes', async () => {
+    const ports = dependencies({
+      volumePaths: ['/work/volume-1.cbz', '/work/volume-2.cbz', '/work/volume-3.cbz'],
+    });
+    const controller = new AbortController();
+    const stopped: string[] = [];
+    ports.convert.mockImplementation(
+      (request, options) =>
+        new Promise((_resolve, reject) => {
+          options.signal?.addEventListener('abort', () => {
+            stopped.push(request.inputPath);
+            reject(options.signal?.reason as Error);
+          });
+        }),
+    );
+    const workflow = new SingleInputWorkflow(
+      ports.binding,
+      ports.conversion,
+      () => 'session',
+      ports.bookFiles,
+      2,
+    );
+    const inspected = await workflow.inspect(folder);
+    const run = workflow.convert(
+      {
+        sessionId: inspected.sessionId,
+        libraryPath: '/library',
+        settings: defaultMangapressSettings,
+        format: 'epub',
+        mapping: mappedDraft(),
+      },
+      { onProgress: vi.fn(), signal: controller.signal },
+    );
+    await vi.waitFor(() => {
+      expect(ports.convert).toHaveBeenCalledTimes(2);
+    });
+    controller.abort(new DOMException('Cancelled by user', 'AbortError'));
+    await expect(run).rejects.toMatchObject({ name: 'AbortError' });
+    expect(stopped).toEqual(['/work/volume-1.cbz', '/work/volume-2.cbz']);
+    expect(ports.convert).toHaveBeenCalledTimes(2);
   });
 
   it('binds combined and converts the one combined file, not per volume, when the setting is on', async () => {
@@ -1651,6 +1876,27 @@ describe('single-input workflow process modes', () => {
         'artifact-/work/batch/good-vol-1.cbz',
         'artifact-/work/batch/good-vol-2.cbz',
       ]);
+    });
+
+    it('keeps the title in aggregate progress when its volumes convert concurrently', async () => {
+      const ports = dependencies();
+      const { workflow, sessionId } = await openLibrary(ports, 2);
+      const progress: ConversionProgress[] = [];
+
+      const outcomes = await workflow.convertLibrary(
+        { ...libraryRequest, sessionId },
+        { onProgress: (update) => progress.push(update) },
+      );
+
+      expect(outcomes[0]).toMatchObject({ title: 'Good Manga', status: 'done' });
+      expect(progress).toContainEqual(
+        expect.objectContaining({
+          title: 'Good Manga',
+          message: 'Good Manga · 2 of 2 volumes converted.',
+          total: 2,
+          completed: 2,
+        }),
+      );
     });
 
     it('still validates the mangapress settings when mangapress will run', async () => {

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { availableParallelism, totalmem } from 'node:os';
 import path from 'node:path';
 
 import { app } from 'electron';
@@ -10,6 +11,7 @@ import { MangapressCliAdapter } from '@/adapters/mangapress/cli';
 import { MangapressConversionAdapter } from '@/adapters/mangapress/conversion-port';
 import { createNodeProcessRunner } from '@/adapters/process/node-process-runner';
 import { verifyBundledToolchain } from '@/adapters/toolchain/verification';
+import { conversionConcurrency } from '@/application/workflows/conversion-concurrency';
 import { SingleInputWorkflow } from '@/application/workflows/single-input';
 import type { ToolchainStatus, ToolchainTarget } from '@/shared/toolchain-status';
 
@@ -63,6 +65,7 @@ export async function bootstrapToolchain(
       new MangapressConversionAdapter(context.mangapressCli),
       randomUUID,
       new FsBookFileStore(),
+      conversionConcurrency(availableParallelism(), totalmem()),
     );
   }
   return toolchainStatus;

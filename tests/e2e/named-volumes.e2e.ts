@@ -105,6 +105,11 @@ describe('packaged folder whose names carry the volumes', () => {
     await $('h1=Queue').waitForDisplayed();
     await $('button=Process 1 item').click();
     await $('h1=2 books ready').waitForDisplayed({ timeout: 120_000 });
+    assert.deepEqual(
+      await $$('ul[aria-label="Ready books"] li p:first-child').map((book) => book.getText()),
+      ['Named Volumes - Vol.01.epub', 'Named Volumes - Vol.02.epub'],
+      'the books must be shown in volume order even if conversion finishes out of order',
+    );
     await saveAllBooks();
 
     assert.deepEqual((await readdir(libraryPath)).sort(), [
