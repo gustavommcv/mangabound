@@ -47,10 +47,10 @@ describe('the options that are kept', () => {
 });
 
 describe('the command that saves them', () => {
-  it('names the output folder by its id, and can leave it out', () => {
+  it('does not accept an output folder as a renderer preference', () => {
     expect(
       saveSettingsCommandSchema.parse({ preferences: defaultPreferences, libraryId: 'library-1' }),
-    ).toEqual({ preferences: defaultPreferences, libraryId: 'library-1' });
+    ).toEqual({ preferences: defaultPreferences });
     expect(saveSettingsCommandSchema.parse({ preferences: defaultPreferences })).toEqual({
       preferences: defaultPreferences,
     });
@@ -72,7 +72,7 @@ describe('the command that saves them', () => {
     ).toBe(false);
   });
 
-  it('has no place for a path: only the id a dialog gave out', () => {
+  it('has no place for a path or a selected library id', () => {
     const parsed = saveSettingsCommandSchema.parse({
       preferences: defaultPreferences,
       libraryId: 'library-1',
@@ -80,12 +80,18 @@ describe('the command that saves them', () => {
     });
 
     expect(parsed).not.toHaveProperty('outputFolder');
+    expect(parsed).not.toHaveProperty('libraryId');
   });
 
   it.each([
     ['no preferences', { libraryId: 'library-1' }],
-    ['an empty id', { preferences: defaultPreferences, libraryId: '' }],
-    ['an id that is far too long', { preferences: defaultPreferences, libraryId: 'x'.repeat(201) }],
+    [
+      'an invalid network interface',
+      {
+        preferences: defaultPreferences,
+        preferredNetworkInterface: { name: 'Ethernet', address: 'invalid' },
+      },
+    ],
     ['something that is not a command', 'save it'],
   ])('refuses %s', (_name, command) => {
     expect(saveSettingsCommandSchema.safeParse(command).success).toBe(false);

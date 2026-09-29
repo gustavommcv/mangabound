@@ -1,4 +1,5 @@
 import { FsLibraryStore } from '@/adapters/library/fs-library-store';
+import type { FsPendingRuns } from '@/adapters/library/fs-pending-runs';
 import { createMetadataProviders } from '@/adapters/metadata-providers/registry';
 import { type MangapressCliAdapter } from '@/adapters/mangapress/cli';
 import { OsNetworkInterfaces } from '@/adapters/network/os-network-interfaces';
@@ -22,6 +23,8 @@ export interface MainContext {
   readonly selectedInputs: Map<string, InputSelection>;
   readonly selectedLibraries: Map<string, string>;
   readonly artifactPaths: Map<string, string>;
+  readonly pendingArtifacts: Map<string, { readonly runId: string; readonly relativePath: string }>;
+  pendingRuns: FsPendingRuns | undefined;
   readonly activeJobs: Map<string, AbortController>;
   readonly metadataProviders: Map<string, MetadataProviderPort>;
   readonly libraryStore: FsLibraryStore;
@@ -34,11 +37,11 @@ export interface MainContext {
   // disk so it survives a restart, but never told to the renderer, which never holds paths.
   lastPickerFolder: string | undefined;
   preferredNetworkInterface: NetworkInterfaceOption | undefined;
-  // The last preferences and output folder the renderer asked to save, kept so a dialog pick can be
+  // The last preferences and Save-dialog folder, kept so a dialog pick can be
   // written down on its own without reading the file back first: that read would race the
   // renderer's own save of the very same pick, and the slower of the two could lose it.
   currentPreferences: Preferences;
-  currentOutputFolder: string | undefined;
+  lastSaveFolder: string | undefined;
   workflow: SingleInputWorkflow | undefined;
   mangapressCli: MangapressCliAdapter | undefined;
 }
@@ -49,6 +52,8 @@ export function createMainContext(): MainContext {
     selectedInputs: new Map(),
     selectedLibraries: new Map(),
     artifactPaths: new Map(),
+    pendingArtifacts: new Map(),
+    pendingRuns: undefined,
     activeJobs: new Map(),
     metadataProviders: new Map(
       createMetadataProviders().map((provider) => [provider.descriptor.id, provider] as const),
@@ -62,7 +67,7 @@ export function createMainContext(): MainContext {
     lastPickerFolder: undefined,
     preferredNetworkInterface: undefined,
     currentPreferences: defaultPreferences,
-    currentOutputFolder: undefined,
+    lastSaveFolder: undefined,
     workflow: undefined,
     mangapressCli: undefined,
   };

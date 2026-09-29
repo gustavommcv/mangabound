@@ -61,6 +61,8 @@ import type {
   MetadataProviderDescriptor,
   MetadataSearchResult,
   PlanSummary,
+  PlanConversionCommand,
+  PendingRunSummary,
   RegisteredInputs,
   SelectedInput,
   SelectedLibrary,
@@ -84,7 +86,6 @@ function settingsToKeep(values: {
   readonly settings: MangapressSettings;
   readonly singleBook: boolean;
   readonly providerId: string | undefined;
-  readonly libraryId: string | undefined;
   readonly preferredNetworkInterface: NetworkInterfaceOption | undefined;
 }): SaveSettingsCommand {
   return {
@@ -95,7 +96,6 @@ function settingsToKeep(values: {
       singleBook: values.singleBook,
       ...(values.providerId === undefined ? {} : { providerId: values.providerId }),
     },
-    ...(values.libraryId === undefined ? {} : { libraryId: values.libraryId }),
     ...(values.preferredNetworkInterface === undefined
       ? {}
       : { preferredNetworkInterface: values.preferredNetworkInterface }),
@@ -164,7 +164,9 @@ export function App(): React.JSX.Element {
     readonly { readonly name: string; readonly reason: string }[]
   >([]);
   const [editingId, setEditingId] = useState<string>();
-  const [library, setLibrary] = useState<SelectedLibrary>();
+  const [pendingRuns, setPendingRuns] = useState<readonly PendingRunSummary[]>([]);
+  const [activeRunId, setActiveRunId] = useState<string>();
+  const [savedIds, setSavedIds] = useState<ReadonlySet<string>>(new Set());
   const [settings, setSettings] = useState<MangapressSettings>(defaultMangapressSettings);
   const [format, setFormat] = useState<BookFormat>(defaultFormat);
   const [mode, setMode] = useState<ProcessMode>(defaultProcessMode);
@@ -181,6 +183,7 @@ export function App(): React.JSX.Element {
     readonly total: number;
   }>();
   const [outcomes, setOutcomes] = useState<readonly RunOutcome[]>([]);
+  const [resultSummary, setResultSummary] = useState<string>();
   const [validated, setValidated] = useState<{
     readonly key: string;
     readonly plans: readonly RowPlan[];
@@ -280,7 +283,6 @@ export function App(): React.JSX.Element {
             singleBook: restoredSingleBook,
             settings: resolvedSettings,
             providerId: saved.preferences.providerId,
-            libraryId: saved.library?.libraryId,
             preferredNetworkInterface: saved.preferredNetworkInterface,
           }),
         );
@@ -290,7 +292,6 @@ export function App(): React.JSX.Element {
         setSettings(resolvedSettings);
         setSelectedProviderId(saved.preferences.providerId);
         setPreferredNetworkInterface(saved.preferredNetworkInterface);
-        if (saved.library !== undefined) setLibrary(saved.library);
         for (const notice of saved.notices) notify(notice);
         setRestored(true);
       });
@@ -298,6 +299,19 @@ export function App(): React.JSX.Element {
       current = false;
     };
   }, [bridge, notify]);
+
+  useEffect(() => {
+    if (bridge?.listPendingRuns === undefined) return;
+    let current = true;
+    void bridge.listPendingRuns().then((result) => {
+      if (!current) return;
+      if (result.ok) setPendingRuns(result.value);
+      else setFailure(result.error);
+    });
+    return () => {
+      current = false;
+    };
+  }, [bridge]);
 
   useEffect(() => {
     if (bridge?.saveSettings === undefined || !restored) return;
@@ -309,7 +323,6 @@ export function App(): React.JSX.Element {
       settings,
       singleBook,
       providerId: selectedProviderId,
-      libraryId: library?.libraryId,
       preferredNetworkInterface,
     });
     const key = JSON.stringify(command);
@@ -336,7 +349,6 @@ export function App(): React.JSX.Element {
     settings,
     singleBook,
     selectedProviderId,
-    library,
     preferredNetworkInterface,
     notify,
   ]);
@@ -466,13 +478,6 @@ export function App(): React.JSX.Element {
     else addRegistered(result.value);
   };
 
-  const chooseLibrary = async (): Promise<void> => {
-    if (bridge === undefined) return;
-    const result = await bridge.chooseLibrary();
-    if (!result.ok) setFailure(result.error);
-    else if (result.value !== null) setLibrary(result.value);
-  };
-
   /**
    * What a run sends for the chosen process. When mangapress is not run its settings are
    * irrelevant, so defaults go instead of whatever half-edited values are on screen: they would
@@ -485,19 +490,23 @@ export function App(): React.JSX.Element {
       ? { mode: resolved, settings, format }
       : { mode: resolved, settings: defaultMangapressSettings, format: 'cbz' };
   /** The command for one queue row. A folder sent straight to mangapress carries no volumes. */
+  const planCommandFor = (
+    row: InspectedRow,
+    rowProcess: ProcessMode,
+    commandJobId: string,
+  ): PlanConversionCommand => ({
+    jobId: commandJobId,
+    sessionId: row.sessionId,
+    singleBook: row.kind === 'cbz' ? false : singleBook,
+    ...withRunSettings(rowProcess),
+    ...(row.mapping === undefined || rowProcess === 'convert-only' ? {} : { mapping: row.mapping }),
+  });
   const commandFor = (
     row: InspectedRow,
     rowProcess: ProcessMode,
     libraryId: string,
     commandJobId: string,
-  ): ConversionCommand => ({
-    jobId: commandJobId,
-    sessionId: row.sessionId,
-    libraryId,
-    singleBook: row.kind === 'cbz' ? false : singleBook,
-    ...withRunSettings(rowProcess),
-    ...(row.mapping === undefined || rowProcess === 'convert-only' ? {} : { mapping: row.mapping }),
-  });
+  ): ConversionCommand => ({ ...planCommandFor(row, rowProcess, commandJobId), libraryId });
 
   // A validated plan only describes the queue, process and settings it was made for.
   const planKey = JSON.stringify([
@@ -505,7 +514,6 @@ export function App(): React.JSX.Element {
     format,
     settings,
     singleBook,
-    library?.libraryId,
     rows.map((row) => [
       row.id,
       row.state,
@@ -523,7 +531,7 @@ export function App(): React.JSX.Element {
   const plans = validated?.key === planKey ? validated.plans : undefined;
 
   const validatePlans = async (): Promise<void> => {
-    if (bridge === undefined || library === undefined) return;
+    if (bridge === undefined) return;
     setFailure(undefined);
     setValidating(true);
     const collected: RowPlan[] = [];
@@ -542,7 +550,7 @@ export function App(): React.JSX.Element {
           continue;
         }
         const result = await bridge.planConversion(
-          commandFor(row, rowProcess, library.libraryId, crypto.randomUUID()),
+          planCommandFor(row, rowProcess, crypto.randomUUID()),
         );
         if (!result.ok) {
           setFailure(result.error);
@@ -557,15 +565,23 @@ export function App(): React.JSX.Element {
   };
 
   const startRun = async (): Promise<void> => {
-    if (bridge === undefined || library === undefined) return;
+    if (bridge === undefined) return;
     const items = runnableRows(rows, mode);
     if (items.length === 0) return;
     setFailure(undefined);
+    const created = await bridge.createPendingRun();
+    if (!created.ok) {
+      setFailure(created.error);
+      return;
+    }
+    const runId = created.value;
+    setActiveRunId(runId);
+    setSavedIds(new Set());
     cancelRequested.current = false;
     setStep('running');
     const settled: RunOutcome[] = [];
-    // The titles of each library that were saved in this run, to tell when a library is finished.
-    const savedTitles = new Map<string, ReadonlySet<string>>();
+    // Titles that produced books in this run, so completed library rows can leave the queue.
+    const completedTitles = new Map<string, ReadonlySet<string>>();
     // The rows a run got to; those it did not (it was cancelled first) are not reported as left out.
     const attempted = new Set<string>();
     for (const [index, { row, mode: rowProcess }] of items.entries()) {
@@ -579,7 +595,7 @@ export function App(): React.JSX.Element {
         const ran = await bridge.convertLibrary({
           jobId: nextJobId,
           sessionId: row.sessionId,
-          libraryId: library.libraryId,
+          libraryId: runId,
           singleBook,
           ...withRunSettings(resolveMode('library', rowProcess)),
           titles: (row.titles ?? []).filter(isPendingTitle).map((title) => title.title),
@@ -595,7 +611,7 @@ export function App(): React.JSX.Element {
           if (ran.error.code === 'cancelled') cancelRequested.current = true;
           continue;
         }
-        // One outcome for each title, so a book saved and one that failed are told apart.
+        // One outcome for each title, so a book produced and one that failed are told apart.
         for (const title of ran.value) {
           settled.push({
             rowId: row.id,
@@ -606,7 +622,7 @@ export function App(): React.JSX.Element {
           });
           if (title.failure?.code === 'cancelled') cancelRequested.current = true;
         }
-        savedTitles.set(
+        completedTitles.set(
           row.id,
           new Set(ran.value.filter((title) => title.status === 'done').map((title) => title.title)),
         );
@@ -617,9 +633,7 @@ export function App(): React.JSX.Element {
         });
         continue;
       }
-      const result = await bridge.convert(
-        commandFor(row, rowProcess, library.libraryId, nextJobId),
-      );
+      const result = await bridge.convert(commandFor(row, rowProcess, runId, nextJobId));
       if (result.ok) {
         settled.push({
           rowId: row.id,
@@ -671,18 +685,17 @@ export function App(): React.JSX.Element {
         fixable: row.state === 'inspected' && row.kind !== 'cbz' && mode !== 'convert-only',
       });
     }
-    // What was saved leaves the queue: a folder or file once it is, a library once every one of its
-    // titles is. The rest stays, so it can be fixed and run again.
+    // Successfully processed inputs leave the queue. The rest stays so it can be fixed and retried.
     removeRows(
       rows
         .filter((row) => {
           if (row.state !== 'inspected') return false;
           if (row.kind === 'library') {
-            const saved = savedTitles.get(row.id);
+            const completed = completedTitles.get(row.id);
             return (
-              saved !== undefined &&
+              completed !== undefined &&
               (row.titles ?? []).every(
-                (title) => title.outcome?.status === 'done' || saved.has(title.title),
+                (title) => title.outcome?.status === 'done' || completed.has(title.title),
               )
             );
           }
@@ -695,6 +708,12 @@ export function App(): React.JSX.Element {
       return;
     }
     setOutcomes(settled);
+    setResultSummary(
+      mode === 'bind-only' ? 'Joined volumes · CBZ' : `${deviceName} · ${format.toUpperCase()}`,
+    );
+    const refreshed = await bridge.listPendingRuns();
+    if (refreshed.ok) setPendingRuns(refreshed.value);
+    else setFailure(refreshed.error);
     setStep('results');
   };
 
@@ -799,6 +818,66 @@ export function App(): React.JSX.Element {
   const shareSavedBooks = (saved: SelectedLibrary): void => {
     if (!sharingStatus.active) setSharedLibrary(saved);
     setSharePanelOpen(true);
+  };
+
+  const openPendingRun = (libraryId: string): void => {
+    const run = pendingRuns.find((candidate) => candidate.libraryId === libraryId);
+    if (run === undefined) return;
+    setActiveRunId(libraryId);
+    setSavedIds(
+      new Set(run.artifacts.filter((artifact) => artifact.saved).map((artifact) => artifact.id)),
+    );
+    setOutcomes([
+      {
+        rowId: libraryId,
+        name: 'Earlier conversion',
+        status: 'done',
+        artifacts: run.artifacts,
+      },
+    ]);
+    setResultSummary('Ready to save or share');
+    setStep('results');
+  };
+
+  const refreshPendingRuns = async (): Promise<void> => {
+    if (bridge === undefined) return;
+    const result = await bridge.listPendingRuns();
+    if (result.ok) setPendingRuns(result.value);
+    else setFailure(result.error);
+  };
+
+  const saveArtifactAs = async (artifactId: string): Promise<void> => {
+    if (bridge === undefined) return;
+    setFailure(undefined);
+    const result = await bridge.saveArtifactAs(artifactId);
+    if (!result.ok) {
+      setFailure(result.error);
+      return;
+    }
+    if (!result.value.saved) return;
+    setSavedIds((current) => new Set([...current, artifactId]));
+    if (result.value.warning !== undefined) notify(result.value.warning);
+    await refreshPendingRuns();
+  };
+
+  const saveAllArtifacts = async (artifactIds: readonly string[]): Promise<void> => {
+    if (bridge === undefined) return;
+    setFailure(undefined);
+    const result = await bridge.saveAllArtifacts(artifactIds);
+    if (!result.ok) {
+      setFailure(result.error);
+      return;
+    }
+    if (result.value === null) return;
+    const saved = result.value;
+    setSavedIds((current) => new Set([...current, ...saved.savedIds]));
+    for (const item of saved.failures) {
+      const name =
+        outcomes.flatMap((outcome) => outcome.artifacts).find((artifact) => artifact.id === item.id)
+          ?.name ?? 'A book';
+      notify(`${name}: ${item.message}`);
+    }
+    await refreshPendingRuns();
   };
 
   const stopSharing = async (): Promise<void> => {
@@ -938,16 +1017,14 @@ export function App(): React.JSX.Element {
               <QueueScreen
                 disabled={toolchain?.state !== 'ready'}
                 format={format}
-                {...(library === undefined ? {} : { library })}
                 mode={mode}
+                pendingRuns={pendingRuns}
+                onOpenPending={openPendingRun}
                 onAddFiles={() => {
                   void addFromDialog('files');
                 }}
                 onAddFolders={() => {
                   void addFromDialog('folders');
-                }}
-                onChooseLibrary={() => {
-                  void chooseLibrary();
                 }}
                 onClear={() => {
                   removeRows(rows.map((row) => row.id));
@@ -1121,10 +1198,13 @@ export function App(): React.JSX.Element {
               <ResultsScreen
                 aside={
                   outcomes.some((outcome) => outcome.artifacts.length > 0) &&
-                  library !== undefined ? (
+                  activeRunId !== undefined ? (
                     <SendToKoreader
                       onOpen={() => {
-                        shareSavedBooks(library);
+                        shareSavedBooks({
+                          libraryId: activeRunId,
+                          displayPath: 'Books ready to share',
+                        });
                       }}
                       status={sharingStatus}
                     />
@@ -1148,12 +1228,15 @@ export function App(): React.JSX.Element {
                     void runArtifactAction(bridge.showArtifactInFolder, artifactId);
                   }
                 }}
+                onSaveAs={(artifactId) => {
+                  void saveArtifactAs(artifactId);
+                }}
+                onSaveAll={(artifactIds) => {
+                  void saveAllArtifacts(artifactIds);
+                }}
+                savedIds={savedIds}
                 outcomes={outcomes}
-                summary={
-                  mode === 'bind-only'
-                    ? `Joined volumes · CBZ · ${library?.displayPath ?? ''}`
-                    : `${deviceName} · ${format.toUpperCase()} · ${library?.displayPath ?? ''}`
-                }
+                {...(resultSummary === undefined ? {} : { summary: resultSummary })}
               />
             )}
           </main>

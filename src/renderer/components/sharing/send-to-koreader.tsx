@@ -5,14 +5,14 @@ import type { OpdsSharingStatus } from '@/shared/opds-contract';
 
 export interface SendToKoreaderProps {
   readonly status: OpdsSharingStatus;
-  /** Opens the Share panel with the books just saved chosen, unless something else is being shared. */
+  /** Opens the Share panel with the ready books chosen, unless something else is being shared. */
   readonly onOpen: () => void;
 }
 
 /**
- * The way from "books saved" to "books on the e-reader". It carries no controls of its own: sharing
+ * The way from "books ready" to "books on the e-reader". It carries no controls of its own: sharing
  * is set up in the Share panel, the same one the title bar opens (ADR 0016), and this only takes a
- * person there with the folder they just saved to already chosen.
+ * person there with the pending run already chosen, even before exporting any file.
  */
 export function SendToKoreader({ onOpen, status }: SendToKoreaderProps): React.JSX.Element {
   return (

@@ -5,7 +5,7 @@ import path from 'node:path';
 
 import { $, browser } from '@wdio/globals';
 
-import { chooseOutputFolder, queueOutputFolderButton, resetQueue } from './support';
+import { resetQueue, saveBookAs } from './support';
 
 const temporaryDirectories: string[] = [];
 
@@ -36,7 +36,6 @@ describe('packaged OPDS delivery', () => {
 
     const openDialog = await browser.electron.mock('dialog', 'showOpenDialog');
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [inputPath] });
-    await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [libraryPath] });
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [directCbzPath] });
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [libraryPath] });
 
@@ -53,11 +52,14 @@ describe('packaged OPDS delivery', () => {
     await $('button=Assign selected').click();
     await $('button=Confirm mapping').click();
     await $('span=1 volume').waitForDisplayed({ timeout: 10_000 });
-    await chooseOutputFolder(queueOutputFolderButton, libraryPath);
     await $('button=Validate plan').click();
     await $('h2=Plan validated').waitForDisplayed({ timeout: 30_000 });
-    await $('button=Convert 1 item').click();
-    await $('h1=1 book saved').waitForDisplayed({ timeout: 120_000 });
+    await $('button=Process 1 item').click();
+    await $('h1=1 book ready').waitForDisplayed({ timeout: 120_000 });
+    await saveBookAs(
+      'Mangabound E2E - Vol.01.epub',
+      path.join(libraryPath, 'Mangabound E2E - Vol.01.epub'),
+    );
 
     await $('button=Convert more').click();
     await $('h1=Queue').waitForDisplayed();
@@ -65,8 +67,9 @@ describe('packaged OPDS delivery', () => {
     await $('span=Ready').waitForDisplayed({ timeout: 30_000 });
     await $('button=Validate plan').click();
     await $('h2=Plan validated').waitForDisplayed({ timeout: 30_000 });
-    await $('button=Convert 1 item').click();
-    await $('h1=1 book saved').waitForDisplayed({ timeout: 120_000 });
+    await $('button=Process 1 item').click();
+    await $('h1=1 book ready').waitForDisplayed({ timeout: 120_000 });
+    await saveBookAs('Mangabound Direct.epub', path.join(libraryPath, 'Mangabound Direct.epub'));
 
     assert.deepEqual((await readdir(libraryPath)).sort(), [
       '.mangabound',
@@ -184,7 +187,6 @@ describe('packaged OPDS delivery', () => {
     const openDialog = await browser.electron.mock('dialog', 'showOpenDialog');
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [directCbzPath] });
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [libraryPath] });
-    await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [libraryPath] });
 
     await resetQueue();
     await $('button=Files').click();
@@ -194,9 +196,9 @@ describe('packaged OPDS delivery', () => {
     await $('#book-author').setValue('A Real Author');
     await $('button=Back').click();
     await $('h1=Queue').waitForDisplayed();
-    await chooseOutputFolder(queueOutputFolderButton, libraryPath);
-    await $('button=Convert 1 item').click();
-    await $('h1=1 book saved').waitForDisplayed({ timeout: 120_000 });
+    await $('button=Process 1 item').click();
+    await $('h1=1 book ready').waitForDisplayed({ timeout: 120_000 });
+    await saveBookAs('Mangabound Direct.epub', path.join(libraryPath, 'Mangabound Direct.epub'));
 
     const savedName = (await readdir(libraryPath)).find((name) => name !== '.mangabound');
     assert.ok(savedName !== undefined, 'Expected exactly one converted book in the library.');

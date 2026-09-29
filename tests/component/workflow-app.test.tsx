@@ -91,6 +91,10 @@ function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
 
 function bridge(overrides: Partial<MangaboundBridge> = {}): MangaboundBridge {
   return {
+    createPendingRun: () => Promise.resolve({ ok: true, value: 'pending-run' }),
+    listPendingRuns: () => Promise.resolve({ ok: true, value: [] }),
+    saveArtifactAs: () => Promise.resolve({ ok: true, value: { saved: true } }),
+    saveAllArtifacts: () => Promise.resolve({ ok: true, value: { savedIds: [], failures: [] } }),
     runtime: { electron: '44.3.0', platform: 'win32', version: '0.1.0-alpha.1' },
     getToolchainStatus: () => Promise.resolve(readyToolchain),
     chooseInputs: () => Promise.resolve({ ok: true, value: { inputs: [folder()], rejected: [] } }),
@@ -180,15 +184,159 @@ async function addFolder(user: UserEvent): Promise<void> {
   });
 }
 
-async function chooseOutputFolder(user: UserEvent): Promise<void> {
-  await user.click(screen.getByRole('button', { name: 'Choose output folder' }));
-  expect(await screen.findByText('C:\\Books')).toBeVisible();
+function expectNoOutputFolderPicker(): void {
+  expect(screen.queryByRole('button', { name: 'Choose output folder' })).not.toBeInTheDocument();
 }
 
-const runButton = (label: string): Promise<HTMLElement> =>
-  screen.findByRole('button', { name: label });
+const runButton = (count: number): Promise<HTMLElement> =>
+  screen.findByRole('button', { name: `Process ${count} ${count === 1 ? 'item' : 'items'}` });
 
 describe('queue application workflow', () => {
+  it('recovers an unsaved book after reopening and lets it be saved without rerunning conversion', async () => {
+    const user = userEvent.setup();
+    const saveArtifactAs = vi.fn<MangaboundBridge['saveArtifactAs']>(() =>
+      Promise.resolve({
+        ok: true,
+        value: { saved: true, warning: 'The destination catalog could not be updated.' },
+      }),
+    );
+    const convert = vi.fn<MangaboundBridge['convert']>();
+    installBridge(
+      bridge({
+        convert,
+        saveArtifactAs,
+        listPendingRuns: () =>
+          Promise.resolve({
+            ok: true,
+            value: [
+              {
+                libraryId: 'recovered-run',
+                artifacts: [
+                  {
+                    id: 'recovered-book',
+                    name: 'Recovered.epub',
+                    bytes: 2048,
+                    format: 'epub',
+                    saved: false,
+                  },
+                ],
+              },
+            ],
+          }),
+      }),
+    );
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Ready books' })).toBeVisible();
+    expect(screen.getByText('Recovered.epub')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'View books from Recovered.epub' }));
+    expect(screen.getByRole('heading', { name: '1 book ready' })).toBeVisible();
+    expect(screen.getByText('2.0 KB · Not saved yet')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Save Recovered.epub as' }));
+    await waitFor(() => expect(screen.getByText('2.0 KB · Saved')).toBeVisible());
+    expect(screen.getByText('The destination catalog could not be updated.')).toBeVisible();
+    expect(saveArtifactAs).toHaveBeenCalledWith('recovered-book');
+    expect(convert).not.toHaveBeenCalled();
+  });
+
+  it('identifies separate pending conversions by their books', async () => {
+    const user = userEvent.setup();
+    installBridge(
+      bridge({
+        listPendingRuns: () =>
+          Promise.resolve({
+            ok: true,
+            value: [
+              {
+                libraryId: 'first-run',
+                artifacts: [
+                  {
+                    id: 'first-book',
+                    name: 'First.epub',
+                    bytes: 1024,
+                    format: 'epub',
+                    saved: false,
+                  },
+                ],
+              },
+              {
+                libraryId: 'second-run',
+                artifacts: [
+                  {
+                    id: 'second-book',
+                    name: 'Second.epub',
+                    bytes: 2048,
+                    format: 'epub',
+                    saved: false,
+                  },
+                ],
+              },
+            ],
+          }),
+      }),
+    );
+    render(<App />);
+
+    expect(await screen.findByText('First.epub')).toBeVisible();
+    expect(screen.getByText('Second.epub')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'View books from Second.epub' }));
+    expect(screen.getByRole('list', { name: 'Ready books' })).toHaveTextContent('Second.epub');
+    expect(screen.getByRole('list', { name: 'Ready books' })).not.toHaveTextContent('First.epub');
+  });
+
+  it('keeps batch saving available after a warning is dismissed', async () => {
+    const user = userEvent.setup();
+    const saveAllArtifacts = vi.fn<MangaboundBridge['saveAllArtifacts']>(() =>
+      Promise.resolve({
+        ok: true,
+        value: {
+          savedIds: ['first-book', 'second-book'],
+          failures: [{ id: 'first-book', message: 'The catalog could not be updated.' }],
+        },
+      }),
+    );
+    installBridge(
+      bridge({
+        saveAllArtifacts,
+        listPendingRuns: () =>
+          Promise.resolve({
+            ok: true,
+            value: [
+              {
+                libraryId: 'recovered-run',
+                artifacts: [
+                  {
+                    id: 'first-book',
+                    name: 'First.epub',
+                    bytes: 1024,
+                    format: 'epub',
+                    saved: false,
+                  },
+                  {
+                    id: 'second-book',
+                    name: 'Second.epub',
+                    bytes: 2048,
+                    format: 'epub',
+                    saved: false,
+                  },
+                ],
+              },
+            ],
+          }),
+      }),
+    );
+    render(<App />);
+
+    await user.click(await screen.findByRole('button', { name: 'View books from First.epub' }));
+    await user.click(screen.getByRole('button', { name: 'Save all to folder…' }));
+    expect(await screen.findByText('First.epub: The catalog could not be updated.')).toBeVisible();
+    expect(screen.getAllByText(/ · Saved$/u)).toHaveLength(2);
+    await user.click(screen.getByRole('button', { name: 'Dismiss these notices' }));
+    await user.click(screen.getByRole('button', { name: 'Save all to folder…' }));
+    expect(saveAllArtifacts).toHaveBeenCalledTimes(2);
+    expect(saveAllArtifacts).toHaveBeenLastCalledWith(['first-book', 'second-book']);
+  });
+
   it('reads a folder into the queue, converts it and hands the books to the operating system', async () => {
     const user = userEvent.setup();
     const convert = vi.fn<MangaboundBridge['convert']>(() =>
@@ -211,8 +359,8 @@ describe('queue application workflow', () => {
 
     expect(await screen.findByRole('heading', { name: 'Queue' })).toBeVisible();
     expect(screen.getByText(/Drop manga folders, libraries or \.cbz files here/u)).toBeVisible();
-    // Nothing to run and nowhere to put it yet.
-    expect(screen.getByRole('button', { name: 'Convert' })).toBeDisabled();
+    // Nothing to run yet; choosing a destination is no longer required.
+    expect(screen.getByRole('button', { name: 'Process' })).toBeDisabled();
     await waitFor(() => {
       expect(screen.getByLabelText('Device')).toHaveValue('KPW6');
     });
@@ -221,23 +369,23 @@ describe('queue application workflow', () => {
     const list = screen.getByRole('list', { name: 'Queued items' });
     expect(within(list).getByText('Offline Work')).toBeVisible();
     expect(within(list).getByText('1 volume')).toBeVisible();
-    expect(screen.getByText('Choose an output folder to continue.')).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Convert 1 item' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Process 1 item' })).toBeEnabled();
 
-    await chooseOutputFolder(user);
-    await user.click(await runButton('Convert 1 item'));
+    expectNoOutputFolderPicker();
+    await user.click(await runButton(1));
 
-    expect(await screen.findByRole('heading', { name: '1 book saved' })).toBeVisible();
-    expect(screen.getByText('Kindle Paperwhite 6 · EPUB · C:\\Books')).toBeVisible();
+    expect(await screen.findByRole('heading', { name: '1 book ready' })).toBeVisible();
+    expect(screen.getByText('Kindle Paperwhite 6 · EPUB')).toBeVisible();
     expect(convert.mock.calls[0]?.[0]).toMatchObject({
       sessionId: 'session',
-      libraryId: 'library',
+      libraryId: 'pending-run',
       mode: 'bind-and-convert',
       settings: defaultMangapressSettings,
       format: 'epub',
       mapping,
     });
     await user.click(screen.getByRole('button', { name: 'Open Offline Work.epub' }));
+    await user.click(screen.getByRole('button', { name: 'Save Offline Work.epub as' }));
     await user.click(screen.getByRole('button', { name: 'Show Offline Work.epub in its folder' }));
     expect(openArtifact).toHaveBeenCalledWith('artifact');
     expect(showArtifactInFolder).toHaveBeenCalledWith('artifact');
@@ -263,8 +411,8 @@ describe('queue application workflow', () => {
     render(<App />);
 
     await addFolder(user);
-    await chooseOutputFolder(user);
-    await user.click(await runButton('Convert 1 item'));
+    expectNoOutputFolderPicker();
+    await user.click(await runButton(1));
 
     expect(await screen.findByRole('heading', { name: 'Converting Offline Work' })).toHaveFocus();
   });
@@ -298,7 +446,7 @@ describe('queue application workflow', () => {
     render(<App />);
 
     await addFolder(user);
-    await chooseOutputFolder(user);
+    expectNoOutputFolderPicker();
     await user.click(screen.getByRole('button', { name: 'Validate plan' }));
 
     expect(await screen.findByRole('heading', { name: 'Plan validated' })).toBeVisible();
@@ -307,7 +455,6 @@ describe('queue application workflow', () => {
     expect(planConversion).toHaveBeenCalledWith(
       expect.objectContaining({
         sessionId: 'session',
-        libraryId: 'library',
         settings: defaultMangapressSettings,
       }),
     );
@@ -330,7 +477,7 @@ describe('queue application workflow', () => {
     render(<App />);
 
     await addFolder(user);
-    await chooseOutputFolder(user);
+    expectNoOutputFolderPicker();
     await user.click(screen.getByRole('button', { name: 'Validate plan' }));
 
     expect(await screen.findByRole('alert', { name: 'Workflow error' })).toHaveTextContent(
@@ -367,10 +514,10 @@ describe('queue application workflow', () => {
     render(<App />);
 
     await addFolder(user);
-    await chooseOutputFolder(user);
+    expectNoOutputFolderPicker();
     expect(screen.getByText('Needs volumes')).toBeVisible();
     expect(screen.getByText(/1 chapter still has no volume/u)).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Convert' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Process' })).toBeDisabled();
     expect(screen.getByText('Nothing here can run yet.')).toBeVisible();
 
     await user.click(screen.getByRole('button', { name: 'Edit volumes for Offline Work' }));
@@ -379,8 +526,8 @@ describe('queue application workflow', () => {
     // Accepting the gap is a decision, so the folder runs with the chapter left out.
     expect(await screen.findByText('1 volume')).toBeVisible();
     expect(screen.getByText('1 chapter left out.')).toBeVisible();
-    await user.click(await runButton('Convert 1 item'));
-    expect(await screen.findByRole('heading', { name: '1 book saved' })).toBeVisible();
+    await user.click(await runButton(1));
+    expect(await screen.findByRole('heading', { name: '1 book ready' })).toBeVisible();
     expect(convert.mock.calls[0]?.[0].mapping?.volumes).toHaveLength(1);
   });
 
@@ -613,9 +760,9 @@ describe('queue application workflow', () => {
       screen.queryByRole('button', { name: 'Edit volumes for Standalone.cbz' }),
     ).not.toBeInTheDocument();
 
-    await chooseOutputFolder(user);
-    await user.click(await runButton('Convert 1 item'));
-    expect(await screen.findByRole('heading', { name: '1 book saved' })).toBeVisible();
+    expectNoOutputFolderPicker();
+    await user.click(await runButton(1));
+    expect(await screen.findByRole('heading', { name: '1 book ready' })).toBeVisible();
     expect(convert.mock.calls[0]?.[0]).toMatchObject({
       sessionId: 'cbz-session',
       mode: 'convert-only',
@@ -679,8 +826,8 @@ describe('queue application workflow', () => {
     render(<App />);
 
     await addFolder(user);
-    await chooseOutputFolder(user);
-    await user.click(await runButton('Convert 1 item'));
+    expectNoOutputFolderPicker();
+    await user.click(await runButton(1));
 
     expect(await screen.findByRole('heading', { name: 'Converting Offline Work' })).toBeVisible();
     expect(screen.getByText('Item 1 of 1')).toBeVisible();
@@ -747,8 +894,8 @@ describe('queue application workflow', () => {
 
     expect(screen.getByText('Could not read')).toBeVisible();
     expect(screen.getByText('The folder could not be read.')).toBeVisible();
-    await chooseOutputFolder(user);
-    expect(screen.getByRole('button', { name: 'Convert' })).toBeDisabled();
+    expectNoOutputFolderPicker();
+    expect(screen.getByRole('button', { name: 'Process' })).toBeDisabled();
 
     await user.click(screen.getByRole('button', { name: 'Remove Offline Work' }));
     expect(screen.queryByRole('list', { name: 'Queued items' })).not.toBeInTheDocument();
@@ -956,11 +1103,11 @@ describe('the options a run starts with', () => {
     );
     render(<App />);
     await addFolder(user);
-    await chooseOutputFolder(user);
+    expectNoOutputFolderPicker();
 
     // Nothing has been touched: manga order, both spread modes and upscaling are on.
-    await user.click(await runButton('Convert 1 item'));
-    await screen.findByRole('heading', { name: '1 book saved' });
+    await user.click(await runButton(1));
+    await screen.findByRole('heading', { name: '1 book ready' });
     expect(convert.mock.calls[0]?.[0].settings).toMatchObject({
       deviceProfile: 'KPW6',
       mangaStyle: true,
@@ -972,8 +1119,8 @@ describe('the options a run starts with', () => {
     await user.click(screen.getByRole('button', { name: 'Convert more' }));
     await addFolder(user);
     await user.selectOptions(screen.getByLabelText('Device'), 'KS');
-    await user.click(await runButton('Convert 1 item'));
-    await screen.findByRole('heading', { name: '1 book saved' });
+    await user.click(await runButton(1));
+    await screen.findByRole('heading', { name: '1 book ready' });
     expect(convert.mock.calls[1]?.[0].settings).toMatchObject({
       deviceProfile: 'KS',
       mangaStyle: true,
@@ -1006,11 +1153,11 @@ describe('the options a run starts with', () => {
       ),
     ).toBeVisible();
     await addFolder(user);
-    await chooseOutputFolder(user);
+    expectNoOutputFolderPicker();
 
-    await user.click(await runButton('Convert 1 item'));
+    await user.click(await runButton(1));
 
-    await screen.findByRole('heading', { name: '1 book saved' });
+    await screen.findByRole('heading', { name: '1 book ready' });
     expect(convert.mock.calls[0]?.[0].settings).toMatchObject({
       deviceProfile: 'KS',
       upscale: false,
@@ -1037,7 +1184,6 @@ describe('the options kept between sessions', () => {
   };
   const twoDevices = (): MangaboundBridge['getDeviceProfiles'] => () =>
     Promise.resolve({ ok: true, value: [paperwhite, scribe] });
-  const savedFolder = { libraryId: 'saved-library', displayPath: 'D:\\Manga\\Saved' };
 
   const saveCalls = (
     saveSettings: ReturnType<typeof vi.fn<MangaboundBridge['saveSettings']>>,
@@ -1047,7 +1193,7 @@ describe('the options kept between sessions', () => {
   const okSave = (): ReturnType<typeof vi.fn<MangaboundBridge['saveSettings']>> =>
     vi.fn<MangaboundBridge['saveSettings']>(() => Promise.resolve({ ok: true, value: undefined }));
 
-  it('opens as it was left: the steps, device, format, options and output folder', async () => {
+  it('opens with saved conversion options but no output-folder control', async () => {
     installBridge(
       bridge({
         getDeviceProfiles: twoDevices(),
@@ -1058,7 +1204,6 @@ describe('the options kept between sessions', () => {
             singleBook: false,
             settings: { ...defaultMangapressSettings, deviceProfile: 'KS', upscale: false },
           },
-          library: savedFolder,
         }),
       }),
     );
@@ -1070,13 +1215,13 @@ describe('the options kept between sessions', () => {
     expect(screen.getByRole('radio', { name: 'PDF' })).toBeChecked();
     expect(screen.getByRole('checkbox', { name: 'Group chapters into volumes' })).not.toBeChecked();
     expect(screen.getByRole('checkbox', { name: 'Convert for e-reader' })).toBeChecked();
-    expect(screen.getByText('D:\\Manga\\Saved')).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Change output folder' })).toBeVisible();
+    expect(screen.queryByText('D:\\Manga\\Saved')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Change output folder' })).not.toBeInTheDocument();
     // Nothing went wrong, so nothing is said.
     expect(screen.queryByRole('status', { name: 'Notices' })).not.toBeInTheDocument();
   });
 
-  it('keeps each change, without the title and author, and names the folder by its id', async () => {
+  it('keeps each change without the title, author or an output folder', async () => {
     const user = userEvent.setup();
     const saveSettings = okSave();
     installBridge(bridge({ saveSettings, getDeviceProfiles: twoDevices() }));
@@ -1088,7 +1233,7 @@ describe('the options kept between sessions', () => {
     // Opening the app changes nothing, so nothing is written.
     expect(saveSettings).not.toHaveBeenCalled();
 
-    await chooseOutputFolder(user);
+    expectNoOutputFolderPicker();
     await user.click(screen.getByRole('radio', { name: 'PDF' }));
     await user.click(screen.getByRole('button', { name: /Advanced conversion options/u }));
     await user.type(await screen.findByLabelText('Title'), 'Only for this book');
@@ -1102,7 +1247,6 @@ describe('the options kept between sessions', () => {
           singleBook: false,
           settings: defaultMangapressSettings,
         },
-        libraryId: 'library',
       });
     });
     // A title belongs to one book: it is on screen but is not among what is kept.
@@ -1483,14 +1627,13 @@ describe('the options kept between sessions', () => {
       });
     });
 
-    it('puts the steps, device, format and options back, keeps the folder, and saves that', async () => {
+    it('puts the steps, device, format and options back without choosing a destination', async () => {
       const user = userEvent.setup();
       const saveSettings = okSave();
       installBridge(
         bridge({
           saveSettings,
           getDeviceProfiles: twoDevices(),
-          loadSettings: keptSettings({ library: savedFolder }),
         }),
       );
       render(<App />);
@@ -1508,8 +1651,8 @@ describe('the options kept between sessions', () => {
       expect(screen.getByRole('radio', { name: 'EPUB' })).toBeChecked();
       expect(screen.getByRole('checkbox', { name: 'Group chapters into volumes' })).toBeChecked();
       expect(screen.getByRole('checkbox', { name: 'Convert for e-reader' })).toBeChecked();
-      // A place is not an option: the folder stays.
-      expect(screen.getByText('D:\\Manga\\Saved')).toBeVisible();
+      // The old output preference is not restored as a conversion destination.
+      expect(screen.queryByText('D:\\Manga\\Saved')).not.toBeInTheDocument();
       expect(screen.queryByRole('group', { name: 'Confirm reset' })).not.toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Reset to defaults' })).toHaveAttribute(
         'aria-disabled',
@@ -1518,7 +1661,6 @@ describe('the options kept between sessions', () => {
       await waitFor(() => {
         expect(saveCalls(saveSettings).at(-1)).toEqual({
           preferences: defaultPreferences,
-          libraryId: 'saved-library',
         });
       });
     });
@@ -1589,15 +1731,15 @@ describe('process control in the queue', () => {
     expect(
       screen.queryByRole('button', { name: /Advanced conversion options/u }),
     ).not.toBeInTheDocument();
-    await chooseOutputFolder(user);
-    await user.click(await runButton('Join 1 item'));
+    expectNoOutputFolderPicker();
+    await user.click(await runButton(1));
 
-    expect(await screen.findByRole('heading', { name: '1 book saved' })).toBeVisible();
-    expect(screen.getByText('Joined volumes · CBZ · C:\\Books')).toBeVisible();
+    expect(await screen.findByRole('heading', { name: '1 book ready' })).toBeVisible();
+    expect(screen.getByText('Joined volumes · CBZ')).toBeVisible();
     // The PDF choice was for mangapress, which did not run.
     expect(convert.mock.calls[0]?.[0]).toMatchObject({
       sessionId: 'session',
-      libraryId: 'library',
+      libraryId: 'pending-run',
       mode: 'bind-only',
       settings: defaultMangapressSettings,
       format: 'cbz',
@@ -1638,14 +1780,14 @@ describe('process control in the queue', () => {
       screen.queryByRole('button', { name: 'Edit volumes for Offline Work' }),
     ).not.toBeInTheDocument();
 
-    await chooseOutputFolder(user);
+    expectNoOutputFolderPicker();
     await user.click(screen.getByRole('button', { name: 'Validate plan' }));
     expect(await screen.findByRole('heading', { name: 'Plan validated' })).toBeVisible();
     expect(planConversion.mock.calls[0]?.[0]).toMatchObject({ mode: 'convert-only' });
     expect(planConversion.mock.calls[0]?.[0].mapping).toBeUndefined();
 
-    await user.click(await runButton('Convert 1 item'));
-    expect(await screen.findByRole('heading', { name: '1 book saved' })).toBeVisible();
+    await user.click(await runButton(1));
+    expect(await screen.findByRole('heading', { name: '1 book ready' })).toBeVisible();
     expect(convert.mock.calls[0]?.[0]).toMatchObject({
       mode: 'convert-only',
       settings: defaultMangapressSettings,
@@ -1691,13 +1833,13 @@ describe('process control in the queue', () => {
 
     await user.click(screen.getByRole('checkbox', { name: 'Convert for e-reader' }));
     expect(screen.getByText('Nothing to join')).toBeVisible();
-    await chooseOutputFolder(user);
+    expectNoOutputFolderPicker();
     expect(
       screen.getByText('1 item will be left out. Use the pencil on a row to fix it.'),
     ).toBeVisible();
-    await user.click(await runButton('Join 1 item'));
+    await user.click(await runButton(1));
 
-    expect(await screen.findByRole('heading', { name: '1 book saved' })).toBeVisible();
+    expect(await screen.findByRole('heading', { name: '1 book ready' })).toBeVisible();
     expect(convert).toHaveBeenCalledTimes(1);
     expect(screen.getByText('Standalone.cbz was skipped')).toBeVisible();
     expect(
@@ -1737,11 +1879,11 @@ describe('process control in the queue', () => {
     );
     render(<App />);
     await addFolder(user);
-    await chooseOutputFolder(user);
+    expectNoOutputFolderPicker();
 
-    await user.click(await runButton('Convert 2 items'));
+    await user.click(await runButton(2));
 
-    expect(await screen.findByRole('heading', { name: '1 book saved' })).toBeVisible();
+    expect(await screen.findByRole('heading', { name: '1 book ready' })).toBeVisible();
     expect(convert.mock.calls.map(([command]) => command.sessionId)).toEqual([
       'session-first',
       'session-second',
@@ -1778,11 +1920,11 @@ describe('process control in the queue', () => {
     );
     render(<App />);
     await addFolder(user);
-    await chooseOutputFolder(user);
+    expectNoOutputFolderPicker();
 
-    await user.click(await runButton('Convert 2 items'));
+    await user.click(await runButton(2));
 
-    expect(await screen.findByRole('heading', { name: 'Nothing was saved' })).toBeVisible();
+    expect(await screen.findByRole('heading', { name: 'No books were produced' })).toBeVisible();
     expect(convert).toHaveBeenCalledOnce();
     expect(screen.getByText('First could not be converted')).toBeVisible();
   });
@@ -1815,12 +1957,12 @@ describe('process control in the queue', () => {
     );
     render(<App />);
     await addFolder(user);
-    await chooseOutputFolder(user);
+    expectNoOutputFolderPicker();
     expect(
       screen.getByText('1 item will be left out. Use the pencil on a row to fix it.'),
     ).toBeVisible();
 
-    await user.click(await runButton('Convert 1 item'));
+    await user.click(await runButton(1));
 
     expect(await screen.findByText('Loose was skipped')).toBeVisible();
     expect(
@@ -1995,9 +2137,9 @@ describe('sharing to an e-reader', () => {
   /** Adds a folder, converts it, and waits on the results screen. */
   async function convertOne(user: UserEvent): Promise<void> {
     await addFolder(user);
-    await chooseOutputFolder(user);
-    await user.click(await runButton('Convert 1 item'));
-    await screen.findByRole('heading', { name: '1 book saved' });
+    expectNoOutputFolderPicker();
+    await user.click(await runButton(1));
+    await screen.findByRole('heading', { name: '1 book ready' });
   }
 
   it('remembers an explicitly chosen interface when the panel closes and the app reopens', async () => {
@@ -2124,9 +2266,9 @@ describe('sharing to an e-reader', () => {
     await user.click(screen.getByRole('button', { name: 'Share these books' }));
 
     const panel = screen.getByRole('dialog', { name: 'Share to your e-reader' });
-    expect(panel).toHaveTextContent('C:\\Books');
+    expect(panel).toHaveTextContent('Books ready to share');
     await user.click(screen.getByRole('button', { name: 'Start sharing' }));
-    expect(startSharing).toHaveBeenCalledWith('library', '192.168.1.24', {
+    expect(startSharing).toHaveBeenCalledWith('pending-run', '192.168.1.24', {
       username: '',
       password: '',
     });
@@ -2257,10 +2399,10 @@ describe('sharing to an e-reader', () => {
     );
     render(<App />);
     await addFolder(user);
-    await chooseOutputFolder(user);
-    await user.click(await runButton('Convert 1 item'));
+    expectNoOutputFolderPicker();
+    await user.click(await runButton(1));
 
-    expect(await screen.findByRole('heading', { name: 'Nothing was saved' })).toBeVisible();
+    expect(await screen.findByRole('heading', { name: 'No books were produced' })).toBeVisible();
     expect(screen.queryByRole('heading', { name: 'Send to KOReader' })).not.toBeInTheDocument();
   });
 });
@@ -2364,13 +2506,13 @@ describe('libraries in the queue', () => {
     expect(within(list).getByText('Library · 2 titles · 1 volume')).toBeVisible();
     expect(within(list).getByText('1 title left out until they have volumes.')).toBeVisible();
 
-    await chooseOutputFolder(user);
-    await user.click(await runButton('Convert 1 item'));
+    expectNoOutputFolderPicker();
+    await user.click(await runButton(1));
 
-    expect(await screen.findByRole('heading', { name: '1 book saved' })).toBeVisible();
+    expect(await screen.findByRole('heading', { name: '1 book ready' })).toBeVisible();
     expect(convertLibrary.mock.calls[0]?.[0]).toMatchObject({
       sessionId: 'library-session',
-      libraryId: 'library',
+      libraryId: 'pending-run',
       mode: 'bind-and-convert',
       settings: defaultMangapressSettings,
       format: 'epub',
@@ -2406,7 +2548,7 @@ describe('libraries in the queue', () => {
     );
     render(<App />);
     await addFolder(user);
-    await chooseOutputFolder(user);
+    expectNoOutputFolderPicker();
 
     await user.click(screen.getByRole('button', { name: 'Edit titles of Manga Library' }));
     expect(await screen.findByRole('heading', { name: 'Manga Library' })).toBeVisible();
@@ -2437,8 +2579,8 @@ describe('libraries in the queue', () => {
 
     await user.click(screen.getByRole('button', { name: 'Queue' }));
     expect(await screen.findByText('2 titles')).toBeVisible();
-    await user.click(await runButton('Convert 1 item'));
-    expect(await screen.findByRole('heading', { name: '2 books saved' })).toBeVisible();
+    await user.click(await runButton(1));
+    expect(await screen.findByRole('heading', { name: '2 books ready' })).toBeVisible();
     expect(convertLibrary.mock.calls[0]?.[0].titles).toEqual(['Good Manga', 'Broken Manga']);
     // Everything in it was saved, so it leaves the queue.
     await user.click(screen.getByRole('button', { name: 'Convert more' }));
@@ -2465,19 +2607,19 @@ describe('libraries in the queue', () => {
     installBridge(libraryBridge([goodTitle, groupedTitle], { convertLibrary }));
     render(<App />);
     await addFolder(user);
-    await chooseOutputFolder(user);
+    expectNoOutputFolderPicker();
 
-    await user.click(await runButton('Convert 1 item'));
+    await user.click(await runButton(1));
 
-    expect(await screen.findByRole('heading', { name: '1 book saved' })).toBeVisible();
+    expect(await screen.findByRole('heading', { name: '1 book ready' })).toBeVisible();
     expect(screen.getByText('Manga Library · Broken Manga could not be converted')).toBeVisible();
     expect(screen.getByText('mangapress crashed.')).toBeVisible();
 
     await user.click(screen.getByRole('button', { name: 'Convert more' }));
     expect(screen.getByText('1 title failed last time and will run again.')).toBeVisible();
-    await user.click(await runButton('Convert 1 item'));
+    await user.click(await runButton(1));
 
-    expect(await screen.findByRole('heading', { name: '1 book saved' })).toBeVisible();
+    expect(await screen.findByRole('heading', { name: '1 book ready' })).toBeVisible();
     expect(convertLibrary.mock.calls[1]?.[0].titles).toEqual(['Broken Manga']);
     await user.click(screen.getByRole('button', { name: 'Convert more' }));
     expect(screen.queryByRole('list', { name: 'Queued items' })).not.toBeInTheDocument();
@@ -2496,11 +2638,11 @@ describe('libraries in the queue', () => {
     );
     render(<App />);
     await addFolder(user);
-    await chooseOutputFolder(user);
+    expectNoOutputFolderPicker();
 
-    await user.click(await runButton('Convert 1 item'));
+    await user.click(await runButton(1));
 
-    expect(await screen.findByRole('heading', { name: 'Nothing was saved' })).toBeVisible();
+    expect(await screen.findByRole('heading', { name: 'No books were produced' })).toBeVisible();
     expect(screen.getByText('Manga Library could not be converted')).toBeVisible();
     expect(screen.getByText('This input is not a library.')).toBeVisible();
   });
@@ -2549,11 +2691,11 @@ describe('libraries in the queue', () => {
     );
     render(<App />);
     await addFolder(user);
-    await chooseOutputFolder(user);
+    expectNoOutputFolderPicker();
 
-    await user.click(await runButton('Convert 2 items'));
+    await user.click(await runButton(2));
 
-    expect(await screen.findByRole('heading', { name: 'Nothing was saved' })).toBeVisible();
+    expect(await screen.findByRole('heading', { name: 'No books were produced' })).toBeVisible();
     expect(convert).not.toHaveBeenCalled();
   });
 
@@ -2593,10 +2735,10 @@ describe('libraries in the queue', () => {
     await user.click(screen.getByRole('radio', { name: 'PDF' }));
 
     await user.click(screen.getByRole('checkbox', { name: 'Convert for e-reader' }));
-    await chooseOutputFolder(user);
-    await user.click(await runButton('Join 1 item'));
+    expectNoOutputFolderPicker();
+    await user.click(await runButton(1));
 
-    expect(await screen.findByRole('heading', { name: '1 book saved' })).toBeVisible();
+    expect(await screen.findByRole('heading', { name: '1 book ready' })).toBeVisible();
     expect(convertLibrary.mock.calls[0]?.[0]).toMatchObject({
       mode: 'bind-only',
       settings: defaultMangapressSettings,
@@ -2643,16 +2785,16 @@ describe('libraries in the queue', () => {
     );
     render(<App />);
     await addFolder(user);
-    await chooseOutputFolder(user);
+    expectNoOutputFolderPicker();
 
     await user.click(screen.getByRole('checkbox', { name: 'Group chapters into volumes' }));
     expect(screen.getByText('Needs grouping')).toBeVisible();
     expect(
       screen.queryByRole('button', { name: 'Edit titles of Manga Library' }),
     ).not.toBeInTheDocument();
-    await user.click(await runButton('Convert 1 item'));
+    await user.click(await runButton(1));
 
-    expect(await screen.findByRole('heading', { name: '1 book saved' })).toBeVisible();
+    expect(await screen.findByRole('heading', { name: '1 book ready' })).toBeVisible();
     expect(convertLibrary).not.toHaveBeenCalled();
     expect(screen.getByText('Manga Library was skipped')).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Fix Manga Library' })).not.toBeInTheDocument();
@@ -2666,7 +2808,7 @@ describe('libraries in the queue', () => {
     installBridge(libraryBridge([goodTitle, looseTitle], { planLibrary }));
     render(<App />);
     await addFolder(user);
-    await chooseOutputFolder(user);
+    expectNoOutputFolderPicker();
 
     await user.click(screen.getByRole('button', { name: 'Validate plan' }));
 
@@ -2689,7 +2831,7 @@ describe('libraries in the queue', () => {
     );
     render(<App />);
     await addFolder(user);
-    await chooseOutputFolder(user);
+    expectNoOutputFolderPicker();
     await user.click(screen.getByRole('checkbox', { name: 'Create one book for the series' }));
     await user.click(screen.getByRole('button', { name: 'Validate plan' }));
 
@@ -2716,7 +2858,7 @@ describe('libraries in the queue', () => {
     );
     render(<App />);
     await addFolder(user);
-    await chooseOutputFolder(user);
+    expectNoOutputFolderPicker();
 
     await user.click(screen.getByRole('button', { name: 'Validate plan' }));
 
@@ -2803,8 +2945,8 @@ describe('libraries in the queue', () => {
     );
     render(<App />);
     await addFolder(user);
-    await chooseOutputFolder(user);
-    await user.click(await runButton('Convert 1 item'));
+    expectNoOutputFolderPicker();
+    await user.click(await runButton(1));
     await screen.findByText('Manga Library was skipped');
 
     await user.click(screen.getByRole('button', { name: 'Fix Manga Library' }));

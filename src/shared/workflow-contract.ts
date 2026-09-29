@@ -107,6 +107,7 @@ export const conversionCommandSchema = z.object({
   mode: z.enum(processModes).optional(),
   singleBook: z.boolean().optional(),
 });
+export const planConversionCommandSchema = conversionCommandSchema.omit({ libraryId: true });
 
 /** A library is named by the session it was read in, never by a path. */
 export const planLibraryCommandSchema = z.object({
@@ -210,6 +211,20 @@ export interface ArtifactSummary {
   readonly format: BookFormat;
 }
 
+export interface PendingArtifactSummary extends ArtifactSummary {
+  readonly saved: boolean;
+}
+
+export interface PendingRunSummary {
+  readonly libraryId: string;
+  readonly artifacts: readonly PendingArtifactSummary[];
+}
+
+export interface SaveAllResult {
+  readonly savedIds: readonly string[];
+  readonly failures: readonly { readonly id: string; readonly message: string }[];
+}
+
 export interface PlanSummary {
   readonly tool: 'mangabind' | 'mangapress';
   readonly title: string;
@@ -231,6 +246,7 @@ export interface ConversionCommand {
   readonly mode?: ProcessMode;
   readonly singleBook?: boolean;
 }
+export type PlanConversionCommand = Omit<ConversionCommand, 'libraryId'>;
 
 export interface ConversionProgressPayload extends ConversionProgress {
   readonly jobId: string;

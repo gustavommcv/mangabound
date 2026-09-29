@@ -11,7 +11,7 @@ Run:
 ```text
 npm ci
 npm run check
-npm run package
+npm run package:e2e
 npm run test:e2e
 ```
 

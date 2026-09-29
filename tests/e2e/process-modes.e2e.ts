@@ -5,7 +5,7 @@ import path from 'node:path';
 
 import { $, browser } from '@wdio/globals';
 
-import { chooseOutputFolder, queueOutputFolderButton, resetQueue, setSteps } from './support';
+import { resetQueue, saveAllBooks, saveBookAs, setSteps } from './support';
 
 const temporaryDirectories: string[] = [];
 
@@ -45,17 +45,18 @@ describe('packaged process control', () => {
 
     // Turn the conversion step off: only the joining remains.
     await setSteps({ group: true, convert: false });
-    await $('button=Join 1 item').waitForExist({ timeout: 10_000 });
+    await $('button=Process 1 item').waitForExist({ timeout: 10_000 });
     assert.equal(await $('button*=Advanced conversion options').isExisting(), false);
 
-    await chooseOutputFolder(queueOutputFolderButton, libraryPath);
     await $('button=Validate plan').click();
     await $('h2=Plan validated').waitForDisplayed({ timeout: 30_000 });
     assert.match(await $('main').getText(), /saved as CBZ files, mangapress not run/u);
     assert.deepEqual(await readdir(libraryPath), []);
 
-    await $('button=Join 1 item').click();
-    await $('h1=2 books saved').waitForDisplayed({ timeout: 120_000 });
+    await $('button=Process 1 item').click();
+    await $('h1=2 books ready').waitForDisplayed({ timeout: 120_000 });
+    assert.deepEqual(await readdir(libraryPath), []);
+    await saveAllBooks();
 
     assert.deepEqual((await readdir(libraryPath)).sort(), [
       '.mangabound',
@@ -65,8 +66,6 @@ describe('packaged process control', () => {
     for (const name of ['Named Volumes - Vol.01.cbz', 'Named Volumes - Vol.02.cbz']) {
       assert.ok(await isZip(path.join(libraryPath, name)), `${name} should be a CBZ (zip) file.`);
     }
-    // Published through a staging folder, which is left empty.
-    assert.deepEqual(await readdir(path.join(libraryPath, '.mangabound', 'incoming')), []);
     // The books are in the catalog that the OPDS feed serves.
     const catalog = JSON.parse(
       await readFile(path.join(libraryPath, '.mangabound', 'library.json'), 'utf8'),
@@ -93,7 +92,6 @@ describe('packaged process control', () => {
 
     const openDialog = await browser.electron.mock('dialog', 'showOpenDialog');
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [inputPath] });
-    await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [libraryPath] });
 
     await resetQueue();
     await $('button=Folder').click();
@@ -105,16 +103,14 @@ describe('packaged process control', () => {
     await $('span=One book').waitForDisplayed({ timeout: 10_000 });
     assert.match(await $('main').getText(), /not grouped/u);
 
-    // The earlier test already chose a library, so this reads "Change output folder" here: either
-    // label opens the same picker and this test supplies its own fresh directory.
-    await chooseOutputFolder(queueOutputFolderButton, libraryPath);
     await $('button=Validate plan').click();
     await $('h2=Plan validated').waitForDisplayed({ timeout: 30_000 });
     assert.match(await $('main').getText(), /one book, chapters not grouped/u);
     assert.deepEqual(await readdir(libraryPath), []);
 
-    await $('button=Convert 1 item').click();
-    await $('h1=1 book saved').waitForDisplayed({ timeout: 120_000 });
+    await $('button=Process 1 item').click();
+    await $('h1=1 book ready').waitForDisplayed({ timeout: 120_000 });
+    await saveBookAs('Mangabound E2E.epub', path.join(libraryPath, 'Mangabound E2E.epub'));
 
     assert.deepEqual((await readdir(libraryPath)).sort(), ['.mangabound', 'Mangabound E2E.epub']);
     assert.ok(await isZip(path.join(libraryPath, 'Mangabound E2E.epub')));

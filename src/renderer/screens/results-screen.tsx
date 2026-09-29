@@ -1,4 +1,11 @@
-import { BookOpen, CircleAlert, ExternalLink, FolderOpen, TriangleAlert } from 'lucide-react';
+import {
+  BookOpen,
+  CircleAlert,
+  Download,
+  ExternalLink,
+  FolderOpen,
+  TriangleAlert,
+} from 'lucide-react';
 import { useEffect, useRef } from 'react';
 
 import { Button } from '@/renderer/components/ui/button';
@@ -21,10 +28,13 @@ export interface ResultsScreenProps {
   readonly onFix: (rowId: string) => void;
   readonly onOpen: (artifactId: string) => void;
   readonly onShow: (artifactId: string) => void;
+  readonly onSaveAs?: (artifactId: string) => void;
+  readonly onSaveAll?: (artifactIds: readonly string[]) => void;
+  readonly savedIds?: ReadonlySet<string>;
   readonly outcomes: readonly RunOutcome[];
-  /** A short description of where and how the books were made, shown under the heading. */
+  /** A short description of how the books were made, shown under the heading. */
   readonly summary?: string;
-  /** The card that sends the saved books to a reader; rendered beside the list. */
+  /** The card that lets a reader pull ready books; rendered beside the list. */
   readonly aside?: React.ReactNode;
 }
 
@@ -40,6 +50,9 @@ export function ResultsScreen({
   onFix,
   onOpen,
   onShow,
+  onSaveAs,
+  onSaveAll,
+  savedIds,
   outcomes,
   summary,
 }: ResultsScreenProps): React.JSX.Element {
@@ -68,8 +81,8 @@ export function ResultsScreen({
               tabIndex={-1}
             >
               {artifacts.length === 0
-                ? 'Nothing was saved'
-                : `${String(artifacts.length)} book${artifacts.length === 1 ? '' : 's'} saved`}
+                ? 'No books were produced'
+                : `${String(artifacts.length)} book${artifacts.length === 1 ? '' : 's'} ready`}
             </h1>
             {summary !== undefined && (
               <p className="text-subtle-foreground mt-1 text-sm break-all">{summary}</p>
@@ -80,8 +93,19 @@ export function ResultsScreen({
           </Button>
         </div>
 
+        {artifacts.length > 1 && onSaveAll !== undefined && (
+          <Button
+            onClick={() => {
+              onSaveAll(artifacts.map((artifact) => artifact.id));
+            }}
+            title="Existing files are not replaced; a repeated save may add numbered copies."
+            variant="outline"
+          >
+            <Download /> Save all to folder…
+          </Button>
+        )}
         {artifacts.length > 0 && (
-          <ul aria-label="Saved books" className="space-y-1">
+          <ul aria-label="Ready books" className="space-y-1">
             {artifacts.map((artifact) => (
               <li
                 className="hover:bg-muted/40 flex items-center gap-3 rounded-xl px-3 py-2.5"
@@ -95,18 +119,35 @@ export function ResultsScreen({
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{artifact.name}</p>
-                  <p className="text-subtle-foreground text-xs">{formatBytes(artifact.bytes)}</p>
+                  <p className="text-subtle-foreground text-xs">
+                    {formatBytes(artifact.bytes)} ·{' '}
+                    {savedIds?.has(artifact.id) === true ? 'Saved' : 'Not saved yet'}
+                  </p>
                 </div>
-                <Button
-                  aria-label={`Show ${artifact.name} in its folder`}
-                  onClick={() => {
-                    onShow(artifact.id);
-                  }}
-                  size="icon"
-                  variant="outline"
-                >
-                  <FolderOpen />
-                </Button>
+                {onSaveAs !== undefined && (
+                  <Button
+                    aria-label={`Save ${artifact.name} as`}
+                    onClick={() => {
+                      onSaveAs(artifact.id);
+                    }}
+                    size="sm"
+                    variant="outline"
+                  >
+                    Save as…
+                  </Button>
+                )}
+                {savedIds?.has(artifact.id) === true && (
+                  <Button
+                    aria-label={`Show ${artifact.name} in its folder`}
+                    onClick={() => {
+                      onShow(artifact.id);
+                    }}
+                    size="icon"
+                    variant="outline"
+                  >
+                    <FolderOpen />
+                  </Button>
+                )}
                 <Button
                   aria-label={`Open ${artifact.name}`}
                   onClick={() => {

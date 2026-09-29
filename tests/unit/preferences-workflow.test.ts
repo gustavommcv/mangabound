@@ -58,9 +58,7 @@ describe('restoring the options', () => {
 
     expect(restored.outputFolder).toBeUndefined();
     expect(restored).not.toHaveProperty('outputFolder');
-    expect(restored.notices).toEqual([
-      'The output folder /books is not available. Choose another to save to.',
-    ]);
+    expect(restored.notices).toEqual([]);
     // Everything else that was kept still comes back.
     expect(restored.preferences.format).toBe('pdf');
   });

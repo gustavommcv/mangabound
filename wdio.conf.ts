@@ -1,4 +1,6 @@
 import path from 'node:path';
+import os from 'node:os';
+import { rm } from 'node:fs/promises';
 
 import type {} from '@wdio/electron-service';
 import type {} from '@wdio/types';
@@ -12,6 +14,8 @@ const appBinaryPath =
       : path.join(packageDirectory, 'mangabound');
 
 const isWayland = process.env.MANGABOUND_WAYLAND === '1';
+const pendingTestRoot = path.join(os.tmpdir(), `mangabound-e2e-pending-${String(process.pid)}`);
+process.env.MANGABOUND_PENDING_ROOT = pendingTestRoot;
 
 export const config: WebdriverIO.Config = {
   autoXvfb: !isWayland,
@@ -58,4 +62,12 @@ export const config: WebdriverIO.Config = {
   services: ['electron'],
   specs: isWayland ? ['./tests/e2e/shell.e2e.ts'] : ['./tests/e2e/**/*.e2e.ts'],
   waitforTimeout: 10_000,
+  onComplete: async () => {
+    if (path.dirname(path.resolve(pendingTestRoot)) !== path.resolve(os.tmpdir())) {
+      throw new Error(
+        'Refusing to remove a pending test directory outside the OS test temp folder.',
+      );
+    }
+    await rm(pendingTestRoot, { recursive: true, force: true });
+  },
 };

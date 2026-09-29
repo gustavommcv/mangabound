@@ -128,16 +128,14 @@ describe('ResultsScreen', () => {
     expect(formatBytes(bytes)).toBe(expected);
   });
 
-  it('counts the saved books, showing each with its size, and reports the summary', () => {
-    render(
-      <ResultsScreen {...handlers} outcomes={[saved]} summary="Kindle Voyage · EPUB · C:\Books" />,
-    );
+  it('counts ready books, showing their save state and summary', () => {
+    render(<ResultsScreen {...handlers} outcomes={[saved]} summary="Kindle Voyage · EPUB" />);
 
-    expect(screen.getByRole('heading', { name: '1 book saved' })).toBeVisible();
-    expect(screen.getByText('Kindle Voyage · EPUB · C:\\Books')).toBeVisible();
-    expect(screen.getByText('1.5 KB')).toBeVisible();
+    expect(screen.getByRole('heading', { name: '1 book ready' })).toBeVisible();
+    expect(screen.getByText('Kindle Voyage · EPUB')).toBeVisible();
+    expect(screen.getByText('1.5 KB · Not saved yet')).toBeVisible();
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '1 book saved' })).toHaveFocus();
+    expect(screen.getByRole('heading', { name: '1 book ready' })).toHaveFocus();
   });
 
   it('uses the plural for several books and shows the side card beside the list', () => {
@@ -156,8 +154,57 @@ describe('ResultsScreen', () => {
       />,
     );
 
-    expect(screen.getByRole('heading', { name: '2 books saved' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: '2 books ready' })).toBeVisible();
     expect(screen.getByText('Side card')).toBeVisible();
+  });
+
+  it('offers one native save action per book, a batch action for multiple, and folder access only after saving', async () => {
+    const user = userEvent.setup();
+    const onSaveAs = vi.fn();
+    const onSaveAll = vi.fn();
+    const outcomes = [
+      saved,
+      {
+        ...saved,
+        rowId: 'b',
+        artifacts: [{ id: 'two', name: 'Other.epub', bytes: 10, format: 'epub' as const }],
+      },
+    ];
+    const { rerender } = render(
+      <ResultsScreen {...handlers} onSaveAs={onSaveAs} onSaveAll={onSaveAll} outcomes={outcomes} />,
+    );
+    expect(
+      screen.queryByRole('button', { name: 'Show Work.epub in its folder' }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Save Work.epub as' }));
+    expect(onSaveAs).toHaveBeenCalledWith('one');
+    await user.click(screen.getByRole('button', { name: 'Save all to folder…' }));
+    expect(onSaveAll).toHaveBeenCalledWith(['one', 'two']);
+    rerender(
+      <ResultsScreen
+        {...handlers}
+        onSaveAs={onSaveAs}
+        onSaveAll={onSaveAll}
+        outcomes={outcomes}
+        savedIds={new Set(['one'])}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Show Work.epub in its folder' })).toBeVisible();
+    expect(
+      screen.queryByRole('button', { name: 'Show Other.epub in its folder' }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Save all to folder…' }));
+    expect(onSaveAll).toHaveBeenLastCalledWith(['one', 'two']);
+    rerender(
+      <ResultsScreen
+        {...handlers}
+        onSaveAll={onSaveAll}
+        outcomes={outcomes}
+        savedIds={new Set(['one', 'two'])}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Save all to folder…' }));
+    expect(onSaveAll).toHaveBeenCalledTimes(3);
   });
 
   it('says nothing was saved and explains each problem, offering a fix only where one exists', async () => {
@@ -184,7 +231,7 @@ describe('ResultsScreen', () => {
       />,
     );
 
-    expect(screen.getByRole('heading', { name: 'Nothing was saved' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'No books were produced' })).toBeVisible();
     expect(screen.getByText('Loose was skipped')).toBeVisible();
     expect(screen.getByText('Broken could not be converted')).toBeVisible();
     expect(screen.getByText('It crashed.')).toBeVisible();

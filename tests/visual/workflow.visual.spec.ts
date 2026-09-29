@@ -60,9 +60,16 @@ test.describe('at the size the window opens at', () => {
     await expect(page.locator('#storybook-root')).toHaveScreenshot('queue-with-library.png');
   });
 
+  test('pending books can be identified and reopened from the queue', async ({ page }) => {
+    await page.goto('/iframe.html?id=workflows-queue--ready-books&viewMode=story');
+    await expect(page.getByRole('button', { name: 'View books from Vol.01.epub' })).toBeVisible();
+    await page.evaluate(async () => document.fonts.ready);
+    await expect(page.locator('#storybook-root')).toHaveScreenshot('queue-ready-books.png');
+  });
+
   test('joining volumes only remains visually consistent', async ({ page }) => {
     await page.goto('/iframe.html?id=workflows-queue--join-only&viewMode=story');
-    await expect(page.getByRole('button', { name: /^Join \d+ items?$/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Process \d+ items?$/ })).toBeVisible();
     await page.evaluate(async () => document.fonts.ready);
     await expect(page.locator('#storybook-root')).toHaveScreenshot('queue-join-only.png');
   });
@@ -83,9 +90,16 @@ test.describe('at the size the window opens at', () => {
 
   test('saved books with the KOReader card remain visually consistent', async ({ page }) => {
     await page.goto('/iframe.html?id=workflows-results--saved-and-sharing&viewMode=story');
-    await expect(page.getByRole('heading', { name: '3 books saved' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '3 books ready' })).toBeVisible();
     await page.evaluate(async () => document.fonts.ready);
     await expect(page.locator('#storybook-root')).toHaveScreenshot('results-saved-sharing.png');
+  });
+
+  test('results distinguish books still pending from books already saved', async ({ page }) => {
+    await page.goto('/iframe.html?id=workflows-results--partly-saved&viewMode=story');
+    await expect(page.getByRole('button', { name: 'Save all to folder…' })).toBeVisible();
+    await page.evaluate(async () => document.fonts.ready);
+    await expect(page.locator('#storybook-root')).toHaveScreenshot('results-partly-saved.png');
   });
 
   test('results with something left out remain visually consistent', async ({ page }) => {

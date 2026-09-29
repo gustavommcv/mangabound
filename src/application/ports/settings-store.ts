@@ -2,9 +2,9 @@ import type { Preferences } from '@/domain/preferences';
 
 import type { NetworkInterfaceOption } from './network-interfaces';
 
-/** Everything kept between sessions: options, output location and sharing interface. */
+/** Everything kept between sessions: options, last Save-dialog location and sharing interface. */
 export interface StoredSettings extends Preferences {
-  /** The absolute path of the output folder last used. */
+  /** Legacy field name: the absolute path suggested by the next native Save dialog. */
   readonly outputFolder?: string;
   /** The folder a choose-file or choose-folder dialog last left the person in. */
   readonly lastPickerFolder?: string;

@@ -24,11 +24,11 @@ Intel Macs and AppImage aren't built for this alpha — see the release notes fo
 
 1. **Add.** Drag manga folders, libraries (a folder of manga folders) or `.cbz` files onto the window, or click the drop area to choose them.
 2. **Check the volumes.** If the folder names carry them (`Vol.02 Ch.0015 - Title`), the chapters are already grouped and nothing needs editing. If not, the volume editor starts from what mangabind could read and lets you take the grouping from an online source you choose, or assign chapters by hand. Every edit can be undone.
-3. **Choose the process.** Join the volumes into CBZ files, convert for an e-reader, or both. Pick the device, the format (EPUB, CBZ or PDF) and where to save. Every option mangapress has is available, starting from the state Kindle Comic Converter's window starts in.
-4. **Convert.** Items run one after another, with progress and a way to cancel. What was saved stays saved if a later item fails.
-5. **Read.** Open the books, show them in their folder, or serve the library on your network (OPDS) and add its address as a catalog in KOReader.
+3. **Choose the process.** Join the volumes into CBZ files, convert for an e-reader, or both. Pick the device and format (EPUB, CBZ or PDF). Every option mangapress has is available, starting from the state Kindle Comic Converter's window starts in.
+4. **Process.** Items run one after another, with progress and a way to cancel. Ready books remain available in the app until you save them, even if you close it.
+5. **Save or share.** Use **Save as…** for one book or **Save all to folder…** for several. Save All remains available if you need to export the set again; existing files are never replaced by that action. You can also open a ready book or share it directly over your network (OPDS) for KOReader, without saving it elsewhere first.
 
-The device, the format, the process, every option and the output folder are remembered between sessions, and can be put back to their defaults with one button.
+The device, format, process and options are remembered between sessions, and can be put back to their defaults with one button. The last save location is suggested the next time you save; it is never an automatic output destination.
 
 ## What it is not
 

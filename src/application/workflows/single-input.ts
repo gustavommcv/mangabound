@@ -556,7 +556,7 @@ export class SingleInputWorkflow {
       if (signal?.aborted === true) throw error;
       throw new ConversionWorkflowError(
         'publish_failed',
-        "Couldn't save a joined volume to the output folder. Check that the folder is writable and has free space.",
+        "Couldn't write a joined volume to Mangabound's pending storage. Check available space and storage permissions.",
         { cause: error },
       );
     }

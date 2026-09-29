@@ -1,12 +1,4 @@
-import {
-  CheckCircle2,
-  ChevronRight,
-  FilePlus2,
-  FolderOpen,
-  FolderPlus,
-  LoaderCircle,
-  X,
-} from 'lucide-react';
+import { CheckCircle2, ChevronRight, FilePlus2, FolderPlus, LoaderCircle, X } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 
 import { type QueueRow, summarizeQueue } from '@/domain/input-queue';
@@ -26,7 +18,7 @@ import { SegmentedControl } from '@/renderer/components/ui/segmented-control';
 import type {
   DeviceProfileSummary,
   PlanSummary,
-  SelectedLibrary,
+  PendingRunSummary,
 } from '@/shared/workflow-contract';
 
 export interface RowPlan {
@@ -38,11 +30,11 @@ export interface QueueScreenProps {
   /** True until the bundled tools are verified: nothing can be added or run before that. */
   readonly disabled: boolean;
   readonly format: BookFormat;
-  readonly library?: SelectedLibrary;
+  readonly pendingRuns?: readonly PendingRunSummary[];
   readonly mode: ProcessMode;
   readonly onAddFiles: () => void;
   readonly onAddFolders: () => void;
-  readonly onChooseLibrary: () => void;
+  readonly onOpenPending?: (libraryId: string) => void;
   readonly onClear: () => void;
   readonly onConvert: () => void;
   readonly onDeviceProfile: (code: string) => void;
@@ -88,11 +80,11 @@ export function QueueScreen(props: QueueScreenProps): React.JSX.Element {
   const {
     disabled,
     format,
-    library,
+    pendingRuns,
     mode,
     onAddFiles,
     onAddFolders,
-    onChooseLibrary,
+    onOpenPending,
     onClear,
     onConvert,
     onDeviceProfile,
@@ -120,21 +112,17 @@ export function QueueScreen(props: QueueScreenProps): React.JSX.Element {
   }, []);
   const summary = summarizeQueue(rows, mode);
   const mangapressRuns = mode !== 'bind-only';
-  const canRun =
-    !disabled && summary.inspecting === 0 && summary.runnable > 0 && library !== undefined;
-  const verb = mode === 'bind-only' ? 'Join' : 'Convert';
+  const canRun = !disabled && summary.inspecting === 0 && summary.runnable > 0;
   const hint =
     summary.inspecting > 0
       ? `Reading ${plural(summary.inspecting, 'item')}…`
       : summary.total === 0
         ? undefined
-        : library === undefined
-          ? 'Choose an output folder to continue.'
-          : summary.runnable === 0
-            ? 'Nothing here can run yet.'
-            : summary.skipped > 0
-              ? `${plural(summary.skipped, 'item')} will be left out. Use the pencil on a row to fix it.`
-              : undefined;
+        : summary.runnable === 0
+          ? 'Nothing here can run yet.'
+          : summary.skipped > 0
+            ? `${plural(summary.skipped, 'item')} will be left out. Use the pencil on a row to fix it.`
+            : undefined;
   const onlyCbz = rows.length > 0 && rows.every((row) => row.kind === 'cbz');
   const singleBookActive = singleBook && !onlyCbz;
 
@@ -220,6 +208,42 @@ export function QueueScreen(props: QueueScreenProps): React.JSX.Element {
         )}
 
         {plans !== undefined && plans.length > 0 && <PlansPanel plans={plans} />}
+        {pendingRuns !== undefined && pendingRuns.length > 0 && onOpenPending !== undefined && (
+          <section
+            aria-label="Earlier books"
+            className="border-border bg-surface rounded-xl border p-4"
+          >
+            <h2 className="text-sm font-medium">Ready books</h2>
+            <ul className="mt-2 space-y-1">
+              {pendingRuns.map((run) => {
+                const firstBook = run.artifacts[0]?.name ?? 'Earlier conversion';
+                const remaining = run.artifacts.length - 1;
+                const description =
+                  remaining > 0 ? `${firstBook} and ${plural(remaining, 'more book')}` : firstBook;
+                return (
+                  <li
+                    className="flex items-center justify-between gap-3 text-sm"
+                    key={run.libraryId}
+                  >
+                    <span className="min-w-0 truncate" title={description}>
+                      {description}
+                    </span>
+                    <Button
+                      aria-label={`View books from ${firstBook}`}
+                      onClick={() => {
+                        onOpenPending(run.libraryId);
+                      }}
+                      size="sm"
+                      variant="outline"
+                    >
+                      View books
+                    </Button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
       </div>
 
       <aside
@@ -317,23 +341,6 @@ export function QueueScreen(props: QueueScreenProps): React.JSX.Element {
           )}
         </div>
 
-        <div className="space-y-1.5">
-          <p className="text-sm leading-none font-medium">Save to</p>
-          <div className="bg-muted flex items-center justify-between gap-2 rounded-lg py-1 pr-1 pl-3">
-            <p className="min-w-0 text-sm break-all">
-              {library?.displayPath ?? 'No folder selected'}
-            </p>
-            <Button
-              aria-label={library === undefined ? 'Choose output folder' : 'Change output folder'}
-              onClick={onChooseLibrary}
-              size="sm"
-              variant="outline"
-            >
-              <FolderOpen /> {library === undefined ? 'Choose' : 'Change'}
-            </Button>
-          </div>
-        </div>
-
         {mangapressRuns && (
           <button
             className="border-border hover:text-foreground focus-visible:ring-ring text-muted-foreground flex w-full items-center justify-between border-t py-2.5 text-sm outline-none focus-visible:ring-2"
@@ -357,7 +364,7 @@ export function QueueScreen(props: QueueScreenProps): React.JSX.Element {
 
         <div className="space-y-2">
           <Button className="w-full" disabled={!canRun} onClick={onConvert} size="lg">
-            {summary.runnable === 0 ? verb : `${verb} ${plural(summary.runnable, 'item')}`}
+            {summary.runnable === 0 ? 'Process' : `Process ${plural(summary.runnable, 'item')}`}
           </Button>
           <Button
             className="w-full"
