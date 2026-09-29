@@ -51,6 +51,7 @@ import type {
   OpdsAuthConfig,
   OpdsSharingStatus,
 } from '@/shared/opds-contract';
+import type { MangaboundBridge } from '@/shared/runtime-info';
 import type { SaveSettingsCommand } from '@/shared/settings-contract';
 import type { ToolchainStatus } from '@/shared/toolchain-status';
 import type {
@@ -846,6 +847,29 @@ export function App(): React.JSX.Element {
     else setFailure(result.error);
   };
 
+  const discardPendingRun = async (libraryId: string): Promise<boolean> => {
+    if (bridge === undefined) return false;
+    setFailure(undefined);
+    let result: Awaited<ReturnType<MangaboundBridge['discardPendingRun']>>;
+    try {
+      result = await bridge.discardPendingRun(libraryId);
+    } catch {
+      setFailure({
+        code: 'pending_delete_failed',
+        message: 'Mangabound could not delete these pending books. Please try again.',
+      });
+      return false;
+    }
+    if (!result.ok) {
+      setFailure(result.error);
+      return false;
+    }
+    setPendingRuns((current) => current.filter((run) => run.libraryId !== libraryId));
+    if (sharedLibrary?.libraryId === libraryId) setSharedLibrary(undefined);
+    if (activeRunId === libraryId) setActiveRunId(undefined);
+    return true;
+  };
+
   const saveArtifactAs = async (artifactId: string): Promise<void> => {
     if (bridge === undefined) return;
     setFailure(undefined);
@@ -1020,6 +1044,7 @@ export function App(): React.JSX.Element {
                 mode={mode}
                 pendingRuns={pendingRuns}
                 onOpenPending={openPendingRun}
+                onDeletePending={discardPendingRun}
                 onAddFiles={() => {
                   void addFromDialog('files');
                 }}

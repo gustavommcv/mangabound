@@ -25,7 +25,8 @@ export default defineConfig({
       : { launchOptions: { executablePath: browserExecutable } }),
   },
   webServer: {
-    command: 'npm run storybook -- --ci',
+    // Match the address Playwright opens so Vite's host check cannot reject the preview.
+    command: 'npm run storybook -- --ci --host 127.0.0.1',
     reuseExistingServer: process.env.CI !== 'true',
     timeout: 30_000,
     url: 'http://127.0.0.1:6006',

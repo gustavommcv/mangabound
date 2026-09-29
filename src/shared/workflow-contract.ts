@@ -217,6 +217,7 @@ export interface PendingArtifactSummary extends ArtifactSummary {
 
 export interface PendingRunSummary {
   readonly libraryId: string;
+  readonly createdAt: number;
   readonly artifacts: readonly PendingArtifactSummary[];
 }
 

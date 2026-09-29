@@ -197,12 +197,26 @@ export const ReadyBooks: Story = {
     pendingRuns: [
       {
         libraryId: 'run-one',
+        createdAt: Date.UTC(2026, 8, 28, 18, 30),
         artifacts: [
           { id: 'book-one', name: 'Vol.01.epub', bytes: 18_400_000, format: 'epub', saved: false },
         ],
       },
     ],
     onOpenPending: () => undefined,
+    onDeletePending: () => Promise.resolve(true),
+  },
+};
+
+export const ReadyBooksConfirmDelete: Story = {
+  ...ReadyBooks,
+  play: async ({ canvasElement }) => {
+    await userEvent.click(
+      within(canvasElement).getByRole('button', { name: 'Delete pending books from Vol.01.epub' }),
+    );
+    await expect(
+      within(canvasElement).getByRole('group', { name: 'Confirm deletion of Vol.01.epub' }),
+    ).toBeVisible();
   },
 };
 

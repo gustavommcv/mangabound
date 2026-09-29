@@ -75,6 +75,7 @@ const bridge: MangaboundBridge = Object.freeze({
   planConversion: (command: PlanConversionCommand) => invoke<PlanSummary>('workflow:plan', command),
   createPendingRun: () => invoke<string>('pending:create'),
   listPendingRuns: () => invoke<readonly PendingRunSummary[]>('pending:list'),
+  discardPendingRun: (libraryId: string) => invoke<undefined>('pending:discard', libraryId),
   saveArtifactAs: (artifactId: string) =>
     invoke<{ saved: boolean; warning?: string }>('pending:save-as', artifactId),
   saveAllArtifacts: (artifactIds: readonly string[]) =>

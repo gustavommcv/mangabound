@@ -196,6 +196,14 @@ export class FsPendingRuns {
     }
   }
 
+  /** Remove only an existing app-owned run; exported copies live outside this root. */
+  async discard(id: string): Promise<boolean> {
+    const run = (await this.list()).find((candidate) => candidate.id === id);
+    if (run === undefined) return false;
+    await rm(run.path, { recursive: true });
+    return true;
+  }
+
   private async readState(runPath: string): Promise<PendingState> {
     let raw: string;
     try {

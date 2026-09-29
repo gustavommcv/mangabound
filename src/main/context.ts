@@ -13,6 +13,8 @@ import { type SingleInputWorkflow } from '@/application/workflows/single-input';
 import type { InputSelection } from '@/domain/conversion';
 import { defaultPreferences, type Preferences } from '@/domain/preferences';
 
+import { PendingRunActivity } from './pending-run-activity';
+
 /**
  * Everything the main process's IPC handlers share, constructed once in index.ts and passed to
  * each `register*Handlers`. A handler function is typed to receive only the slice of this it
@@ -25,6 +27,7 @@ export interface MainContext {
   readonly artifactPaths: Map<string, string>;
   readonly pendingArtifacts: Map<string, { readonly runId: string; readonly relativePath: string }>;
   pendingRuns: FsPendingRuns | undefined;
+  readonly pendingRunActivity: PendingRunActivity;
   readonly activeJobs: Map<string, AbortController>;
   readonly metadataProviders: Map<string, MetadataProviderPort>;
   readonly libraryStore: FsLibraryStore;
@@ -33,6 +36,7 @@ export interface MainContext {
   readonly networkInterfaces: OsNetworkInterfaces;
   preferences: PreferencesWorkflow | undefined;
   activeSharing: OpdsServerHandle | undefined;
+  activeSharingLibraryId: string | undefined;
   // Where a choose-file or choose-folder dialog should open next; kept in memory and mirrored to
   // disk so it survives a restart, but never told to the renderer, which never holds paths.
   lastPickerFolder: string | undefined;
@@ -54,6 +58,7 @@ export function createMainContext(): MainContext {
     artifactPaths: new Map(),
     pendingArtifacts: new Map(),
     pendingRuns: undefined,
+    pendingRunActivity: new PendingRunActivity(),
     activeJobs: new Map(),
     metadataProviders: new Map(
       createMetadataProviders().map((provider) => [provider.descriptor.id, provider] as const),
@@ -64,6 +69,7 @@ export function createMainContext(): MainContext {
     networkInterfaces: new OsNetworkInterfaces(),
     preferences: undefined,
     activeSharing: undefined,
+    activeSharingLibraryId: undefined,
     lastPickerFolder: undefined,
     preferredNetworkInterface: undefined,
     currentPreferences: defaultPreferences,

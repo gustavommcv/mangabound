@@ -19,6 +19,8 @@ type OpdsContext = Pick<
   MainContext,
   | 'selectedLibraries'
   | 'activeSharing'
+  | 'activeSharingLibraryId'
+  | 'pendingRunActivity'
   | 'libraryStore'
   | 'opdsServer'
   | 'networkInterfaces'
@@ -50,12 +52,19 @@ export function registerOpdsHandlers(context: OpdsContext): void {
         if (libraryPath === undefined) {
           return failed({ code: 'library_not_found', message: 'Choose a library to share again.' });
         }
-        if (context.activeSharing !== undefined) {
+        if (context.pendingRunActivity.isDeleting(command.libraryId)) {
+          return failed({
+            code: 'pending_in_use',
+            message: 'These pending books are being deleted and can no longer be shared.',
+          });
+        }
+        if (context.activeSharing !== undefined || context.activeSharingLibraryId !== undefined) {
           return failed({
             code: 'sharing_already_active',
             message: 'Sharing is already running.',
           });
         }
+        context.activeSharingLibraryId = command.libraryId;
         // The listener never reads the catalog on start, so a corrupt one would otherwise only
         // surface as a broken feed on the reader. A missing catalog is fine (read() returns an
         // empty one); only unreadable content stops sharing here. Any read failure gets the same
@@ -64,6 +73,7 @@ export function registerOpdsHandlers(context: OpdsContext): void {
         try {
           await context.libraryStore.read(libraryPath);
         } catch (error) {
+          context.activeSharingLibraryId = undefined;
           return failed({
             code: error instanceof LibraryIndexError ? error.code : 'library_unreadable',
             message: 'The output library catalog could not be read.',
@@ -81,6 +91,7 @@ export function registerOpdsHandlers(context: OpdsContext): void {
         });
         return ok(toSharingStatus(context.activeSharing));
       } catch (error) {
+        context.activeSharingLibraryId = undefined;
         return failed(toFailure(error));
       }
     },
@@ -93,6 +104,7 @@ export function registerOpdsHandlers(context: OpdsContext): void {
       }
       await context.activeSharing.stop();
       context.activeSharing = undefined;
+      context.activeSharingLibraryId = undefined;
       return ok(undefined);
     } catch (error) {
       return failed(toFailure(error));

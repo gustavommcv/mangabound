@@ -50,6 +50,7 @@ export interface MangaboundBridge {
   readonly planConversion: (command: PlanConversionCommand) => Promise<WorkflowResult<PlanSummary>>;
   readonly createPendingRun: () => Promise<WorkflowResult<string>>;
   readonly listPendingRuns: () => Promise<WorkflowResult<readonly PendingRunSummary[]>>;
+  readonly discardPendingRun: (libraryId: string) => Promise<WorkflowResult<undefined>>;
   readonly saveArtifactAs: (
     artifactId: string,
   ) => Promise<WorkflowResult<{ saved: boolean; warning?: string }>>;
