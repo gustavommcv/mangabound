@@ -74,6 +74,25 @@ describe('FsPendingRuns', () => {
     expect(await readFile(destination, 'utf8')).toBe('hello');
   });
 
+  it('discards only the selected pending run and leaves exported books alone', async () => {
+    const { root, store, run } = await bookFixture();
+    const other = await store.create();
+    await writeFile(path.join(other.path, 'Other.cbz'), 'other');
+    const pendingBook = (await store.list()).find((item) => item.id === run.id)?.books[0];
+    if (pendingBook === undefined) throw new Error('Fixture missing');
+    const exported = path.join(root, 'Exported.epub');
+    await store.export(pendingBook, exported, false);
+
+    expect(await store.discard('not-a-run')).toBe(false);
+    expect(await store.discard(run.id)).toBe(true);
+    expect(await store.discard(run.id)).toBe(false);
+    await expect(readFile(path.join(run.path, 'Book.epub'))).rejects.toMatchObject({
+      code: 'ENOENT',
+    });
+    expect(await readFile(exported, 'utf8')).toBe('hello');
+    expect((await store.list()).map((item) => item.id)).toEqual([other.id]);
+  });
+
   it('lists multiple populated runs newest first', async () => {
     const { store } = await bookFixture();
     await new Promise((resolve) => setTimeout(resolve, 20));

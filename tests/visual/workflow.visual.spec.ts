@@ -67,6 +67,17 @@ test.describe('at the size the window opens at', () => {
     await expect(page.locator('#storybook-root')).toHaveScreenshot('queue-ready-books.png');
   });
 
+  test('deleting pending books presents an explicit confirmation', async ({ page }) => {
+    await page.goto('/iframe.html?id=workflows-queue--ready-books-confirm-delete&viewMode=story');
+    await expect(
+      page.getByRole('group', { name: 'Confirm deletion of Vol.01.epub' }),
+    ).toBeVisible();
+    await page.evaluate(async () => document.fonts.ready);
+    await expect(page.locator('#storybook-root')).toHaveScreenshot(
+      'queue-ready-books-confirm-delete.png',
+    );
+  });
+
   test('joining volumes only remains visually consistent', async ({ page }) => {
     await page.goto('/iframe.html?id=workflows-queue--join-only&viewMode=story');
     await expect(page.getByRole('button', { name: /^Process \d+ items?$/ })).toBeVisible();

@@ -27,6 +27,9 @@ type PendingContext = Pick<
   | 'preferences'
   | 'currentPreferences'
   | 'preferredNetworkInterface'
+  | 'activeSharingLibraryId'
+  | 'activeJobs'
+  | 'pendingRunActivity'
 >;
 
 const idsSchema = z.array(identifierSchema).min(1).max(1000);
@@ -139,6 +142,7 @@ export function registerPendingHandlers(context: PendingContext): void {
             context.selectedLibraries.set(run.id, run.path);
             return {
               libraryId: run.id,
+              createdAt: run.createdAt,
               artifacts: run.books.map((book) => {
                 let id = [...context.pendingArtifacts].find(
                   ([, reference]) =>
@@ -176,6 +180,60 @@ export function registerPendingHandlers(context: PendingContext): void {
   );
 
   ipcMain.handle(
+    'pending:discard',
+    async (_event, rawId: unknown): Promise<WorkflowResult<undefined>> => {
+      try {
+        const id = identifierSchema.parse(rawId);
+        if (context.pendingRuns === undefined) throw new Error('Pending storage is unavailable.');
+        if (context.activeSharingLibraryId === id) {
+          return failed({
+            code: 'pending_in_use',
+            message: 'Stop sharing these books before deleting their pending copies.',
+          });
+        }
+        if (context.activeJobs.size > 0) {
+          return failed({
+            code: 'pending_in_use',
+            message: 'Wait for the current conversion to finish before deleting pending books.',
+          });
+        }
+        const release = context.pendingRunActivity.beginDelete(id);
+        if (release === undefined) {
+          return failed({
+            code: 'pending_in_use',
+            message: 'Wait for this pending run to finish saving before deleting it.',
+          });
+        }
+        try {
+          if (!(await context.pendingRuns.discard(id))) {
+            return failed({
+              code: 'pending_not_found',
+              message:
+                'These pending books are no longer available. Reopen Mangabound to refresh the list.',
+            });
+          }
+          context.selectedLibraries.delete(id);
+          for (const [artifactId, reference] of context.pendingArtifacts) {
+            if (reference.runId !== id) continue;
+            context.pendingArtifacts.delete(artifactId);
+            context.artifactPaths.delete(artifactId);
+          }
+          return ok(undefined);
+        } finally {
+          release();
+        }
+      } catch (error) {
+        console.error('Could not delete pending books.', error);
+        return failed({
+          code: 'pending_delete_failed',
+          message:
+            'The pending books could not be deleted. Check storage permissions and try again.',
+        });
+      }
+    },
+  );
+
+  ipcMain.handle(
     'pending:save-as',
     async (
       _event,
@@ -183,19 +241,27 @@ export function registerPendingHandlers(context: PendingContext): void {
     ): Promise<WorkflowResult<{ saved: boolean; warning?: string }>> => {
       try {
         const id = identifierSchema.parse(rawId);
-        const { book } = await findBook(context, id);
-        const defaultFolder = context.lastSaveFolder ?? app.getPath('documents');
-        const result = await dialog.showSaveDialog({
-          title: 'Save book as',
-          defaultPath: path.join(
-            defaultFolder ?? path.dirname(book.path),
-            path.basename(book.path),
-          ),
-          filters: [{ name: book.entry.format.toUpperCase(), extensions: [book.entry.format] }],
-        });
-        if (result.canceled || result.filePath === undefined) return ok({ saved: false });
-        const warning = await saveBook(context, id, result.filePath, true);
-        return ok({ saved: true, ...(warning === undefined ? {} : { warning }) });
+        const reference = context.pendingArtifacts.get(id);
+        if (reference === undefined) throw new Error('This pending book is no longer available.');
+        const release = context.pendingRunActivity.beginExport(reference.runId);
+        if (release === undefined) throw new Error('This pending book is being deleted.');
+        try {
+          const { book } = await findBook(context, id);
+          const defaultFolder = context.lastSaveFolder ?? app.getPath('documents');
+          const result = await dialog.showSaveDialog({
+            title: 'Save book as',
+            defaultPath: path.join(
+              defaultFolder ?? path.dirname(book.path),
+              path.basename(book.path),
+            ),
+            filters: [{ name: book.entry.format.toUpperCase(), extensions: [book.entry.format] }],
+          });
+          if (result.canceled || result.filePath === undefined) return ok({ saved: false });
+          const warning = await saveBook(context, id, result.filePath, true);
+          return ok({ saved: true, ...(warning === undefined ? {} : { warning }) });
+        } finally {
+          release();
+        }
       } catch (error) {
         return failed(saveFailure(error));
       }
@@ -217,39 +283,48 @@ export function registerPendingHandlers(context: PendingContext): void {
         ) {
           throw new Error('Select books from one conversion at a time.');
         }
-        const result = await dialog.showOpenDialog({
-          title: 'Save all books to a folder',
-          properties: ['openDirectory', 'createDirectory'],
-          defaultPath: context.lastSaveFolder ?? app.getPath('documents'),
-        });
-        const folder = result.filePaths[0];
-        if (result.canceled || folder === undefined) return ok(null);
-        rememberFolder(context, folder);
-        const savedIds: string[] = [];
-        const failures: { id: string; message: string }[] = [];
-        for (const id of ids) {
-          try {
-            const { book } = await findBook(context, id);
-            const parsed = path.parse(book.path);
-            let destination = path.join(folder, parsed.base);
-            for (let suffix = 2; suffix < 1000; suffix += 1) {
-              try {
-                const warning = await saveBook(context, id, destination, false);
-                savedIds.push(id);
-                if (warning !== undefined) failures.push({ id, message: warning });
-                break;
-              } catch (error) {
-                if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
-                destination = path.join(folder, `${parsed.name} (${String(suffix)})${parsed.ext}`);
+        const release = context.pendingRunActivity.beginExport(references[0]!.runId);
+        if (release === undefined) throw new Error('This pending book is being deleted.');
+        try {
+          const result = await dialog.showOpenDialog({
+            title: 'Save all books to a folder',
+            properties: ['openDirectory', 'createDirectory'],
+            defaultPath: context.lastSaveFolder ?? app.getPath('documents'),
+          });
+          const folder = result.filePaths[0];
+          if (result.canceled || folder === undefined) return ok(null);
+          rememberFolder(context, folder);
+          const savedIds: string[] = [];
+          const failures: { id: string; message: string }[] = [];
+          for (const id of ids) {
+            try {
+              const { book } = await findBook(context, id);
+              const parsed = path.parse(book.path);
+              let destination = path.join(folder, parsed.base);
+              for (let suffix = 2; suffix < 1000; suffix += 1) {
+                try {
+                  const warning = await saveBook(context, id, destination, false);
+                  savedIds.push(id);
+                  if (warning !== undefined) failures.push({ id, message: warning });
+                  break;
+                } catch (error) {
+                  if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+                  destination = path.join(
+                    folder,
+                    `${parsed.name} (${String(suffix)})${parsed.ext}`,
+                  );
+                }
               }
+              if (!savedIds.includes(id))
+                failures.push({ id, message: 'No available file name was found.' });
+            } catch (error) {
+              failures.push({ id, message: saveFailure(error).message });
             }
-            if (!savedIds.includes(id))
-              failures.push({ id, message: 'No available file name was found.' });
-          } catch (error) {
-            failures.push({ id, message: saveFailure(error).message });
           }
+          return ok({ savedIds, failures });
+        } finally {
+          release();
         }
-        return ok({ savedIds, failures });
       } catch (error) {
         return failed(saveFailure(error));
       }

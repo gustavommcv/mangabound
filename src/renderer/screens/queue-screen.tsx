@@ -1,5 +1,13 @@
-import { CheckCircle2, ChevronRight, FilePlus2, FolderPlus, LoaderCircle, X } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import {
+  CheckCircle2,
+  ChevronRight,
+  FilePlus2,
+  FolderPlus,
+  LoaderCircle,
+  Trash2,
+  X,
+} from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 
 import { type QueueRow, summarizeQueue } from '@/domain/input-queue';
 import type { BookFormat } from '@/domain/conversion';
@@ -35,6 +43,7 @@ export interface QueueScreenProps {
   readonly onAddFiles: () => void;
   readonly onAddFolders: () => void;
   readonly onOpenPending?: (libraryId: string) => void;
+  readonly onDeletePending?: (libraryId: string) => Promise<boolean>;
   readonly onClear: () => void;
   readonly onConvert: () => void;
   readonly onDeviceProfile: (code: string) => void;
@@ -85,6 +94,7 @@ export function QueueScreen(props: QueueScreenProps): React.JSX.Element {
     onAddFiles,
     onAddFolders,
     onOpenPending,
+    onDeletePending,
     onClear,
     onConvert,
     onDeviceProfile,
@@ -216,29 +226,21 @@ export function QueueScreen(props: QueueScreenProps): React.JSX.Element {
             <h2 className="text-sm font-medium">Ready books</h2>
             <ul className="mt-2 space-y-1">
               {pendingRuns.map((run) => {
-                const firstBook = run.artifacts[0]?.name ?? 'Earlier conversion';
-                const remaining = run.artifacts.length - 1;
-                const description =
-                  remaining > 0 ? `${firstBook} and ${plural(remaining, 'more book')}` : firstBook;
                 return (
-                  <li
-                    className="flex items-center justify-between gap-3 text-sm"
+                  <PendingRunItem
                     key={run.libraryId}
-                  >
-                    <span className="min-w-0 truncate" title={description}>
-                      {description}
-                    </span>
-                    <Button
-                      aria-label={`View books from ${firstBook}`}
-                      onClick={() => {
-                        onOpenPending(run.libraryId);
-                      }}
-                      size="sm"
-                      variant="outline"
-                    >
-                      View books
-                    </Button>
-                  </li>
+                    onDelete={
+                      onDeletePending === undefined
+                        ? undefined
+                        : async (id) => {
+                            const deleted = await onDeletePending(id);
+                            if (deleted) titleRef.current?.focus();
+                            return deleted;
+                          }
+                    }
+                    onOpen={onOpenPending}
+                    run={run}
+                  />
                 );
               })}
             </ul>
@@ -387,6 +389,107 @@ export function QueueScreen(props: QueueScreenProps): React.JSX.Element {
         </div>
       </aside>
     </section>
+  );
+}
+
+function PendingRunItem({
+  onDelete,
+  onOpen,
+  run,
+}: {
+  readonly onDelete?: (libraryId: string) => Promise<boolean>;
+  readonly onOpen: (libraryId: string) => void;
+  readonly run: PendingRunSummary;
+}): React.JSX.Element {
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const deleteTrigger = useRef<HTMLButtonElement>(null);
+  const firstBook = run.artifacts[0]?.name ?? 'Earlier conversion';
+  const remaining = run.artifacts.length - 1;
+  const description =
+    remaining > 0 ? `${firstBook} and ${plural(remaining, 'more book')}` : firstBook;
+  const close = (): void => {
+    setConfirming(false);
+    deleteTrigger.current?.focus();
+  };
+
+  return (
+    <li className="space-y-2 text-sm">
+      <div className="flex items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="truncate" title={description}>
+            {description}
+          </p>
+          <p className="text-muted-foreground text-xs">
+            {new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(
+              run.createdAt,
+            )}
+          </p>
+        </div>
+        <Button
+          aria-label={`View books from ${firstBook}`}
+          onClick={() => {
+            onOpen(run.libraryId);
+          }}
+          size="sm"
+          variant="outline"
+        >
+          View books
+        </Button>
+        {onDelete !== undefined && (
+          <Button
+            aria-label={`Delete pending books from ${firstBook}`}
+            aria-expanded={confirming}
+            className="hover:text-destructive"
+            onClick={() => {
+              setConfirming(true);
+            }}
+            ref={deleteTrigger}
+            size="sm"
+            variant="ghost"
+          >
+            <Trash2 aria-hidden="true" /> Delete
+          </Button>
+        )}
+      </div>
+      {confirming && onDelete !== undefined && (
+        <div
+          aria-label={`Confirm deletion of ${firstBook}`}
+          className="border-border bg-background space-y-2 rounded-lg border p-3"
+          onKeyDown={(event) => {
+            if (event.key === 'Escape' && !deleting) close();
+          }}
+          role="group"
+        >
+          <p className="text-muted-foreground text-xs leading-relaxed">
+            Permanently delete this conversion's {plural(run.artifacts.length, 'pending book')}?
+            Books saved elsewhere will stay untouched.
+          </p>
+          <div className="flex gap-2">
+            <Button
+              disabled={deleting}
+              onClick={() => {
+                setDeleting(true);
+                void onDelete(run.libraryId)
+                  .then((deleted) => {
+                    if (deleted) setConfirming(false);
+                  })
+                  .finally(() => {
+                    setDeleting(false);
+                  });
+              }}
+              size="sm"
+              variant="destructive"
+            >
+              {deleting ? 'Deleting…' : 'Delete books'}
+            </Button>
+            <Button disabled={deleting} onClick={close} size="sm" variant="outline">
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+    </li>
   );
 }
 

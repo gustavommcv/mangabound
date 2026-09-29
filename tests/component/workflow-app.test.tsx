@@ -93,6 +93,7 @@ function bridge(overrides: Partial<MangaboundBridge> = {}): MangaboundBridge {
   return {
     createPendingRun: () => Promise.resolve({ ok: true, value: 'pending-run' }),
     listPendingRuns: () => Promise.resolve({ ok: true, value: [] }),
+    discardPendingRun: () => Promise.resolve({ ok: true, value: undefined }),
     saveArtifactAs: () => Promise.resolve({ ok: true, value: { saved: true } }),
     saveAllArtifacts: () => Promise.resolve({ ok: true, value: { savedIds: [], failures: [] } }),
     runtime: { electron: '44.3.0', platform: 'win32', version: '0.1.0-alpha.1' },
@@ -211,6 +212,7 @@ describe('queue application workflow', () => {
             value: [
               {
                 libraryId: 'recovered-run',
+                createdAt: 1_000,
                 artifacts: [
                   {
                     id: 'recovered-book',
@@ -249,6 +251,7 @@ describe('queue application workflow', () => {
             value: [
               {
                 libraryId: 'first-run',
+                createdAt: 1_000,
                 artifacts: [
                   {
                     id: 'first-book',
@@ -261,6 +264,7 @@ describe('queue application workflow', () => {
               },
               {
                 libraryId: 'second-run',
+                createdAt: 2_000,
                 artifacts: [
                   {
                     id: 'second-book',
@@ -284,6 +288,98 @@ describe('queue application workflow', () => {
     expect(screen.getByRole('list', { name: 'Ready books' })).not.toHaveTextContent('First.epub');
   });
 
+  it('confirms deletion of one pending conversion without removing another', async () => {
+    const user = userEvent.setup();
+    const discardPendingRun = vi.fn<MangaboundBridge['discardPendingRun']>(() =>
+      Promise.resolve({ ok: true, value: undefined }),
+    );
+    installBridge(
+      bridge({
+        discardPendingRun,
+        listPendingRuns: () =>
+          Promise.resolve({
+            ok: true,
+            value: [
+              {
+                libraryId: 'first-run',
+                createdAt: 1_000,
+                artifacts: [{ id: 'a', name: 'Same.epub', bytes: 5, format: 'epub', saved: false }],
+              },
+              {
+                libraryId: 'second-run',
+                createdAt: 2_000,
+                artifacts: [{ id: 'b', name: 'Same.epub', bytes: 5, format: 'epub', saved: false }],
+              },
+            ],
+          }),
+      }),
+    );
+    render(<App />);
+
+    const buttons = await screen.findAllByRole('button', {
+      name: 'Delete pending books from Same.epub',
+    });
+    expect(buttons).toHaveLength(2);
+    await user.click(buttons[0]!);
+    expect(screen.getByRole('group', { name: 'Confirm deletion of Same.epub' })).toHaveTextContent(
+      'Books saved elsewhere will stay untouched.',
+    );
+    expect(discardPendingRun).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(discardPendingRun).not.toHaveBeenCalled();
+
+    await user.click(buttons[0]!);
+    await user.click(screen.getByRole('button', { name: 'Delete books' }));
+    await waitFor(() => {
+      expect(discardPendingRun).toHaveBeenCalledWith('first-run');
+    });
+    await waitFor(() => {
+      expect(
+        screen.getAllByRole('button', { name: 'Delete pending books from Same.epub' }),
+      ).toHaveLength(1);
+    });
+    await user.click(screen.getByRole('button', { name: 'View books from Same.epub' }));
+    expect(screen.getByRole('list', { name: 'Ready books' })).toHaveTextContent('Same.epub');
+  });
+
+  it('keeps pending books visible when deletion fails', async () => {
+    const user = userEvent.setup();
+    installBridge(
+      bridge({
+        listPendingRuns: () =>
+          Promise.resolve({
+            ok: true,
+            value: [
+              {
+                libraryId: 'run',
+                createdAt: 1_000,
+                artifacts: [
+                  { id: 'book', name: 'Keep.epub', bytes: 5, format: 'epub', saved: false },
+                ],
+              },
+            ],
+          }),
+        discardPendingRun: () =>
+          Promise.resolve({
+            ok: false,
+            error: {
+              code: 'pending_in_use',
+              message: 'Stop sharing these books before deleting their pending copies.',
+            },
+          }),
+      }),
+    );
+    render(<App />);
+    await user.click(
+      await screen.findByRole('button', { name: 'Delete pending books from Keep.epub' }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Delete books' }));
+    expect(
+      await screen.findByText('Stop sharing these books before deleting their pending copies.'),
+    ).toBeVisible();
+    expect(screen.getByRole('button', { name: 'View books from Keep.epub' })).toBeVisible();
+  });
+
   it('keeps batch saving available after a warning is dismissed', async () => {
     const user = userEvent.setup();
     const saveAllArtifacts = vi.fn<MangaboundBridge['saveAllArtifacts']>(() =>
@@ -304,6 +400,7 @@ describe('queue application workflow', () => {
             value: [
               {
                 libraryId: 'recovered-run',
+                createdAt: 1_000,
                 artifacts: [
                   {
                     id: 'first-book',

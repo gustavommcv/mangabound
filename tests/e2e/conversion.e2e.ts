@@ -274,6 +274,10 @@ describe('packaged conversion pipeline', () => {
     temporaryDirectories.push(testRoot);
     const directCbzPath = path.resolve('tests', 'fixtures', 'e2e', 'cbz', 'Mangabound Direct.cbz');
     const destination = path.join(testRoot, 'Recovered.epub');
+    const pendingRoot = process.env.MANGABOUND_PENDING_ROOT;
+    if (pendingRoot === undefined)
+      throw new Error('The packaged test has no isolated pending root.');
+    const earlierRuns = new Set(await readdir(pendingRoot));
     const openDialog = await browser.electron.mock('dialog', 'showOpenDialog');
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [directCbzPath] });
 
@@ -290,6 +294,41 @@ describe('packaged conversion pipeline', () => {
     await $('button=View books').click();
     await $('h1=1 book ready').waitForDisplayed();
     await saveBookAs('Mangabound Direct.epub', destination);
+    assert.equal((await readFile(destination)).subarray(0, 2).toString('ascii'), 'PK');
+
+    const newRuns = (await readdir(pendingRoot)).filter((id) => !earlierRuns.has(id));
+    assert.equal(newRuns.length, 1);
+    await $('button=Convert more').click();
+    const deleteButton = $('button[aria-label="Delete pending books from Mangabound Direct.epub"]');
+    await deleteButton.click();
+    await $('button=Cancel').click();
+    assert.ok((await readdir(pendingRoot)).includes(newRuns[0]!));
+
+    await browser.execute(async (runId) => {
+      const started = await window.mangabound?.startSharing(runId, '127.0.0.1', {
+        username: '',
+        password: '',
+      });
+      if (started?.ok !== true) throw new Error('Could not share the pending run.');
+    }, newRuns[0]!);
+    await deleteButton.click();
+    await $('button=Delete books').click();
+    const deletionError = $('section[aria-label="Workflow error"] p');
+    await deletionError.waitForDisplayed();
+    assert.equal(
+      await deletionError.getText(),
+      'Stop sharing these books before deleting their pending copies.',
+    );
+    assert.ok((await readdir(pendingRoot)).includes(newRuns[0]!));
+    await browser.execute(async () => {
+      const stopped = await window.mangabound?.stopSharing();
+      if (stopped?.ok !== true) throw new Error('Could not stop sharing the pending run.');
+    });
+    await $('button=Delete books').click();
+    await browser.waitUntil(async () => !(await readdir(pendingRoot)).includes(newRuns[0]!), {
+      timeout: 30_000,
+      timeoutMsg: 'The selected pending run was not deleted.',
+    });
     assert.equal((await readFile(destination)).subarray(0, 2).toString('ascii'), 'PK');
   });
 });

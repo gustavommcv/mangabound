@@ -31,6 +31,7 @@ type ConversionContext = Pick<
   | 'libraryPublisher'
   | 'pendingRuns'
   | 'pendingArtifacts'
+  | 'pendingRunActivity'
 >;
 
 /**
@@ -150,6 +151,12 @@ export function registerConversionHandlers(context: ConversionContext): void {
             message: 'The pending conversion is no longer available.',
           });
         }
+        if (context.pendingRunActivity.isDeleting(command.libraryId)) {
+          return failed({
+            code: 'pending_in_use',
+            message: 'The pending conversion is being deleted.',
+          });
+        }
         if (context.activeJobs.has(command.jobId)) {
           return failed({ code: 'job_exists', message: 'That conversion is already running.' });
         }
@@ -240,6 +247,12 @@ export function registerConversionHandlers(context: ConversionContext): void {
           return failed({
             code: 'library_not_found',
             message: 'The pending conversion is no longer available.',
+          });
+        }
+        if (context.pendingRunActivity.isDeleting(command.libraryId)) {
+          return failed({
+            code: 'pending_in_use',
+            message: 'The pending conversion is being deleted.',
           });
         }
         if (context.activeJobs.has(command.jobId)) {
