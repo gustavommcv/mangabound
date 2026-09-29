@@ -4,7 +4,7 @@
     "mangabind": {
       "workflow": ["-combine", "-i", "-input", "-o", "-output"],
       "user": ["-batch", "-dry-run", "-metadata-file", "-n", "-q", "-quiet"],
-      "internal": ["-json", "-protocol-version", "-version"]
+      "internal": ["-json", "-progress-json", "-protocol-version", "-version"]
     },
     "mangapress": {
       "workflow": ["--nested-toc", "--output", "-o"],
