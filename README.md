@@ -86,7 +86,7 @@ What each kind of test covers, and what Storybook is for, is in [CONTRIBUTING.md
 
 ## Bundled CLI updates
 
-The app is locked to mangabind `v0.4.0` and mangapress `v0.5.0`. `toolchain.lock.json` records the release tag, checksum-file hash, archive hash, and executable hash for all supported targets, and both the build and the app verify them before anything runs.
+The app is locked to mangabind `v0.6.0` and mangapress `v0.6.0`. `toolchain.lock.json` records the release tag, checksum-file hash, archive hash, and executable hash for all supported targets, and both the build and the app verify them before anything runs.
 
 Taking a newer release of either tool is a deliberate, manual step: `npm run toolchain:update -- --tool mangabind` (or `mangapress`) pins its latest release after downloading and checking every platform's asset, and you open a pull request with the result. The steps are in [CONTRIBUTING.md](CONTRIBUTING.md#updating-the-bundled-tools) and the reasoning is in [ADR 0017](docs/adr/0017-bundled-tools-are-updated-by-hand.md). Nothing is ever downloaded or updated in an installed app.
 
