@@ -1,14 +1,10 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { loadToolchainManifest } from '@/adapters/toolchain/manifest';
-import {
-  resolveToolchainTarget,
-  verifyBundledToolchain,
-  verifyDevelopmentMangabind,
-} from '@/adapters/toolchain/verification';
+import { resolveToolchainTarget, verifyBundledToolchain } from '@/adapters/toolchain/verification';
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const manifest = loadToolchainManifest();
@@ -278,59 +274,5 @@ describe('bundled toolchain verification', () => {
     });
 
     expect(status.state).toBe('ready');
-  });
-});
-
-describe('explicit local mangabind development override', () => {
-  const executable = path.resolve(repositoryRoot, 'local-bin', 'mangabind.exe');
-
-  it('accepts a local executable only after its protocol advertises both required capabilities', async () => {
-    const run = () =>
-      Promise.resolve({
-        stdout: JSON.stringify({
-          protocol_version: 1,
-          tool: 'mangabind',
-          tool_version: 'dev',
-          capabilities: ['report', 'progress-json'],
-        }),
-        stderr: '',
-      });
-    await expect(verifyDevelopmentMangabind(executable, run)).resolves.toEqual({
-      version: 'dev',
-      capabilities: ['report', 'progress-json'],
-    });
-  });
-
-  it('rejects relative paths before trying to launch a process', async () => {
-    const run = vi.fn<Runner>();
-    await expect(verifyDevelopmentMangabind('mangabind.exe', run)).rejects.toThrow(
-      /absolute path/u,
-    );
-    expect(run).not.toHaveBeenCalled();
-  });
-
-  it.each([{ capabilities: ['report'] }, { capabilities: ['progress-json'] }])(
-    'rejects an incomplete capability set %j',
-    async ({ capabilities }) => {
-      await expect(
-        verifyDevelopmentMangabind(executable, () =>
-          Promise.resolve({
-            stdout: JSON.stringify({
-              protocol_version: 1,
-              tool: 'mangabind',
-              tool_version: 'dev',
-              capabilities,
-            }),
-            stderr: '',
-          }),
-        ),
-      ).rejects.toThrow(/does not support structured progress/u);
-    },
-  );
-
-  it('rejects a malformed or incompatible local handshake', async () => {
-    await expect(
-      verifyDevelopmentMangabind(executable, () => Promise.resolve({ stdout: '{}', stderr: '' })),
-    ).rejects.toMatchObject({ code: 'invalid_payload' });
   });
 });

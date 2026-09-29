@@ -115,25 +115,6 @@ function verifyProtocolOutput(
   return handshake.capabilities as string[];
 }
 
-/** Explicit local development override; release bundles still use the pinned checksum path. */
-export async function verifyDevelopmentMangabind(
-  executablePath: string,
-  runCommand: VerificationDependencies['run'] = run,
-): Promise<{ readonly version: string; readonly capabilities: readonly string[] }> {
-  if (!path.isAbsolute(executablePath)) {
-    throw new Error('A local mangabind executable must have an absolute path.');
-  }
-  const result = await runCommand(executablePath, ['--protocol-version']);
-  const handshake = parseMangabindProtocolInfo(result.stdout);
-  if (
-    !handshake.capabilities.includes('report') ||
-    !handshake.capabilities.includes('progress-json')
-  ) {
-    throw new Error('The local mangabind executable does not support structured progress.');
-  }
-  return { version: handshake.tool_version, capabilities: handshake.capabilities };
-}
-
 async function verifyTool(
   toolName: ToolName,
   target: ToolchainTarget,

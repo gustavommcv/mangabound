@@ -108,20 +108,6 @@ Run the npm scripts from PowerShell. The `tar` that ships with Git Bash breaks t
 
 Do not package (`npm run package`) while Storybook or `npm start` is running: their watchers hold the `.webpack` folder and packaging fails with an `EPERM` on a rename.
 
-### Test an unreleased local mangabind in the development app
-
-The normal `npm start` always uses the version pinned in `toolchain.lock.json`; it does not pick up a sibling source checkout. To test a mangabind change before a public release, build that checkout and explicitly opt in to a **development-only** override in the same PowerShell session:
-
-```powershell
-cd ..\mangabind
-$env:MANGABOUND_DEV_MANGABIND_PATH = Join-Path ([IO.Path]::GetTempPath()) "mangabind-progress-$([guid]::NewGuid()).exe"
-go build -o $env:MANGABOUND_DEV_MANGABIND_PATH ./cmd/mangabind
-cd ..\mangabound
-npm start
-```
-
-Run this only with a local binary you trust. The app still verifies its pinned tools, then checks that the explicitly named local mangabind supports protocol version 1, final reports and progress events. If the path or handshake is wrong, conversion is blocked rather than silently falling back. This override is ignored in packaged builds; it does not change the lockfile, installer or release process. After closing the app, unset `MANGABOUND_DEV_MANGABIND_PATH` in PowerShell to return to the pinned binary on the next `npm start`.
-
 ## Updating the bundled tools
 
 mangabind and mangapress are pinned in `toolchain.lock.json`, and taking a newer release of either is a manual, deliberate step ([ADR 0017](docs/adr/0017-bundled-tools-are-updated-by-hand.md)). When one has published a release you want to ship:
