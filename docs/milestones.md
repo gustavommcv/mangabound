@@ -96,7 +96,7 @@ Exit: a folder whose names carry volumes converts without opening the mapping ed
 
 ## M8 — Release hardening
 
-Paused partway through to ship the first public alpha instead of finishing every item below first: `v0.1.0-alpha.1` and `v0.1.0-alpha.2` are both out (see `docs/releases/`), then work resumed on what M8 originally listed.
+Paused partway through to ship the first public alpha instead of finishing every item below first: `v0.1.0-alpha.1` through `v0.1.0-alpha.8` are out (see `docs/releases/`), with work on what M8 originally listed resuming in between.
 
 **Done:**
 
@@ -108,6 +108,7 @@ Paused partway through to ship the first public alpha instead of finishing every
 - `ci.yml`'s `make-verification` job and `release.yml`'s `build` job, which had drifted into ~95% duplicate copies of each other (and once caused a real bug: a SHA-pinning pass updated one and missed the other), unified into one `workflow_call` reusable workflow (`.github/workflows/make.yml`), called from both.
 - The pinned mangabind/mangapress binaries no longer download over the network on every single CI job that needs them: `scripts/acquire-toolchain.mjs` gained a fast path that trusts (and re-verifies the hash of) an already-acquired, already-matching copy, and every job that needs the toolchain now caches `vendor/toolchain/` keyed on the lock file's hash.
 - Arch/pacman packaging: no Electron Forge maker exists for this, so it's a hand-rolled `PKGBUILD` (`packaging/arch/`) following the ArchWiki's Electron package guidelines, built in CI via a `workflow_call` reusable workflow (`.github/workflows/arch-package.yml`) shared between `ci.yml` and `release.yml`, the same pattern as `make.yml`. Publishes a `.pkg.tar.zst` a person installs with `pacman -U`, not an AUR submission (still out of scope).
+- Product changes shipped through the alphas, each with its own record: one book for a whole series with a two-level table of contents, EPUB only for now ([ADR 0024](adr/0024-combine-into-one-volume-is-epub-only.md), [ADR 0025](adr/0025-single-book-mode-workflow-control.md)); process first, then save from durable pending books ([ADR 0026](adr/0026-process-then-save-pending-books.md)); bounded parallel conversion of separate volumes ([ADR 0027](adr/0027-bounded-volume-conversion.md)); and live page-level progress while volumes are built ([ADR 0028](adr/0028-binding-progress-from-the-verified-tool.md)).
 
 **Investigated and deferred, not abandoned - see [ADR 0021](adr/0021-windows-installer-stays-squirrel.md):**
 

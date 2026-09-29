@@ -1,7 +1,7 @@
 {
   "name": "mangabound",
   "productName": "Mangabound",
-  "version": "0.1.0-alpha.7",
+  "version": "0.1.0-alpha.8",
   "private": true,
   "description": "A desktop workflow for binding, converting, and delivering manga to e-readers.",
   "author": "Mangabound contributors",
