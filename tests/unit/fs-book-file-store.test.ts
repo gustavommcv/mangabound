@@ -187,7 +187,9 @@ describe('FsBookFileStore', () => {
     // Only the first book's move fails; a failure must not leave the queue of placements stuck.
     const store = new FsBookFileStore({
       rename: (from, to) =>
-        path.basename(to) === 'One - Vol.01.cbz' ? Promise.reject(failure) : rename(from, to),
+        path.basename(String(to)) === 'One - Vol.01.cbz'
+          ? Promise.reject(failure)
+          : rename(from, to),
     });
 
     await expect(store.saveBook({ sourcePath: first, libraryPath: library })).rejects.toBe(failure);
