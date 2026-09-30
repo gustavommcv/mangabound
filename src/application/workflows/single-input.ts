@@ -5,6 +5,11 @@ import {
   type RunAction,
   validateRunOptions,
 } from '@/application/workflows/run-preconditions';
+import {
+  produceVolumes,
+  type VolumeProductionContext,
+  type VolumeProductionResult,
+} from '@/application/workflows/volume-production';
 import type {
   BindingBatchPlan,
   BindingBatchTitle,
@@ -29,7 +34,6 @@ import {
   type InspectedTitle,
   type LibraryPlan,
   plannedSingleBook,
-  type VolumeConversionProgress,
   type WorkflowPlan,
 } from '@/domain/conversion';
 import { createMappingDraft, type MappingDraft, validateMapping } from '@/domain/mapping';
@@ -209,8 +213,7 @@ export class SingleInputWorkflow {
       }
     }
 
-    const artifacts: ConversionArtifact[] = [];
-    await this.produceVolumes(
+    const result = await this.produceVolumes(
       inputs,
       mode,
       {
@@ -221,8 +224,9 @@ export class SingleInputWorkflow {
         nestedToc: singleBook,
       },
       { onArtifact, onProgress, signal },
-      artifacts,
     );
+    if (result.status === 'failed') throw result.error;
+    const { artifacts } = result;
     onProgress({
       stage: 'saving',
       message: `${String(artifacts.length)} book${artifacts.length === 1 ? '' : 's'} saved.`,
@@ -443,25 +447,19 @@ export class SingleInputWorkflow {
             });
             continue;
           }
-          const artifacts: ConversionArtifact[] = [];
-          try {
-            await this.produceVolumes(
-              title.volumes.map((volume) => ({ path: volume.path, volume: volume.number })),
-              mode,
-              {
-                libraryPath: request.libraryPath,
-                settings: request.settings,
-                details: detailsOf(title.title),
-                format: request.format,
-                nestedToc: false,
-              },
-              { title: title.title, onArtifact, onProgress, signal },
-              artifacts,
-            );
-            outcomes.push({ title: title.title, status: 'done', artifacts });
-          } catch (error) {
-            outcomes.push({ title: title.title, status: 'failed', artifacts, error });
-          }
+          const result = await this.produceVolumes(
+            title.volumes.map((volume) => ({ path: volume.path, volume: volume.number })),
+            mode,
+            {
+              libraryPath: request.libraryPath,
+              settings: request.settings,
+              details: detailsOf(title.title),
+              format: request.format,
+              nestedToc: false,
+            },
+            { title: title.title, onArtifact, onProgress, signal },
+          );
+          outcomes.push({ title: title.title, ...result });
         }
       }
     } finally {
@@ -470,8 +468,8 @@ export class SingleInputWorkflow {
     return outcomes;
   }
 
-  /** Converts a title's volumes with a small worker pool, but reports books in volume order. */
-  private async produceVolumes(
+  /** Give the scheduler one book-producing callback; metadata and paths stay in the workflow. */
+  private produceVolumes(
     inputs: readonly BookInput[],
     mode: ProcessMode,
     request: {
@@ -482,14 +480,8 @@ export class SingleInputWorkflow {
       readonly format: BookFormat;
       readonly nestedToc: boolean;
     },
-    context: {
-      readonly title?: string;
-      readonly onArtifact?: (artifact: ConversionArtifact) => void;
-      readonly onProgress: (progress: ConversionProgress) => void;
-      readonly signal?: AbortSignal;
-    },
-    artifacts: ConversionArtifact[],
-  ): Promise<void> {
+    context: VolumeProductionContext,
+  ): Promise<VolumeProductionResult> {
     const { details, ...bookRequest } = request;
     const convertAt = (
       index: number,
@@ -511,115 +503,11 @@ export class SingleInputWorkflow {
         },
       );
 
-    // Copying bound CBZs is cheap and must not compete for the destination. One book needs no pool.
-    if (mode === 'bind-only' || inputs.length === 1) {
-      for (const index of inputs.keys()) {
-        context.signal?.throwIfAborted();
-        const artifact = await convertAt(index, context.signal, context.onProgress);
-        artifacts.push(artifact);
-        context.onArtifact?.(artifact);
-      }
-      return;
-    }
-
-    context.signal?.throwIfAborted();
-    const controller = new AbortController();
-    const cancel = (): void => {
-      controller.abort(context.signal?.reason);
-    };
-    context.signal?.addEventListener('abort', cancel, { once: true });
-    const ordered: (ConversionArtifact | undefined)[] = Array.from({ length: inputs.length });
-    const fractions = inputs.map(() => 0);
-    const volumes: VolumeConversionProgress[] = inputs.map((_input, index) => ({
-      number: index + 1,
-      status: 'waiting',
-    }));
-    let next = 0;
-    let nextToPublish = 0;
-    let failure: { readonly error: unknown } | undefined;
-    // The first failure is the one reported; a worker that fails later, while others finish, is not.
-    const recordFailure = (error: unknown): void => {
-      failure ??= { error };
-    };
-
-    const publishReady = (): void => {
-      while (ordered[nextToPublish] !== undefined) {
-        const artifact = ordered[nextToPublish]!;
-        nextToPublish += 1;
-        artifacts.push(artifact);
-        context.onArtifact?.(artifact);
-      }
-    };
-
-    const progressFor = (index: number, progress?: ConversionProgress): void => {
-      if (progress !== undefined) {
-        const previous = volumes[index]!;
-        volumes[index] = {
-          ...previous,
-          status: progress.stage === 'saving' ? 'saving' : 'processing',
-          ...(progress.completed === undefined || progress.total === undefined
-            ? {}
-            : { completed: progress.completed, total: progress.total }),
-        };
-      }
-      if (progress?.completed !== undefined && progress.total !== undefined && progress.total > 0) {
-        fractions[index] = Math.max(
-          fractions[index]!,
-          Math.min(0.99, progress.completed / progress.total),
-        );
-      }
-      const done = ordered.filter((artifact) => artifact !== undefined).length;
-      context.onProgress({
-        stage: 'processing',
-        ...(context.title === undefined ? {} : { title: context.title }),
-        volume: `${String(index + 1)} of ${String(inputs.length)}`,
-        message: `${context.title === undefined ? '' : `${context.title} · `}${String(done)} of ${String(inputs.length)} volumes converted.`,
-        completed: fractions.reduce((sum, fraction) => sum + fraction, 0),
-        total: inputs.length,
-        volumes: [...volumes],
-      });
-    };
-
-    const worker = async (): Promise<void> => {
-      while (!controller.signal.aborted && failure === undefined && next < inputs.length) {
-        const index = next++;
-        try {
-          const artifact = await convertAt(index, controller.signal, (progress) => {
-            progressFor(index, progress);
-          });
-          ordered[index] = artifact;
-          fractions[index] = 1;
-          const currentVolume = volumes[index]!;
-          volumes[index] = {
-            ...currentVolume,
-            status: 'done',
-            ...(currentVolume.total === undefined ? {} : { completed: currentVolume.total }),
-          };
-          progressFor(index);
-          publishReady();
-        } catch (error) {
-          recordFailure(error);
-        }
-      }
-    };
-
-    try {
-      progressFor(0);
-      await Promise.all(
-        Array.from({ length: Math.min(this.maxParallelConversions, inputs.length) }, worker),
-      );
-    } finally {
-      context.signal?.removeEventListener('abort', cancel);
-    }
-    // A failed volume can leave a gap in the ordered prefix. Keep later completed books too.
-    for (const artifact of ordered.slice(nextToPublish)) {
-      if (artifact !== undefined) {
-        artifacts.push(artifact);
-        context.onArtifact?.(artifact);
-      }
-    }
-    if (failure !== undefined) throw failure.error;
-    context.signal?.throwIfAborted();
+    return produceVolumes(inputs.length, convertAt, {
+      ...context,
+      maxParallelConversions: this.maxParallelConversions,
+      sequential: mode === 'bind-only',
+    });
   }
 
   /**

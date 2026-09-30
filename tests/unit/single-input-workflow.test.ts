@@ -1510,6 +1510,61 @@ describe('single-input workflow', () => {
       expect(ports.release).toHaveBeenCalledWith('batch-workspace');
     });
 
+    it('returns completed books in a failed library title and continues with the other titles', async () => {
+      const ports = dependencies();
+      const error = new Error('Volume 2 failed');
+      const convert = ports.convert.getMockImplementation()!;
+      ports.convert.mockImplementation((request, context) =>
+        request.inputPath.endsWith('good-vol-2.cbz')
+          ? Promise.reject(error)
+          : convert(request, context),
+      );
+      const bindBatch = ports.bindBatch.getMockImplementation()!;
+      ports.bindBatch.mockImplementation(async (...args) => {
+        const bound = await bindBatch(...args);
+        return {
+          ...bound,
+          titles: [
+            ...bound.titles,
+            {
+              title: 'Other Manga',
+              status: 'completed',
+              volumes: numbered(['/work/batch/other-vol-1.cbz']),
+              issues: [],
+            },
+          ],
+        };
+      });
+      const { workflow, sessionId } = await openLibrary(ports);
+      const onArtifact = vi.fn();
+      const outcomes = await workflow.convertLibrary(
+        {
+          sessionId,
+          libraryPath: '/output',
+          settings: defaultMangapressSettings,
+          format: 'epub',
+        },
+        { onArtifact, onProgress: vi.fn() },
+      );
+      expect(outcomes[0]).toMatchObject({ title: 'Good Manga', status: 'failed', error });
+      expect(outcomes[0]!.artifacts).toHaveLength(1);
+      expect(outcomes[0]!.artifacts[0]).toMatchObject({
+        id: 'artifact-/work/batch/good-vol-1.cbz',
+      });
+      expect(onArtifact).toHaveBeenNthCalledWith(1, outcomes[0]!.artifacts[0]);
+      expect(outcomes[1]).toMatchObject({
+        title: 'Broken Manga',
+        status: 'failed',
+        artifacts: [],
+        error: { code: 'binding_failed' },
+      });
+      expect(outcomes[2]).toMatchObject({ title: 'Other Manga', status: 'done' });
+      expect(outcomes[2]!.artifacts).toHaveLength(1);
+      expect(onArtifact).toHaveBeenNthCalledWith(2, outcomes[2]!.artifacts[0]);
+      expect(onArtifact).toHaveBeenCalledTimes(2);
+      expect(ports.release).toHaveBeenLastCalledWith('batch-workspace');
+    });
+
     it('converts library in single-book mode: one EPUB per title with nested TOC and failure isolation', async () => {
       const ports = dependencies();
       const { workflow, sessionId } = await openLibrary(ports);
