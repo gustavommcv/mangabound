@@ -8,11 +8,28 @@ import { ConversionWorkflowError, ToolExecutionError } from '@/domain/conversion
 import { LibraryIndexError } from '@/library/manifest';
 import type { WorkflowFailure, WorkflowResult } from '@/shared/workflow-contract';
 
-import { opdsPort } from '../constants';
-
 export const ok = <T>(value: T): WorkflowResult<T> => ({ ok: true, value });
 export const failed = <T>(error: WorkflowFailure): WorkflowResult<T> => ({ ok: false, error });
 
+/** What the operating system says when it does not let a file or folder be used. */
+const permissionErrorCodes: ReadonlySet<unknown> = new Set(['EACCES', 'EPERM', 'EROFS']);
+
+/**
+ * Keeps the cause in the app's own log. What the person is told is written for the screen and
+ * leaves out the stack, the paths and the text of the error itself, which is what says what really
+ * went wrong.
+ */
+function logged(failure: WorkflowFailure, error: unknown): WorkflowFailure {
+  console.error(`A request failed (${failure.code}).`, error);
+  return failure;
+}
+
+/**
+ * Turns whatever a handler caught into what the page is told. An error written for the screen
+ * keeps its own message; the others get a message that says what to do, and the error itself goes
+ * to the log. Errors that only make sense for one handler, such as the ones starting the sharing
+ * server, are mapped by that handler before it gets here.
+ */
 export function toFailure(error: unknown): WorkflowFailure {
   if (error instanceof ToolExecutionError) {
     return { code: error.issue.code, message: error.message, issue: error.issue };
@@ -24,42 +41,60 @@ export function toFailure(error: unknown): WorkflowFailure {
     return { code: 'cancelled', message: 'Cancelled.' };
   }
   if (error instanceof ConversionWorkflowError) {
-    return { code: error.code, message: error.message };
+    const failure = { code: error.code, message: error.message };
+    return error.cause === undefined ? failure : logged(failure, error);
   }
   if (error instanceof MetadataProviderError) {
-    return { code: error.code, message: error.message };
+    const failure = { code: error.code, message: error.message };
+    return error.cause === undefined ? failure : logged(failure, error);
   }
   if (error instanceof LibraryIndexError) {
-    return { code: error.code, message: 'The output library catalog could not be read.' };
+    return logged(
+      { code: error.code, message: 'The output library catalog could not be read.' },
+      error,
+    );
   }
   if (error instanceof SettingsSaveError) {
-    return { code: error.code, message: 'Your settings could not be saved.' };
-  }
-  if (error instanceof Error && 'code' in error && error.code === 'EADDRINUSE') {
-    return {
-      code: 'sharing_failed',
-      message: `Port ${String(opdsPort)} is already used by another program on this device. Close it and try again.`,
-    };
-  }
-  if (
-    error instanceof Error &&
-    'code' in error &&
-    (error.code === 'EADDRNOTAVAIL' || error.code === 'EACCES')
-  ) {
-    return {
-      code: 'sharing_failed',
-      message: 'The sharing server could not be started on that network address.',
-    };
+    return logged({ code: error.code, message: 'Your settings could not be saved.' }, error);
   }
   if (error instanceof CliProtocolError) {
-    return {
-      code: error.code,
-      message:
-        'A bundled conversion tool returned incompatible data. Reinstall Mangabound or open Diagnostics.',
-    };
+    return logged(
+      {
+        code: error.code,
+        message:
+          'A bundled conversion tool returned incompatible data. Reinstall Mangabound or open Diagnostics.',
+      },
+      error,
+    );
   }
   if (error instanceof ZodError) {
-    return { code: 'invalid_request', message: 'Mangabound rejected an invalid workflow request.' };
+    return logged(
+      { code: 'invalid_request', message: 'Mangabound rejected an invalid workflow request.' },
+      error,
+    );
   }
-  return { code: 'internal_error', message: 'Mangabound could not complete that action.' };
+  const systemCode = error instanceof Error && 'code' in error ? error.code : undefined;
+  if (permissionErrorCodes.has(systemCode)) {
+    return logged(
+      {
+        code: 'file_access_denied',
+        message:
+          'Mangabound was not allowed to use a file or folder it needs. Check the permissions of that folder and try again.',
+      },
+      error,
+    );
+  }
+  if (systemCode === 'ENOSPC') {
+    return logged(
+      {
+        code: 'disk_full',
+        message: 'There is no space left on the drive. Free some space and try again.',
+      },
+      error,
+    );
+  }
+  return logged(
+    { code: 'internal_error', message: 'Mangabound could not complete that action.' },
+    error,
+  );
 }
