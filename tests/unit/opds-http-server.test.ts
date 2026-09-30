@@ -203,6 +203,82 @@ describe('NodeOpdsServer', () => {
     }
   });
 
+  it('never serves a file outside the library, whatever a catalog entry says', async () => {
+    const parent = await mkdtemp(path.join(os.tmpdir(), 'mangabound-opds-outside-'));
+    try {
+      const library = path.join(parent, 'library');
+      await mkdir(library);
+      await writeFile(path.join(parent, 'outside-secret.epub'), 'OUTSIDE THE LIBRARY');
+      const entry: LibraryBookEntry = {
+        relativePath: '../outside-secret.epub',
+        title: 'Outside',
+        author: 'Unknown',
+        format: 'epub',
+        bytes: 1,
+        convertedAt: '2026-09-16T10:00:00.000Z',
+      };
+      // A store that returns the entry as it is: what stands between the file and the client
+      // here is the server itself, not the catalog's reader.
+      const handle = await new NodeOpdsServer(memoryStore([entry])).start({
+        libraryPath: library,
+        libraryTitle: 'My Library',
+        interfaceAddress: '127.0.0.1',
+        port: 0,
+        auth: open,
+      });
+      activeHandles.push(handle);
+
+      const response = await fetch(`${handle.url}/books/..%2Foutside-secret.epub`);
+
+      expect(response.status).toBe(404);
+      expect(await response.text()).not.toContain('OUTSIDE THE LIBRARY');
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a catalog on disk that names a file outside the library', async () => {
+    const parent = await mkdtemp(path.join(os.tmpdir(), 'mangabound-opds-hostile-'));
+    try {
+      const library = path.join(parent, 'library');
+      await mkdir(path.join(library, '.mangabound'), { recursive: true });
+      await writeFile(path.join(parent, 'outside-secret.epub'), 'OUTSIDE THE LIBRARY');
+      await writeFile(
+        path.join(library, '.mangabound', 'library.json'),
+        JSON.stringify({
+          schemaVersion: libraryManifestSchemaVersion,
+          books: [
+            {
+              relativePath: '../outside-secret.epub',
+              title: 'Outside',
+              author: 'Unknown',
+              format: 'epub',
+              bytes: 1,
+              convertedAt: '2026-09-16T10:00:00.000Z',
+            },
+          ],
+        }),
+      );
+      const handle = await new NodeOpdsServer(new FsLibraryStore()).start({
+        libraryPath: library,
+        libraryTitle: 'My Library',
+        interfaceAddress: '127.0.0.1',
+        port: 0,
+        auth: open,
+      });
+      activeHandles.push(handle);
+
+      const response = await fetch(`${handle.url}/books/..%2Foutside-secret.epub`);
+
+      expect(response.status).toBe(500);
+      const body = await response.text();
+      expect(body).toBe('The catalog could not be read.');
+      expect(body).not.toContain('OUTSIDE THE LIBRARY');
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  });
+
   it('serves a loose file in the "other" feed, and never lists it in "recent"', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'mangabound-opds-other-'));
     try {

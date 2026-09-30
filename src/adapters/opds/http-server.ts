@@ -3,7 +3,6 @@ import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import http, { type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import path from 'node:path';
 
 import type { LibraryStorePort } from '@/application/ports/library-store';
 import type {
@@ -13,6 +12,7 @@ import type {
   OpdsServerStartOptions,
 } from '@/application/ports/opds-server';
 import type { LibraryBookEntry, LibraryManifest } from '@/library/manifest';
+import { resolveLibraryFile } from '@/library/paths';
 import {
   acquisitionFeedType,
   buildAcquisitionFeed,
@@ -162,7 +162,8 @@ export class NodeOpdsServer implements OpdsServerPort {
 
   /**
    * A tracked entry, or one this asks a fresh scan for. The scan only ever returns bare file names
-   * it just found on disk, so matching a request against it can never resolve outside the folder.
+   * it just found on disk. A tracked entry comes from a file anyone can edit, so where it points is
+   * checked again before it is opened (see `serveBook`).
    */
   private async findBook(
     libraryPath: string,
@@ -188,7 +189,11 @@ export class NodeOpdsServer implements OpdsServerPort {
       return;
     }
 
-    const filePath = path.join(libraryPath, ...entry.relativePath.split('/'));
+    const filePath = resolveLibraryFile(libraryPath, entry.relativePath);
+    if (filePath === undefined) {
+      respondNotFound(res);
+      return;
+    }
     const stats = await stat(filePath);
     res.writeHead(200, {
       'Content-Type': bookFormatMimeTypes[entry.format],
