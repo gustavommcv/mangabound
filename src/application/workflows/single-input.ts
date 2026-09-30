@@ -690,21 +690,37 @@ export class SingleInputWorkflow {
       return this.saveVolume(request.inputPath, request.libraryPath, context.signal);
     }
     context.onProgress({ stage: 'processing', ...tag, message: `Converting ${where}…` });
-    return this.conversion.convert(
-      {
-        inputPath: request.inputPath,
-        outputDirectory: request.libraryPath,
-        settings: request.settings,
-        format: request.format,
-        nestedToc: request.nestedToc,
-      },
-      {
-        ...(context.signal === undefined ? {} : { signal: context.signal }),
-        onProgress: (progress) => {
-          context.onProgress({ ...progress, ...tag });
+    // The tool writes into a folder of its own and the book is then given a name no other book of
+    // the run has, so two books that would be called the same never overwrite each other.
+    let converted = false;
+    try {
+      const { produced, saved } = await this.bookFiles.stageBook(
+        { libraryPath: request.libraryPath },
+        async (stagingPath) => {
+          const artifact = await this.conversion.convert(
+            {
+              inputPath: request.inputPath,
+              outputDirectory: stagingPath,
+              settings: request.settings,
+              format: request.format,
+              nestedToc: request.nestedToc,
+            },
+            {
+              ...(context.signal === undefined ? {} : { signal: context.signal }),
+              onProgress: (progress) => {
+                context.onProgress({ ...progress, ...tag });
+              },
+            },
+          );
+          converted = true;
+          return artifact;
         },
-      },
-    );
+        context.signal === undefined ? {} : { signal: context.signal },
+      );
+      return { ...produced, path: saved.path, name: saved.name, bytes: saved.bytes };
+    } catch (error) {
+      throw converted ? publishFailure(error, context.signal) : error;
+    }
   }
 
   private async saveVolume(
@@ -720,12 +736,7 @@ export class SingleInputWorkflow {
         signal === undefined ? {} : { signal },
       );
     } catch (error) {
-      if (signal?.aborted === true) throw error;
-      throw new ConversionWorkflowError(
-        'publish_failed',
-        "Couldn't write a joined volume to Mangabound's pending storage. Check available space and storage permissions.",
-        { cause: error },
-      );
+      throw publishFailure(error, signal);
     }
     return {
       id: this.createId(),
@@ -764,6 +775,16 @@ export class SingleInputWorkflow {
   async releaseAll(): Promise<void> {
     await Promise.all([...this.sessions.keys()].map((sessionId) => this.release(sessionId)));
   }
+}
+
+/** A finished book that could not be put in pending storage; a cancellation stays a cancellation. */
+function publishFailure(error: unknown, signal: AbortSignal | undefined): unknown {
+  if (signal?.aborted === true) return error;
+  return new ConversionWorkflowError(
+    'publish_failed',
+    "Couldn't write a finished book to Mangabound's pending storage. Check available space and storage permissions.",
+    { cause: error },
+  );
 }
 
 /** What the renderer is told about a title: everything but where it lives. */
