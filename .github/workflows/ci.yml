@@ -133,8 +133,12 @@ jobs:
         with:
           path: vendor/toolchain
           key: toolchain-${{ runner.os }}-${{ hashFiles('toolchain.lock.json') }}
-      - run: npx playwright install --with-deps chromium
-      - run: sudo apt-get update && sudo apt-get install --yes weston
+      # Only the shell spec runs here, against the packaged Electron app, and the packaged-shell job
+      # above runs that same app on this runner image with nothing installed: no Playwright browser
+      # and none of its system libraries are needed. Everything this job downloads is time spent on
+      # the runner's network, which is where it has been slow; weston alone is about a hundred
+      # packages, so it is installed without the recommended ones.
+      - run: sudo apt-get update && sudo apt-get install --yes --no-install-recommends weston
       - run: npm run package
       - name: Run the packaged shell in headless Wayland
         shell: bash
