@@ -1,0 +1,58 @@
+---
+title: Output Profiles & Settings
+description: Explore supported e-reader hardware profiles and image optimization options powered by mangapress.
+---
+
+Mangabound integrates **mangapress** to deliver pixel-perfect conversions tailored to your exact e-reader model. Instead of stretching or letterboxing images, mangapress resizes, crops, and optimizes manga pages for the physical resolution and e-ink palette of your device.
+
+---
+
+## Supported E-Reader Profiles
+
+Mangabound comes with built-in hardware profiles for dozens of devices:
+
+| Brand | Model Code | Resolution | Aspect Ratio | E-Ink Specs |
+|---|---|---|---|---|
+| **Amazon Kindle** | `KPW5` (Paperwhite 11th Gen) | 1236 × 1648 | ~3:4 | 300 PPI, 16 levels of gray |
+| **Amazon Kindle** | `KO` (Oasis 2 & 3) | 1264 × 1680 | ~3:4 | 300 PPI, 16 levels of gray |
+| **Amazon Kindle** | `KS` (Kindle Scribe) | 1860 × 2480 | ~3:4 | 300 PPI, 10.2" screen |
+| **Amazon Kindle** | `KV` (Kindle Voyage) | 1072 × 1448 | ~3:4 | 300 PPI, 16 levels of gray |
+| **Amazon Kindle** | `K11` (Basic 2022 / 2024) | 1072 × 1448 | ~3:4 | 300 PPI, 6.0" screen |
+| **Kobo** | `KoL2` (Libra 2) | 1264 × 1680 | ~3:4 | 300 PPI, 7.0" screen |
+| **Kobo** | `KoC` (Clara 2E / BW) | 1072 × 1448 | ~3:4 | 300 PPI, 6.0" screen |
+| **Kobo** | `KoE` (Elipsa / Elipsa 2E) | 1404 × 1872 | ~3:4 | 227 PPI, 10.3" screen |
+| **Kobo** | `KoAO` (Aura ONE) | 1404 × 1872 | ~3:4 | 300 PPI, 7.8" screen |
+| **reMarkable** | `Rmk2` (reMarkable 2) | 1404 × 1872 | ~3:4 | 226 PPI, Canvas display |
+| **reMarkable** | `RmkP` (Paper Pro) | 1620 × 2160 | ~3:4 | 229 PPI, Color Gallery 3 |
+| **Custom** | `OTHER` | User Defined | Custom | Set custom width and height |
+
+---
+
+## Output Formats
+
+* **EPUB (Recommended)**: The standard fixed-layout format for KOReader, Kobo, and modern e-readers. Preserves exact page dimensions, supports table of contents navigation, and loads instantly.
+* **CBZ**: An archive containing the processed, cropped, and resized images. Ideal if your reader prefers raw archives or if you are using image viewer apps.
+* **PDF**: Fixed document format suitable for large-format tablets and reMarkable devices.
+
+---
+
+## Image Processing Options
+
+### 1. Margins & Page Numbers Cropping
+Scanlations and digital rips often contain wide, uneven white margins and distracting digital page numbering.
+* **Margins & Page Numbers (Default)**: Detects outer gutters and eliminates blank borders and marginal numbers, letting manga panels occupy the maximum screen area.
+* **Margins Only**: Removes white padding while preserving peripheral annotations.
+* **Disabled**: Keeps raw original borders intact.
+
+### 2. Double-Page Spreads (Splitter)
+Manga frequently features panoramic two-page spreads. You can choose how they should be delivered:
+* **Split (Default)**: Automatically slices the spread down the center into two separate vertical pages. In accordance with Japanese manga conventions (**Manga Style RTL**), the **right page is shown first**, followed by the **left page**.
+* **Rotate**: Rotates the double spread by 90 degrees so you can view it horizontally in landscape mode.
+* **Both**: Generates both the rotated full spread and the split halves.
+
+### 3. Screen Optimization: Erase Rainbow / Moiré
+On color e-ink screens (such as E Ink Kaleido or Gallery 3 panels) and high-resolution monochromatic readers, dense halftone screentones often cause distracting **moiré interference patterns** (rainbow waves).
+* Toggling **Erase Rainbow** applies a frequency filter to attenuate moiré artifacts while keeping line art crisp and sharp.
+
+### 4. Create One Book for the Series
+For long-running series, checking **Create one book for the series** compiles all volumes into a single cohesive `.epub` file. The internal Table of Contents is structured hierarchically, nesting individual chapters beneath their respective volume headers.

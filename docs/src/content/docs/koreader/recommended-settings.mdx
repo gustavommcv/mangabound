@@ -1,0 +1,103 @@
+---
+title: Recommended KOReader Settings
+description: Crucial reader configurations in KOReader for pristine manga rendering, zero ghosting, and full-screen immersion on e-ink devices.
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+While KOReader works out of the box, manga pages feature dense screentones, dark contrast, and intricate artwork that benefit greatly from specific e-ink optimizations.
+
+Applying the following settings will eliminate e-ink ghosting, maximize screen estate, and guarantee sharp, washed-out-free illustrations.
+
+:::tip[Make it Permanent]
+In KOReader, **long-pressing (tapping and holding)** any setting will save it as the **default configuration for the current file type** (`.epub` or `.cbz`).
+:::
+
+---
+
+## 1. Overlap Status Bar
+
+By default, the status bar can push the manga page downward, shrinking the artwork or causing unnecessary margins.
+
+* Open a manga volume in KOReader.
+* Tap the top area to open the top menu.
+* Navigate to the **Document / Gear** menu (second tab).
+* Enable **Overlap status bar**.
+
+This allows the manga art to occupy 100% of the screen height, overlaying page counts or battery icons semi-transparently over empty gutters.
+
+:::tip[Visual Media Placeholder]
+> 📸 **Screenshot**: KOReader setting "Overlap status bar" enabled in the document menu.
+:::
+
+---
+
+## 2. E-Ink Full Refresh on Every Page (Ghosting Fix)
+
+Because manga pages alternate between deep black panels and bright whites, e-ink screens easily accumulate "ghost" shadows of previous drawings. Setting full refresh on every page turn ensures pristine black levels.
+
+<Steps>
+1. Tap the top area of the screen to open the menu.
+2. Go to the **Device / Screen settings** menu.
+3. Select **eInk settings**.
+4. Set **Full refresh rate** to **Every page** (or `1`).
+</Steps>
+
+```text
+Menu ➔ Screen ➔ eInk settings ➔ Full refresh rate ➔ Every page
+```
+
+:::note[Battery Impact]
+Modern e-ink controllers (Kindle Paperwhite, Kobo Carta 1200, etc.) perform full refreshes in milliseconds. The battery impact is negligible, but image clarity and contrast improvement is dramatic.
+:::
+
+---
+
+## 3. View Mode: "Page" & Auto Page Crop
+
+Ensure KOReader does not treat manga pages as continuous scrollable text:
+
+* Go to the bottom menu.
+* Select the **View Mode** menu (fourth tab) and set it to **Page**.
+* Select the **Page Crop** menu (second tab) and set it to **Auto** (or *Manual* if fine-tuning margin bounds).
+
+:::tip[Visual Media Placeholder]
+> 📸 **Screenshot**: Bottom menu showing View Mode set to "Page" and Page Crop set to "Auto".
+:::
+
+---
+
+## 4. Fit the Entire Page to Screen
+
+* In the bottom menu, open the **Fit** submenu (third tab).
+* Set **Fit** to **Full** (or *Fit to Page* / *Best Fit*).
+
+This ensures every manga page resizes dynamically to fit within your device's physical aspect ratio without requiring panning or accidental zoom shifts.
+
+---
+
+## 5. Enable Dithering
+
+On 16-shade grayscale and color e-ink displays, subtle gradients in skies or character shadows can exhibit harsh digital banding.
+
+* In the bottom menu, navigate to the next-to-last submenu.
+* Toggle **Dithering** to **On**.
+
+Dithering applies an ordered diffusion pattern that smooths transitions between dark tones, making artwork look rich and analog.
+
+:::tip[Visual Media Placeholder]
+> 📸 **Screenshot**: Comparison showing banding with dithering OFF vs. smooth grayscale transitions with dithering ON.
+:::
+
+---
+
+## Summary of Ideal Settings
+
+| Setting | Location | Recommended Value | Why |
+|---|---|---|---|
+| **Overlap status bar** | Top menu ➔ Document | **Enabled** | Maximum vertical screen area |
+| **Full refresh rate** | Screen ➔ eInk settings | **Every page** | Prevents screentone ghosting |
+| **View Mode** | Bottom menu ➔ View | **Page** | Single-page layout |
+| **Page Crop** | Bottom menu ➔ Crop | **Auto** | Trims lingering scan margins |
+| **Fit** | Bottom menu ➔ Fit | **Full** | Fits page strictly to screen bounds |
+| **Dithering** | Bottom menu ➔ Image | **On** | Smooth grayscale gradients |

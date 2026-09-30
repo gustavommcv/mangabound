@@ -1,0 +1,50 @@
+---
+title: Wi-Fi Sharing via OPDS
+description: How to host a local OPDS 1.2 catalog from Mangabound to distribute manga wirelessly across your home network.
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+Connecting USB cables every time you finish converting a manga volume is tedious. Mangabound includes a built-in **OPDS 1.2 (Open Publication Distribution System)** web server, allowing any e-reader on your local Wi-Fi network—such as a Kindle or Kobo running **KOReader**—to browse and download your converted manga wirelessly.
+
+---
+
+## What is OPDS?
+
+OPDS is an open industry standard for cataloging and delivering digital publications via HTTP.
+* It presents an XML feed structured into categories (such as *Newest Additions*).
+* E-reader apps like KOReader can connect to this feed, display book covers and summaries, and download full `.epub` or `.cbz` volumes with a single tap.
+
+---
+
+## Starting the Server in Mangabound
+
+<Steps>
+1. ### Open the Share Panel
+   Click on the **Radio Tower** icon in Mangabound's top title bar, or click **Share these books** from the Ready Books screen.
+
+2. ### Select Library & Network Interface
+   * **Library to Share**: Choose either your active conversion output folder or an existing manga library on your hard drive.
+   * **Network Interface**: Select your Wi-Fi or local Ethernet adapter (e.g. `192.168.1.150`). Mangabound automatically enumerates active local IP addresses.
+
+3. ### Optional Authentication
+   If you are on a shared network (such as university or office Wi-Fi), you can set a **Username** and **Password**. On home networks, you can leave both fields blank for frictionless access.
+
+4. ### Click Start Sharing
+   Once started, Mangabound displays your unique **Catalog Address**:
+   ```
+   http://192.168.1.150:8080/opds
+   ```
+   * Click **Copy** to copy the URL to your clipboard.
+   * Keep Mangabound open while your e-reader connects and downloads files.
+</Steps>
+
+:::tip[Media Demonstration Placeholder]
+> 📸 **Screenshot**: The Mangabound Share Panel showing the active catalog address `http://192.168.1.150:8080/opds` with the "Stop sharing" and "Copy" buttons.
+:::
+
+---
+
+## Next Step
+
+Follow the [Connecting in KOReader](../connecting/) guide to link your device to this catalog!

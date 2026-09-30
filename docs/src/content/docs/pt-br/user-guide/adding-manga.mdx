@@ -1,0 +1,54 @@
+---
+title: Fila e Adição de Mangás
+description: Como importar volumes avulsos, pastas com múltiplos capítulos ou bibliotecas inteiras no Mangabound.
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+A **Tela da Fila (Queue Screen)** é a tela principal de entrada do Mangabound. Nela você adiciona seus mangás, visualiza a ordem de conversão e inspeciona pendências antes do processamento.
+
+---
+
+## Formatos de Entrada Aceitos
+
+O Mangabound reconhece três estruturas principais de arquivos:
+
+1. **Pasta de Capítulos**: Um diretório contendo subpastas para cada capítulo (com imagens em `.jpg`, `.png`, `.webp`) ou contendo arquivos `.cbz` individuais de cada capítulo.
+2. **Pasta de Biblioteca (Múltiplas Obras)**: Um diretório que contém várias pastas de obras (ex: `Mangas/Berserk/`, `Mangas/One Piece/`). O Mangabound reconhece cada subpasta como uma série individual.
+3. **Arquivo de Volume `.cbz` Único**: Volumes já empacotados que você deseja calibrar e converter com o `mangapress` para o formato do seu e-reader.
+
+---
+
+## Adicionando Arquivos à Fila
+
+<Steps>
+1. ### Arrastar e Soltar (Drag & Drop)
+   Selecione as pastas ou arquivos `.cbz` no gerenciador de arquivos do seu sistema (Windows Explorer, Finder no macOS ou Nautilus/Dolphin no Linux) e arraste-os para qualquer ponto da janela do Mangabound.
+
+2. ### Seletor Nativo de Pastas
+   Clique na área central de soltura para abrir o diálogo padrão de seleção de diretórios do seu sistema operacional.
+
+3. ### Inspeção em Segundo Plano
+   Assim que um item entra na fila, o Mangabound executa uma varredura silenciosa via `mangabind --dry-run --json`. Ele calcula:
+   * Total de páginas do mangá.
+   * Sintaxe dos nomes dos capítulos e volumes detectados.
+   * Possíveis capítulos conflitantes ou lacunas (*chapter gaps*).
+</Steps>
+
+:::tip[Espaço para Demonstração Visual]
+> 📹 **GIF Demonstrativo**: Usuário arrastando duas pastas de mangá para a tela e observando a inspeção instantânea dos volumes.
+:::
+
+---
+
+## Gerenciando Itens na Fila
+
+Cada linha da fila apresenta:
+* **Título da Obra**: Nome identificado a partir da pasta.
+* **Contagem de Volumes e Capítulos**: Total de capítulos encontrados e em quantos volumes foram distribuídos.
+* **Indicadores de Status**:
+  * `Pronto (Ready)`: Todos os capítulos já possuem volume associado e podem ser convertidos.
+  * `Revisão Necessária (Needs Review)`: Capítulos que não informavam o volume no nome do arquivo e precisam ser organizados no [Editor de Mapeamento](../mapping-editor/).
+* **Menu de Ações**:
+  * **Editar Mapeamento**: Abre o editor visual de volumes.
+  * **Remover da Fila**: Remove o item da lista (os arquivos originais no seu disco rígido nunca são alterados ou apagados).

@@ -1,0 +1,70 @@
+---
+title: Editor de Mapeamento de Volumes
+description: Domine o Editor de Mapeamento do Mangabound para agrupar capítulos soltos de scanlation em volumes perfeitos.
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+Um dos maiores desafios ao preparar coleções de mangá é a inconsistência na nomenclatura dos capítulos. Grupos de scanlation frequentemente salvam arquivos apenas como `Capítulo 01`, `Capítulo 02`, sem indicar a qual volume encadernado pertencem.
+
+O **Editor de Mapeamento de Volumes** do Mangabound resolve esse problema permitindo inspecionar, agrupar e dividir capítulos com total clareza visual.
+
+---
+
+## Anatomia do Editor
+
+A interface do editor é dividida em duas áreas principais:
+
+1. **Árvore de Volumes (Volumes Atribuídos)**: Exibe cada volume criado (ex: `Volume 1`, `Volume 2`), a estimativa total de páginas e os capítulos contidos nele.
+2. **Capítulos Não Atribuídos**: Lista todos os capítulos encontrados no disco que ainda não possuem um volume associado.
+
+:::tip[Espaço para Demonstração Visual]
+> 📸 **Captura de Tela**: Interface do Editor de Mapeamento com o Volume 1 contendo os Capítulos 1 a 7 e uma gaveta lateral com capítulos restantes.
+:::
+
+---
+
+## Métodos de Agrupamento
+
+Você dispõe de três maneiras práticas para organizar seus capítulos:
+
+### 1. Busca Online via MangaDex
+O método mais rápido para séries conhecidas:
+<Steps>
+1. Clique no botão **Do MangaDex** na barra superior do editor.
+2. Digite o título oficial da obra (ex: *Chainsaw Man* ou *Sousou no Frieren*).
+3. Selecione o resultado correspondente na lista de busca.
+4. O Mangabound consulta a API pública do MangaDex, identifica quais capítulos compõem cada volume oficial e distribui seus arquivos locais automaticamente!
+</Steps>
+
+:::note[Privacidade e Conformidade com APIs]
+O Mangabound consulta exclusivamente metadados numéricos de capítulos. O aplicativo nunca baixa imagens protegidas por direitos autorais nem faz upload dos seus arquivos locais.
+:::
+
+### 2. Atribuição Automática (Auto-Assign)
+Para uso offline, clique em **Auto-Assign**. O Mangabound utiliza algoritmos heurísticos locais para identificar padrões nos nomes das pastas (como marcadores `[v01]`, `Vol. 1` ou intervalos numéricos comuns).
+
+### 3. Edição Manual e Ajuste Fino
+Controle granular sobre cada capítulo individual:
+* **Arrastar e Soltar**: Mova capítulos entre volumes ou retorne-os para a lista de não atribuídos.
+* **Adicionar Volume**: Clique em **Adicionar Volume** para criar o Volume `N+1`.
+* **Mesclar Volumes**: Una volumes adjacentes para criar volumes duplos ou edições omnibus.
+* **Desfazer e Refazer (Undo/Redo)**: Qualquer alteração errada pode ser revertida com `Ctrl+Z` / `Cmd+Z` ou pelos botões de desfazer na barra superior.
+
+---
+
+## O Arquivo `mangabind.json`
+
+Ao confirmar o mapeamento, o Mangabound salva a organização em um arquivo padronizado chamado `mangabind.json`:
+
+```json
+{
+  "schema_version": 1,
+  "volumes": [
+    { "number": "1", "chapters": ["1-7"] },
+    { "number": "2", "chapters": ["8-16", "8.5"] }
+  ]
+}
+```
+
+Seguindo o [Princípio CLI-First](../../getting-started/overview/#1-regra-mandat%C3%B3ria-de-cli-first), este arquivo é universal. Você pode copiá-lo para a pasta do mangá em qualquer outro computador e executar o `mangabind` pelo terminal sem precisar abrir a interface gráfica!

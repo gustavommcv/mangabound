@@ -1,0 +1,92 @@
+---
+title: Overview & Ecosystem
+description: Understand how Mangabound, mangabind, and mangapress work together to deliver the ultimate manga reading experience on e-readers.
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+**Mangabound** is a desktop application designed to turn raw manga files—loose chapter folders or individual `.cbz` archives—into publication-grade digital books tailored for e-ink devices like Kindle, Kobo, and reMarkable, as well as reading apps like KOReader.
+
+Instead of bundling an all-in-one monolithic script, Mangabound is built upon a **strictly decoupled three-tier architecture**. Each tool has a single, well-defined responsibility.
+
+---
+
+## The Three Ecosystem Pillars
+
+```
+Raw Chapters (folders or .cbz)
+               │
+               ▼
+┌─────────────────────────────────┐
+│     mangabind (CLI in Go)       │ ➔ Detects & bundles chapters into volume .cbz files
+└──────────────┬──────────────────┘
+               │ Volume .cbz archives
+               ▼
+┌─────────────────────────────────┐
+│    mangapress (CLI in Rust)     │ ➔ Calibrated image processing & e-book compilation (.epub/.cbz/.pdf)
+└──────────────┬──────────────────┘
+               │ Formatted books
+               ▼
+┌───────────────────────────────────────────────────────────────┐
+│                Mangabound (Desktop GUI)                       │
+│  • Visual drag & drop queue                                   │
+│  • Interactive volume mapping editor with MangaDex lookup     │
+│  • Hardware device profile & image processing controls        │
+│  • Real-time progress monitoring & job persistence            │
+│  • Built-in OPDS 1.2 server for direct Wi-Fi delivery         │
+└──────────────────────────────┬────────────────────────────────┘
+                               │ Wi-Fi sync
+                               ▼
+┌───────────────────────────────────────────────────────────────┐
+│                 KOReader on your E-Reader                     │
+│  • Download books directly without cables                     │
+│  • Hardware-optimized rendering for e-ink screens             │
+└───────────────────────────────────────────────────────────────┘
+```
+
+### 1. `mangabind` (CLI in Go)
+* **What it does**: Inspects messy scanlation folder structures, parses diverse naming patterns (`Vol.01 Ch.001`, `Chapter 15`, `c010`), and consolidates loose chapters into clean, numbered `.cbz` volumes with standard `ComicInfo.xml` metadata.
+* **Philosophy**: It knows nothing about screen resolutions, color palettes, or EPUB formats. It strictly handles archive organization and chapter integrity.
+* **Source**: [github.com/gustavommcv/mangabind](https://github.com/gustavommcv/mangabind)
+
+### 2. `mangapress` (CLI in Rust)
+* **What it does**: An ultra-fast, independent native rewrite of the [Kindle Comic Converter (KCC)](https://github.com/ciromattia/kcc) pipeline in Rust. It performs multi-threaded image processing:
+  * Margin and page-number cropping.
+  * Contrast optimization and gamma curves tuned for e-ink.
+  * Smart detection and splitting/rotation of two-page spreads (in right-to-left manga order).
+  * Moiré and rainbow artifact reduction for color e-ink screens (`--eraserainbow`).
+  * Compiling fixed-layout `.epub`, `.cbz`, or `.pdf` books matching the exact pixel dimensions of target devices.
+* **Philosophy**: It does not deal with messy chapter organization. It assumes a structured volume and focuses purely on image quality and e-ink rendering physics.
+* **Source**: [github.com/gustavommcv/mangapress](https://github.com/gustavommcv/mangapress)
+
+### 3. `Mangabound` (Desktop GUI)
+* **What it does**: Orchestrates `mangabind` and `mangapress` under the hood through standardized, versioned machine protocols (JSON & JSON Lines).
+* It provides the visual workflows power users and casual readers need:
+  * A drag-and-drop queue for processing single volumes, whole series, or entire libraries.
+  * A visual Volume Mapping Editor with undo/redo and online chapter mapping lookup (via MangaDex).
+  * Real-time page-by-page progress streaming.
+  * An embedded **OPDS 1.2 catalog server** enabling direct wireless downloads to KOReader.
+* **Source**: [github.com/gustavommcv/mangabound](https://github.com/gustavommcv/mangabound)
+
+---
+
+## Key Design Principles
+
+### 1. The "CLI-First" Rule
+`mangabind` and `mangapress` are 100% self-contained command-line tools. Any feature exposed in Mangabound's visual interface originates as a complete, documented CLI flag. Advanced users can use these tools directly in headless scripts, terminal workflows, or automation pipelines.
+
+### 2. Strict Offline-First & Privacy
+* **No forced cloud accounts** and **no telemetry**.
+* Mangabound runs entirely offline on your local computer.
+* When using online volume metadata lookup, only the manga title is queried (via the MangaDex API) to retrieve chapter boundary numbers. No images or files are ever sent to remote servers.
+* The local OPDS server only listens on your selected local network interface while active and immediately terminates when stopped or when the app is closed.
+
+---
+
+## Next Steps
+
+<Steps>
+1. Check the [Installation Guide](../installation/) to get the official package for your operating system.
+2. Read the [Quick Start Guide](../quickstart/) for a 3-minute walkthrough from raw files to e-reader.
+3. Discover how to configure [KOReader & Wi-Fi Sharing](../../koreader/opds-sharing/) to read your manga wirelessly.
+</Steps>

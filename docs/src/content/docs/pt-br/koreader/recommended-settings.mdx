@@ -1,0 +1,103 @@
+---
+title: Configurações Recomendadas do KOReader
+description: Ajustes essenciais no KOReader para renderização perfeita de mangá, eliminação de ghosting e imersão total em telas e-ink.
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+Embora o KOReader funcione de forma satisfatória logo após a instalação, páginas de mangá possuem retículas densas, contrastes profundos e artes complexas que demandam calibrações específicas em telas de tinta eletrônica (*e-ink*).
+
+As configurações abaixo eliminam imagens-fantasma (*ghosting*), maximizam a área útil da tela e garantem ilustrações nítidas e com gradientes suaves.
+
+:::tip[Salvar como Padrão Permanente]
+No KOReader, ao **pressionar e segurar (toque longo)** sobre qualquer uma dessas opções, ela será gravada como a **configuração padrão permanente para aquele formato de arquivo** (`.epub` ou `.cbz`).
+:::
+
+---
+
+## 1. Sobrepor Barra de Status (Overlap status bar)
+
+Por padrão, a barra de status inferior ou superior pode empurrar a arte do mangá, encolhendo os quadrinhos e criando faixas pretas indesejadas.
+
+* Abra um volume de mangá no KOReader.
+* Toque na parte superior da tela para abrir o menu suspenso.
+* Vá para a aba **Documento / Engrenagem** (segundo menu).
+* Ative a opção **Sobrepor barra de status (Overlap status bar)**.
+
+Isso permite que a página de mangá ocupe 100% da altura física da tela, posicionando informações como porcentagem e bateria de forma discreta sobre as margens da página.
+
+:::tip[Espaço para Demonstração Visual]
+> 📸 **Captura de Tela**: Opção "Overlap status bar" habilitada no menu de documento do KOReader.
+:::
+
+---
+
+## 2. Atualização Completa da Tela em Cada Página (Full Refresh)
+
+Como páginas de mangá alternam quadros pretos densos com áreas brancas abertas, as telas e-ink acumulam sombras da página anterior (*ghosting*). Forçar uma atualização completa a cada virada de página mantém os pretos puros e os traços cristalinos.
+
+<Steps>
+1. Toque na parte superior da tela para abrir o menu do KOReader.
+2. Acesse a aba **Configurações de Tela (Screen)**.
+3. Toque em **Configurações do eInk (eInk settings)**.
+4. Ajuste a **Taxa de atualização completa (Full refresh rate)** para **A cada página (Every page)** ou `1`.
+</Steps>
+
+```text
+Menu Superior ➔ Tela ➔ Configurações do eInk ➔ Taxa de atualização completa ➔ A cada página
+```
+
+:::note[Consumo de Bateria]
+Os controladores modernos de e-ink (Kindle Paperwhite, Kobo Carta 1200, etc.) realizam o refresh em milissegundos. O impacto na bateria é insignificante, mas a nitidez e o contraste visual aumentam drasticamente.
+:::
+
+---
+
+## 3. Modo de Exibição: "Página" e Corte Automático (Page Crop)
+
+Garanta que o KOReader trate o mangá como páginas fixas fechadas e não como texto contínuo:
+
+* Abra o menu inferior do KOReader.
+* Na quarta aba, ajuste o **Modo de Exibição (View Mode)** para **Página (Page)**.
+* Na segunda aba, defina o **Corte de Página (Page Crop)** para **Automático (Auto)**.
+
+:::tip[Espaço para Demonstração Visual]
+> 📸 **Captura de Tela**: Menu inferior com Modo de Exibição em "Page" e Corte de Página em "Auto".
+:::
+
+---
+
+## 4. Ajustar Página Inteira na Tela (Fit to Screen)
+
+* No menu inferior, acerte o submenu **Ajuste (Fit)** (terceira aba).
+* Configure o **Ajuste** para **Completo (Full)** ou **Ajustar à Página (Fit to page)**.
+
+Isso garante que cada página seja redimensionada proporcionalmente para caber inteira no display, sem exigir rolagem horizontal ou cortes acidentais.
+
+---
+
+## 5. Ativar Dithering
+
+Em displays e-ink de 16 tons de cinza ou coloridos, gradientes de céu ou sombras podem gerar faixas digitais duras (*banding*).
+
+* No menu inferior, navegue até a penúltima aba (ajustes de imagem).
+* Ative o **Dithering** (deixe em **On**).
+
+O pontilhismo de difusão (*dithering*) suaviza as passagens entre tons escuros e claros, conferindo um acabamento rico e análogo à arte impressa.
+
+:::tip[Espaço para Demonstração Visual]
+> 📸 **Captura de Tela**: Comparação com Dithering desligado (faixas duras) versus Dithering ligado (gradiente suave).
+:::
+
+---
+
+## Tabela Resumo das Configurações Ideais
+
+| Configuração | Onde Encontrar | Valor Recomendado | Finalidade |
+|---|---|---|---|
+| **Overlap status bar** | Menu Superior ➔ Documento | **Ativado (On)** | Aproveitamento de 100% da altura da tela |
+| **Full refresh rate** | Tela ➔ Configurações eInk | **A cada página (Every page)** | Elimina fantasmas e sombras de retículas |
+| **View Mode** | Menu Inferior ➔ Exibição | **Página (Page)** | Layout de página individual |
+| **Page Crop** | Menu Inferior ➔ Recorte | **Auto** | Remove bordas brancas residuais |
+| **Fit** | Menu Inferior ➔ Ajuste | **Full (Completo)** | Enquadra toda a página no display |
+| **Dithering** | Menu Inferior ➔ Imagem | **Ativado (On)** | Gradientes contínuos em 16 tons de cinza |

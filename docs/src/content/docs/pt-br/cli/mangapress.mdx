@@ -1,0 +1,77 @@
+---
+title: Referência da CLI mangapress
+description: Manual completo de linha de comando do mangapress — o conversor e calibrador de imagem em Rust para e-ink.
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+O **`mangapress`** é um utilitário CLI em Rust de altíssima performance, processando imagens em paralelo via CPU (`rayon`). Ele recebe volumes fechados (`.cbz` ou pastas) e compila livros de layout fixo em `.epub`, `.cbz` ou `.pdf` calibrados para a resolução nativa, curvas de gama e escala de cinza de aparelhos e-ink.
+
+---
+
+## Instalação e Executável Avulso
+
+No aplicativo desktop do Mangabound, o `mangapress` já vem incluso e sua integridade é conferida a cada inicialização.
+
+Para usá-lo via terminal em scripts ou servidores:
+* Baixe o binário estático na página de [Releases do mangapress](https://github.com/gustavommcv/mangapress/releases).
+* Salve-o em um diretório configurado no seu `PATH`.
+
+---
+
+## Sintaxe de Linha de Comando
+
+```bash
+mangapress <entrada> [opções]
+```
+
+### Argumentos e Flags
+
+| Flag | Argumento | Padrão | Descrição |
+|---|---|---|---|
+| `<entrada>` | Caminho | *(Obrigatório)* | Arquivo `.cbz` ou pasta contendo as imagens do volume. |
+| `--profile` | Código | `KPW5` | Código de hardware do e-reader alvo (ex: `KPW5`, `KO`, `KoL2`, `Rmk2`, `OTHER`). |
+| `--format` | `epub \| cbz \| pdf` | `epub` | Formato do documento final gerado. |
+| `-o, --output` | Caminho | Automático | Caminho ou nome do arquivo de saída. |
+| `--manga-style` | *(Flag)* | Ativado | Leitura da direita para a esquerda (ao dividir páginas duplas, a página direita vem primeiro). |
+| `--cropping` | Modo | `margins-and-page-numbers` | Modo de corte: `disabled`, `margins` ou `margins-and-page-numbers`. |
+| `--splitter` | Modo | `split` | Tratamento de páginas duplas: `split`, `rotate` ou `both`. |
+| `--eraserainbow` | *(Flag)* | Desativado | Reduz o efeito moiré/arco-íris de retículas em telas e-ink coloridas. |
+| `--keepcomicinfo` | *(Flag)* | Ativado | Preserva metadados `ComicInfo.xml` na saída em `.cbz`. |
+| `--dry-run` | *(Flag)* | Desativado | Executa a análise sem gravar o livro final no disco. |
+| `--json-events` | *(Flag)* | Desativado | Habilita a emissão de eventos contínuos em JSON Lines no `stdout`. |
+| `--list-profiles` | *(Flag)* | | Lista todos os cerca de 40 perfis de aparelhos suportados. |
+| `--customwidth` | Pixels | | Largura customizada para o perfil `OTHER`. |
+| `--customheight` | Pixels | | Altura customizada para o perfil `OTHER`. |
+
+---
+
+## Exemplos Práticos
+
+### 1. Conversão Padrão para Kindle Paperwhite 11ª Geração
+```bash
+mangapress "Berserk - Vol.01.cbz" \
+  --profile KPW5 \
+  --format epub \
+  --output "./Berserk - Vol.01.epub"
+```
+
+### 2. Kobo Libra 2 com Rotação de Spreads e Filtro Anti-Moiré
+```bash
+mangapress "One Piece - Vol.100.cbz" \
+  --profile KoL2 \
+  --splitter rotate \
+  --eraserainbow
+```
+
+### 3. Listar Todos os Perfis Disponíveis
+```bash
+mangapress --list-profiles
+```
+
+### 4. Transmissão de Progresso em Linhas JSON (JSON Lines)
+Ideal para integração com scripts ou interfaces:
+```bash
+mangapress "Volume.cbz" --profile KV --json-events
+```
+Cada etapa emite uma linha JSON no terminal (`{"type": "page", "completed": 45, "total": 190}`).

@@ -1,0 +1,52 @@
+---
+title: Processing & Queue
+description: Track real-time conversion progress, understand stages, and manage running tasks.
+---
+
+When you click **Start Conversion**, Mangabound orchestrates the underlying tools and transitions to the **Running Screen**.
+
+---
+
+## The Execution Pipeline
+
+Because tasks run sequentially or in parallel depending on CPU resources, each item proceeds through two distinct phases:
+
+### Phase 1: Chapter Binding (`mangabind`)
+If you selected *Regroup into CBZ* or *Both*, Mangabound runs `mangabind` with your saved `mangabind.json` metadata:
+* Uncompresses images safely in isolated temporary workspaces.
+* Arranges chapters into volume folders in natural alphanumeric order.
+* Embeds standard `ComicInfo.xml` metadata containing series name, volume numbers, and language codes.
+* Packs each volume into an uncorrupted `.cbz` archive.
+
+### Phase 2: Hardware Image Processing (`mangapress`)
+Mangabound launches `mangapress` for each volume with the `--json-events` flag enabled. This allows the GUI to receive real-time telemetry over standard output:
+
+```
+[Inspect] ➔ [Plan] ➔ [Process Pages (Parallel CPU Rayon)] ➔ [Package EPUB] ➔ [Atomic Write]
+```
+
+* **Inspect & Metadata**: Reads image dimensions and color depths.
+* **Process (Live Progress)**: Every time a core finishes resizing, cropping, and contrast-tuning a page, a JSON event is dispatched. Mangabound updates the progress bar instantly:
+  * Example: `Converting: Page 142 of 210 (68%)`
+* **Package & Atomic Write**: The book is assembled and written to disk safely to prevent corrupt files.
+
+:::tip[Media Demonstration Placeholder]
+> 📹 **GIF Demo**: Real-time progress bar ticking smoothly as multiple CPU threads process manga pages in parallel.
+:::
+
+---
+
+## Safe Task Cancellation
+
+If you realize you selected the wrong device profile or need to stop a long job:
+1. Click the **Cancel** button on the running item.
+2. Mangabound sends an immediate termination signal (`SIGINT` / process tree kill) to the active `mangabind` or `mangapress` process.
+3. Temporary working files are cleaned up, ensuring no incomplete or corrupt `.epub` files clutter your destination directory.
+
+---
+
+## State Persistence
+
+Unsaved ready books are never lost!
+* If you close Mangabound while finished books are waiting to be saved, Mangabound records them in its local application state.
+* When you re-open Mangabound, your converted books will still be listed under **Ready books**, ready to be exported or shared to KOReader.

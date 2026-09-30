@@ -1,0 +1,52 @@
+---
+title: Processamento e Fila
+description: Acompanhe o progresso de conversão em tempo real, entenda os estágios e controle tarefas em execução.
+---
+
+Ao clicar em **Iniciar Conversão**, o Mangabound assume a orquestração dos utilitários de baixo nível e alterna para a **Tela de Execução (Running Screen)**.
+
+---
+
+## O Ciclo de Execução em Duas Fases
+
+Cada obra da fila é executada através de duas fases independentes:
+
+### Fase 1: Agrupamento em Volumes (`mangabind`)
+Se você selecionou *Reagrupar em CBZ* ou *Ambos*, o Mangabound aciona o `mangabind` utilizando as diretrizes do arquivo `mangabind.json`:
+* Descompacta imagens em áreas isoladas de trabalho temporário.
+* Ordena capítulos e páginas em ordem alfanumérica natural.
+* Gera e inclui metadados `ComicInfo.xml` (com título da série, volume e idioma).
+* Empacota o volume em um arquivo consolidado `.cbz`.
+
+### Fase 2: Processamento e Calibração de Imagem (`mangapress`)
+O Mangabound invoca o `mangapress` para cada volume gerado com o parâmetro `--json-events`. Isso estabelece um canal de telemetria contínua via saída padrão:
+
+```
+[Inspecionar] ➔ [Planejar] ➔ [Processar Páginas (Rayon Multicore)] ➔ [Empacotar EPUB] ➔ [Gravação Atômica]
+```
+
+* **Inspecionar e Metadados**: Avalia as resoluções e canais de cor das páginas.
+* **Processar (Progresso ao Vivo)**: A cada página redimensionada, recortada e calibrada por uma das threads da CPU, um evento JSON é emitido. O Mangabound atualiza a barra de progresso imediatamente:
+  * Exemplo: `Convertendo: Página 142 de 210 (68%)`
+* **Empacotar e Gravação Atômica**: O livro é montado e salvo no disco com proteção atômica contra arquivos corrompidos.
+
+:::tip[Espaço para Demonstração Visual]
+> 📹 **GIF Demonstrativo**: Barra de progresso subindo continuamente conforme os múltiplos núcleos da CPU convertem páginas em paralelo.
+:::
+
+---
+
+## Cancelamento Seguro de Tarefas
+
+Se você perceber que selecionou o perfil errado ou precisar liberar o computador:
+1. Clique no botão **Cancelar** no item em execução.
+2. O Mangabound envia imediatamente um sinal de encerramento (`SIGINT` e encerramento da árvore de subprocessos) ao `mangabind` ou `mangapress`.
+3. Os arquivos temporários em disco são eliminados automaticamente, evitando lixo ou livros corrompidos na pasta de destino.
+
+---
+
+## Persistência de Estado
+
+Livros prontos nunca são perdidos:
+* Se você fechar o Mangabound antes de salvar ou exportar os livros gerados, o aplicativo salva o estado em sua base local.
+* Ao abrir o Mangabound novamente, os livros convertidos continuarão disponíveis na aba **Livros Prontos (Ready Books)**, prontos para serem salvos ou transmitidos para o KOReader.

@@ -1,0 +1,56 @@
+---
+title: Adicionando Provedores de Metadados
+description: Regras e interfaces para contribuir com novas fontes online de volumes para o Mangabound.
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+O Mangabound inclui suporte nativo ao **MangaDex** como seu provedor inicial de metadados. Caso deseje contribuir com outros provedores (como AniList, MyAnimeList, Kitsu ou Bangumi), siga as regras de arquitetura detalhadas abaixo.
+
+---
+
+## Regras Fundamentais de Arquitetura
+
+Antes de implementar um novo provedor, garanta a conformidade com as políticas do projeto:
+
+1. **Apenas Metadados**: O provedor deve fornecer unicamente busca de títulos e relação de capítulos por volume. Provedores com funções de download de imagens ou links para páginas de leitura não serão aceitos.
+2. **Sem Exigência de Conta**: O usuário final não deve precisar criar cadastros, contas ou chaves de API individuais para utilizar o recurso.
+3. **Respeito aos Limites da API**:
+   * Seguir com rigor os Termos de Serviço e limites de requisições por segundo (*rate limits*).
+   * Enviar um cabeçalho `User-Agent` descritivo identificando o Mangabound.
+4. **Privacidade Absoluta**: Enviar apenas o termo de pesquisa digitado pelo usuário. Nunca transmitir caminhos de arquivos locais, nomes de pastas ou dados do sistema.
+
+---
+
+## Contrato de Interface do Provedor
+
+Todos os provedores devem implementar a interface `MetadataProvider` definida em `src/domain/metadata-provider.ts`:
+
+```typescript
+export interface MetadataProvider {
+  readonly id: string;
+  readonly displayName: string;
+  readonly attribution: string;
+
+  /** Busca séries que correspondam ao texto pesquisado */
+  search(query: string, signal?: AbortSignal): Promise<readonly ProviderSearchResult[]>;
+
+  /** Retorna a relação canônica de volumes e capítulos para uma obra */
+  getVolumeMap(seriesId: string, signal?: AbortSignal): Promise<readonly VolumeChapterMap[]>;
+}
+```
+
+---
+
+## Passo a Passo de Implementação
+
+<Steps>
+1. ### Crie o Adaptador
+   Adicione seu arquivo em `src/adapters/metadata/<nome-do-provedor>.ts`. Utilize a API padrão `fetch` com tratamento de falhas e retenção com recuo exponencial (*exponential backoff*) caso ocorra erro HTTP 429.
+
+2. ### Escreva Testes Unitários
+   Crie testes automatizados em `tests/adapters/metadata/<nome-do-provedor>.test.ts` simulando respostas HTTP para cobrir casos como capítulos decimais, volumes sem capítulos e erros de rede.
+
+3. ### Registre no Seletor da Interface
+   Adicione o novo provedor em `src/renderer/components/mapping/provider-picker.tsx` para que ele apareça na lista de seleção do Editor de Mapeamento.
+</Steps>

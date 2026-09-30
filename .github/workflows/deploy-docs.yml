@@ -1,0 +1,72 @@
+name: Deploy Documentation to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - '.github/workflows/deploy-docs.yml'
+  pull_request:
+    paths:
+      - 'docs/**'
+      - '.github/workflows/deploy-docs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: 'pages'
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build & Verify Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: docs/package-lock.json
+
+      - name: Setup GitHub Pages
+        if: github.event_name != 'pull_request'
+        id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Install documentation dependencies
+        run: npm --prefix docs ci
+
+      - name: Build site with Astro
+        run: npm --prefix docs run build
+        env:
+          BASE_PATH: ${{ steps.pages.outputs.base_path || '/mangabound/' }}
+
+      - name: Run automated link integrity & i18n tests
+        run: npm --prefix docs test
+
+      - name: Upload artifact for deployment
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./docs/dist
+
+  deploy:
+    name: Deploy to GitHub Pages
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

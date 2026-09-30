@@ -5,3 +5,7 @@ storybook-static
 coverage
 test-results
 package-lock.json
+docs/.astro
+docs/dist
+docs/package-lock.json
+docs/src/**

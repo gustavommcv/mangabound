@@ -1,0 +1,74 @@
+---
+title: Quick Start Guide
+description: Go from raw manga chapters to reading on your e-reader in under 3 minutes.
+---
+
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+Welcome to the Mangabound Quick Start guide. In this walkthrough, you'll see how to prepare a series, organize its chapters into volumes, convert it for your e-reader, and optionally send it over Wi-Fi to KOReader.
+
+---
+
+## The 5-Step Conversion Workflow
+
+<Steps>
+1. ### Add Your Manga
+   Launch Mangabound. You will be greeted by the **Queue Screen**.
+   
+   * **Drag and drop** a folder of manga chapters, individual `.cbz` files, or an entire manga library folder directly into the window.
+   * Alternatively, click the large drop area to open your system's native folder picker.
+
+   :::tip[Visual Media Placeholder]
+   > 📹 **GIF Demo**: Dragging a manga folder onto Mangabound's drop target and seeing it added to the conversion queue.
+   :::
+
+2. ### Check Volume Mappings
+   Mangabound immediately executes a background dry-run using `mangabind` to parse chapter names.
+   
+   * If folder names include volume information (e.g. `Vol.01 Ch.001 - Title`), chapters are **automatically assigned** to their corresponding volumes.
+   * If folder names only contain chapter numbers (`Chapter 01`, `Chapter 02`), the **Volume Mapping Editor** will flag them as unassigned:
+     * Click **From MangaDex** to search the series title online and fetch official volume chapter counts.
+     * Or click **Auto-Assign** to let Mangabound detect volume boundaries from patterns.
+     * You can also drag chapters, create new volumes, or split ranges manually.
+
+   :::tip[Visual Media Placeholder]
+   > 📸 **Screenshot / GIF**: The Volume Mapping Editor showing chapters grouped into Volume 1 and Volume 2 with MangaDex sync.
+   :::
+
+3. ### Choose Your E-Reader Settings
+   In the **Settings Panel** on the right side:
+   
+   * **Process Steps**:
+     * *Regroup into CBZ*: Consolidates chapters into clean `.cbz` files per volume.
+     * *Convert for e-reader*: Applies the `mangapress` image processing pipeline.
+     * *Both*: Does both steps in a single automated pass.
+   * **Device Profile**: Select your target hardware (e.g., **Kindle Paperwhite**, **Kindle Oasis**, **Kobo Libra 2**, **reMarkable 2**).
+   * **Format**: Choose between **EPUB** (recommended for KOReader and native reading), **CBZ**, or **PDF**.
+   * **Manga Reading Direction**: Enabled by default (right-to-left spread splitting).
+
+4. ### Start Processing
+   Click the **Start Conversion** button.
+   
+   * Mangabound will switch to the **Running Screen**.
+   * As `mangapress` processes each page, you will see real-time updates:
+     * Current stage: *Inspecting*, *Cropping margins*, *Optimizing images*, *Packaging EPUB*.
+     * Precise page counter: e.g. *Page 84 of 192*.
+   * If needed, conversions can be safely cancelled at any moment.
+
+   :::tip[Visual Media Placeholder]
+   > 📹 **GIF Demo**: Live progress bar ticking page-by-page as mangapress converts a volume in parallel.
+   :::
+
+5. ### Save or Share to KOReader
+   Once finished, your items appear in **Ready Books**:
+   
+   * **Save to Disk**: Click **Save as…** for an individual book or **Save all to folder…** for a series export.
+   * **Send to KOReader (Over Wi-Fi)**: Click **Share these books** to start the local OPDS 1.2 server. In KOReader, navigate to OPDS catalogs and download your new books wirelessly!
+</Steps>
+
+---
+
+## What's Next?
+
+* Dive into the [Volume Mapping Editor Guide](../../user-guide/mapping-editor/) to learn how to handle complex scanlation naming conventions.
+* Read the [KOReader Recommended Settings](../../koreader/recommended-settings/) to optimize KOReader's e-ink rendering engine for manga.

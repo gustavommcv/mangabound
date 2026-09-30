@@ -1,0 +1,68 @@
+---
+title: Arquitetura e Critérios de Qualidade
+description: Conheça a arquitetura hexagonal limpa, critérios de testes e travas de segurança do Mangabound.
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+O Mangabound foi estruturado seguindo rigorosamente os princípios da **Arquitetura Hexagonal (Portas e Adaptadores)**. As regras de negócio centrais são puras e totalmente desacopladas do Electron, APIs nativas do Node.js ou do DOM.
+
+---
+
+## Camadas da Aplicação
+
+```text
+src/
+├── domain/                  # Lógica de domínio pura (Zero dependência de Electron ou DOM)
+│   ├── mapping.ts           # Modelos de dados imutáveis (MappingDraft, VolumeDraft, etc.)
+│   ├── mapping-editor.ts    # Redutor de ações do editor com histórico de Undo/Redo
+│   ├── conversion.ts        # Máquina de estados finitos do ciclo de conversão
+│   └── output-profile.ts    # Definição e validação de perfis de hardware
+│
+├── application/             # Casos de uso e portas de entrada/saída
+│   ├── ports/               # Interfaces TypeScript desacopladas
+│   │   ├── conversion-tools.ts # Portas abstratas BindingPort e ConversionPort
+│   │   ├── library-store.ts    # Porta de persistência da biblioteca
+│   │   └── opds-server.ts      # Porta para o servidor local OPDS
+│   └── workflows/           # Orquestração dos fluxos ponta a ponta
+│
+├── adapters/                # Implementações concretas de infraestrutura
+│   ├── mangabind/           # Adaptador de execução da CLI em Go e parser JSON
+│   ├── mangapress/          # Adaptador da CLI em Rust e parser do stream JSON Lines
+│   ├── toolchain/           # Verificação criptográfica SHA-256 via toolchain.lock.json
+│   └── opds/                # Servidor HTTP Express servindo catálogo OPDS 1.2
+│
+├── main/                    # Processo Principal do Electron (Janela nativa e IPC)
+├── preload/                 # Ponte segura de contexto (ContextBridge) fortemente tipada
+└── renderer/                # Interface visual em React 19 (Tailwind CSS, Radix UI, Lucide)
+```
+
+---
+
+## Critérios de Qualidade (Gates)
+
+Antes de qualquer código ser mesclado ou liberado em release, todos os gates de validação são testados:
+
+```bash
+# Executa todos os testes e verificações
+npm run check
+```
+
+A esteira de qualidade contempla:
+1. **Formatação e Lint**: ESLint 9 e Prettier.
+2. **Checagem de Tipos**: TypeScript rigoroso (`tsc --noEmit`).
+3. **Testes Unitários e de Contrato**: Vitest com cobertura estrita de código.
+4. **Testes Visuais**: Playwright para regressão visual rodando sobre histórias do Storybook.
+5. **Testes End-to-End**: WebdriverIO testando o executável final empacotado.
+
+---
+
+## Desenvolvimento Isolado com Storybook
+
+Todos os componentes visuais do Mangabound podem ser inspecionados no Storybook:
+
+```bash
+npm run storybook
+```
+
+Isso permite testar telas de erro, volumes complexos e variações de layout sem precisar processar arquivos reais de mangá no disco.

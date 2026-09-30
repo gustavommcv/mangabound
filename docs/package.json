@@ -1,0 +1,22 @@
+{
+  "name": "mangabound-docs",
+  "private": true,
+  "type": "module",
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "test": "node scripts/check-i18n.mjs && node scripts/verify-links.mjs",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.42.4",
+    "astro": "^7.2.10",
+    "sharp": "^0.35.3"
+  },
+  "allowScripts": {
+    "esbuild": true
+  }
+}

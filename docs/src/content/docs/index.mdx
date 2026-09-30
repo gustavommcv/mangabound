@@ -1,0 +1,42 @@
+---
+title: Introduction
+description: Mangabound is a desktop app that turns manga you already have into books ready for your e-reader.
+---
+
+# Mangabound
+
+**Mangabound** is a desktop application that turns manga you already have, as folders of chapters or as CBZ files, into books ready for your e-reader.
+
+<div align="center" style="margin: 2.5rem 0;">
+  <div style="border: 1px solid var(--sl-color-gray-5); border-radius: 0.75rem; padding: 2.5rem 1.5rem; background: var(--sl-color-gray-6); max-width: 640px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+    <div style="font-size: 3rem; margin-bottom: 0.75rem; letter-spacing: 0.5rem;">📖 ➔ ⚡ ➔ 📱</div>
+    <h3 style="margin: 0.5rem 0; font-size: 1.15rem; color: var(--sl-color-white);">Mangabound Desktop Workflow</h3>
+    <p style="color: var(--sl-color-gray-2); font-size: 0.9rem; line-height: 1.5; margin: 0.5rem 0 0 0;">
+      Drag & Drop Queue • Volume Mapping Editor with MangaDex Sync<br/>
+      E-Ink Hardware Tuning via Mangapress • Wireless KOReader OPDS Delivery
+    </p>
+  </div>
+</div>
+
+:::tip[Visual Demo Placeholder]
+> 📹 **Demo Showcase**: Centered animated GIF / video showcasing Mangabound converting a manga volume and sending it to KOReader (similar to Rakuyomi demo).
+:::
+
+---
+
+## What It Does
+
+1. **Add**: Drag manga folders, libraries, or `.cbz` files onto the queue.
+2. **Check Volumes**: If folder names carry volume numbers (`Vol.01 Ch.001`), chapters are pre-grouped. If not, the interactive volume editor fetches official groupings from **MangaDex** or lets you assign chapters by hand with full undo/redo.
+3. **Choose Process**: Regroup into CBZ, convert for an e-reader, or both. Pick your target device (**Kindle**, **Kobo**, **reMarkable**) and format (**EPUB**, **CBZ**, **PDF**).
+4. **Process**: Items run with real-time page-by-page progress and full cancellation support.
+5. **Save or Share**: Save individual books, export full series in batch, or share directly over your local Wi-Fi to **KOReader** via the built-in OPDS catalog.
+
+---
+
+## The Ecosystem
+
+Mangabound is a graphical front-end that orchestrates two autonomous command-line tools:
+
+* **[mangabind](https://github.com/gustavommcv/mangabind)**: Regroups chapters into one `.cbz` per volume with `ComicInfo.xml` metadata.
+* **[mangapress](https://github.com/gustavommcv/mangapress)**: Resizes, contrast-tunes, auto-crops margins, and splits spreads for e-readers in Rust.

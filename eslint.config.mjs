@@ -10,6 +10,7 @@ export default tseslint.config(
     ignores: [
       '.webpack/**',
       'coverage/**',
+      'docs/**',
       'node_modules/**',
       'out/**',
       'storybook-static/**',

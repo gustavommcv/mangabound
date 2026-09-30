@@ -1,0 +1,82 @@
+---
+title: Instalação
+description: Como baixar, instalar e executar o Mangabound no Windows, macOS e Linux.
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+O Mangabound é distribuído como binários nativos pré-compilados para Windows, macOS e Linux. Cada pacote já inclui versões verificadas do **mangabind** e do **mangapress**, sem necessidade de instalar dependências externas de runtime.
+
+Baixe o pacote correspondente ao seu sistema diretamente da página de [Releases oficiais no GitHub](https://github.com/gustavommcv/mangabound/releases/latest).
+
+---
+
+## Pacotes por Sistema Operacional
+
+<Tabs>
+  <TabItem label="Windows">
+    ### Windows (x64)
+    Escolha entre o instalador padrão ou o arquivo portátil:
+
+    * **Instalador (`.exe`)**: Recomendado para a maioria dos usuários. Execute `mangabound-Setup-<versao>.exe` e siga as instruções na tela.
+    * **Versão Portátil (`.zip`)**: Extraia o arquivo `mangabound-win32-x64-<versao>.zip` em qualquer diretório e execute `mangabound.exe`. Ideal para pendrives e máquinas sem privilégios de administrador.
+
+    :::note[Aviso do Windows SmartScreen]
+    Durante a fase alfa, os instaladores ainda não possuem certificado digital comercial assinado. O SmartScreen do Windows pode exibir um aviso preventivo. Clique em **Mais informações** > **Executar assim mesmo** para prosseguir.
+    :::
+  </TabItem>
+
+  <TabItem label="macOS">
+    ### macOS (Apple Silicon - M1/M2/M3/M4)
+    * Baixe `mangabound-darwin-arm64-<versao>.zip`.
+    * Descompacte o arquivo e arraste o aplicativo `Mangabound.app` para a sua pasta `/Aplicativos` (`/Applications`).
+
+    :::note[macOS Gatekeeper]
+    Como os binários alfa não possuem assinatura paga da Apple, o Gatekeeper pode bloquear a abertura inicial.
+    
+    Para autorizar:
+    1. Clique com o botão direito (ou Control + clique) no `Mangabound.app` no Finder e escolha **Abrir**.
+    2. Confirme o diálogo clicando em **Abrir**.
+    Ou acerte a permissão em **Ajustes do Sistema** > **Privacidade e Segurança**.
+    :::
+  </TabItem>
+
+  <TabItem label="Linux">
+    ### Linux (x64)
+    O Mangabound fornece pacotes nativos para as principais distribuições Linux:
+
+    #### Debian / Ubuntu / Mint / Pop!_OS (`.deb`)
+    ```bash
+    sudo dpkg -i mangabound_<versao>_amd64.deb
+    # Caso falte alguma dependência padrão do sistema:
+    sudo apt-get install -f
+    ```
+
+    #### Fedora / RHEL / openSUSE (`.rpm`)
+    ```bash
+    sudo rpm -i mangabound-<versao>.x86_64.rpm
+    ```
+
+    #### Arch Linux / Manjaro (`.pkg.tar.zst`)
+    ```bash
+    sudo pacman -U ./mangabound-<versao>-x86_64.pkg.tar.zst
+    ```
+  </TabItem>
+</Tabs>
+
+---
+
+## Verificação de Integridade do Toolchain
+
+O Mangabound garante segurança absoluta e reprodutibilidade ao acionar suas ferramentas internas.
+
+Cada compilação mantém um arquivo rigoroso de trava criptográfica [`toolchain.lock.json`](https://github.com/gustavommcv/mangabound/blob/main/toolchain.lock.json). Sempre que uma conversão é iniciada:
+1. O aplicativo confere os hashes criptográficos **SHA-256** dos executáveis compilados de `mangabind` e `mangapress`.
+2. Qualquer binário alterado ou corrompido é rejeitado antes da execução.
+3. É feito o handshake de compatibilidade de versão e protocolo de comunicação (`--protocol-version`).
+
+---
+
+## Próximos Passos
+
+Com o Mangabound devidamente instalado, consulte o [Guia de Início Rápido](../quickstart/) para converter sua primeira obra!

@@ -74,15 +74,16 @@ What each kind of test covers, and what Storybook is for, is in [CONTRIBUTING.md
 
 ## Documentation
 
-| Read this                                                     | To learn                                                                        |
-| ------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| [Architecture overview](docs/architecture.md)                 | How the code is layered, how a conversion runs end to end, where to change what |
-| [Architecture decisions](docs/adr/README.md)                  | Why it is built this way, one short record per decision                         |
-| [Contributing](CONTRIBUTING.md)                               | The gates, the kinds of tests, Storybook, and how to open a pull request        |
-| [Adding an online source](docs/adding-a-metadata-provider.md) | The rules and the steps for offering another source of volume data              |
-| [Milestones](docs/milestones.md)                              | What has been built and what comes next                                         |
-| [Release checklist](docs/release-checklist.md)                | The checks that need hands on a real machine before a release                   |
-| [Releasing](RELEASING.md)                                     | How to cut and publish a release, step by step                                  |
+| Read this                                                          | To learn                                                                        |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| [Documentation Website](https://gustavommcv.github.io/mangabound/) | Official bilingual user guides, KOReader setup, and CLI reference (`docs/`)     |
+| [Architecture overview](docs/architecture.md)                      | How the code is layered, how a conversion runs end to end, where to change what |
+| [Architecture decisions](docs/adr/README.md)                       | Why it is built this way, one short record per decision                         |
+| [Contributing](CONTRIBUTING.md)                                    | The gates, the kinds of tests, Storybook, and how to open a pull request        |
+| [Adding an online source](docs/adding-a-metadata-provider.md)      | The rules and the steps for offering another source of volume data              |
+| [Milestones](docs/milestones.md)                                   | What has been built and what comes next                                         |
+| [Release checklist](docs/release-checklist.md)                     | The checks that need hands on a real machine before a release                   |
+| [Releasing](RELEASING.md)                                          | How to cut and publish a release, step by step                                  |
 
 ## Bundled CLI updates
 

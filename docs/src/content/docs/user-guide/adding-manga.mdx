@@ -1,0 +1,54 @@
+---
+title: Queue & Adding Manga
+description: How to import single volumes, multi-chapter folders, or entire manga libraries into Mangabound.
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+The **Queue Screen** is the main dashboard of Mangabound. Here you can load content, organize the conversion order, and review items before triggering processing.
+
+---
+
+## Supported Input Formats
+
+Mangabound accepts three main types of inputs:
+
+1. **Folder of Chapters**: A directory containing subdirectories for each chapter (where each subfolder contains image files like `.jpg`, `.png`, `.webp`), or containing individual chapter `.cbz` files.
+2. **Library Folder (Multi-Manga)**: A parent folder containing multiple series subfolders (e.g. `Manga/Berserk/`, `Manga/One Piece/`). Mangabound will recognize each subfolder as a distinct series.
+3. **Single Volume `.cbz` Archive**: Pre-assembled `.cbz` files that you wish to re-process and convert with `mangapress` for an e-reader.
+
+---
+
+## Adding Files to the Queue
+
+<Steps>
+1. ### Drag and Drop
+   Simply select your manga folders or `.cbz` files in your file manager (Explorer on Windows, Finder on macOS, or Nautilus/Dolphin on Linux) and drag them anywhere inside the Mangabound window.
+
+2. ### Native Folder Picker
+   Click on the central drop zone or the **Add items** button in the titlebar area to open your system's folder selector.
+
+3. ### Background Inspection
+   As soon as an item lands in the queue, Mangabound runs `mangabind --dry-run --json` in the background. It reads:
+   * Total page counts.
+   * Chapter naming syntax and detected volumes.
+   * Potential chapter conflicts or missing gaps.
+</Steps>
+
+:::tip[Media Demonstration Placeholder]
+> 📹 **GIF Demo**: Showing user dragging two manga directories onto the drop target, watching them inspect instantly, and revealing the volume count badges.
+:::
+
+---
+
+## Managing Queue Items
+
+Each item in the queue displays:
+* **Series Title**: Inferred from the folder name.
+* **Volume / Chapter Counts**: How many chapters were found and how many volumes they were assigned to.
+* **Status Badges**:
+  * `Ready`: All chapters are assigned to volumes and ready for conversion.
+  * `Needs Review`: Some chapters are unassigned (e.g. only numbered `Ch. 1`, `Ch. 2`), requiring attention in the [Volume Mapping Editor](../mapping-editor/).
+* **Action Menu**:
+  * **Edit Mappings**: Opens the Volume Mapping Editor.
+  * **Remove**: Removes the item from the current queue (original files on disk are never deleted or modified).
