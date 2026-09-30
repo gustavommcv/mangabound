@@ -14,3 +14,6 @@ Thumbs.db
 .env.*
 !.env.example
 .claude/settings.local.json
+docs/.astro/
+docs/dist/
+docs/playwright-report/

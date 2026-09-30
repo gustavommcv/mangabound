@@ -1,0 +1,27 @@
+---
+title: 'Processamento'
+description: 'Entenda etapas, progresso dos volumes, cancelamento e falhas.'
+---
+
+import MediaSlot from '../../../../components/MediaSlot.astro';
+
+Após **Process**, o Mangabound executa as etapas escolhidas:
+
+1. **Building volume files**: o mangabind agrupa os capítulos organizados e escreve CBZs intermediários. Acompanhe a contagem de capítulos e páginas enquanto os volumes são gerados.
+2. **Converting**: o mangapress processa páginas e escreve o formato solicitado. Vários volumes podem executar ao mesmo tempo; use **Show details** para ver seus estados individuais.
+
+A barra geral acompanha a execução. Em **Show details**, **Saving** indica que o livro está sendo empacotado ou gravado. Sua barra fica abaixo de 100% até essa etapa terminar, mesmo que todas as páginas já tenham sido processadas.
+
+<MediaSlot id="processing-details" />
+
+## Cancelamento e falhas
+
+Use **Cancel** para interromper a execução. Espere o aplicativo terminar de parar antes de iniciar novamente. O cancelamento não remove o mangá original.
+
+Se um item falhar ou for ignorado, leia sua mensagem nos resultados. Use **Fix**, quando disponível, para corrigir capítulos sem volume. Em erros de gravação, confira espaço e permissões. Uma falha da fonte online não impede a organização manual.
+
+Livros concluídos podem ser salvos mesmo quando outro item falha. Veja [salvamento e livros pendentes](../exporting/).
+
+## Ao relatar um problema
+
+Informe versão, estrutura de entrada (pasta, biblioteca ou CBZ), dispositivo, formato, etapas habilitadas e mensagem exata. Não publique arquivos de mangá nem caminhos privados sem decidir conscientemente compartilhá-los.

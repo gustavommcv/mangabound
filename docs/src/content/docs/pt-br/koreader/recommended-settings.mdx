@@ -1,0 +1,48 @@
+---
+title: 'Configurações do KOReader'
+description: 'Escolha ajustes para o formato do livro e seu dispositivo.'
+---
+
+import MediaSlot from '../../../../components/MediaSlot.astro';
+
+## Ajustes para o seu livro
+
+O KOReader trata EPUB de forma diferente de CBZ e PDF, por isso os controles de página dependem do formato do livro. CBZ é uma escolha prática para ajustar páginas de imagem; EPUB é útil para navegar pelo índice de capítulos e volumes.
+
+Abra algumas páginas e experimente os ajustes abaixo na sua tela. Os nomes e a posição dos menus podem variar conforme a versão, o idioma e o dispositivo. O [guia oficial do KOReader](https://koreader.rocks/user_guide/) explica os controles de cada formato e a pesquisa de menus.
+
+## Overlap status bar
+
+Com um livro aberto, procure **Status bar → Overlap status bar**. A opção permite que a página use a área reservada à barra de status. Confira se a barra não cobre detalhes que você quer ver.
+
+Veja as [configurações da barra de status do KOReader](https://github.com/koreader/koreader/blob/master/frontend/apps/reader/modules/readerfooter.lua).
+
+<MediaSlot id="reader-statusbar" />
+
+## Full refresh rate
+
+Em um leitor e-ink, experimente **Screen → eInk settings → Full refresh rate → Every page** se aparecerem marcas da página anterior.
+
+A atualização completa pode reduzir essas marcas, mas também causar um flash visível ou tornar a troca de páginas mais lenta. Compare com o padrão no seu aparelho. A opção se aplica a telas e-ink compatíveis, não a telas LCD. Consulte as opções de atualização no [guia do KOReader](https://koreader.rocks/user_guide/).
+
+<MediaSlot id="reader-refresh" />
+
+## Controles de página para CBZ/PDF
+
+Experimente a exibição por página e o ajuste da página inteira à tela. Se o livro já ocupa bem a tela, deixe o recorte desativado: a conversão pode ter removido as margens, e outro recorte pode cortar a arte.
+
+Esses são controles de CBZ/PDF. Para EPUB, use as opções do próprio menu de leitura. Altere um ajuste por vez e compare algumas páginas antes de salvar suas preferências.
+
+## Tweak document settings
+
+Para usar padrões diferentes em uma pasta de mangás e outra de livros de texto, há o plugin avançado **Tweak document settings**. Ele aplica os padrões da pasta na primeira abertura de um livro.
+
+O plugin usa um arquivo de configuração Lua e não é a mesma função dos ajustes de estilo de EPUB. Siga as [instruções oficiais](https://github.com/koreader/koreader/wiki/Tweak-document-settings-by-directory) e faça backup antes de editar a configuração. Livros que você já abriu podem manter seus ajustes individuais.
+
+<MediaSlot id="reader-directory-defaults" />
+
+## Salvando um padrão
+
+Alguns controles permitem salvar um padrão com toque longo; outros abrem ajuda ou outro diálogo. Siga a confirmação exibida para aquele controle. Livros já abertos podem manter seus próprios ajustes.
+
+Se um livro continuar sendo exibido incorretamente, informe a versão do KOReader, o dispositivo, o formato e os ajustes ao pedir ajuda.

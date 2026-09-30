@@ -1,0 +1,40 @@
+---
+title: 'Salvamento e livros prontos'
+description: 'Salve, abra, compartilhe ou descarte conversões pendentes.'
+---
+
+import MediaSlot from '../../../../components/MediaSlot.astro';
+
+## Salve uma cópia
+
+Use **Save as…** ao lado de um livro para escolher nome e destino. Para vários livros, **Save all to folder…** copia todos para a pasta selecionada.
+
+Você pode salvar novamente enquanto os livros pendentes estiverem disponíveis. O salvamento em lote não substitui arquivos existentes: utiliza um nome numerado livre. Portanto, salvar repetidamente pode gerar cópias extras. **Save as…** individual utiliza a confirmação de sobrescrita do diálogo nativo.
+
+Se houver falha ou aviso, leia a mensagem e tente novamente. Um livro pode ter sido copiado mesmo quando seu registro no catálogo do destino falhou; confira a pasta antes de fazer outra cópia. A cópia pendente continua disponível para recuperação.
+
+<MediaSlot id="save-results" />
+
+## Abra ou compartilhe
+
+- A ação de abrir ao lado do livro utiliza o aplicativo padrão do sistema operacional. Se nenhum estiver associado a EPUB/CBZ/PDF, instale um leitor compatível ou configure a associação.
+- A ação de pasta aparece para um livro salvo e mostra seu destino.
+- **Share these books** disponibiliza os livros pendentes por OPDS sem exigir exportação antes. Veja [compartilhamento local](../../koreader/opds-sharing/).
+
+## O que permanece após reiniciar?
+
+Os livros pendentes ficam nos dados locais persistentes do Mangabound, não na pasta temporária do sistema. Conversões ainda não salvas, parcialmente salvas ou com avisos continuam em **Ready books** na fila. **View books** abre seus resultados.
+
+Quando todos os livros de uma conversão concluída foram salvos e registrados com sucesso, suas cópias pendentes podem ser removidas ao fechar o aplicativo. As cópias exportadas permanecem no destino escolhido. Faça seus próprios backups; os dados pendentes não são uma biblioteca permanente.
+
+<MediaSlot id="ready-books" />
+
+## Exclua livros pendentes
+
+Em **Ready books**, na fila, cada grupo de conversão tem uma ação **Delete**. Após confirmação, ela remove permanentemente **todos os livros gerados pendentes daquele grupo**, não apenas uma linha ou um volume escolhido.
+
+A exclusão não remove a entrada original nem cópias exportadas para outra pasta. Fica bloqueada durante uma conversão ou enquanto os livros daquele grupo estão sendo salvos ou compartilhados. Pare o compartilhamento ou espere a operação terminar e tente novamente.
+
+:::caution[Salve primeiro]
+Se a conversão pendente for sua única cópia, Delete descarta seus livros gerados. Para recuperá-los, seria necessário processar a entrada original novamente.
+:::

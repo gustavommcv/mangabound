@@ -1,0 +1,40 @@
+---
+title: 'Organização de volumes'
+description: 'Agrupe capítulos manualmente ou confira uma sugestão online.'
+---
+
+import MediaSlot from '../../../../components/MediaSlot.astro';
+
+O editor define a quais volumes pertencem os capítulos locais. As três abas de **Chapters from** trabalham na mesma organização: você pode corrigir uma sugestão ou criar volumes do zero.
+
+## File names
+
+Se os nomes contiverem números de volume, **File names** mostra um resumo da organização reconhecida. O agrupamento usa esses números, não uma quantidade fixa de capítulos por volume.
+
+Use **Edit chapter mapping** para abrir os controles manuais quando precisar corrigir o resumo. **Start over from the names** restaura a organização inicial pelos nomes e descarta as edições.
+
+## Manual: sem consulta online
+
+1. Selecione **Manual**. A aba abre automaticamente quando nenhum volume é encontrado nos nomes.
+2. Use **Create volume** para adicionar o primeiro volume.
+3. Selecione capítulos na lista, escolha o volume de destino e use **Assign selected**. Para capítulos numerados consecutivos, use **Assign range**.
+4. Repita para os outros volumes. Atribuir um capítulo já colocado o move, sem duplicá-lo.
+5. Resolva os problemas listados e use **Confirm mapping**.
+
+Use os controles do editor para alterar números de volume ou mesclar volumes. Os botões de desfazer/refazer permitem reverter alterações.
+
+<MediaSlot id="manual-mapping" />
+
+## Online source: sugestões opcionais
+
+Escolha **Online source**, selecione MangaDex, informe o título e pressione **Search**.
+
+Escolha a obra com **Use these volumes**, confira o resumo e confirme ou use **Edit chapter mapping**. Uma sugestão pode estar incompleta ou diferir da sua edição; confira capítulos especiais e decimais. Se a obra não existir na fonte, use **Manual**.
+
+<MediaSlot id="online-mapping" />
+
+## Pulando o agrupamento
+
+**Skip grouping** aparece quando o fluxo permite converter sem reagrupar. Fica bloqueado em **Create one book for the series**, pois esse modo precisa dos volumes organizados para o índice aninhado do EPUB.
+
+A organização é enviada ao mangabind no [formato de metadados documentado](https://github.com/gustavommcv/mangabind/blob/main/docs/adr/0010-local-metadata-file.md). Não é necessário editar JSON para utilizar o editor.

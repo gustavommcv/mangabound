@@ -1,0 +1,19 @@
+---
+title: 'Machine interfaces'
+description: "Find the tools' versioned, normative JSON contracts."
+---
+
+Mangabound runs the bundled tools as subprocesses and validates their structured output. Use `--protocol-version` to read a tool's version, protocol, and capabilities.
+
+## Normative contracts
+
+- [mangabind machine protocol v1](https://github.com/gustavommcv/mangabind/blob/main/docs/machine-protocol-v1.md): `--json` returns one final report on stdout. Opt-in `--progress-json` additionally reports progress on stderr, keeping the final report unchanged.
+- [mangapress machine protocol v1](https://github.com/gustavommcv/mangapress/blob/main/docs/machine-protocol-v1.md): `--json-events` emits sequenced JSON Lines on stdout.
+
+Each contract defines its message fields, progress stream, errors, and exit codes.
+
+## Working examples in the application
+
+The app's [recorded protocol fixtures](https://github.com/gustavommcv/mangabound/tree/main/tests/fixtures/protocol) and [adapter parsers](https://github.com/gustavommcv/mangabound/tree/main/src/adapters) demonstrate the actual payloads it accepts. Its [toolchain lock](https://github.com/gustavommcv/mangabound/blob/main/toolchain.lock.json) records the bundled versions.
+
+Use fixtures for your target release when testing an integration.

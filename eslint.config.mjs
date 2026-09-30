@@ -10,6 +10,7 @@ export default tseslint.config(
     ignores: [
       '.webpack/**',
       'coverage/**',
+      'docs/**', // Independent Astro package; docs/eslint.config.mjs and documentation CI own it.
       'node_modules/**',
       'out/**',
       'storybook-static/**',

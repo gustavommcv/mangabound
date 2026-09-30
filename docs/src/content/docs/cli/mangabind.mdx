@@ -1,0 +1,24 @@
+---
+title: 'mangabind CLI'
+description: 'Group chapters into volumes from the terminal.'
+---
+
+To use mangabind from the terminal, download it from [GitHub Releases](https://github.com/gustavommcv/mangabind/releases) and add its folder to your PATH.
+
+## Try it
+
+```sh
+mangabind --help
+mangabind --input "./Manga" --dry-run --json
+mangabind --input "./Library" --output "./Volumes" --batch
+```
+
+The dry run shows the plan without writing volumes. Use `--batch` to process a library of manga folders.
+
+For your own chapter mapping, use `--metadata-file`. In a batch, give each manga folder its own `mangabind.json`.
+
+## More options
+
+The tool's [README](https://github.com/gustavommcv/mangabind#readme) covers its options, including combining a series with `--combine` and reporting progress with `--progress-json`.
+
+For integrations, see the [metadata format](https://github.com/gustavommcv/mangabind/blob/main/docs/adr/0010-local-metadata-file.md) and [machine protocol](https://github.com/gustavommcv/mangabind/blob/main/docs/machine-protocol-v1.md). Match the reference to the version you run.

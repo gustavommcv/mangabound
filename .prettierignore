@@ -5,3 +5,12 @@ storybook-static
 coverage
 test-results
 package-lock.json
+docs/.astro
+docs/dist
+docs/test-results
+docs/playwright-report
+docs/package-lock.json
+docs/src/**
+docs/scripts/**
+docs/tests/**
+docs/*.mjs

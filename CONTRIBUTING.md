@@ -19,6 +19,12 @@ To offer another online source for volume data, follow [the provider guide](docs
 
 Use Conventional Commit-style subjects where practical. Architecture changes require a new ADR; accepted ADRs are never rewritten to conceal a reversed decision.
 
+### Documentation website
+
+The Astro/Starlight website is a separate package under `docs/`, with its own lockfile and gates. For website changes, also run `npm --prefix docs ci`, install its Playwright browser, and run `npm --prefix docs run check`. This checks the built site, both language trees, links and media, keyboard navigation, search, mobile layout, accessibility, and development-only media markers on Windows and Linux CI. The application's checks do not replace these gates, and website checks do not replace the application's CI.
+
+Read [the website contributor guide](docs/README.md) and [the tutorial media plan](docs/MEDIA.md). Keep English and Portuguese pages together, preserve the actual English application labels, and link to canonical architecture/protocol/provider documents instead of copying them into a second reference. Screenshots and GIFs must match released behavior and never be the only instructions for a task.
+
 ## The gates, and what each is for
 
 `npm run check` runs the first nine of these together, plus an audit of the production dependencies and a check of the tool pins. Run a single one while you work.
@@ -125,10 +131,13 @@ A decision that changes how the app is built or what it does gets a short record
 
 ## Pull requests
 
+- Start feature and fix branches from an up-to-date `develop` and target their pull requests to `develop`. New implementation work is integrated and tested there before being promoted to `main`.
+- Keep `develop` synchronized with `main` without rewriting shared history. Promote tested changes through a separate `develop` → `main` pull request; merging a feature into `develop` does not authorize promotion or a release.
+- Application and documentation CI run for pull requests and pushes to both integration branches. Verify the exact PR head before merging and the exact resulting branch commit after merging, following the remote-CI gate below. The documentation site is published only from `main`; releases still require an explicitly authorized version tag.
 - One topic per pull request, and a description that says what changed, why, and how it was checked. Reviewers should be able to judge it without opening the diff first.
 - Keep a change small enough to review. A refactor and a feature are two pull requests.
 - The description of a user-visible change says what a person will notice.
-- Delete the branch when the pull request is merged.
+- Delete merged feature/fix branches after the resulting commit's CI succeeds. Keep the long-lived `develop` and `main` branches.
 
 ## Remote CI is the completion gate
 
