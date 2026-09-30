@@ -251,14 +251,16 @@ export function App(): React.JSX.Element {
   useEffect(() => {
     if (bridge === undefined) return;
     let current = true;
+    // Asked again after an await, where the flag may have been cleared meanwhile.
+    const isStale = (): boolean => !current;
     void bridge
       .getToolchainStatus()
       .then(async (status) => {
-        if (!current) return;
+        if (isStale()) return;
         setToolchain(status);
-        if (status.state !== 'ready' || bridge.getDeviceProfiles === undefined) return;
+        if (status.state !== 'ready') return;
         const result = await bridge.getDeviceProfiles();
-        if (!current) return;
+        if (isStale()) return;
         if (result.ok) setProfiles(result.value);
         else setFailure(result.error);
       })
@@ -277,7 +279,7 @@ export function App(): React.JSX.Element {
   }, [bridge]);
 
   useEffect(() => {
-    if (bridge?.loadSettings === undefined) return;
+    if (bridge === undefined) return;
     let current = true;
     void bridge
       .loadSettings()
@@ -326,7 +328,7 @@ export function App(): React.JSX.Element {
   }, [bridge, notify]);
 
   useEffect(() => {
-    if (bridge?.listPendingRuns === undefined) return;
+    if (bridge === undefined) return;
     let current = true;
     void bridge.listPendingRuns().then((result) => {
       if (!current) return;
@@ -339,7 +341,7 @@ export function App(): React.JSX.Element {
   }, [bridge]);
 
   useEffect(() => {
-    if (bridge?.saveSettings === undefined || !restored) return;
+    if (bridge === undefined || !restored) return;
     // A value that is half typed is not kept: the last valid options stay saved until it is fixed.
     if (validateMangapressSettings(settings, format).length > 0) return;
     const command = settingsToKeep({
@@ -379,16 +381,14 @@ export function App(): React.JSX.Element {
   ]);
 
   useEffect(() => {
-    if (bridge?.onConversionProgress === undefined) return;
+    if (bridge === undefined) return;
     return bridge.onConversionProgress((update) => {
       if (update.jobId === jobId) setProgress(update);
     });
   }, [bridge, jobId]);
 
   useEffect(() => {
-    if (bridge?.listNetworkInterfaces === undefined || bridge.getSharingStatus === undefined) {
-      return;
-    }
+    if (bridge === undefined) return;
     let current = true;
     void Promise.all([bridge.listNetworkInterfaces(), bridge.getSharingStatus()]).then(
       ([interfacesResult, statusResult]) => {
@@ -403,7 +403,7 @@ export function App(): React.JSX.Element {
   }, [bridge]);
 
   useEffect(() => {
-    if (bridge?.listMetadataProviders === undefined) return;
+    if (bridge === undefined) return;
     let current = true;
     // Optional feature: never let this lookup surface as an error. No providers just means no panel.
     void bridge
@@ -1409,14 +1409,10 @@ export function App(): React.JSX.Element {
                   openEditor(rowId);
                 }}
                 onOpen={(artifactId) => {
-                  if (bridge.openArtifact !== undefined) {
-                    void runArtifactAction(bridge.openArtifact, artifactId);
-                  }
+                  void runArtifactAction(bridge.openArtifact, artifactId);
                 }}
                 onShow={(artifactId) => {
-                  if (bridge.showArtifactInFolder !== undefined) {
-                    void runArtifactAction(bridge.showArtifactInFolder, artifactId);
-                  }
+                  void runArtifactAction(bridge.showArtifactInFolder, artifactId);
                 }}
                 onSaveAs={(artifactId) => {
                   void saveArtifactAs(artifactId);

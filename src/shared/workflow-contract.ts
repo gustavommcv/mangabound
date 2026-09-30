@@ -44,7 +44,6 @@ export const mappingDraftSchema = z.object({
   source: z.object({ provider: z.string(), id: z.string() }).optional(),
 });
 
-export const inputKindSchema = z.enum(['folder', 'cbz']);
 export const chooseInputsKindSchema = z.enum(['files', 'folders']);
 export const registerInputsCommandSchema = z.object({
   paths: z.array(z.string()).max(1000),

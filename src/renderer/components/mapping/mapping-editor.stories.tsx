@@ -147,7 +147,7 @@ export const OnlineSourceNoneChosen: Story = {
 
 /** No file-name grouping, with an optional online suggestion available but not selected. */
 export const ManualWithOnlineOption: Story = {
-  args: OnlineSourceNoneChosen.args ?? {},
+  args: OnlineSourceNoneChosen.args,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByRole('tab', { name: 'Manual' })).toHaveAttribute(
@@ -162,7 +162,7 @@ export const ManualWithOnlineOption: Story = {
 
 /** The list of sources, open, before anything is chosen. */
 export const OnlineSourceListOpen: Story = {
-  args: OnlineSourceNoneChosen.args ?? {},
+  args: OnlineSourceNoneChosen.args,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole('tab', { name: 'Online source' }));

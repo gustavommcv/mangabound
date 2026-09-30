@@ -155,5 +155,5 @@ export const Unreadable: Story = {
 
 /** Converting only: volumes are already made, so there is nothing here to edit. */
 export const ConvertOnlyMode: Story = {
-  args: { mode: 'convert-only', row: Grouped.args?.row },
+  args: { mode: 'convert-only', row: Grouped.args.row },
 };
