@@ -10,11 +10,24 @@ function mapOrEmpty<T extends z.ZodTypeAny>(valueSchema: T) {
   );
 }
 
+// Only what a work is related to that was asked for comes with its attributes: an author does when
+// the search asks for it, an artist does not. Nothing here may depend on that.
+const relationshipSchema = z
+  .object({ type: z.string(), attributes: z.unknown().optional() })
+  .passthrough();
+
 const mangaSchema = z
   .object({
     id: z.string(),
     type: z.literal('manga'),
-    attributes: z.object({ title: z.record(z.string(), z.string()) }).passthrough(),
+    attributes: z
+      .object({
+        title: z.record(z.string(), z.string()),
+        // Not every work has a year, and the service says so with null.
+        year: z.number().int().nullable().optional(),
+      })
+      .passthrough(),
+    relationships: z.array(relationshipSchema).optional(),
   })
   .passthrough();
 
@@ -40,6 +53,7 @@ export const aggregateResponseSchema = z
   .passthrough();
 
 export type SearchResponse = z.infer<typeof searchResponseSchema>;
+export type SearchedManga = SearchResponse['data'][number];
 export type AggregateResponse = z.infer<typeof aggregateResponseSchema>;
 
 function parseJson(input: string): unknown {

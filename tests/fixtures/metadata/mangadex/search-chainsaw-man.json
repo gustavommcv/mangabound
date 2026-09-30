@@ -15,14 +15,24 @@
           },
           {
             "ru": "Человек-бензопила"
-          },
-          {
-            "ja": "チェンソーマン"
           }
         ],
-        "status": "completed",
-        "availableTranslatedLanguages": ["fa", "hu", "cs", "en", "it", "pt-br"]
-      }
+        "year": 2018,
+        "status": "completed"
+      },
+      "relationships": [
+        {
+          "id": "f85a5b93-3c87-4c61-9032-07ceacbb9e64",
+          "type": "author",
+          "attributes": {
+            "name": "Fujimoto Tatsuki"
+          }
+        },
+        {
+          "id": "f85a5b93-3c87-4c61-9032-07ceacbb9e64",
+          "type": "artist"
+        }
+      ]
     },
     {
       "id": "e896c48c-3150-437d-ba57-d8567eb399ae",
@@ -37,14 +47,24 @@
           },
           {
             "fr": "Chainsaw Man (Couleur Officielle)"
-          },
-          {
-            "kk": "Шынжыра адам (Түрлі Түсті)"
           }
         ],
-        "status": "ongoing",
-        "availableTranslatedLanguages": ["pt-br", "it", "en", "tr", "es-la", "la"]
-      }
+        "year": 2021,
+        "status": "ongoing"
+      },
+      "relationships": [
+        {
+          "id": "f85a5b93-3c87-4c61-9032-07ceacbb9e64",
+          "type": "author",
+          "attributes": {
+            "name": "Fujimoto Tatsuki"
+          }
+        },
+        {
+          "id": "f85a5b93-3c87-4c61-9032-07ceacbb9e64",
+          "type": "artist"
+        }
+      ]
     },
     {
       "id": "268f5da0-d158-4c95-bc2b-b4d962c2f325",
@@ -59,17 +79,27 @@
           },
           {
             "ja-ro": "Renzoku terebi shōsetsu　Hayakawa ie!"
-          },
-          {
-            "en": "Serial TV Novel: The Hayakawa Family!"
           }
         ],
-        "status": "completed",
-        "availableTranslatedLanguages": ["en"]
-      }
+        "year": 2023,
+        "status": "completed"
+      },
+      "relationships": [
+        {
+          "id": "f0f70a25-3ed6-4e4b-ae52-c49d1244a487",
+          "type": "author",
+          "attributes": {
+            "name": "Iing Naoe"
+          }
+        },
+        {
+          "id": "f0f70a25-3ed6-4e4b-ae52-c49d1244a487",
+          "type": "artist"
+        }
+      ]
     }
   ],
-  "limit": 5,
+  "limit": 10,
   "offset": 0,
   "total": 10
 }

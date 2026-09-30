@@ -19,11 +19,16 @@ export interface MetadataSearchResult {
   readonly title: string;
   /** The `id` of the provider that found it, which is also what the mapping records as its source. */
   readonly provider: string;
+  /** Who wrote it, when the source says; it tells works with the same title apart. */
+  readonly authors?: readonly string[];
+  /** The year it began, when the source says. */
+  readonly year?: number;
 }
 
 /**
- * A source of chapter-to-volume data. This is all a provider can do: find a work by its title, and
- * say which chapters of it belong to which volume. There is deliberately no way to ask for
+ * A source of chapter-to-volume data. This is all a provider can do: find a work by its title (and
+ * say who wrote it and when it began, where it knows), and say which chapters of it belong to which
+ * volume. There is deliberately no way to ask for
  * chapters, pages or images (ADR 0005: Mangabound is not a downloader).
  */
 export interface MetadataProviderPort {

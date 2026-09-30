@@ -6,11 +6,33 @@ import type { BookDetails } from '@/domain/book-details';
 
 import { BookDetailsScreen, type BookDetailsScreenProps } from './book-details-screen';
 
-/** Keeps what is typed, the way the queue does, so the stories can be used as they would be. */
+import type { AuthorLookup } from '@/renderer/components/details/author-lookup';
+
+/** Keeps what is typed and the source chosen, the way the app does, so the stories work as used. */
 function Stateful(props: BookDetailsScreenProps): React.JSX.Element {
   const [details, setDetails] = useState<BookDetails>(props.details);
-  return <BookDetailsScreen {...props} details={details} onChange={setDetails} />;
+  const [selectedId, setSelectedId] = useState(props.lookup?.selectedId);
+  const lookup =
+    props.lookup === undefined
+      ? {}
+      : { lookup: { ...props.lookup, selectedId, onSelect: setSelectedId } };
+  return <BookDetailsScreen {...props} {...lookup} details={details} onChange={setDetails} />;
 }
+
+const mangaDex = {
+  id: 'mangadex',
+  displayName: 'MangaDex',
+  homepage: 'https://mangadex.org',
+  description: 'Community catalogue of manga, with volume and chapter data',
+};
+
+const lookupWith = (onSearch: AuthorLookup['onSearch']): AuthorLookup => ({
+  onOpenHomepage: () => undefined,
+  onSearch,
+  onSelect: () => undefined,
+  providers: [mangaDex],
+  selectedId: undefined,
+});
 
 const meta = {
   title: 'Workflows/Book details',
@@ -126,4 +148,72 @@ export const InvalidLanguage: Story = {
 /** A title inside a library: Back returns to the library, not the queue. */
 export const InALibrary: Story = {
   args: { backLabel: 'Manga Library', name: 'Vagabond', defaultTitle: 'Vagabond' },
+};
+
+/** Looking up who wrote it: choose a source here, search the title, and take an author found. */
+export const FindingTheAuthor: Story = {
+  args: {
+    lookup: lookupWith(() =>
+      Promise.resolve([
+        {
+          id: 'w1',
+          provider: 'mangadex',
+          title: 'Chainsaw Man',
+          authors: ['Fujimoto Tatsuki'],
+          year: 2018,
+        },
+        {
+          id: 'w2',
+          provider: 'mangadex',
+          title: 'Chainsaw Man - The Hayakawa Family (Doujinshi)',
+          authors: ['Iing Naoe'],
+          year: 2023,
+        },
+        { id: 'w3', provider: 'mangadex', title: 'Chainsaw Man (Fan Colored)', year: 2018 },
+      ]),
+    ),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole('button', { name: 'Find author' }));
+    await userEvent.click(canvas.getByRole('combobox', { name: 'Source' }));
+    await userEvent.click(await canvas.findByRole('option', { name: /MangaDex/u }));
+    await userEvent.click(await canvas.findByRole('button', { name: 'Search' }));
+    await userEvent.click(
+      await canvas.findByRole('button', { name: 'Use Fujimoto Tatsuki from Chainsaw Man' }),
+    );
+    await expect(canvas.getByLabelText('Author')).toHaveValue('Fujimoto Tatsuki');
+  },
+};
+
+/** A title with extra characters in it finds nothing, and the notice says so and where to change it. */
+export const NoAuthorMatches: Story = {
+  args: {
+    defaultTitle: 'Chainsaw Man - EN',
+    name: 'Chainsaw Man - EN',
+    lookup: lookupWith(() => Promise.resolve([])),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole('button', { name: 'Find author' }));
+    await userEvent.click(canvas.getByRole('combobox', { name: 'Source' }));
+    await userEvent.click(await canvas.findByRole('option', { name: /MangaDex/u }));
+    await userEvent.click(await canvas.findByRole('button', { name: 'Search' }));
+    await expect(await canvas.findByRole('status', { name: 'No matches' })).toHaveTextContent(
+      'Try a simpler title above and search again.',
+    );
+  },
+};
+
+/** The source could not be reached: the author is still typed by hand. */
+export const AuthorSearchFailed: Story = {
+  args: { lookup: lookupWith(() => Promise.reject(new Error('Could not reach MangaDex.'))) },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole('button', { name: 'Find author' }));
+    await userEvent.click(canvas.getByRole('combobox', { name: 'Source' }));
+    await userEvent.click(await canvas.findByRole('option', { name: /MangaDex/u }));
+    await userEvent.click(await canvas.findByRole('button', { name: 'Search' }));
+    await expect(await canvas.findByRole('alert')).toHaveTextContent('Could not reach MangaDex.');
+  },
 };

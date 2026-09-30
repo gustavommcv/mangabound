@@ -303,6 +303,10 @@ export interface MetadataSearchResult {
   readonly id: string;
   readonly title: string;
   readonly provider: string;
+  /** Who wrote it, when the source says. */
+  readonly authors?: readonly string[];
+  /** The year it began, when the source says. */
+  readonly year?: number;
 }
 
 export interface VolumeSuggestion {

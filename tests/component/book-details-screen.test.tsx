@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { BookDetails } from '@/domain/book-details';
+import type { SearchMetadata } from '@/renderer/hooks/use-metadata-search';
 import {
   BookDetailsScreen,
   type BookDetailsScreenProps,
@@ -170,5 +171,275 @@ describe('the book details screen', () => {
 
     expect(screen.getByText(/CBZ files do not store an author/u)).toBeVisible();
     expect(screen.getByText('Only EPUB files carry a language.')).toBeVisible();
+  });
+});
+
+describe('looking up the author of a work', () => {
+  const mangaDex = {
+    id: 'mangadex',
+    displayName: 'MangaDex',
+    homepage: 'https://mangadex.org',
+    description: 'Community catalogue of manga',
+  };
+  const otherSource = {
+    id: 'other',
+    displayName: 'Other Catalogue',
+    homepage: 'https://other.example',
+    description: 'Another catalogue',
+  };
+  const work = {
+    id: 'w1',
+    provider: 'mangadex',
+    title: 'Chainsaw Man',
+    authors: ['Fujimoto Tatsuki'],
+    year: 2018,
+  };
+
+  /** A lookup that keeps the source chosen, the way the app does, and records what is asked. */
+  function LookingUp({
+    onChange = vi.fn(),
+    onSearch,
+    onOpenHomepage = vi.fn(),
+    providers = [mangaDex],
+    selected,
+    ...props
+  }: Partial<BookDetailsScreenProps> & {
+    readonly onSearch: SearchMetadata;
+    readonly onOpenHomepage?: (providerId: string) => void;
+    readonly providers?: readonly (typeof mangaDex)[];
+    readonly selected?: string;
+  }): React.JSX.Element {
+    const [selectedId, setSelectedId] = useState<string | undefined>(selected);
+    return (
+      <Harness
+        {...props}
+        lookup={{
+          onOpenHomepage,
+          onSearch,
+          onSelect: setSelectedId,
+          providers,
+          selectedId,
+        }}
+        onChange={onChange}
+      />
+    );
+  }
+
+  const openLookup = async (user: ReturnType<typeof userEvent.setup>): Promise<void> => {
+    await user.click(screen.getByRole('button', { name: 'Find author' }));
+  };
+  const chooseSource = async (
+    user: ReturnType<typeof userEvent.setup>,
+    name = /MangaDex/u,
+  ): Promise<void> => {
+    await user.click(screen.getByRole('combobox', { name: 'Source' }));
+    await user.click(screen.getByRole('option', { name }));
+  };
+
+  it('is offered only where there is a source to ask', () => {
+    const { rerender } = render(<BookDetailsScreen {...base} />);
+    expect(screen.queryByRole('button', { name: 'Find author' })).not.toBeInTheDocument();
+
+    rerender(
+      <BookDetailsScreen
+        {...base}
+        lookup={{
+          onOpenHomepage: vi.fn(),
+          onSearch: vi.fn(),
+          onSelect: vi.fn(),
+          providers: [],
+          selectedId: undefined,
+        }}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: 'Find author' })).not.toBeInTheDocument();
+  });
+
+  it('opens on its own, asking for a source first and sending nothing', async () => {
+    const user = userEvent.setup();
+    const onSearch = vi.fn();
+    render(<LookingUp onSearch={onSearch} />);
+    expect(screen.getByRole('button', { name: 'Find author' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+
+    await openLookup(user);
+
+    expect(screen.getByRole('button', { name: 'Find author' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+    expect(screen.getByText(/Pick a source to look up who wrote it/u)).toBeVisible();
+    expect(screen.getByRole('combobox', { name: 'Source' })).toHaveTextContent('Select a source');
+    expect(screen.queryByRole('button', { name: 'Search' })).not.toBeInTheDocument();
+    expect(onSearch).not.toHaveBeenCalled();
+
+    await openLookup(user);
+    expect(screen.queryByRole('combobox', { name: 'Source' })).not.toBeInTheDocument();
+  });
+
+  it('says what would be sent and to whom, following the title as it is typed, and credits the source', async () => {
+    const user = userEvent.setup();
+    const onOpenHomepage = vi.fn();
+    render(<LookingUp onOpenHomepage={onOpenHomepage} onSearch={vi.fn()} />);
+    await openLookup(user);
+
+    await chooseSource(user);
+
+    expect(screen.getByText('Author data by')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Open MangaDex in your browser' }));
+    expect(onOpenHomepage).toHaveBeenCalledExactlyOnceWith('mangadex');
+    // With no title typed, it is the item's own name that would be searched.
+    expect(screen.getByText(/Will search MangaDex for “Chainsaw Man”/u)).toBeVisible();
+    await user.type(screen.getByLabelText('Book title'), '  Berserk ');
+    expect(screen.getByText(/Will search MangaDex for “Berserk”/u)).toBeVisible();
+    expect(screen.getByText(/Only author names and years are used/u)).toBeVisible();
+  });
+
+  it('searches the title only when Search is used, and lists each work with its authors and year', async () => {
+    const user = userEvent.setup();
+    const onSearch = vi.fn(() =>
+      Promise.resolve([
+        work,
+        { id: 'w2', provider: 'mangadex', title: 'Chainsaw Man (Fan Colored)', year: 2019 },
+        { id: 'w3', provider: 'mangadex', title: 'Two Hands', authors: ['A One', 'B Two'] },
+      ]),
+    );
+    render(<LookingUp onSearch={onSearch} />);
+    await openLookup(user);
+    await chooseSource(user);
+    expect(onSearch).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'Search' }));
+
+    expect(onSearch).toHaveBeenCalledExactlyOnceWith(
+      'mangadex',
+      'Chainsaw Man',
+      expect.any(AbortSignal),
+    );
+    const matches = within(await screen.findByRole('list', { name: 'Matches' }));
+    const rows = matches.getAllByRole('listitem').map((row) => row.textContent);
+    expect(rows).toEqual([
+      'Chainsaw ManFujimoto Tatsuki · 2018Use author',
+      'Chainsaw Man (Fan Colored)No author listed · 2019',
+      'Two HandsA One, B TwoUse author',
+    ]);
+  });
+
+  it('takes the authors of the work chosen as the author, closes, and goes back to the field', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const onSearch = vi.fn(() =>
+      Promise.resolve([{ ...work, authors: ['Fujimoto Tatsuki', 'Someone Else'] }]),
+    );
+    render(<LookingUp onChange={onChange} onSearch={onSearch} />);
+    await openLookup(user);
+    await chooseSource(user);
+    await user.click(screen.getByRole('button', { name: 'Search' }));
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Use Fujimoto Tatsuki, Someone Else from Chainsaw Man',
+      }),
+    );
+
+    expect(screen.getByLabelText('Author')).toHaveValue('Fujimoto Tatsuki, Someone Else');
+    expect(screen.getByLabelText('Author')).toHaveFocus();
+    expect(lastChange(onChange)).toEqual({ author: 'Fujimoto Tatsuki, Someone Else' });
+    expect(screen.queryByRole('combobox', { name: 'Source' })).not.toBeInTheDocument();
+  });
+
+  it('keeps a work found in a source already chosen, so a second title needs only Search', async () => {
+    const user = userEvent.setup();
+    const onSearch = vi.fn(() => Promise.resolve([work]));
+    render(<LookingUp onSearch={onSearch} selected="mangadex" />);
+
+    await openLookup(user);
+
+    expect(screen.getByRole('combobox', { name: 'Source' })).toHaveTextContent('MangaDex');
+    await user.click(screen.getByRole('button', { name: 'Search' }));
+    expect(await screen.findByRole('list', { name: 'Matches' })).toBeVisible();
+  });
+
+  it('says what found nothing and to change the title, quoting what was searched', async () => {
+    const user = userEvent.setup();
+    render(
+      <LookingUp
+        defaultTitle="Chainsaw Man - EN"
+        onSearch={vi.fn(() => Promise.resolve([]))}
+        selected="mangadex"
+      />,
+    );
+    await openLookup(user);
+
+    await user.click(screen.getByRole('button', { name: 'Search' }));
+
+    const notice = await screen.findByRole('status', { name: 'No matches' });
+    expect(notice).toHaveTextContent('No matches for “Chainsaw Man - EN”.');
+    expect(notice).toHaveTextContent(
+      'Extra characters in the title can keep a work from being found.',
+    );
+    expect(notice).toHaveTextContent('Try a simpler title above and search again.');
+  });
+
+  it('shows why a search failed, and leaves the author to be typed', async () => {
+    const user = userEvent.setup();
+    render(
+      <LookingUp
+        onSearch={vi.fn(() => Promise.reject(new Error('Could not reach MangaDex.')))}
+        selected="mangadex"
+      />,
+    );
+    await openLookup(user);
+
+    await user.click(screen.getByRole('button', { name: 'Search' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not reach MangaDex.');
+    await user.type(screen.getByLabelText('Author'), 'Typed By Hand');
+    expect(screen.getByLabelText('Author')).toHaveValue('Typed By Hand');
+  });
+
+  it('shows a generic message when the failure carries none', async () => {
+    const user = userEvent.setup();
+    // The point of this test is a failure that is not an Error, which a source could still throw.
+    // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+    const failing = vi.fn(() => Promise.reject('nope'));
+    render(<LookingUp onSearch={failing} selected="mangadex" />);
+    await openLookup(user);
+
+    await user.click(screen.getByRole('button', { name: 'Search' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'The search could not be completed.',
+    );
+  });
+
+  it('forgets what was found when another source is chosen', async () => {
+    const user = userEvent.setup();
+    render(
+      <LookingUp
+        onSearch={vi.fn(() => Promise.resolve([work]))}
+        providers={[mangaDex, otherSource]}
+        selected="mangadex"
+      />,
+    );
+    await openLookup(user);
+    await user.click(screen.getByRole('button', { name: 'Search' }));
+    expect(await screen.findByRole('list', { name: 'Matches' })).toBeVisible();
+
+    await chooseSource(user, /Other Catalogue/u);
+
+    expect(screen.queryByRole('list', { name: 'Matches' })).not.toBeInTheDocument();
+    expect(screen.getByText(/Will search Other Catalogue for/u)).toBeVisible();
+  });
+
+  it('cannot search with no title at all', async () => {
+    const user = userEvent.setup();
+    render(<LookingUp defaultTitle="" onSearch={vi.fn()} selected="mangadex" />);
+
+    await openLookup(user);
+
+    expect(screen.getByRole('button', { name: 'Search' })).toBeDisabled();
   });
 });
