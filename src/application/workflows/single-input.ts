@@ -1,5 +1,10 @@
 import type { BookFileStorePort, SavedBookFile } from '@/application/ports/book-file-store';
 import { presentBindingProgress } from '@/application/workflows/binding-progress';
+import {
+  assertSingleBook,
+  type RunAction,
+  validateRunOptions,
+} from '@/application/workflows/run-preconditions';
 import type {
   BindingBatchPlan,
   BindingBatchTitle,
@@ -28,14 +33,9 @@ import {
   type WorkflowPlan,
 } from '@/domain/conversion';
 import { createMappingDraft, type MappingDraft, validateMapping } from '@/domain/mapping';
-import {
-  FORMATS_SUPPORTING_COMBINED_VOLUME,
-  type MangapressSettings,
-  validateMangapressSettings,
-} from '@/domain/output-profile';
+import type { MangapressSettings } from '@/domain/output-profile';
 import {
   type BatchProcessMode,
-  defaultProcessMode,
   type ProcessMode,
   unsupportedModeReason,
   usesMangapress,
@@ -164,45 +164,7 @@ export class SingleInputWorkflow {
       readonly signal?: AbortSignal;
     },
   ): Promise<readonly ConversionArtifact[]> {
-    const mode = request.mode ?? defaultProcessMode;
-    const requestedSingleBook = Boolean(request.singleBook);
-    if (
-      usesMangapress(mode) &&
-      validateMangapressSettings(request.settings, request.format).length > 0
-    ) {
-      throw new ConversionWorkflowError(
-        'invalid_settings',
-        'Review the output settings before converting.',
-      );
-    }
-    const session = this.sessions.get(request.sessionId);
-    if (session === undefined) {
-      throw new ConversionWorkflowError(
-        'session_not_found',
-        'This input is no longer available. Choose it again.',
-      );
-    }
-    rejectLibrary(session);
-    const unsupported = unsupportedModeReason(session.selection.kind, mode);
-    if (unsupported !== undefined)
-      throw new ConversionWorkflowError('unsupported_mode', unsupported);
-
-    const isCbz = session.selection.kind === 'cbz';
-    const singleBook = isCbz ? false : requestedSingleBook;
-    if (requestedSingleBook && !isCbz) {
-      if (mode !== 'bind-and-convert') {
-        throw new ConversionWorkflowError(
-          'invalid_settings',
-          'Single book mode requires both binding and converting.',
-        );
-      }
-      if (!FORMATS_SUPPORTING_COMBINED_VOLUME.has(request.format)) {
-        throw new ConversionWorkflowError(
-          'invalid_settings',
-          'Binding the whole series as one volume is only available for EPUB right now.',
-        );
-      }
-    }
+    const { session, mode, singleBook } = this.assertRunnable(request, 'converting');
 
     const details = usesMangapress(mode) ? (request.details ?? noBookDetails) : noBookDetails;
     let inputs: readonly BookInput[];
@@ -236,18 +198,12 @@ export class SingleInputWorkflow {
       );
       if (singleBook) {
         if (bound.combinedOutputPath === undefined) {
-          throw new ConversionWorkflowError(
-            'no_volumes',
-            'No volume files were produced. Review the chapter mapping and try again.',
-          );
+          throw emptyBindingError('no_volumes');
         }
         inputs = [{ path: bound.combinedOutputPath }];
       } else {
         if (bound.volumes.length === 0) {
-          throw new ConversionWorkflowError(
-            'no_volumes',
-            'No volume files were produced. Review the chapter mapping and try again.',
-          );
+          throw emptyBindingError('no_volumes');
         }
         inputs = bound.volumes.map((volume) => ({ path: volume.path, volume: volume.number }));
       }
@@ -291,45 +247,7 @@ export class SingleInputWorkflow {
     request: ConversionRequest,
     { signal }: { readonly signal?: AbortSignal } = {},
   ): Promise<WorkflowPlan> {
-    const mode = request.mode ?? defaultProcessMode;
-    const requestedSingleBook = Boolean(request.singleBook);
-    if (
-      usesMangapress(mode) &&
-      validateMangapressSettings(request.settings, request.format).length > 0
-    ) {
-      throw new ConversionWorkflowError(
-        'invalid_settings',
-        'Review the output settings before validating the plan.',
-      );
-    }
-    const session = this.sessions.get(request.sessionId);
-    if (session === undefined) {
-      throw new ConversionWorkflowError(
-        'session_not_found',
-        'This input is no longer available. Choose it again.',
-      );
-    }
-    rejectLibrary(session);
-    const unsupported = unsupportedModeReason(session.selection.kind, mode);
-    if (unsupported !== undefined)
-      throw new ConversionWorkflowError('unsupported_mode', unsupported);
-
-    const isCbz = session.selection.kind === 'cbz';
-    const singleBook = isCbz ? false : requestedSingleBook;
-    if (requestedSingleBook && !isCbz) {
-      if (mode !== 'bind-and-convert') {
-        throw new ConversionWorkflowError(
-          'invalid_settings',
-          'Single book mode requires both binding and converting.',
-        );
-      }
-      if (!FORMATS_SUPPORTING_COMBINED_VOLUME.has(request.format)) {
-        throw new ConversionWorkflowError(
-          'invalid_settings',
-          'Binding the whole series as one volume is only available for EPUB right now.',
-        );
-      }
-    }
+    const { session, mode, singleBook } = this.assertRunnable(request, 'validating the plan');
 
     if (session.selection.kind === 'cbz' || mode === 'convert-only') {
       const plan = await this.conversion.plan(
@@ -404,13 +322,7 @@ export class SingleInputWorkflow {
    * them, and a loose CBZ has none.
    */
   async saveDetails(sessionId: string, details: BookDetails, title?: string): Promise<void> {
-    const session = this.sessions.get(sessionId);
-    if (session === undefined) {
-      throw new ConversionWorkflowError(
-        'session_not_found',
-        'This input is no longer available. Choose it again.',
-      );
-    }
+    const session = this.requireSession(sessionId);
     if (title !== undefined) {
       const known = this.librarySession(sessionId).library.titles.find(
         (candidate) => candidate.title === title,
@@ -456,31 +368,9 @@ export class SingleInputWorkflow {
       readonly signal?: AbortSignal;
     },
   ): Promise<readonly BatchTitleOutcome[]> {
-    const mode = request.mode ?? defaultProcessMode;
+    const mode = validateRunOptions(request, 'converting');
     const singleBook = Boolean(request.singleBook);
-    if (
-      usesMangapress(mode) &&
-      validateMangapressSettings(request.settings, request.format).length > 0
-    ) {
-      throw new ConversionWorkflowError(
-        'invalid_settings',
-        'Review the output settings before converting.',
-      );
-    }
-    if (singleBook) {
-      if (mode !== 'bind-and-convert') {
-        throw new ConversionWorkflowError(
-          'invalid_settings',
-          'Single book mode requires both binding and converting.',
-        );
-      }
-      if (!FORMATS_SUPPORTING_COMBINED_VOLUME.has(request.format)) {
-        throw new ConversionWorkflowError(
-          'invalid_settings',
-          'Binding the whole series as one volume is only available for EPUB right now.',
-        );
-      }
-    }
+    if (singleBook) assertSingleBook(mode, request.format);
     const { session } = this.librarySession(request.sessionId);
     onProgress({
       stage: 'binding',
@@ -514,10 +404,7 @@ export class SingleInputWorkflow {
               title: title.title,
               status: 'failed',
               artifacts: [],
-              error: new ConversionWorkflowError(
-                'binding_failed',
-                'No volume files were produced. Review the chapter mapping and try again.',
-              ),
+              error: emptyBindingError('binding_failed'),
             });
             continue;
           }
@@ -552,10 +439,7 @@ export class SingleInputWorkflow {
               title: title.title,
               status: 'failed',
               artifacts: [],
-              error: new ConversionWorkflowError(
-                'binding_failed',
-                'No volume files were produced. Review the chapter mapping and try again.',
-              ),
+              error: emptyBindingError('binding_failed'),
             });
             continue;
           }
@@ -835,10 +719,23 @@ export class SingleInputWorkflow {
     };
   }
 
-  private librarySession(sessionId: string): {
-    readonly session: ActiveSession;
-    readonly library: LibraryState;
-  } {
+  /** The single-input checks stay in the same order for conversion and plan validation. */
+  private assertRunnable(
+    request: ConversionRequest,
+    action: RunAction,
+  ): { readonly session: ActiveSession; readonly mode: ProcessMode; readonly singleBook: boolean } {
+    const mode = validateRunOptions(request, action);
+    const session = this.requireSession(request.sessionId);
+    rejectLibrary(session);
+    const unsupported = unsupportedModeReason(session.selection.kind, mode);
+    if (unsupported !== undefined)
+      throw new ConversionWorkflowError('unsupported_mode', unsupported);
+    const singleBook = session.selection.kind !== 'cbz' && Boolean(request.singleBook);
+    if (singleBook) assertSingleBook(mode, request.format);
+    return { session, mode, singleBook };
+  }
+
+  private requireSession(sessionId: string): ActiveSession {
     const session = this.sessions.get(sessionId);
     if (session === undefined) {
       throw new ConversionWorkflowError(
@@ -846,6 +743,14 @@ export class SingleInputWorkflow {
         'This input is no longer available. Choose it again.',
       );
     }
+    return session;
+  }
+
+  private librarySession(sessionId: string): {
+    readonly session: ActiveSession;
+    readonly library: LibraryState;
+  } {
+    const session = this.requireSession(sessionId);
     if (session.library === undefined) {
       throw new ConversionWorkflowError('not_a_library', 'This input is not a library.');
     }
@@ -861,6 +766,13 @@ export class SingleInputWorkflow {
   async releaseAll(): Promise<void> {
     await Promise.all([...this.sessions.keys()].map((sessionId) => this.release(sessionId)));
   }
+}
+
+function emptyBindingError(code: 'no_volumes' | 'binding_failed'): ConversionWorkflowError {
+  return new ConversionWorkflowError(
+    code,
+    'No volume files were produced. Review the chapter mapping and try again.',
+  );
 }
 
 /** A finished book that could not be put in pending storage; a cancellation stays a cancellation. */
