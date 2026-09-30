@@ -13,6 +13,7 @@ import {
   type LibraryTitleResult,
   planLibraryCommandSchema,
   type PlanSummary,
+  saveBookDetailsCommandSchema,
   writeTitleMappingCommandSchema,
   type WorkflowResult,
 } from '@/shared/workflow-contract';
@@ -123,6 +124,7 @@ export function registerConversionHandlers(context: ConversionContext): void {
                 ...(command.mapping === undefined ? {} : { mapping: command.mapping }),
                 ...(command.mode === undefined ? {} : { mode: command.mode }),
                 ...(command.singleBook === undefined ? {} : { singleBook: command.singleBook }),
+                ...(command.details === undefined ? {} : { details: command.details }),
               },
               { signal: controller.signal },
             ),
@@ -173,6 +175,7 @@ export function registerConversionHandlers(context: ConversionContext): void {
               ...(command.mapping === undefined ? {} : { mapping: command.mapping }),
               ...(command.mode === undefined ? {} : { mode: command.mode }),
               ...(command.singleBook === undefined ? {} : { singleBook: command.singleBook }),
+              ...(command.details === undefined ? {} : { details: command.details }),
             },
             {
               signal: controller.signal,
@@ -235,6 +238,23 @@ export function registerConversionHandlers(context: ConversionContext): void {
   );
 
   ipcMain.handle(
+    'workflow:save-book-details',
+    async (_event, rawCommand: unknown): Promise<WorkflowResult<undefined>> => {
+      try {
+        const command = saveBookDetailsCommandSchema.parse(rawCommand);
+        await requireWorkflow(context).saveDetails(
+          command.sessionId,
+          command.details,
+          command.title,
+        );
+        return ok(undefined);
+      } catch (error) {
+        return failed(toFailure(error));
+      }
+    },
+  );
+
+  ipcMain.handle(
     'workflow:convert-library',
     async (
       event: IpcMainInvokeEvent,
@@ -271,6 +291,7 @@ export function registerConversionHandlers(context: ConversionContext): void {
               ...(command.titles === undefined ? {} : { titles: command.titles }),
               ...(command.mode === undefined ? {} : { mode: command.mode }),
               ...(command.singleBook === undefined ? {} : { singleBook: command.singleBook }),
+              ...(command.titleDetails === undefined ? {} : { titleDetails: command.titleDetails }),
             },
             {
               signal: controller.signal,

@@ -174,6 +174,14 @@ test('the titles of a library remain visually consistent', async ({ page }) => {
   await expect(page.locator('#storybook-root')).toHaveScreenshot('library-titles.png');
 });
 
+test('the title, author and language of an item remain visually consistent', async ({ page }) => {
+  await page.goto('/iframe.html?id=workflows-book-details--typed-for-a-series&viewMode=story');
+  // The story types into the title, so what is captured is what it ends up as.
+  await expect(page.getByLabel('Series title')).toHaveValue('Chainsaw Man (Deluxe) 2');
+  await page.evaluate(async () => document.fonts.ready);
+  await expect(page.locator('#storybook-root')).toHaveScreenshot('book-details.png');
+});
+
 test('full output settings remain visually consistent', async ({ page }) => {
   await page.goto('/iframe.html?id=workflows-output-settings--normal&viewMode=story');
   await expect(page.getByRole('heading', { name: 'Device & output' })).toBeVisible();

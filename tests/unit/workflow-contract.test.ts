@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import { defaultMangapressSettings } from '@/domain/output-profile';
 import {
+  bookDetailsSchema,
   chooseInputsKindSchema,
   conversionCommandSchema,
   libraryConversionCommandSchema,
   planLibraryCommandSchema,
   registerInputsCommandSchema,
+  saveBookDetailsCommandSchema,
   writeTitleMappingCommandSchema,
 } from '@/shared/workflow-contract';
 
@@ -102,5 +104,100 @@ describe('workflow IPC contract', () => {
       registerInputsCommandSchema.safeParse({ paths: Array.from({ length: 1001 }, () => 'x') })
         .success,
     ).toBe(false);
+  });
+
+  describe('the title, author and language typed for a book', () => {
+    it('are accepted for one input, and for each title of a library', () => {
+      const details = { title: 'Chainsaw Man', author: 'Fujimoto Tatsuki', language: 'pt-br' };
+
+      expect(conversionCommandSchema.parse({ ...command, details }).details).toEqual(details);
+      expect(
+        libraryConversionCommandSchema.parse({
+          jobId: 'job',
+          sessionId: 'session',
+          libraryId: 'library',
+          settings: defaultMangapressSettings,
+          format: 'epub',
+          titleDetails: [{ title: 'Good Manga', details }],
+        }).titleDetails,
+      ).toEqual([{ title: 'Good Manga', details }]);
+    });
+
+    it('are optional, and every field of them is', () => {
+      expect(conversionCommandSchema.parse(command)).not.toHaveProperty('details');
+      expect(bookDetailsSchema.parse({})).toEqual({});
+      expect(bookDetailsSchema.parse({ author: ' Someone ' })).toEqual({ author: 'Someone' });
+    });
+
+    it('refuse a blank or oversized text and a language that is not a tag', () => {
+      for (const details of [
+        { title: '' },
+        { title: '   ' },
+        { author: 'x'.repeat(301) },
+        { title: 'x'.repeat(301) },
+        { language: 'not a language' },
+        { language: 'en_US' },
+      ]) {
+        expect(bookDetailsSchema.safeParse(details).success).toBe(false);
+      }
+      expect(
+        bookDetailsSchema.safeParse({ title: 'x'.repeat(300), language: 'en-US' }).success,
+      ).toBe(true);
+    });
+
+    it('cannot carry more titles than a library can hold', () => {
+      const titleDetails = Array.from({ length: 1001 }, (_, index) => ({
+        title: `Title ${String(index)}`,
+        details: {},
+      }));
+
+      expect(
+        libraryConversionCommandSchema.safeParse({
+          jobId: 'job',
+          sessionId: 'session',
+          libraryId: 'library',
+          settings: defaultMangapressSettings,
+          format: 'epub',
+          titleDetails,
+        }).success,
+      ).toBe(false);
+    });
+  });
+});
+
+describe('the command that keeps details with a folder', () => {
+  it('names a session, and a title only for a library, with the details to keep', () => {
+    const details = { author: 'Fujimoto Tatsuki', language: 'pt-br' };
+
+    expect(saveBookDetailsCommandSchema.parse({ sessionId: 'session', details })).toEqual({
+      sessionId: 'session',
+      details,
+    });
+    expect(
+      saveBookDetailsCommandSchema.parse({
+        sessionId: 'session',
+        title: 'Good Manga',
+        details: {},
+      }),
+    ).toEqual({ sessionId: 'session', title: 'Good Manga', details: {} });
+  });
+
+  it('never names a folder by its path, and refuses what a run would refuse', () => {
+    expect(
+      saveBookDetailsCommandSchema.parse({
+        sessionId: 'session',
+        details: {},
+        inputPath: 'C:\\Manga\\Good Manga',
+      }),
+    ).not.toHaveProperty('inputPath');
+    for (const command of [
+      { details: {} },
+      { sessionId: '', details: {} },
+      { sessionId: 'session', title: '', details: {} },
+      { sessionId: 'session', details: { author: '' } },
+      { sessionId: 'session', details: { language: 'not a language' } },
+    ]) {
+      expect(saveBookDetailsCommandSchema.safeParse(command).success).toBe(false);
+    }
   });
 });

@@ -1,14 +1,14 @@
 # Adding an online source for volume data
 
-An online source answers one question for the volume editor: which chapters of a work belong to which volume. People pick one from a list, search it by title, and apply what it suggests; they can edit anything afterward. MangaDex is the first. This guide is for adding another.
+An online source answers two questions: which chapters of a work belong to which volume (for the volume editor), and who wrote it (for the author on an item's details page). People pick one from a list, search it by title, and apply what it suggests; they can edit anything afterward. MangaDex is the first. This guide is for adding another.
 
-The decision behind it is [ADR 0013](adr/0013-online-sources-for-volume-data.md). Read it first: it is short, and it is where the rules below come from.
+The decisions behind it are [ADR 0013](adr/0013-online-sources-for-volume-data.md) and, for the author, [ADR 0031](adr/0031-look-up-the-author-in-a-source-the-person-chooses.md). Read them first: they are short, and they are where the rules below come from.
 
 ## What a source is, and is not
 
 A source is a module built into the app. It can do two things, and the port (`src/application/ports/metadata-provider.ts`) allows nothing else:
 
-1. `search(title)`: the works that match a title.
+1. `search(title)`: the works that match a title, each with its authors and the year it began where the service says (`authors`, `year`; both optional, and a service that does not know them is still a fit).
 2. `suggestVolumes(workId, { language })`: for one work, each volume and the chapter numbers it holds.
 
 It cannot ask for chapters, pages, images or files, and it must never be extended to. Mangabound is not a downloader (ADR 0005).
@@ -21,7 +21,7 @@ A source is only accepted if every one of these holds. A pull request that adds 
 - **A legitimate service.** Nothing that hosts, mirrors or aggregates scanlations or other unlicensed content, and nothing whose main purpose is to reach such content. If it is unclear, it does not go in.
 - **Its terms allow this use.** Read the API terms and any acceptable-use policy. Record the address you read and the date. Common requirements to look for: credit, no advertising or paid access, a real user agent, rate limits, attribution of contributors.
 - **Credit is given.** The name is shown wherever its data is used ("Volume data by ..."), with a link to its site, and the README credits it.
-- **Metadata only.** Titles, volume numbers and chapter numbers. Nothing else is read or kept.
+- **Metadata only.** Titles, volume numbers and chapter numbers, and for a work the names of its authors and its year. Nothing else is read or kept.
 - **Nothing to carry.** No API key, token or account that the app would have to ship or store. If a service needs one, it is not a fit.
 - **Only the title is sent.** The search sends the title the person typed, and the volume query sends the work's id and a language. Nothing about their files, folders or machine.
 - **https only,** for the API and for the address given as the homepage.
@@ -69,6 +69,9 @@ export class ExampleProvider implements MetadataProviderPort {
       id: work.id,
       title: work.title,
       provider: this.descriptor.id, // the id, which is what `mangabind.json` records
+      // Optional: leave them out when the service has none, and never invent them.
+      ...(work.authors.length === 0 ? {} : { authors: work.authors }),
+      ...(work.year === undefined ? {} : { year: work.year }),
     }));
   }
 
@@ -78,7 +81,7 @@ export class ExampleProvider implements MetadataProviderPort {
 }
 ```
 
-Always go through `requestText` (`../http`). It sends the user agent, reads the answer, and turns a network failure, a rate limit (429) or an error status into the same `MetadataProviderError`, so every source fails the same way. Encode everything you put in a URL.
+Always go through `requestText` (`../http`). It sends the user agent, reads the answer, and turns a network failure, a service that does not answer within fifteen seconds, a rate limit (429) or an error status into the same `MetadataProviderError`, so every source fails the same way. Encode everything you put in a URL.
 
 A volume's `number` is the string the service gives (`"1"`, `"2.5"`); `chapterNumbers` are numbers. Leave out anything that has no number (a service may file loose chapters under "none").
 

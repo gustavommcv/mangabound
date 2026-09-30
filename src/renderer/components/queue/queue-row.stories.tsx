@@ -25,6 +25,7 @@ const meta = {
   args: {
     mode: 'bind-and-convert',
     onEdit: () => undefined,
+    onEditDetails: () => undefined,
     onRemove: () => undefined,
   },
 } satisfies Meta<typeof QueueRowItem>;
@@ -35,6 +36,48 @@ type Story = StoryObj<typeof meta>;
 /** A folder already grouped into volumes, ready to run. */
 export const Grouped: Story = {
   args: {
+    row: {
+      id: 'a',
+      kind: 'folder',
+      displayName: 'Chainsaw Man',
+      displayPath: 'D:\\Manga\\Chainsaw Man',
+      state: 'inspected',
+      sessionId: 'session-a',
+      mapping: createMappingDraft({
+        mangaTitle: 'Chainsaw Man',
+        chapters,
+        volumes: [{ id: 'v1', number: '1', chapterIds: ['c1', 'c2'] }],
+      }),
+      confirmed: false,
+    },
+  },
+};
+
+/** A folder with a title and an author typed for it: the details button is colored. */
+export const WithDetails: Story = {
+  args: {
+    row: {
+      id: 'a',
+      kind: 'folder',
+      displayName: 'Chainsaw Man',
+      displayPath: 'D:\\Manga\\Chainsaw Man',
+      state: 'inspected',
+      sessionId: 'session-a',
+      mapping: createMappingDraft({
+        mangaTitle: 'Chainsaw Man',
+        chapters,
+        volumes: [{ id: 'v1', number: '1', chapterIds: ['c1', 'c2'] }],
+      }),
+      confirmed: false,
+      details: { title: 'Chainsaw Man', author: 'Fujimoto Tatsuki' },
+    },
+  },
+};
+
+/** Only joining volumes: mangapress makes no book, so there are no details to edit. */
+export const JoinOnly: Story = {
+  args: {
+    mode: 'bind-only',
     row: {
       id: 'a',
       kind: 'folder',

@@ -6,6 +6,7 @@ import type { MangapressCliAdapter } from './cli';
 import { isMangapressPageEvent, type MangapressErrorEvent, type MangapressEvent } from './protocol';
 
 import type { ConversionPort } from '@/application/ports/conversion-tools';
+import type { BookDetails } from '@/domain/book-details';
 import {
   type BookFormat,
   type ConversionArtifact,
@@ -26,6 +27,7 @@ export class MangapressConversionAdapter implements ConversionPort {
       readonly inputPath: string;
       readonly outputDirectory: string;
       readonly settings: MangapressSettings;
+      readonly book?: BookDetails;
       readonly format: BookFormat;
       readonly nestedToc?: boolean;
     },
@@ -43,6 +45,7 @@ export class MangapressConversionAdapter implements ConversionPort {
         dryRun: true,
         nestedToc,
         ...settings,
+        ...bookArguments(request.book, settings.language),
       },
       options.signal === undefined ? {} : { signal: options.signal },
     );
@@ -76,6 +79,7 @@ export class MangapressConversionAdapter implements ConversionPort {
       readonly inputPath: string;
       readonly outputDirectory: string;
       readonly settings: MangapressSettings;
+      readonly book?: BookDetails;
       readonly format: BookFormat;
       readonly nestedToc?: boolean;
     },
@@ -96,6 +100,7 @@ export class MangapressConversionAdapter implements ConversionPort {
         dryRun: false,
         nestedToc,
         ...settings,
+        ...bookArguments(request.book, settings.language),
       },
       {
         ...(options.signal === undefined ? {} : { signal: options.signal }),
@@ -193,4 +198,16 @@ function checkedChildPath(parentPath: string, childPath: string): string {
     throw new Error('Mangapress reported an output outside the selected library.');
   }
   return child;
+}
+
+/** The title, author and language one book is made with: its own details over the defaults. */
+function bookArguments(
+  book: BookDetails | undefined,
+  defaultLanguage: string,
+): { readonly title?: string; readonly author?: string; readonly language: string } {
+  return {
+    ...(book?.title === undefined ? {} : { title: book.title }),
+    ...(book?.author === undefined ? {} : { author: book.author }),
+    language: book?.language ?? defaultLanguage,
+  };
 }

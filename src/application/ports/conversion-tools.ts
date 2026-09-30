@@ -1,3 +1,4 @@
+import type { BookDetails } from '@/domain/book-details';
 import type {
   BookFormat,
   ConversionArtifact,
@@ -32,12 +33,18 @@ export interface BindingBatchPlan {
   readonly issues: readonly PipelineIssue[];
 }
 
+/** One volume file mangabind wrote, with the number it is volume of the series. */
+export interface BoundVolume {
+  readonly number: number;
+  readonly path: string;
+}
+
 export interface BindingBatchResult {
   readonly workspaceId: string;
   readonly titles: readonly {
     readonly title: string;
     readonly status: BindingTitleStatus;
-    readonly volumePaths: readonly string[];
+    readonly volumes: readonly BoundVolume[];
     readonly combinedOutputPath?: string;
     readonly issues: readonly PipelineIssue[];
   }[];
@@ -45,10 +52,10 @@ export interface BindingBatchResult {
 }
 
 export interface BindingResult {
-  readonly volumePaths: readonly string[];
+  readonly volumes: readonly BoundVolume[];
   /**
-   * Set instead of volumePaths having an entry per volume, when combine was requested: the whole
-   * series in one file. volumePaths is empty when this is set.
+   * Set instead of volumes having an entry per volume, when combine was requested: the whole
+   * series in one file. volumes is empty when this is set.
    */
   readonly combinedOutputPath?: string;
   readonly issues: readonly PipelineIssue[];
@@ -102,6 +109,13 @@ export interface BindingPort {
   ): Promise<BindingBatchResult>;
   /** Saves the mapping a user confirmed for one title as that title folder's mangabind.json. */
   writeTitleMapping(inputPath: string, mapping: MappingDraft): Promise<void>;
+  /**
+   * The author and language kept with a folder (in its mangabind.json, ADR 0032). It never fails:
+   * a folder with nothing kept, or nothing readable, has no details.
+   */
+  readDetails(inputPath: string): Promise<BookDetails>;
+  /** Keeps the author and language with a folder, or forgets them when there are none. */
+  writeDetails(inputPath: string, details: BookDetails): Promise<void>;
 }
 
 export interface ConversionPort {
@@ -110,6 +124,8 @@ export interface ConversionPort {
       readonly inputPath: string;
       readonly outputDirectory: string;
       readonly settings: MangapressSettings;
+      /** The title, author and language of this book, where they were set for it. */
+      readonly book?: BookDetails;
       readonly format: BookFormat;
       readonly nestedToc?: boolean;
     },
@@ -127,6 +143,8 @@ export interface ConversionPort {
       readonly inputPath: string;
       readonly outputDirectory: string;
       readonly settings: MangapressSettings;
+      /** The title, author and language of this book, where they were set for it. */
+      readonly book?: BookDetails;
       readonly format: BookFormat;
       readonly nestedToc?: boolean;
     },

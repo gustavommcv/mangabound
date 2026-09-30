@@ -13,6 +13,7 @@ import {
 import { defaultFormat } from '@/domain/preferences';
 import { singleBookLockReason } from '@/domain/process-mode';
 import { SettingFieldHeader } from '@/renderer/components/settings/setting-field-header';
+import { FieldMessage } from '@/renderer/components/shared/field-message';
 import { InfoBanner } from '@/renderer/components/shared/info-banner';
 import { Checkbox } from '@/renderer/components/ui/checkbox';
 import { Input } from '@/renderer/components/ui/input';
@@ -443,31 +444,10 @@ export function MangapressSettingsEditor({
       </SettingsSection>
 
       <SettingsSection
-        description="Override book identity and control source metadata handling."
+        description="How source metadata is applied, and the language books are made in. A book's own title, author and language are set from its item in the queue."
         eyebrow="Advanced"
         title="Book metadata"
       >
-        <TextField
-          {...resetProps('title')}
-          description="Leave empty to derive the title from the input name."
-          id="book-title"
-          label="Title"
-          placeholder="Use input name"
-          onValue={(value) => {
-            update('title', value === '' ? undefined : value);
-          }}
-          value={settings.title ?? ''}
-        />
-        <TextField
-          {...resetProps('author')}
-          id="book-author"
-          label="Author"
-          placeholder="Leave blank if unknown"
-          onValue={(value) => {
-            update('author', value === '' ? undefined : value);
-          }}
-          value={settings.author ?? ''}
-        />
         <SelectField
           {...resetProps('metadataTitle')}
           description="Controls how ComicInfo.xml's Title field is applied."
@@ -491,7 +471,7 @@ export function MangapressSettingsEditor({
           {...resetProps('language')}
           description={
             format === 'epub'
-              ? 'Used for EPUB output.'
+              ? "Used for EPUB output, unless a book's own details name another language."
               : 'Stored for this profile and applied when EPUB is selected.'
           }
           error={errorFor('language')}
@@ -745,28 +725,5 @@ function ToggleField({
         </p>
       </div>
     </div>
-  );
-}
-
-function FieldMessage({
-  description,
-  error,
-  id,
-}: {
-  readonly description?: string;
-  readonly error?: string;
-  readonly id?: string;
-}): React.JSX.Element | null {
-  if (error !== undefined) {
-    return (
-      <p className="text-status-failed text-xs" id={id}>
-        {error}
-      </p>
-    );
-  }
-  return description === undefined ? null : (
-    <p className="text-muted-foreground text-xs leading-relaxed" id={id}>
-      {description}
-    </p>
   );
 }

@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   MangabindBindingAdapter,
+  workspaceFileSystem,
   type WorkspaceFileSystem,
 } from '@/adapters/mangabind/binding-port';
 import type { MangabindCliAdapter, MangabindRunResult } from '@/adapters/mangabind/cli';
@@ -48,6 +49,9 @@ function result(
   };
 }
 
+/** The manga block of a mangabind.json's text. */
+const mangaOf = (text: string): unknown => (JSON.parse(text) as { manga?: unknown }).manga;
+
 function fakeFiles(rootPath: string): WorkspaceFileSystem & {
   readonly createTemporaryDirectory: ReturnType<
     typeof vi.fn<WorkspaceFileSystem['createTemporaryDirectory']>
@@ -57,6 +61,8 @@ function fakeFiles(rootPath: string): WorkspaceFileSystem & {
   readonly writeTextAtomically: ReturnType<
     typeof vi.fn<WorkspaceFileSystem['writeTextAtomically']>
   >;
+  readonly readText: ReturnType<typeof vi.fn<WorkspaceFileSystem['readText']>>;
+  readonly removeFile: ReturnType<typeof vi.fn<WorkspaceFileSystem['removeFile']>>;
   readonly removeDirectory: ReturnType<typeof vi.fn<WorkspaceFileSystem['removeDirectory']>>;
 } {
   return {
@@ -64,6 +70,8 @@ function fakeFiles(rootPath: string): WorkspaceFileSystem & {
     createDirectory: vi.fn(() => Promise.resolve()),
     writeText: vi.fn(() => Promise.resolve()),
     writeTextAtomically: vi.fn(() => Promise.resolve()),
+    readText: vi.fn(() => Promise.resolve(undefined)),
+    removeFile: vi.fn(() => Promise.resolve()),
     removeDirectory: vi.fn(() => Promise.resolve()),
   };
 }
@@ -277,9 +285,9 @@ describe('mangabind binding port', () => {
       false,
       onProgress,
     );
-    expect(bound.volumePaths.map((volumePath) => path.basename(volumePath))).toEqual([
-      'v1.cbz',
-      'v2.cbz',
+    expect(bound.volumes.map((volume) => [volume.number, path.basename(volume.path)])).toEqual([
+      [1, 'v1.cbz'],
+      [2, 'v2.cbz'],
     ]);
     expect(bound.issues[0]).toMatchObject({ diagnostic: 'detail', volume: '1', chapter: '3' });
     expect(onProgress).toHaveBeenCalledWith({
@@ -338,7 +346,7 @@ describe('mangabind binding port', () => {
       const inspection = await adapter.inspect('/input/Chainsaw Man');
       const bound = await adapter.bind(inspection.workspaceId, inspection.draft, undefined, true);
 
-      expect(bound.volumePaths).toEqual([]);
+      expect(bound.volumes).toEqual([]);
       expect(bound.combinedOutputPath).toBe(combinedPath);
       expect(cli.run).toHaveBeenLastCalledWith(expect.objectContaining({ combine: true }), {});
     });
@@ -383,9 +391,9 @@ describe('mangabind binding port', () => {
       expect(inspection.draft.volumes.map((volume) => volume.number)).toEqual(['1', '2']);
       const bound = await adapter.bind(inspection.workspaceId, inspection.draft);
 
-      expect(bound.volumePaths.map((volumePath) => path.basename(volumePath))).toEqual([
-        'v1.cbz',
-        'v2.cbz',
+      expect(bound.volumes.map((volume) => [volume.number, path.basename(volume.path)])).toEqual([
+        [1, 'v1.cbz'],
+        [2, 'v2.cbz'],
       ]);
       // The scratch copy is still what mangabind is run with; only the source-folder file is skipped.
       expect(files.writeText).toHaveBeenCalledWith(
@@ -417,6 +425,27 @@ describe('mangabind binding port', () => {
       await adapter.bind(inspection.workspaceId, renamed);
 
       expect(files.writeTextAtomically).not.toHaveBeenCalled();
+    });
+
+    it('keeps the author and language of the file it replaces when the grouping is saved', async () => {
+      const root = path.join(os.tmpdir(), 'mangabound-carried-details');
+      const { adapter, files } = groupedAdapter(root);
+      files.readText.mockResolvedValue(
+        JSON.stringify({ schema_version: 1, manga: { author: 'Fujimoto Tatsuki' }, volumes: [] }),
+      );
+
+      const inspection = await adapter.inspect('/input/Chainsaw Man');
+      const firstChapterId = inspection.draft.volumes[0]!.chapterIds[0]!;
+      await adapter.bind(
+        inspection.workspaceId,
+        unassignChapters(inspection.draft, [firstChapterId]),
+      );
+
+      const written = files.writeTextAtomically.mock.calls.at(-1)?.[1] ?? '';
+      expect(mangaOf(written)).toMatchObject({ author: 'Fujimoto Tatsuki' });
+      // What mangabind itself is run with is the mapping alone.
+      const scratch = files.writeText.mock.calls.at(-1)?.[1] ?? '';
+      expect(mangaOf(scratch) ?? {}).not.toHaveProperty('author');
     });
 
     it('still saves mangabind.json once the user changes the grouping', async () => {
@@ -641,9 +670,10 @@ describe('mangabind binding port', () => {
     temporaryDirectories.push(root);
     const input = path.join(root, 'input');
     await fs.promises.mkdir(path.join(input, 'mangabind.json'), { recursive: true });
+    // The folder is read as holding no file, so it is the replacement itself that fails.
     const adapter = new MangabindBindingAdapter(
       { run: () => Promise.resolve(result()) },
-      undefined,
+      { ...workspaceFileSystem, readText: () => Promise.resolve(undefined) },
       root,
       () => 'atomic-failure',
     );
@@ -746,12 +776,14 @@ describe('mangabind binding port', () => {
       title: 'Good Manga',
       status: 'completed_with_warnings',
     });
-    expect(bound.titles[0]!.volumePaths.map((volumePath) => path.basename(volumePath))).toEqual([
-      'Good Manga - Vol.01.cbz',
-      'Good Manga - Vol.02.cbz',
+    expect(
+      bound.titles[0]!.volumes.map((volume) => [volume.number, path.basename(volume.path)]),
+    ).toEqual([
+      [1, 'Good Manga - Vol.01.cbz'],
+      [2, 'Good Manga - Vol.02.cbz'],
     ]);
     expect(bound.titles[1]).toMatchObject({ title: 'Broken Manga', status: 'failed' });
-    expect(bound.titles[1]!.volumePaths).toEqual([]);
+    expect(bound.titles[1]!.volumes).toEqual([]);
     // The workspace stays alive after a successful call — the caller releases it once done.
     expect(files.removeDirectory).not.toHaveBeenCalled();
     await adapter.release(bound.workspaceId);
@@ -777,7 +809,7 @@ describe('mangabind binding port', () => {
       {},
     );
     expect(bound.titles[0]!.combinedOutputPath).toBe(path.join(root, 'volumes', 'Good Manga.cbz'));
-    expect(bound.titles[0]!.volumePaths).toEqual([]);
+    expect(bound.titles[0]!.volumes).toEqual([]);
   });
 
   it('releases the batch workspace when the process itself fails', async () => {
@@ -808,6 +840,25 @@ describe('mangabind binding port', () => {
     );
   });
 
+  it('keeps the author and language of a title folder when its mapping is saved', async () => {
+    const files = fakeFiles(path.join(os.tmpdir(), 'unused'));
+    files.readText.mockResolvedValue(
+      JSON.stringify({ schema_version: 1, manga: { author: 'Someone', language: 'pt-br' } }),
+    );
+    const adapter = new MangabindBindingAdapter(
+      { run: vi.fn<MangabindCliAdapter['run']>() },
+      files,
+      os.tmpdir(),
+      () => 'unused',
+    );
+
+    await adapter.writeTitleMapping('/library/Good Manga', completeMapping());
+
+    const written = files.writeTextAtomically.mock.calls.at(-1)?.[1] ?? '';
+    expect(mangaOf(written)).toMatchObject({ author: 'Someone', language: 'pt-br' });
+    expect(files.readText).toHaveBeenCalledWith(path.join('/library/Good Manga', 'mangabind.json'));
+  });
+
   it('reports an actionable error when a title mapping cannot be persisted', async () => {
     const files = fakeFiles(path.join(os.tmpdir(), 'unused'));
     files.writeTextAtomically.mockRejectedValue(new Error('read only'));
@@ -824,6 +875,196 @@ describe('mangabind binding port', () => {
       code: 'mapping_save_failed',
       message:
         "Couldn't save mangabind.json in the source folder. Check that the folder is writable and try again.",
+    });
+  });
+});
+
+describe('the author and language kept with a folder', () => {
+  const folder = path.join('/library', 'Good Manga');
+  const file = path.join(folder, 'mangabind.json');
+  const adapterWith = (files: ReturnType<typeof fakeFiles>) =>
+    new MangabindBindingAdapter(
+      { run: vi.fn<MangabindCliAdapter['run']>() },
+      files,
+      os.tmpdir(),
+      () => 'unused',
+    );
+
+  describe('read when a folder is read', () => {
+    it('are what its mangabind.json holds under manga', async () => {
+      const files = fakeFiles('unused');
+      files.readText.mockResolvedValue(
+        JSON.stringify({ manga: { author: 'Fujimoto Tatsuki', language: 'pt-br' } }),
+      );
+
+      await expect(adapterWith(files).readDetails(folder)).resolves.toEqual({
+        author: 'Fujimoto Tatsuki',
+        language: 'pt-br',
+      });
+      expect(files.readText).toHaveBeenCalledWith(file);
+    });
+
+    it('are none when there is no file, it holds none, or it cannot be read', async () => {
+      const files = fakeFiles('unused');
+      const adapter = adapterWith(files);
+
+      await expect(adapter.readDetails(folder)).resolves.toEqual({});
+
+      files.readText.mockResolvedValue('{"volumes": []}');
+      await expect(adapter.readDetails(folder)).resolves.toEqual({});
+
+      files.readText.mockRejectedValue(new Error('permission denied'));
+      await expect(adapter.readDetails(folder)).resolves.toEqual({});
+    });
+  });
+
+  describe('kept when a page is left', () => {
+    it('start a file when the folder has none', async () => {
+      const files = fakeFiles('unused');
+
+      await adapterWith(files).writeDetails(folder, { title: 'not kept', author: 'Someone' });
+
+      expect(files.writeTextAtomically).toHaveBeenCalledOnce();
+      const [target, text] = files.writeTextAtomically.mock.calls[0] ?? [];
+      expect(target).toBe(file);
+      expect(JSON.parse(text ?? '')).toEqual({
+        schema_version: 1,
+        manga: { author: 'Someone' },
+        volumes: [],
+      });
+      expect(files.removeFile).not.toHaveBeenCalled();
+    });
+
+    it('are added to the file a folder already has, leaving the rest as it was', async () => {
+      const files = fakeFiles('unused');
+      files.readText.mockResolvedValue(
+        JSON.stringify({
+          schema_version: 1,
+          manga: { title: 'Good Manga' },
+          volumes: [{ number: '1', chapters: ['1'] }],
+        }),
+      );
+
+      await adapterWith(files).writeDetails(folder, { author: 'Someone', language: 'ja' });
+
+      const written = files.writeTextAtomically.mock.calls[0]?.[1] ?? '';
+      expect(JSON.parse(written)).toEqual({
+        schema_version: 1,
+        manga: { title: 'Good Manga', author: 'Someone', language: 'ja' },
+        volumes: [{ number: '1', chapters: ['1'] }],
+      });
+    });
+
+    it('take the file away when they were all it held and are cleared', async () => {
+      const files = fakeFiles('unused');
+      files.readText.mockResolvedValue(
+        JSON.stringify({ schema_version: 1, manga: { author: 'Someone' }, volumes: [] }),
+      );
+
+      await adapterWith(files).writeDetails(folder, {});
+
+      expect(files.removeFile).toHaveBeenCalledExactlyOnceWith(file);
+      expect(files.writeTextAtomically).not.toHaveBeenCalled();
+    });
+
+    it('touch nothing when there is nothing to keep and no file', async () => {
+      const files = fakeFiles('unused');
+
+      await adapterWith(files).writeDetails(folder, {});
+
+      expect(files.writeTextAtomically).not.toHaveBeenCalled();
+      expect(files.removeFile).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      [
+        'the file cannot be read',
+        (files: ReturnType<typeof fakeFiles>) =>
+          files.readText.mockRejectedValue(new Error('denied')),
+      ],
+      [
+        'the file is not valid JSON',
+        (files: ReturnType<typeof fakeFiles>) => files.readText.mockResolvedValue('not json'),
+      ],
+      [
+        'the folder cannot be written to',
+        (files: ReturnType<typeof fakeFiles>) =>
+          files.writeTextAtomically.mockRejectedValue(new Error('read only')),
+      ],
+    ])('are reported as not saved when %s', async (_case, arrange) => {
+      const files = fakeFiles('unused');
+      arrange(files);
+
+      await expect(
+        adapterWith(files).writeDetails(folder, { author: 'Someone' }),
+      ).rejects.toMatchObject({
+        code: 'details_save_failed',
+        message: expect.stringContaining('Check that the folder is writable') as string,
+      });
+    });
+
+    it('report a file that could not be taken away as not saved', async () => {
+      const files = fakeFiles('unused');
+      files.readText.mockResolvedValue(
+        JSON.stringify({ schema_version: 1, manga: { author: 'A' }, volumes: [] }),
+      );
+      files.removeFile.mockRejectedValue(new Error('in use'));
+
+      await expect(adapterWith(files).writeDetails(folder, {})).rejects.toMatchObject({
+        code: 'details_save_failed',
+      });
+    });
+  });
+
+  describe('on the real file system', () => {
+    async function realFolder(): Promise<string> {
+      const folder = await mkdtemp(path.join(os.tmpdir(), 'mangabound-kept-details-'));
+      folders.push(folder);
+      return folder;
+    }
+    const folders: string[] = [];
+    afterEach(async () => {
+      const { rm } = await import('node:fs/promises');
+      await Promise.all(
+        folders.splice(0).map((folder) => rm(folder, { recursive: true, force: true })),
+      );
+    });
+    const real = () => new MangabindBindingAdapter({ run: vi.fn<MangabindCliAdapter['run']>() });
+
+    it('keeps, finds again and takes away the details of a folder', async () => {
+      const adapter = real();
+      const folder = await realFolder();
+      const file = path.join(folder, 'mangabind.json');
+
+      await expect(adapter.readDetails(folder)).resolves.toEqual({});
+      await adapter.writeDetails(folder, { author: 'Someone', language: 'pt-br' });
+      expect(JSON.parse(fs.readFileSync(file, 'utf8'))).toEqual({
+        schema_version: 1,
+        manga: { author: 'Someone', language: 'pt-br' },
+        volumes: [],
+      });
+      await expect(adapter.readDetails(folder)).resolves.toEqual({
+        author: 'Someone',
+        language: 'pt-br',
+      });
+
+      await adapter.writeDetails(folder, {});
+      expect(fs.existsSync(file)).toBe(false);
+      // Nothing left to take away is not an error.
+      await adapter.writeDetails(folder, {});
+    });
+
+    it('find nothing where the folder is missing or its mangabind.json cannot be read', async () => {
+      const adapter = real();
+      const folder = await realFolder();
+
+      await expect(adapter.readDetails(path.join(folder, 'not there'))).resolves.toEqual({});
+      // A directory where the file should be cannot be read as one, and is not a reason to fail.
+      fs.mkdirSync(path.join(folder, 'mangabind.json'));
+      await expect(adapter.readDetails(folder)).resolves.toEqual({});
+      await expect(adapter.writeDetails(folder, { author: 'Someone' })).rejects.toMatchObject({
+        code: 'details_save_failed',
+      });
     });
   });
 });

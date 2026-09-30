@@ -71,7 +71,6 @@ export const ModifiedOptions: Story = {
       splitter: 'rotate',
       gamma: 1.2,
       jpegQuality: 80,
-      title: 'Example title',
       quiet: true,
     },
   },

@@ -1,3 +1,4 @@
+import { type BookDetails, hasBookDetails, normalizeBookDetails } from './book-details';
 import { type MappingDraft, mappingSignature } from './mapping';
 import { libraryReason, type ProcessMode, resolveMode } from './process-mode';
 
@@ -20,9 +21,14 @@ export interface LibraryTitle {
   readonly draft: MappingDraft;
   readonly volumes: readonly { readonly name: string; readonly pageCount: number }[];
   readonly outcome?: TitleOutcome;
+  /** What was typed for this title's title, author and language (ADR 0030). */
+  readonly details?: BookDetails;
 }
 
-/** A title as it is read, before any run has done anything with it. */
+/**
+ * A title as it is read, before any run has done anything with it. It carries the author and
+ * language kept with its folder, when there are any (ADR 0032).
+ */
 export type ReadTitle = Omit<LibraryTitle, 'outcome'>;
 
 interface QueueRowBase {
@@ -47,6 +53,8 @@ export type QueueRow = QueueRowBase &
         readonly confirmed: boolean;
         /** The manga a library holds. */
         readonly titles?: readonly LibraryTitle[];
+        /** What was typed for this input's title, author and language (ADR 0030). */
+        readonly details?: BookDetails;
       }
   );
 
@@ -69,6 +77,8 @@ export type QueueAction =
       readonly kind?: QueueRowKind;
       readonly mapping?: MappingDraft;
       readonly titles?: readonly ReadTitle[];
+      /** The author and language kept with the folder, when there are any. */
+      readonly details?: BookDetails;
     }
   | { readonly type: 'inspect-failed'; readonly id: string; readonly message: string }
   /** The library was read again, after a title had its volumes saved. Saved titles stay saved. */
@@ -83,6 +93,13 @@ export type QueueAction =
       readonly results: readonly { readonly title: string; readonly outcome: TitleOutcome }[];
     }
   | { readonly type: 'confirm-mapping'; readonly id: string; readonly mapping: MappingDraft }
+  | { readonly type: 'set-details'; readonly id: string; readonly details: BookDetails }
+  | {
+      readonly type: 'set-title-details';
+      readonly id: string;
+      readonly title: string;
+      readonly details: BookDetails;
+    }
   | { readonly type: 'remove'; readonly ids: readonly string[] }
   | { readonly type: 'clear' };
 
@@ -116,6 +133,9 @@ export function queueReducer(rows: readonly QueueRow[], action: QueueAction): re
                 ? {}
                 : { mapping: action.mapping, proposedSignature: mappingSignature(action.mapping) }),
               ...(action.titles === undefined ? {} : { titles: action.titles.map(readTitle) }),
+              ...(action.details === undefined || !hasBookDetails(action.details)
+                ? {}
+                : { details: normalizeBookDetails(action.details) }),
             }
           : row,
       );
@@ -139,9 +159,14 @@ export function queueReducer(rows: readonly QueueRow[], action: QueueAction): re
               ...row,
               titles: action.titles.map((planned) => {
                 const saved = row.titles?.find((known) => known.title === planned.title);
-                return saved?.outcome?.status === 'done'
-                  ? { ...readTitle(planned), outcome: saved.outcome }
-                  : readTitle(planned);
+                // What a person typed for a title is theirs, and outlives the library being read again;
+                // what the read found kept with its folder only fills in where nothing was typed.
+                const details = saved?.details ?? planned.details;
+                return {
+                  ...readTitle(planned),
+                  ...(details === undefined ? {} : { details }),
+                  ...(saved?.outcome?.status === 'done' ? { outcome: saved.outcome } : {}),
+                };
               }),
             }
           : row,
@@ -164,6 +189,25 @@ export function queueReducer(rows: readonly QueueRow[], action: QueueAction): re
           ? { ...row, mapping: action.mapping, confirmed: true }
           : row,
       );
+    case 'set-details':
+      return rows.map((row) =>
+        row.id === action.id && row.state === 'inspected'
+          ? { ...row, details: normalizeBookDetails(action.details) }
+          : row,
+      );
+    case 'set-title-details':
+      return rows.map((row) =>
+        row.id === action.id && row.state === 'inspected' && row.titles !== undefined
+          ? {
+              ...row,
+              titles: row.titles.map((title) =>
+                title.title === action.title
+                  ? { ...title, details: normalizeBookDetails(action.details) }
+                  : title,
+              ),
+            }
+          : row,
+      );
     case 'remove': {
       const removed = new Set(action.ids);
       return rows.filter((row) => !removed.has(row.id));
@@ -175,7 +219,14 @@ export function queueReducer(rows: readonly QueueRow[], action: QueueAction): re
 
 /** Keeps what the queue needs of a title, dropping anything else the read carried. */
 function readTitle(title: ReadTitle): ReadTitle {
-  return { title: title.title, draft: title.draft, volumes: title.volumes };
+  return {
+    title: title.title,
+    draft: title.draft,
+    volumes: title.volumes,
+    ...(title.details === undefined || !hasBookDetails(title.details)
+      ? {}
+      : { details: normalizeBookDetails(title.details) }),
+  };
 }
 
 /** A title a run would make books of: it has volumes, and was not already saved. */

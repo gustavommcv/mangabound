@@ -1,6 +1,12 @@
 import { ArrowLeft, Boxes, ChevronLeft, CircleAlert, Library, RadioTower } from 'lucide-react';
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 
+import {
+  type BookDetails,
+  hasBookDetails,
+  noBookDetails,
+  persistableDetails,
+} from '@/domain/book-details';
 import { type BookFormat, type ConversionProgress, plannedSingleBook } from '@/domain/conversion';
 import {
   describeRow,
@@ -10,11 +16,12 @@ import {
   isWaitingTitle,
   type QueueInput,
   queueReducer,
+  rowMode,
   runnableRows,
   sessionIds,
   type TitleOutcome,
 } from '@/domain/input-queue';
-import { type MappingDraft, mappingSignature } from '@/domain/mapping';
+import { dominantLanguage, type MappingDraft, mappingSignature } from '@/domain/mapping';
 import {
   defaultMangapressSettings,
   type MangapressSettings,
@@ -22,7 +29,7 @@ import {
   validateMangapressSettings,
   withDeviceProfile,
 } from '@/domain/output-profile';
-import { defaultFormat, isDefaultMangapress, persistedSettings } from '@/domain/preferences';
+import { defaultFormat, isDefaultMangapress } from '@/domain/preferences';
 import {
   defaultProcessMode,
   type ProcessMode,
@@ -42,6 +49,8 @@ import { ShareMenu } from '@/renderer/components/sharing/share-menu';
 import { resolveNetworkInterface } from '@/renderer/lib/sharing';
 import { Titlebar } from '@/renderer/components/shell/titlebar';
 import { Button } from '@/renderer/components/ui/button';
+import { type AuthorLookup } from '@/renderer/components/details/author-lookup';
+import { BookDetailsScreen } from '@/renderer/screens/book-details-screen';
 import { LibraryScreen } from '@/renderer/screens/library-screen';
 import { QueueScreen, type RowPlan } from '@/renderer/screens/queue-screen';
 import { ResultsScreen, type RunOutcome } from '@/renderer/screens/results-screen';
@@ -72,7 +81,22 @@ import type {
 } from '@/shared/workflow-contract';
 
 type WorkflowStep =
-  'queue' | 'editing' | 'library' | 'editing-title' | 'options' | 'running' | 'results';
+  | 'queue'
+  | 'editing'
+  | 'library'
+  | 'editing-title'
+  | 'details'
+  | 'details-title'
+  | 'options'
+  | 'running'
+  | 'results';
+
+/** The volumes of a mapping, numbered, in order: what a series of books is made of. */
+const volumeNumbers = (mapping: MappingDraft | undefined): readonly number[] =>
+  (mapping?.volumes ?? [])
+    .map((volume) => Number(volume.number))
+    .filter((number) => Number.isFinite(number))
+    .sort((left, right) => left - right);
 
 const plural = (count: number, word: string): string =>
   `${String(count)} ${word}${count === 1 ? '' : 's'}`;
@@ -80,7 +104,7 @@ const plural = (count: number, word: string): string =>
 const withNotice = (current: readonly string[], message: string): readonly string[] =>
   current.includes(message) ? current : [...current, message];
 
-/** What is kept of the choices on screen: without the book's own title and author. */
+/** What is kept of the choices on screen. */
 function settingsToKeep(values: {
   readonly mode: ProcessMode;
   readonly format: BookFormat;
@@ -93,7 +117,7 @@ function settingsToKeep(values: {
     preferences: {
       mode: values.mode,
       format: values.format,
-      settings: persistedSettings(values.settings),
+      settings: values.settings,
       singleBook: values.singleBook,
       ...(values.providerId === undefined ? {} : { providerId: values.providerId }),
     },
@@ -426,6 +450,7 @@ export function App(): React.JSX.Element {
           kind: result.value.kind,
           ...(result.value.mapping === undefined ? {} : { mapping: result.value.mapping }),
           ...(result.value.titles === undefined ? {} : { titles: result.value.titles }),
+          ...(result.value.details === undefined ? {} : { details: result.value.details }),
         });
       }
     })();
@@ -501,6 +526,10 @@ export function App(): React.JSX.Element {
     singleBook: row.kind === 'cbz' ? false : singleBook,
     ...withRunSettings(rowProcess),
     ...(row.mapping === undefined || rowProcess === 'convert-only' ? {} : { mapping: row.mapping }),
+    // What was typed only matters where mangapress makes the book.
+    ...(usesMangapress(rowProcess) && row.details !== undefined && hasBookDetails(row.details)
+      ? { details: row.details }
+      : {}),
   });
   const commandFor = (
     row: InspectedRow,
@@ -525,8 +554,10 @@ export function App(): React.JSX.Element {
             title.title,
             title.volumes.length,
             title.outcome?.status,
+            title.details ?? null,
           ])
         : [],
+      row.state === 'inspected' ? (row.details ?? null) : null,
     ]),
   ]);
   const plans = validated?.key === planKey ? validated.plans : undefined;
@@ -593,13 +624,23 @@ export function App(): React.JSX.Element {
       setRunPosition({ name: row.displayName, index: index + 1, total: items.length });
       setProgress({ stage: 'processing', message: 'Preparing…' });
       if (row.kind === 'library') {
+        const libraryProcess = resolveMode('library', rowProcess);
+        const pendingTitles = (row.titles ?? []).filter(isPendingTitle);
+        const titleDetails = usesMangapress(libraryProcess)
+          ? pendingTitles.flatMap((title) =>
+              title.details !== undefined && hasBookDetails(title.details)
+                ? [{ title: title.title, details: title.details }]
+                : [],
+            )
+          : [];
         const ran = await bridge.convertLibrary({
           jobId: nextJobId,
           sessionId: row.sessionId,
           libraryId: runId,
           singleBook,
-          ...withRunSettings(resolveMode('library', rowProcess)),
-          titles: (row.titles ?? []).filter(isPendingTitle).map((title) => title.title),
+          ...withRunSettings(libraryProcess),
+          titles: pendingTitles.map((title) => title.title),
+          ...(titleDetails.length === 0 ? {} : { titleDetails }),
         });
         if (!ran.ok) {
           settled.push({
@@ -723,6 +764,48 @@ export function App(): React.JSX.Element {
     cancelRequested.current = true;
     const result = await bridge.cancelConversion(jobId);
     if (!result.ok) setFailure(result.error);
+  };
+
+  // What was kept with the folder when its details were opened, so leaving them saves only a change.
+  const keptOnOpen = useRef<BookDetails>(noBookDetails);
+
+  const openDetails = (rowId: string): void => {
+    const row = rows.find((candidate) => candidate.id === rowId);
+    keptOnOpen.current = persistableDetails(
+      row?.state === 'inspected' ? (row.details ?? noBookDetails) : noBookDetails,
+    );
+    setEditingId(rowId);
+    setStep('details');
+  };
+
+  const openTitleDetails = (row: InspectedRow, title: string): void => {
+    keptOnOpen.current = persistableDetails(
+      row.titles?.find((candidate) => candidate.title === title)?.details ?? noBookDetails,
+    );
+    setEditingTitle(title);
+    setStep('details-title');
+  };
+
+  /**
+   * Keeps the author and language of a folder with it once their page is left, when they changed.
+   * It never stops anyone: what could not be kept is said, and the details stay for this session.
+   */
+  const keepDetails = (
+    row: InspectedRow,
+    title: string | undefined,
+    current: BookDetails,
+  ): void => {
+    const kept = persistableDetails(current);
+    if (JSON.stringify(kept) === JSON.stringify(keptOnOpen.current) || bridge === undefined) return;
+    void bridge
+      .saveBookDetails({
+        sessionId: row.sessionId,
+        ...(title === undefined ? {} : { title }),
+        details: kept,
+      })
+      .then((result) => {
+        if (!result.ok) notify(result.error.message);
+      });
   };
 
   const openEditor = (rowId: string): void => {
@@ -971,7 +1054,19 @@ export function App(): React.JSX.Element {
     selectedProviderId: activeProviderId,
   };
 
+  // The same sources answer for who wrote a work, chosen and kept the same way.
+  const authorLookup: AuthorLookup = {
+    onOpenHomepage: openProviderHomepage,
+    onSearch: searchMetadata,
+    onSelect: setSelectedProviderId,
+    providers: metadataProviders,
+    selectedId: activeProviderId,
+  };
+
   const editingRow = rows.find((row) => row.id === editingId);
+  // A library's titles can have their own details only where mangapress makes their books.
+  const libraryProcess = rowMode('library', mode);
+  const libraryMakesBooks = libraryProcess !== 'skip' && usesMangapress(libraryProcess);
   const editingTitleEntry =
     editingRow?.state === 'inspected'
       ? editingRow.titles?.find((title) => title.title === editingTitle)
@@ -1067,6 +1162,7 @@ export function App(): React.JSX.Element {
                   void addDropped(files);
                 }}
                 onEdit={openEditor}
+                onEditDetails={openDetails}
                 onFormat={handleFormat}
                 onMode={handleMode}
                 onOpenOptions={() => {
@@ -1180,6 +1276,13 @@ export function App(): React.JSX.Element {
                     setEditingTitle(title);
                     setStep('editing-title');
                   }}
+                  {...(libraryMakesBooks
+                    ? {
+                        onEditDetails: (title: string) => {
+                          openTitleDetails(editingRow, title);
+                        },
+                      }
+                    : {})}
                   singleBook={singleBook}
                   titles={editingRow.titles}
                 />
@@ -1209,6 +1312,68 @@ export function App(): React.JSX.Element {
                     }
                   />
                 </div>
+              )}
+            {step === 'details' &&
+              editingRow?.state === 'inspected' &&
+              editingRow.kind !== 'library' && (
+                <BookDetailsScreen
+                  backLabel="Queue"
+                  declaredLanguage={dominantLanguage(editingRow.mapping?.chapters ?? [])}
+                  defaultLanguage={settings.language}
+                  defaultTitle={editingRow.displayName.replace(/\.cbz$/iu, '')}
+                  details={editingRow.details ?? noBookDetails}
+                  format={format}
+                  key={editingRow.id}
+                  lookup={authorLookup}
+                  name={editingRow.displayName}
+                  onBack={() => {
+                    // A loose CBZ has no folder to keep anything with.
+                    if (editingRow.kind === 'folder') {
+                      keepDetails(editingRow, undefined, editingRow.details ?? noBookDetails);
+                    }
+                    setStep('queue');
+                  }}
+                  onChange={(details) => {
+                    dispatch({ type: 'set-details', id: editingRow.id, details });
+                  }}
+                  {...(editingRow.kind === 'folder' &&
+                  !singleBook &&
+                  rowMode(editingRow.kind, mode) === 'bind-and-convert'
+                    ? { volumes: volumeNumbers(editingRow.mapping) }
+                    : {})}
+                />
+              )}
+            {step === 'details-title' &&
+              editingRow?.state === 'inspected' &&
+              editingTitleEntry !== undefined && (
+                <BookDetailsScreen
+                  backLabel={editingRow.displayName}
+                  declaredLanguage={dominantLanguage(editingTitleEntry.draft.chapters)}
+                  defaultLanguage={settings.language}
+                  defaultTitle={editingTitleEntry.title}
+                  details={editingTitleEntry.details ?? noBookDetails}
+                  format={format}
+                  key={editingTitleEntry.title}
+                  lookup={authorLookup}
+                  name={editingTitleEntry.title}
+                  onBack={() => {
+                    keepDetails(
+                      editingRow,
+                      editingTitleEntry.title,
+                      editingTitleEntry.details ?? noBookDetails,
+                    );
+                    setStep('library');
+                  }}
+                  onChange={(details) => {
+                    dispatch({
+                      type: 'set-title-details',
+                      id: editingRow.id,
+                      title: editingTitleEntry.title,
+                      details,
+                    });
+                  }}
+                  {...(singleBook ? {} : { volumes: volumeNumbers(editingTitleEntry.draft) })}
+                />
               )}
             {step === 'running' && (
               <RunningScreen

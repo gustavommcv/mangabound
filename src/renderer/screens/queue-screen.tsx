@@ -50,6 +50,7 @@ export interface QueueScreenProps {
   readonly onDismissRejected: () => void;
   readonly onDropFiles: (files: readonly File[]) => void;
   readonly onEdit: (id: string) => void;
+  readonly onEditDetails: (id: string) => void;
   readonly onFormat: (format: BookFormat) => void;
   readonly onMode: (mode: ProcessMode) => void;
   readonly onOpenOptions: () => void;
@@ -101,6 +102,7 @@ export function QueueScreen(props: QueueScreenProps): React.JSX.Element {
     onDismissRejected,
     onDropFiles,
     onEdit,
+    onEditDetails,
     onFormat,
     onMode,
     onOpenOptions,
@@ -183,6 +185,9 @@ export function QueueScreen(props: QueueScreenProps): React.JSX.Element {
                   mode={mode}
                   onEdit={() => {
                     onEdit(row.id);
+                  }}
+                  onEditDetails={() => {
+                    onEditDetails(row.id);
                   }}
                   onRemove={() => {
                     onRemove(row.id);

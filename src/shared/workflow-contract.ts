@@ -7,6 +7,12 @@ import type {
   InspectedKind,
   PipelineIssue,
 } from '@/domain/conversion';
+import {
+  type BookDetails,
+  languageTagPattern,
+  maxDetailLength,
+  maxLanguageLength,
+} from '@/domain/book-details';
 import type { MappingDraft } from '@/domain/mapping';
 import type { MangapressSettings } from '@/domain/output-profile';
 import {
@@ -44,8 +50,8 @@ export const registerInputsCommandSchema = z.object({
   paths: z.array(z.string()).max(1000),
 });
 export const identifierSchema = z.string().min(1).max(200);
-/** The mangapress options a person keeps between sessions: every one but the book's own identity. */
-const preferenceSettingFields = {
+/** The mangapress options a person keeps between sessions (ADR 0014). */
+const mangapressSettingFields = {
   deviceProfile: z.string().trim().min(1).max(40),
   quiet: z.boolean(),
   mangaStyle: z.boolean(),
@@ -85,18 +91,21 @@ const customProfileNeedsASize = {
   message: 'The custom device profile needs both a width and height.',
 };
 
-const mangapressSettingsSchema = z
-  .object({
-    ...preferenceSettingFields,
-    title: z.string().max(300).optional(),
-    author: z.string().max(300).optional(),
-  })
+/** The mangapress options, as a run is sent them and as the settings file holds them. */
+export const mangapressSettingsSchema = z
+  .object(mangapressSettingFields)
   .refine(customProfileNeedsASize.check, { message: customProfileNeedsASize.message });
 
-/** The options that are kept between sessions; a title or an author is dropped, not rejected. */
-export const persistedSettingsSchema = z
-  .object(preferenceSettingFields)
-  .refine(customProfileNeedsASize.check, { message: customProfileNeedsASize.message });
+/** A language tag such as "en" or "pt-br": letters and digits in short groups joined by dashes. */
+export const languageTagSchema = z.string().max(maxLanguageLength).regex(languageTagPattern);
+
+/** What a person typed for one book or series; a field left out means the default (ADR 0030). */
+export const bookDetailsSchema = z.object({
+  title: z.string().trim().min(1).max(maxDetailLength).optional(),
+  author: z.string().trim().min(1).max(maxDetailLength).optional(),
+  language: languageTagSchema.optional(),
+});
+
 export const conversionCommandSchema = z.object({
   jobId: identifierSchema,
   sessionId: identifierSchema,
@@ -106,6 +115,8 @@ export const conversionCommandSchema = z.object({
   mapping: mappingDraftSchema.optional(),
   mode: z.enum(processModes).optional(),
   singleBook: z.boolean().optional(),
+  /** The title, author and language typed for this input; the defaults apply where left out. */
+  details: bookDetailsSchema.optional(),
 });
 export const planConversionCommandSchema = conversionCommandSchema.omit({ libraryId: true });
 
@@ -124,7 +135,26 @@ export const libraryConversionCommandSchema = z.object({
   titles: z.array(z.string().min(1)).max(1000).optional(),
   mode: z.enum(batchProcessModes).optional(),
   singleBook: z.boolean().optional(),
+  /** What was typed for each title of the library, by the title's name. */
+  titleDetails: z
+    .array(z.object({ title: z.string().min(1), details: bookDetailsSchema }))
+    .max(1000)
+    .optional(),
 });
+
+/** Keeps the author and language of a folder, or of one title of a library, with that folder. */
+export const saveBookDetailsCommandSchema = z.object({
+  sessionId: identifierSchema,
+  /** The title's name in the library the session read; absent for a folder of its own. */
+  title: z.string().min(1).optional(),
+  details: bookDetailsSchema,
+});
+
+export interface SaveBookDetailsCommand {
+  readonly sessionId: string;
+  readonly title?: string;
+  readonly details: BookDetails;
+}
 
 export const writeTitleMappingCommandSchema = z.object({
   sessionId: identifierSchema,
@@ -138,12 +168,6 @@ export const searchMetadataCommandSchema = z.object({
   providerId: z.string().min(1),
   title: z.string().min(1),
 });
-
-/** A language tag such as "en" or "pt-br": letters and digits in short groups joined by dashes. */
-export const languageTagSchema = z
-  .string()
-  .max(20)
-  .regex(/^[a-z]{2,3}(-[a-z0-9]{2,8})*$/iu);
 
 export const suggestVolumesCommandSchema = z.object({
   jobId: identifierSchema,
@@ -183,6 +207,8 @@ export interface LibraryTitleSummary {
     readonly pageCount: number;
   }[];
   readonly issues: readonly PipelineIssue[];
+  /** The author and language kept with the title's folder, when there are any. */
+  readonly details?: BookDetails;
 }
 
 export interface InspectedInputPayload {
@@ -190,6 +216,8 @@ export interface InspectedInputPayload {
   readonly displayName: string;
   readonly kind: InspectedKind;
   readonly mapping?: MappingDraft;
+  /** The author and language kept with the folder, when there are any. */
+  readonly details?: BookDetails;
   /** The manga of a library. */
   readonly titles?: readonly LibraryTitleSummary[];
   readonly issues: readonly PipelineIssue[];
@@ -246,6 +274,8 @@ export interface ConversionCommand {
   readonly mapping?: MappingDraft;
   readonly mode?: ProcessMode;
   readonly singleBook?: boolean;
+  /** The title, author and language typed for this input. */
+  readonly details?: BookDetails;
 }
 export type PlanConversionCommand = Omit<ConversionCommand, 'libraryId'>;
 
@@ -267,6 +297,8 @@ export interface LibraryConversionCommand {
   readonly titles?: readonly string[];
   readonly mode?: BatchProcessMode;
   readonly singleBook?: boolean;
+  /** What was typed for each title of the library, by the title's name. */
+  readonly titleDetails?: readonly { readonly title: string; readonly details: BookDetails }[];
 }
 
 export interface LibraryTitleResult {
@@ -289,6 +321,10 @@ export interface MetadataSearchResult {
   readonly id: string;
   readonly title: string;
   readonly provider: string;
+  /** Who wrote it, when the source says. */
+  readonly authors?: readonly string[];
+  /** The year it began, when the source says. */
+  readonly year?: number;
 }
 
 export interface VolumeSuggestion {
