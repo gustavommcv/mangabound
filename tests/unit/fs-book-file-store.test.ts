@@ -184,21 +184,17 @@ describe('FsBookFileStore', () => {
     await writeFile(first, 'x');
     await writeFile(second, 'y');
     const failure = new Error('disk error');
-    let calls = 0;
+    // Only the first book's move fails; a failure must not leave the queue of placements stuck.
     const store = new FsBookFileStore({
-      rename: (from, to) => {
-        calls += 1;
-        return calls === 1 ? Promise.reject(failure) : rename(from, to);
-      },
+      rename: (from, to) =>
+        path.basename(to) === 'One - Vol.01.cbz' ? Promise.reject(failure) : rename(from, to),
     });
 
-    const results = await Promise.allSettled([
-      store.saveBook({ sourcePath: first, libraryPath: library }),
-      store.saveBook({ sourcePath: second, libraryPath: library }),
-    ]);
+    await expect(store.saveBook({ sourcePath: first, libraryPath: library })).rejects.toBe(failure);
+    const saved = await store.saveBook({ sourcePath: second, libraryPath: library });
 
-    expect(results.map((result) => result.status)).toEqual(['rejected', 'fulfilled']);
-    expect(await readFile(path.join(library, 'Two - Vol.01.cbz'), 'utf8')).toBe('y');
+    expect(saved.name).toBe('Two - Vol.01.cbz');
+    expect(await readFile(saved.path, 'utf8')).toBe('y');
   });
 
   it('stages then moves in order, using only the injected filesystem', async () => {
