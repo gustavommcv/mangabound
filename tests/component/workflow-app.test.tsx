@@ -3206,3 +3206,136 @@ describe('the title, author and language typed for an item', () => {
     ).not.toBeInTheDocument();
   });
 });
+
+describe('looking up the author from the details of an item', () => {
+  const mangaDex = {
+    id: 'mangadex',
+    displayName: 'MangaDex',
+    homepage: 'https://mangadex.org',
+    description: 'Community catalogue of manga, with volume and chapter data',
+  };
+  const found = {
+    id: 'work-1',
+    provider: 'mangadex',
+    title: 'Offline Work',
+    authors: ['Fujimoto Tatsuki'],
+    year: 2018,
+  };
+
+  const saveCalls = (
+    saveSettings: ReturnType<typeof vi.fn<MangaboundBridge['saveSettings']>>,
+  ): readonly Parameters<MangaboundBridge['saveSettings']>[0][] =>
+    saveSettings.mock.calls.map(([command]) => command);
+  const okSave = (): ReturnType<typeof vi.fn<MangaboundBridge['saveSettings']>> =>
+    vi.fn<MangaboundBridge['saveSettings']>(() => Promise.resolve({ ok: true, value: undefined }));
+
+  const openLookup = async (user: UserEvent): Promise<void> => {
+    await user.click(await screen.findByRole('button', { name: 'Edit details of Offline Work' }));
+    await user.click(await screen.findByRole('button', { name: 'Find author' }));
+  };
+
+  it('searches the title in the source chosen there, fills the author, and sends it with the conversion', async () => {
+    const user = userEvent.setup();
+    const searchMetadata = vi.fn<MangaboundBridge['searchMetadata']>(() =>
+      Promise.resolve({ ok: true, value: [found] }),
+    );
+    const convert = vi.fn<MangaboundBridge['convert']>(bridge().convert);
+    installBridge(
+      bridge({
+        convert,
+        searchMetadata,
+        listMetadataProviders: () => Promise.resolve({ ok: true, value: [mangaDex] }),
+      }),
+    );
+    render(<App />);
+    await addFolder(user);
+    await openLookup(user);
+    // Nothing is sent until the source is chosen and Search is used.
+    expect(searchMetadata).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('combobox', { name: 'Source' }));
+    await user.click(screen.getByRole('option', { name: /MangaDex/u }));
+    expect(searchMetadata).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Search' }));
+
+    expect(searchMetadata).toHaveBeenCalledExactlyOnceWith(
+      expect.any(String),
+      'mangadex',
+      'Offline Work',
+    );
+    await user.click(
+      await screen.findByRole('button', { name: 'Use Fujimoto Tatsuki from Offline Work' }),
+    );
+    expect(screen.getByLabelText('Author')).toHaveValue('Fujimoto Tatsuki');
+    await user.click(screen.getByRole('button', { name: 'Queue' }));
+    await user.click(await runButton(1));
+
+    expect(await screen.findByRole('heading', { name: '1 book ready' })).toBeVisible();
+    expect(convert.mock.calls[0]?.[0].details).toEqual({ author: 'Fujimoto Tatsuki' });
+  });
+
+  it('searches with the title typed there, and shows the failure when the source cannot be reached', async () => {
+    const user = userEvent.setup();
+    const searchMetadata = vi.fn<MangaboundBridge['searchMetadata']>(() =>
+      Promise.resolve({
+        ok: false,
+        error: { code: 'network_error', message: 'Could not reach MangaDex.' },
+      }),
+    );
+    installBridge(
+      bridge({
+        searchMetadata,
+        listMetadataProviders: () => Promise.resolve({ ok: true, value: [mangaDex] }),
+        loadSettings: keptSettings({
+          preferences: { ...defaultPreferences, providerId: 'mangadex' },
+        }),
+      }),
+    );
+    render(<App />);
+    await addFolder(user);
+    await openLookup(user);
+    await user.type(screen.getByLabelText('Series title'), 'Chainsaw Man');
+
+    await user.click(screen.getByRole('button', { name: 'Search' }));
+
+    expect(searchMetadata).toHaveBeenCalledWith(expect.any(String), 'mangadex', 'Chainsaw Man');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not reach MangaDex.');
+  });
+
+  it('shares the source with the volume editor, and keeps it', async () => {
+    const user = userEvent.setup();
+    const saveSettings = okSave();
+    installBridge(
+      bridge({
+        saveSettings,
+        listMetadataProviders: () => Promise.resolve({ ok: true, value: [mangaDex] }),
+      }),
+    );
+    render(<App />);
+    await addFolder(user);
+    await openLookup(user);
+    await user.click(screen.getByRole('combobox', { name: 'Source' }));
+    await user.click(screen.getByRole('option', { name: /MangaDex/u }));
+
+    await waitFor(() => {
+      expect(saveCalls(saveSettings).at(-1)?.preferences.providerId).toBe('mangadex');
+    });
+    await user.click(screen.getByRole('button', { name: 'Queue' }));
+    await user.click(screen.getByRole('button', { name: 'Edit volumes for Offline Work' }));
+    await user.click(await screen.findByRole('tab', { name: 'Online source' }));
+
+    expect(screen.getByRole('combobox', { name: 'Source' })).toHaveTextContent('MangaDex');
+  });
+
+  it('is not offered when the app has no source to ask', async () => {
+    const user = userEvent.setup();
+    installBridge(bridge());
+    render(<App />);
+    await addFolder(user);
+
+    await user.click(await screen.findByRole('button', { name: 'Edit details of Offline Work' }));
+
+    expect(await screen.findByLabelText('Author')).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Find author' })).not.toBeInTheDocument();
+  });
+});

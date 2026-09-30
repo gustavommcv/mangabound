@@ -1,14 +1,16 @@
 import { ExternalLink, RotateCcw, Search } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 
 import { ProviderPicker } from './provider-picker';
 
 import type { VolumeSuggestion } from '@/domain/mapping';
 import { InfoBanner } from '@/renderer/components/shared/info-banner';
+import { NoMatchesNotice } from '@/renderer/components/shared/no-matches-notice';
 import { Button } from '@/renderer/components/ui/button';
 import { Input } from '@/renderer/components/ui/input';
 import { Label } from '@/renderer/components/ui/label';
 import { panelId, TabList, tabId } from '@/renderer/components/ui/tabs';
+import { useMetadataSearch } from '@/renderer/hooks/use-metadata-search';
 import type { MetadataProviderDescriptor, MetadataSearchResult } from '@/shared/workflow-contract';
 
 type Source = 'names' | 'online' | 'manual';
@@ -163,52 +165,24 @@ function OnlinePanel({
 }: OnlineSource): React.JSX.Element {
   const provider = providers.find((candidate) => candidate.id === selectedId);
   const [query, setQuery] = useState(mangaTitle);
-  const [results, setResults] = useState<readonly MetadataSearchResult[]>([]);
-  const [searched, setSearched] = useState(false);
-  const [searching, setSearching] = useState(false);
   const [applyingId, setApplyingId] = useState<string>();
-  const [panelError, setPanelError] = useState<string>();
-  const searchController = useRef<AbortController>(undefined);
-
   // A search only ever starts from the Search button (or Enter). Nothing is sent on open, on
   // choosing a source or while typing, so the title never leaves the machine without a request.
-  const forget = (): void => {
-    searchController.current?.abort();
-    setResults([]);
-    setSearched(false);
-    setSearching(false);
-    setPanelError(undefined);
-  };
-  useEffect(
-    () => () => {
-      searchController.current?.abort();
-    },
-    [],
-  );
+  const {
+    error: panelError,
+    forget,
+    lastTitle,
+    results,
+    search: startSearch,
+    searched,
+    searching,
+    setError: setPanelError,
+  } = useMetadataSearch(onSearch);
 
   const search = (): void => {
     const title = query.trim();
     if (provider === undefined || title === '') return;
-    searchController.current?.abort();
-    const controller = new AbortController();
-    searchController.current = controller;
-    setSearching(true);
-    setPanelError(undefined);
-    onSearch(provider.id, title, controller.signal)
-      .then((found) => {
-        if (controller.signal.aborted) return;
-        setResults(found);
-        setSearched(true);
-      })
-      .catch((error: unknown) => {
-        if (controller.signal.aborted) return;
-        setPanelError(
-          error instanceof Error ? error.message : 'The search could not be completed.',
-        );
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setSearching(false);
-      });
+    startSearch(provider.id, title);
   };
 
   const applyResult = (result: MetadataSearchResult): void => {
@@ -300,7 +274,7 @@ function OnlinePanel({
             </p>
           )}
           {!searching && searched && panelError === undefined && results.length === 0 && (
-            <p className="text-muted-foreground text-xs">No matches found.</p>
+            <NoMatchesNotice fix="search" query={lastTitle ?? query} />
           )}
           {!searching && results.length > 0 && (
             <ul aria-label="Matches" className="space-y-2">

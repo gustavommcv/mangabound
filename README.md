@@ -24,7 +24,7 @@ Intel Macs and AppImage aren't built for this alpha — see the release notes fo
 
 1. **Add.** Drag manga folders, libraries (a folder of manga folders) or `.cbz` files onto the window, or click the drop area to choose them.
 2. **Check the volumes.** If the folder names carry them (`Vol.02 Ch.0015 - Title`), the chapters are already grouped and nothing needs editing. If not, the volume editor starts from what mangabind could read and lets you take the grouping from an online source you choose, or assign chapters by hand. Every edit can be undone.
-3. **Choose the process.** Join the volumes into CBZ files, convert for an e-reader, or both. Pick the device and format (EPUB, CBZ or PDF). Every option mangapress has is available, starting from the state Kindle Comic Converter's window starts in. A book's own title, author and language are set per item, from the person icon beside it in the queue, since they differ from one manga to the next. For a very long series, **Create one book for the series** makes a single EPUB whose table of contents lists the volumes with their chapters nested underneath (EPUB only for now).
+3. **Choose the process.** Join the volumes into CBZ files, convert for an e-reader, or both. Pick the device and format (EPUB, CBZ or PDF). Every option mangapress has is available, starting from the state Kindle Comic Converter's window starts in. A book's own title, author and language are set per item, from the person icon beside it in the queue, since they differ from one manga to the next; the author can be looked up in an online source you choose, with one click on that page. For a very long series, **Create one book for the series** makes a single EPUB whose table of contents lists the volumes with their chapters nested underneath (EPUB only for now).
 4. **Process.** Items run one after another, with progress (including how many pages have been copied while volumes are built) and a way to cancel. Unsaved books remain available after closing the app. You can delete an unwanted pending conversion from **Ready books**; a confirmation explains that copies already saved elsewhere are unaffected.
 5. **Save or share.** Use **Save as…** for one book or **Save all to folder…** for several. Save All remains available if you need to export the set again; existing files are never replaced by that action. You can also open a ready book or share it directly over your network (OPDS) for KOReader, without saving it elsewhere first.
 
@@ -32,7 +32,7 @@ The device, format, process and options are remembered between sessions, and can
 
 ## What it is not
 
-Mangabound is neither a manga downloader nor a reader. It works on files you already have, and opening a finished book is left to your system's default application. It works offline: nothing is sent anywhere unless you pick an online source and search it, and then only a title is sent and only volume and chapter numbers are used. The network catalog runs only while you have started it, on the network interface you chose, and stops when you quit.
+Mangabound is neither a manga downloader nor a reader. It works on files you already have, and opening a finished book is left to your system's default application. It works offline: nothing is sent anywhere unless you pick an online source and search it, and then only a title is sent and only volume and chapter numbers, or the author names of a work, are used. The network catalog runs only while you have started it, on the network interface you chose, and stops when you quit.
 
 ## Development
 
@@ -92,5 +92,5 @@ Taking a newer release of either tool is a deliberate, manual step: `npm run too
 
 ## Credits
 
-- **[MangaDex](https://mangadex.org)** supplies volume and chapter data when you choose it as an online source in the volume editor. Nothing is sent to it unless you pick it and search, only volume and chapter numbers are used, and nothing is downloaded from it. Mangabound is free and carries no advertisements, as MangaDex's API rules ask. To offer another source, see [the contributor guide](docs/adding-a-metadata-provider.md).
+- **[MangaDex](https://mangadex.org)** supplies volume and chapter data when you choose it as an online source in the volume editor, and the author of a work when you look it up on an item's details page. Nothing is sent to it unless you pick it and search, only volume and chapter numbers and author names and years are used, and nothing is downloaded from it. Mangabound is free and carries no advertisements, as MangaDex's API rules ask. To offer another source, see [the contributor guide](docs/adding-a-metadata-provider.md).
 - **[Kindle Comic Converter](https://github.com/ciromattia/kcc)**, whose conversion behaviour mangapress follows and whose window's default options Mangabound starts from ([ADR 0011](docs/adr/0011-kcc-default-options.md), [ADR 0015](docs/adr/0015-paperwhite-as-the-starting-device.md)).

@@ -50,8 +50,9 @@ describe('MangaDex provider', () => {
 
       await new MangaDexProvider(fetchImpl).search('Chainsaw Man');
 
+      // Authors are asked for in the same request, so telling works apart costs nothing more.
       expect(fetchImpl.mock.calls[0]?.[0]).toBe(
-        'https://api.mangadex.org/manga?title=Chainsaw%20Man&limit=10&order%5Brelevance%5D=desc',
+        'https://api.mangadex.org/manga?title=Chainsaw%20Man&limit=10&order%5Brelevance%5D=desc&includes%5B%5D=author',
       );
       expect(fetchImpl.mock.calls[0]?.[1]?.headers).toEqual({
         'User-Agent': userAgent,
@@ -65,19 +66,95 @@ describe('MangaDex provider', () => {
       ).search('Chainsaw Man');
 
       expect(results).toEqual([
-        // Only a romanized Japanese title: the first title there is is used.
-        { id: work, title: 'Chainsaw Man', provider: 'mangadex' },
+        // Only a romanized Japanese title: the first title there is is used. The artist came without
+        // a name, and only the author is asked for.
+        {
+          id: work,
+          title: 'Chainsaw Man',
+          provider: 'mangadex',
+          authors: ['Fujimoto Tatsuki'],
+          year: 2018,
+        },
         {
           id: 'e896c48c-3150-437d-ba57-d8567eb399ae',
           title: 'Chainsaw Man (Official Colored)',
           provider: 'mangadex',
+          authors: ['Fujimoto Tatsuki'],
+          year: 2021,
         },
         {
           id: '268f5da0-d158-4c95-bc2b-b4d962c2f325',
           title: 'Chainsaw Man - The Hayakawa Family (Doujinshi)',
           provider: 'mangadex',
+          authors: ['Iing Naoe'],
+          year: 2023,
         },
       ]);
+    });
+
+    it('finds nothing for a title with extra characters in it, as the service really answers', async () => {
+      const results = await new MangaDexProvider(() =>
+        Promise.resolve(respond(200, fixture('search-no-match.json'))),
+      ).search('Chainsaw Man - EN');
+
+      expect(results).toEqual([]);
+    });
+
+    describe('who wrote a work', () => {
+      const found = async (work: Record<string, unknown>) =>
+        new MangaDexProvider(() =>
+          Promise.resolve(
+            respond(200, JSON.stringify({ data: [{ id: 'w', type: 'manga', ...work }] })),
+          ),
+        ).search('x');
+      const attributes = { title: { en: 'A Work' } };
+
+      it('lists every author once, in the order the service gave them', async () => {
+        const [result] = await found({
+          attributes,
+          relationships: [
+            { type: 'author', attributes: { name: 'First Author' } },
+            { type: 'artist', attributes: { name: 'An Artist' } },
+            { type: 'author', attributes: { name: ' Second Author ' } },
+            { type: 'author', attributes: { name: 'First Author' } },
+          ],
+        });
+
+        expect(result?.authors).toEqual(['First Author', 'Second Author']);
+      });
+
+      it.each([
+        ['has no relationships at all', { attributes }],
+        ['has only an artist', { attributes, relationships: [{ type: 'artist' }] }],
+        [
+          'has an author that came with no attributes',
+          { attributes, relationships: [{ type: 'author' }] },
+        ],
+        [
+          'has an author with a blank or unreadable name',
+          {
+            attributes,
+            relationships: [
+              { type: 'author', attributes: { name: '  ' } },
+              { type: 'author', attributes: { name: 7 } },
+              { type: 'author', attributes: 'Someone' },
+              { type: 'author', attributes: null },
+            ],
+          },
+        ],
+      ])('gives no authors for a work that %s, and still finds it', async (_case, work) => {
+        const [result] = await found(work);
+
+        expect(result).toEqual({ id: 'w', title: 'A Work', provider: 'mangadex' });
+      });
+
+      it('gives the year the work began, and none when the service has none', async () => {
+        const [withYear] = await found({ attributes: { ...attributes, year: 1999 } });
+        const [noYear] = await found({ attributes: { ...attributes, year: null } });
+
+        expect(withYear?.year).toBe(1999);
+        expect(noYear).not.toHaveProperty('year');
+      });
     });
 
     it('prefers the English title, and falls back to the id when a work has none at all', async () => {

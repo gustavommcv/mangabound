@@ -44,6 +44,7 @@ import { ShareMenu } from '@/renderer/components/sharing/share-menu';
 import { resolveNetworkInterface } from '@/renderer/lib/sharing';
 import { Titlebar } from '@/renderer/components/shell/titlebar';
 import { Button } from '@/renderer/components/ui/button';
+import { type AuthorLookup } from '@/renderer/components/details/author-lookup';
 import { BookDetailsScreen } from '@/renderer/screens/book-details-screen';
 import { LibraryScreen } from '@/renderer/screens/library-screen';
 import { QueueScreen, type RowPlan } from '@/renderer/screens/queue-screen';
@@ -1010,6 +1011,15 @@ export function App(): React.JSX.Element {
     selectedProviderId: activeProviderId,
   };
 
+  // The same sources answer for who wrote a work, chosen and kept the same way.
+  const authorLookup: AuthorLookup = {
+    onOpenHomepage: openProviderHomepage,
+    onSearch: searchMetadata,
+    onSelect: setSelectedProviderId,
+    providers: metadataProviders,
+    selectedId: activeProviderId,
+  };
+
   const editingRow = rows.find((row) => row.id === editingId);
   // A library's titles can have their own details only where mangapress makes their books.
   const libraryProcess = rowMode('library', mode);
@@ -1272,6 +1282,7 @@ export function App(): React.JSX.Element {
                   details={editingRow.details ?? noBookDetails}
                   format={format}
                   key={editingRow.id}
+                  lookup={authorLookup}
                   name={editingRow.displayName}
                   onBack={() => {
                     setStep('queue');
@@ -1297,6 +1308,7 @@ export function App(): React.JSX.Element {
                   details={editingTitleEntry.details ?? noBookDetails}
                   format={format}
                   key={editingTitleEntry.title}
+                  lookup={authorLookup}
                   name={editingTitleEntry.title}
                   onBack={() => {
                     setStep('library');

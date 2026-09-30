@@ -1,6 +1,11 @@
 import { requestText } from '../http';
 
-import { parseAggregateResponse, parseSearchResponse, type AggregateResponse } from './protocol';
+import {
+  parseAggregateResponse,
+  parseSearchResponse,
+  type AggregateResponse,
+  type SearchedManga,
+} from './protocol';
 
 import type {
   MetadataProviderPort,
@@ -12,8 +17,9 @@ import type { VolumeSuggestion } from '@/domain/mapping';
  * MangaDex's public API, https://api.mangadex.org/docs/. Its rules for third-party apps, as read
  * when this was written: credit MangaDex, run no ads and sell no access, send a real user agent
  * (see http.ts), stay near five requests a second, and do not download what scanlation groups
- * publish. This provider asks two questions, which title a work has and which chapters its volumes
- * hold, and never touches chapters, pages or images.
+ * publish. This provider asks two questions, which works match a title (with who wrote them and
+ * when they began, to tell them apart) and which chapters their volumes hold, and never touches
+ * chapters, pages or images.
  */
 const apiBaseUrl = 'https://api.mangadex.org';
 
@@ -42,6 +48,19 @@ function volumesOf(aggregate: AggregateResponse): VolumeSuggestion[] {
   return volumes;
 }
 
+/** The names of the authors a search brought with a work, once each, in the order given. */
+function authorsOf(manga: SearchedManga): string[] {
+  const names = (manga.relationships ?? []).flatMap((relationship) => {
+    const { attributes } = relationship;
+    if (relationship.type !== 'author' || typeof attributes !== 'object' || attributes === null) {
+      return [];
+    }
+    const name = (attributes as { readonly name?: unknown }).name;
+    return typeof name === 'string' && name.trim() !== '' ? [name.trim()] : [];
+  });
+  return [...new Set(names)];
+}
+
 export class MangaDexProvider implements MetadataProviderPort {
   readonly descriptor = mangaDexDescriptor;
 
@@ -49,15 +68,21 @@ export class MangaDexProvider implements MetadataProviderPort {
 
   async search(title: string, signal?: AbortSignal): Promise<readonly MetadataSearchResult[]> {
     const body = await requestText(this.fetchImpl, {
-      url: `${apiBaseUrl}/manga?title=${encodeURIComponent(title)}&limit=10&order%5Brelevance%5D=desc`,
+      url: `${apiBaseUrl}/manga?title=${encodeURIComponent(title)}&limit=10&order%5Brelevance%5D=desc&includes%5B%5D=author`,
       serviceName: this.descriptor.displayName,
       ...(signal === undefined ? {} : { signal }),
     });
-    return parseSearchResponse(body).data.map((manga) => ({
-      id: manga.id,
-      title: manga.attributes.title.en ?? Object.values(manga.attributes.title)[0] ?? manga.id,
-      provider: this.descriptor.id,
-    }));
+    return parseSearchResponse(body).data.map((manga) => {
+      const authors = authorsOf(manga);
+      const year = manga.attributes.year;
+      return {
+        id: manga.id,
+        title: manga.attributes.title.en ?? Object.values(manga.attributes.title)[0] ?? manga.id,
+        provider: this.descriptor.id,
+        ...(authors.length === 0 ? {} : { authors }),
+        ...(year === null || year === undefined ? {} : { year }),
+      };
+    });
   }
 
   /**

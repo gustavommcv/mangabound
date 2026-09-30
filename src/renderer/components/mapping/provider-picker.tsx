@@ -27,11 +27,14 @@ function hostOf(homepage: string): string {
  */
 export function ProviderPicker({
   label = 'Source',
+  noneDetail = 'Only the folder names and your edits',
   onSelect,
   providers,
   selectedId,
 }: {
   readonly label?: string;
+  /** What the first entry, for using no source, says about itself. */
+  readonly noneDetail?: string;
   readonly onSelect: (providerId: string | undefined) => void;
   readonly providers: readonly MetadataProviderDescriptor[];
   readonly selectedId: string | undefined;
@@ -41,7 +44,7 @@ export function ProviderPicker({
   const labelId = `${base}-label`;
   const optionId = (index: number): string => `${base}-option-${String(index)}`;
   const options: readonly Option[] = [
-    { value: undefined, title: 'No online source', detail: 'Only the folder names and your edits' },
+    { value: undefined, title: 'No online source', detail: noneDetail },
     ...providers.map((provider) => ({
       value: provider.id,
       title: provider.displayName,

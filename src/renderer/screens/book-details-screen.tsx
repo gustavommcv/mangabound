@@ -1,4 +1,4 @@
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, Search } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import {
@@ -10,6 +10,7 @@ import {
   volumeBookTitle,
 } from '@/domain/book-details';
 import type { BookFormat } from '@/domain/conversion';
+import { AuthorLookupPanel, type AuthorLookup } from '@/renderer/components/details/author-lookup';
 import { FieldMessage } from '@/renderer/components/shared/field-message';
 import { Button } from '@/renderer/components/ui/button';
 import { Input } from '@/renderer/components/ui/input';
@@ -30,6 +31,8 @@ export interface BookDetailsScreenProps {
   readonly name: string;
   readonly onBack: () => void;
   readonly onChange: (details: BookDetails) => void;
+  /** Where to look up who wrote it. Absent when there is no source to ask. */
+  readonly lookup?: AuthorLookup;
   /**
    * The volumes of the series this makes, one book each; empty while none are set yet. Absent
    * when it makes a single book.
@@ -53,11 +56,14 @@ export function BookDetailsScreen({
   details,
   format,
   name,
+  lookup,
   onBack,
   onChange,
   volumes,
 }: BookDetailsScreenProps): React.JSX.Element {
   const titleRef = useRef<HTMLHeadingElement>(null);
+  const authorRef = useRef<HTMLInputElement>(null);
+  const [lookupOpen, setLookupOpen] = useState(false);
   useEffect(() => {
     titleRef.current?.focus();
   }, []);
@@ -150,16 +156,32 @@ export function BookDetailsScreen({
           <Label className="text-sm font-medium" htmlFor="details-author">
             Author
           </Label>
-          <Input
-            aria-describedby="details-author-message"
-            id="details-author"
-            maxLength={maxDetailLength}
-            onChange={(event) => {
-              update('author', event.target.value);
-            }}
-            placeholder="Leave blank if unknown"
-            value={text.author}
-          />
+          <div className="flex gap-2">
+            <Input
+              aria-describedby="details-author-message"
+              className="min-w-0 flex-1"
+              id="details-author"
+              maxLength={maxDetailLength}
+              onChange={(event) => {
+                update('author', event.target.value);
+              }}
+              placeholder="Leave blank if unknown"
+              ref={authorRef}
+              value={text.author}
+            />
+            {lookup !== undefined && lookup.providers.length > 0 && (
+              <Button
+                aria-controls="author-lookup"
+                aria-expanded={lookupOpen}
+                onClick={() => {
+                  setLookupOpen(!lookupOpen);
+                }}
+                variant="outline"
+              >
+                <Search aria-hidden="true" /> Find author
+              </Button>
+            )}
+          </div>
           <FieldMessage
             {...(format === 'cbz'
               ? {
@@ -169,6 +191,18 @@ export function BookDetailsScreen({
               : {})}
             id="details-author-message"
           />
+          {lookupOpen && lookup !== undefined && (
+            <AuthorLookupPanel
+              id="author-lookup"
+              lookup={lookup}
+              onUse={(authors) => {
+                update('author', authors);
+                setLookupOpen(false);
+                authorRef.current?.focus();
+              }}
+              title={title}
+            />
+          )}
         </div>
 
         <div className="space-y-2">

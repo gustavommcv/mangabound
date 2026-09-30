@@ -636,11 +636,29 @@ describe('mapping editor', () => {
       await chooseSource(user);
       await user.type(screen.getByLabelText('Search MangaDex'), ' Extra');
       expect(onSearchMetadata).not.toHaveBeenCalled();
-      expect(screen.queryByText('No matches found.')).not.toBeInTheDocument();
+      expect(screen.queryByRole('status', { name: 'No matches' })).not.toBeInTheDocument();
 
       await user.click(screen.getByRole('button', { name: 'Search' }));
       expect(onSearchMetadata).toHaveBeenCalledOnce();
-      expect(await screen.findByText('No matches found.')).toBeVisible();
+      // It says what found nothing, and where to change it, since extra characters are the likely cause.
+      const notice = await screen.findByRole('status', { name: 'No matches' });
+      expect(notice).toHaveTextContent('No matches for “Offline Work Extra”.');
+      expect(notice).toHaveTextContent('Extra characters in the search, such as “- EN”');
+      expect(notice).toHaveTextContent('Edit the search above and try again.');
+    });
+
+    it('says what it searched for even after the search box was changed again', async () => {
+      const user = userEvent.setup();
+      render(ready({ onSearchMetadata: () => Promise.resolve([]) }));
+      await chooseSource(user);
+      await user.click(screen.getByRole('button', { name: 'Search' }));
+      await screen.findByRole('status', { name: 'No matches' });
+
+      await user.type(screen.getByLabelText('Search MangaDex'), ' Changed');
+
+      expect(screen.getByRole('status', { name: 'No matches' })).toHaveTextContent(
+        'No matches for “Offline Work”.',
+      );
     });
 
     it('searches on Enter, and disables Search while the title is empty', async () => {

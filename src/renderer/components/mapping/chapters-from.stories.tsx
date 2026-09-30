@@ -132,7 +132,7 @@ export const OnlineSearchResults: Story = {
   },
 };
 
-/** A search that finds nothing to apply. */
+/** A search that finds nothing to apply says what it searched for, and where to change it. */
 export const OnlineSearchNoMatches: Story = {
   args: {
     online: { ...onlineArgs.online, selectedId: 'mangadex', onSearch: () => Promise.resolve([]) },
@@ -141,7 +141,9 @@ export const OnlineSearchNoMatches: Story = {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole('tab', { name: 'Online source' }));
     await userEvent.click(await canvas.findByRole('button', { name: 'Search' }));
-    await expect(await canvas.findByText('No matches found.')).toBeVisible();
+    await expect(await canvas.findByRole('status', { name: 'No matches' })).toHaveTextContent(
+      'Edit the search above and try again.',
+    );
   },
 };
 
