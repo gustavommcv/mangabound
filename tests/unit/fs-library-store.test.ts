@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -33,7 +33,7 @@ describe('FsLibraryStore (mocked filesystem)', () => {
   it('returns an empty manifest when the manifest file does not exist', async () => {
     const readFile = vi.fn(() => Promise.reject(enoentError()));
     const store = new FsLibraryStore({
-      readFile: readFile as unknown as FsLibraryStoreDeps['readFile'],
+      readFile,
     });
 
     await expect(store.read('/library')).resolves.toEqual(emptyLibraryManifest);
@@ -43,7 +43,7 @@ describe('FsLibraryStore (mocked filesystem)', () => {
     const failure = new Error('permission denied');
     const readFile = vi.fn(() => Promise.reject(failure));
     const store = new FsLibraryStore({
-      readFile: readFile as unknown as FsLibraryStoreDeps['readFile'],
+      readFile,
     });
 
     await expect(store.read('/library')).rejects.toBe(failure);
@@ -52,7 +52,7 @@ describe('FsLibraryStore (mocked filesystem)', () => {
   it('throws a LibraryIndexError when the manifest file contains malformed JSON', async () => {
     const readFile = vi.fn(() => Promise.resolve('not json'));
     const store = new FsLibraryStore({
-      readFile: readFile as unknown as FsLibraryStoreDeps['readFile'],
+      readFile,
     });
 
     await expect(store.read('/library')).rejects.toMatchObject({ code: 'malformed_json' });
@@ -80,10 +80,10 @@ describe('FsLibraryStore (mocked filesystem)', () => {
       return Promise.resolve();
     });
     const store = new FsLibraryStore({
-      readFile: readFile as unknown as FsLibraryStoreDeps['readFile'],
-      mkdir: mkdir as unknown as FsLibraryStoreDeps['mkdir'],
-      writeFile: writeFile as unknown as FsLibraryStoreDeps['writeFile'],
-      rename: rename as unknown as FsLibraryStoreDeps['rename'],
+      readFile,
+      mkdir,
+      writeFile,
+      rename,
       createTempSuffix: () => 'fixed-suffix',
     });
 
@@ -111,10 +111,10 @@ describe('FsLibraryStore (mocked filesystem)', () => {
     const writeFile = vi.fn(() => Promise.resolve());
     const rename = vi.fn(() => Promise.resolve());
     const store = new FsLibraryStore({
-      readFile: readFile as unknown as FsLibraryStoreDeps['readFile'],
-      mkdir: mkdir as unknown as FsLibraryStoreDeps['mkdir'],
-      writeFile: writeFile as unknown as FsLibraryStoreDeps['writeFile'],
-      rename: rename as unknown as FsLibraryStoreDeps['rename'],
+      readFile,
+      mkdir,
+      writeFile,
+      rename,
     });
 
     const republished = entry({ bytes: 200, convertedAt: '2026-09-16T12:00:00.000Z' });
@@ -126,7 +126,7 @@ describe('FsLibraryStore (mocked filesystem)', () => {
   it('finds nothing when the folder does not exist yet', async () => {
     const readdir = vi.fn(() => Promise.reject(enoentError()));
     const store = new FsLibraryStore({
-      readdir: readdir as unknown as FsLibraryStoreDeps['readdir'],
+      readdir,
     });
 
     await expect(store.scanUntracked('/library', emptyLibraryManifest)).resolves.toEqual([]);
@@ -136,7 +136,7 @@ describe('FsLibraryStore (mocked filesystem)', () => {
     const failure = new Error('permission denied');
     const readdir = vi.fn(() => Promise.reject(failure));
     const store = new FsLibraryStore({
-      readdir: readdir as unknown as FsLibraryStoreDeps['readdir'],
+      readdir,
     });
 
     await expect(store.scanUntracked('/library', emptyLibraryManifest)).rejects.toBe(failure);
@@ -162,8 +162,8 @@ describe('FsLibraryStore (mocked filesystem)', () => {
       Promise.resolve({ size: 42, mtime: new Date('2026-09-20T12:00:00.000Z') }),
     );
     const store = new FsLibraryStore({
-      readdir: readdir as unknown as FsLibraryStoreDeps['readdir'],
-      stat: stat as unknown as FsLibraryStoreDeps['stat'],
+      readdir,
+      stat,
     });
     const manifest = {
       schemaVersion: libraryManifestSchemaVersion,
@@ -186,6 +186,74 @@ describe('FsLibraryStore (mocked filesystem)', () => {
 });
 
 describe('FsLibraryStore (real filesystem)', () => {
+  it('removes a partial catalog write while retaining the previous catalog and original error', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'mangabound-library-partial-'));
+    try {
+      await new FsLibraryStore().publish(root, entry());
+      const catalogPath = path.join(root, '.mangabound', 'library.json');
+      const previous = await readFile(catalogPath, 'utf8');
+      const failure = Object.assign(new Error('full'), { code: 'ENOSPC' });
+      const cleanup = vi.fn<FsLibraryStoreDeps['rm']>().mockImplementation(rm);
+      const store = new FsLibraryStore({
+        createTempSuffix: () => 'partial',
+        rm: cleanup,
+        writeFile: async (file, _contents, options) => {
+          await writeFile(file, 'partial', options);
+          throw failure;
+        },
+      });
+
+      await expect(store.publish(root, entry({ bytes: 200 }))).rejects.toBe(failure);
+
+      expect(await readFile(catalogPath, 'utf8')).toBe(previous);
+      expect(await readdir(path.dirname(catalogPath))).toEqual(['library.json']);
+      expect(cleanup).toHaveBeenCalledExactlyOnceWith(`${catalogPath}.partial.tmp`, {
+        force: true,
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('publishes through a transient rename lock without losing the existing catalog', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'mangabound-library-lock-'));
+    try {
+      await new FsLibraryStore().publish(root, entry());
+      const retryingRename = vi
+        .fn<FsLibraryStoreDeps['rename']>()
+        .mockRejectedValueOnce(Object.assign(new Error('locked'), { code: 'EBUSY' }))
+        .mockImplementation(rename);
+      const store = new FsLibraryStore({ rename: retryingRename });
+      const next = entry({ bytes: 200 });
+
+      await store.publish(root, next);
+
+      expect((await store.read(root)).books).toEqual([next]);
+      expect(retryingRename).toHaveBeenCalledTimes(2);
+      expect(await readdir(path.join(root, '.mangabound'))).toEqual(['library.json']);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('removes its temporary file and preserves the catalog when publication fails', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'mangabound-library-failed-'));
+    try {
+      await new FsLibraryStore().publish(root, entry());
+      const catalogPath = path.join(root, '.mangabound', 'library.json');
+      const previous = await readFile(catalogPath, 'utf8');
+      const failure = Object.assign(new Error('full'), { code: 'ENOSPC' });
+      const store = new FsLibraryStore({ rename: () => Promise.reject(failure) });
+
+      await expect(store.publish(root, entry({ bytes: 200 }))).rejects.toBe(failure);
+
+      expect(await readFile(catalogPath, 'utf8')).toBe(previous);
+      expect(await readdir(path.dirname(catalogPath))).toEqual(['library.json']);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('round-trips a published entry through a real directory on disk', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'mangabound-library-'));
     try {

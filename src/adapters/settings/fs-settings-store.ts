@@ -8,7 +8,7 @@ import {
   serializeStoredSettings,
 } from './stored-settings';
 
-import { renameWithRetry } from '@/adapters/fs/rename-with-retry';
+import { writeFileAtomically, type AtomicWriteDeps } from '@/adapters/fs/write-file-atomically';
 import {
   SettingsSaveError,
   type SettingsLoad,
@@ -16,13 +16,12 @@ import {
   type StoredSettings,
 } from '@/application/ports/settings-store';
 
-export interface FsSettingsStoreDeps {
-  readonly readFile: typeof readFile;
-  readonly writeFile: typeof writeFile;
-  readonly rename: typeof rename;
-  readonly mkdir: typeof mkdir;
-  readonly rm: typeof rm;
-  readonly createTempSuffix: () => string;
+export interface FsSettingsStoreDeps extends AtomicWriteDeps {
+  readonly readFile: (filePath: string, encoding: 'utf8') => Promise<string>;
+  readonly mkdir: (
+    directoryPath: string,
+    options: { readonly recursive: true },
+  ) => Promise<string | undefined>;
 }
 
 function isEnoent(error: unknown): boolean {
@@ -75,13 +74,10 @@ export class FsSettingsStore implements SettingsStorePort {
 
   /** Writes beside the file and renames over it, so the file is either the old one or the new one. */
   private async write(settings: StoredSettings): Promise<void> {
-    const temporaryPath = `${this.filePath}.${this.io.createTempSuffix()}.tmp`;
     try {
       await this.io.mkdir(path.dirname(this.filePath), { recursive: true });
-      await this.io.writeFile(temporaryPath, serializeStoredSettings(settings), 'utf8');
-      await renameWithRetry(this.io.rename, temporaryPath, this.filePath);
+      await writeFileAtomically(this.filePath, serializeStoredSettings(settings), this.io);
     } catch (error) {
-      await this.io.rm(temporaryPath, { force: true }).catch(() => undefined);
       throw new SettingsSaveError({ cause: error });
     }
   }

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -10,6 +10,7 @@ import { mappingDraftFromMangabindReport } from './mapping-draft';
 import { carryStoredDetails, readStoredDetails, withStoredDetails } from './stored-details';
 import type { MangabindReport } from './protocol';
 
+import { writeFileAtomically } from '@/adapters/fs/write-file-atomically';
 import type {
   BindingBatchPlan,
   BindingBatchResult,
@@ -53,16 +54,7 @@ export const workspaceFileSystem: WorkspaceFileSystem = {
   createDirectory: (directoryPath) =>
     mkdir(directoryPath, { recursive: true }).then(() => undefined),
   writeText: (filePath, contents) => writeFile(filePath, contents, 'utf8'),
-  writeTextAtomically: async (filePath, contents) => {
-    const temporaryPath = `${filePath}.${String(process.pid)}.${randomUUID()}.tmp`;
-    try {
-      await writeFile(temporaryPath, contents, { encoding: 'utf8', flag: 'wx' });
-      await rename(temporaryPath, filePath);
-    } catch (error) {
-      await rm(temporaryPath, { force: true });
-      throw error;
-    }
-  },
+  writeTextAtomically: writeFileAtomically,
   readText: async (filePath) => {
     try {
       return await readFile(filePath, 'utf8');
