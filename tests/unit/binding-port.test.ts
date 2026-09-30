@@ -277,9 +277,9 @@ describe('mangabind binding port', () => {
       false,
       onProgress,
     );
-    expect(bound.volumePaths.map((volumePath) => path.basename(volumePath))).toEqual([
-      'v1.cbz',
-      'v2.cbz',
+    expect(bound.volumes.map((volume) => [volume.number, path.basename(volume.path)])).toEqual([
+      [1, 'v1.cbz'],
+      [2, 'v2.cbz'],
     ]);
     expect(bound.issues[0]).toMatchObject({ diagnostic: 'detail', volume: '1', chapter: '3' });
     expect(onProgress).toHaveBeenCalledWith({
@@ -338,7 +338,7 @@ describe('mangabind binding port', () => {
       const inspection = await adapter.inspect('/input/Chainsaw Man');
       const bound = await adapter.bind(inspection.workspaceId, inspection.draft, undefined, true);
 
-      expect(bound.volumePaths).toEqual([]);
+      expect(bound.volumes).toEqual([]);
       expect(bound.combinedOutputPath).toBe(combinedPath);
       expect(cli.run).toHaveBeenLastCalledWith(expect.objectContaining({ combine: true }), {});
     });
@@ -383,9 +383,9 @@ describe('mangabind binding port', () => {
       expect(inspection.draft.volumes.map((volume) => volume.number)).toEqual(['1', '2']);
       const bound = await adapter.bind(inspection.workspaceId, inspection.draft);
 
-      expect(bound.volumePaths.map((volumePath) => path.basename(volumePath))).toEqual([
-        'v1.cbz',
-        'v2.cbz',
+      expect(bound.volumes.map((volume) => [volume.number, path.basename(volume.path)])).toEqual([
+        [1, 'v1.cbz'],
+        [2, 'v2.cbz'],
       ]);
       // The scratch copy is still what mangabind is run with; only the source-folder file is skipped.
       expect(files.writeText).toHaveBeenCalledWith(
@@ -746,12 +746,14 @@ describe('mangabind binding port', () => {
       title: 'Good Manga',
       status: 'completed_with_warnings',
     });
-    expect(bound.titles[0]!.volumePaths.map((volumePath) => path.basename(volumePath))).toEqual([
-      'Good Manga - Vol.01.cbz',
-      'Good Manga - Vol.02.cbz',
+    expect(
+      bound.titles[0]!.volumes.map((volume) => [volume.number, path.basename(volume.path)]),
+    ).toEqual([
+      [1, 'Good Manga - Vol.01.cbz'],
+      [2, 'Good Manga - Vol.02.cbz'],
     ]);
     expect(bound.titles[1]).toMatchObject({ title: 'Broken Manga', status: 'failed' });
-    expect(bound.titles[1]!.volumePaths).toEqual([]);
+    expect(bound.titles[1]!.volumes).toEqual([]);
     // The workspace stays alive after a successful call — the caller releases it once done.
     expect(files.removeDirectory).not.toHaveBeenCalled();
     await adapter.release(bound.workspaceId);
@@ -777,7 +779,7 @@ describe('mangabind binding port', () => {
       {},
     );
     expect(bound.titles[0]!.combinedOutputPath).toBe(path.join(root, 'volumes', 'Good Manga.cbz'));
-    expect(bound.titles[0]!.volumePaths).toEqual([]);
+    expect(bound.titles[0]!.volumes).toEqual([]);
   });
 
   it('releases the batch workspace when the process itself fails', async () => {

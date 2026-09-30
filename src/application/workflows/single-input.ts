@@ -6,6 +6,7 @@ import type {
   BindingPort,
   ConversionPort,
 } from '@/application/ports/conversion-tools';
+import { type BookDetails, detailsForBook, noBookDetails } from '@/domain/book-details';
 import {
   type BatchTitleOutcome,
   type BookFormat,
@@ -34,6 +35,13 @@ import {
   unsupportedModeReason,
   usesMangapress,
 } from '@/domain/process-mode';
+
+/** A file to make a book of: one volume of a series, or a book that is not a volume. */
+interface BookInput {
+  readonly path: string;
+  /** The volume's number in its series; absent for a book that is not one volume of it. */
+  readonly volume?: number;
+}
 
 /** The manga folders of a library as last planned. Their paths never leave the workflow. */
 interface LibraryState {
@@ -179,10 +187,11 @@ export class SingleInputWorkflow {
       }
     }
 
-    let inputs: readonly string[];
+    const details = usesMangapress(mode) ? (request.details ?? noBookDetails) : noBookDetails;
+    let inputs: readonly BookInput[];
     if (session.selection.kind === 'cbz' || mode === 'convert-only') {
       // Already one book (or explicitly not grouped): straight to mangapress, no mapping needed.
-      inputs = [session.selection.inputPath];
+      inputs = [{ path: session.selection.inputPath }];
     } else {
       if (
         session.trustedDraft === undefined ||
@@ -215,15 +224,15 @@ export class SingleInputWorkflow {
             'No volume files were produced. Review the chapter mapping and try again.',
           );
         }
-        inputs = [bound.combinedOutputPath];
+        inputs = [{ path: bound.combinedOutputPath }];
       } else {
-        if (bound.volumePaths.length === 0) {
+        if (bound.volumes.length === 0) {
           throw new ConversionWorkflowError(
             'no_volumes',
             'No volume files were produced. Review the chapter mapping and try again.',
           );
         }
-        inputs = bound.volumePaths;
+        inputs = bound.volumes.map((volume) => ({ path: volume.path, volume: volume.number }));
       }
     }
 
@@ -234,6 +243,7 @@ export class SingleInputWorkflow {
       {
         libraryPath: request.libraryPath,
         settings: request.settings,
+        details,
         format: request.format,
         nestedToc: singleBook,
       },
@@ -310,6 +320,7 @@ export class SingleInputWorkflow {
           inputPath: session.selection.inputPath,
           outputDirectory: request.libraryPath,
           settings: request.settings,
+          book: detailsForBook(request.details ?? noBookDetails),
           format: request.format,
           nestedToc: false,
         },
@@ -380,6 +391,8 @@ export class SingleInputWorkflow {
       readonly titles?: readonly string[];
       readonly mode?: BatchProcessMode;
       readonly singleBook?: boolean;
+      /** What was typed for each title of the library, by the title's name. */
+      readonly titleDetails?: readonly { readonly title: string; readonly details: BookDetails }[];
     },
     {
       onArtifact,
@@ -434,6 +447,11 @@ export class SingleInputWorkflow {
         ? bound.titles
         : bound.titles.filter((title) => request.titles?.includes(title.title) === true);
 
+    const detailsOf = (title: string): BookDetails =>
+      usesMangapress(mode)
+        ? (request.titleDetails?.find((entry) => entry.title === title)?.details ?? noBookDetails)
+        : noBookDetails;
+
     const outcomes: BatchTitleOutcome[] = [];
     try {
       for (const title of titles) {
@@ -459,6 +477,7 @@ export class SingleInputWorkflow {
                 inputPath: title.combinedOutputPath,
                 libraryPath: request.libraryPath,
                 settings: request.settings,
+                book: detailsForBook(detailsOf(title.title)),
                 format: request.format,
                 nestedToc: true,
               },
@@ -476,7 +495,7 @@ export class SingleInputWorkflow {
             outcomes.push({ title: title.title, status: 'failed', artifacts, error });
           }
         } else {
-          if (title.status === 'failed' || title.volumePaths.length === 0) {
+          if (title.status === 'failed' || title.volumes.length === 0) {
             outcomes.push({
               title: title.title,
               status: 'failed',
@@ -491,11 +510,12 @@ export class SingleInputWorkflow {
           const artifacts: ConversionArtifact[] = [];
           try {
             await this.produceVolumes(
-              title.volumePaths,
+              title.volumes.map((volume) => ({ path: volume.path, volume: volume.number })),
               mode,
               {
                 libraryPath: request.libraryPath,
                 settings: request.settings,
+                details: detailsOf(title.title),
                 format: request.format,
                 nestedToc: false,
               },
@@ -516,11 +536,13 @@ export class SingleInputWorkflow {
 
   /** Converts a title's volumes with a small worker pool, but reports books in volume order. */
   private async produceVolumes(
-    inputs: readonly string[],
+    inputs: readonly BookInput[],
     mode: ProcessMode,
     request: {
       readonly libraryPath: string;
       readonly settings: MangapressSettings;
+      /** What was typed for the series or book these files make. */
+      readonly details: BookDetails;
       readonly format: BookFormat;
       readonly nestedToc: boolean;
     },
@@ -532,6 +554,7 @@ export class SingleInputWorkflow {
     },
     artifacts: ConversionArtifact[],
   ): Promise<void> {
+    const { details, ...bookRequest } = request;
     const convertAt = (
       index: number,
       signal: AbortSignal | undefined,
@@ -539,7 +562,11 @@ export class SingleInputWorkflow {
     ): Promise<ConversionArtifact> =>
       this.produceBook(
         mode,
-        { inputPath: inputs[index]!, ...request },
+        {
+          inputPath: inputs[index]!.path,
+          ...bookRequest,
+          book: detailsForBook(details, inputs[index]!.volume),
+        },
         {
           ...(context.title === undefined ? {} : { title: context.title }),
           volume: `${String(index + 1)} of ${String(inputs.length)}`,
@@ -667,6 +694,8 @@ export class SingleInputWorkflow {
       readonly inputPath: string;
       readonly libraryPath: string;
       readonly settings: MangapressSettings;
+      /** The title, author and language this book is made with. */
+      readonly book: BookDetails;
       readonly format: BookFormat;
       readonly nestedToc?: boolean;
     },
@@ -702,6 +731,7 @@ export class SingleInputWorkflow {
               inputPath: request.inputPath,
               outputDirectory: stagingPath,
               settings: request.settings,
+              book: request.book,
               format: request.format,
               nestedToc: request.nestedToc,
             },

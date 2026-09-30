@@ -1,3 +1,4 @@
+import { type BookDetails, normalizeBookDetails } from './book-details';
 import { type MappingDraft, mappingSignature } from './mapping';
 import { libraryReason, type ProcessMode, resolveMode } from './process-mode';
 
@@ -20,10 +21,12 @@ export interface LibraryTitle {
   readonly draft: MappingDraft;
   readonly volumes: readonly { readonly name: string; readonly pageCount: number }[];
   readonly outcome?: TitleOutcome;
+  /** What was typed for this title's title, author and language (ADR 0030). */
+  readonly details?: BookDetails;
 }
 
-/** A title as it is read, before any run has done anything with it. */
-export type ReadTitle = Omit<LibraryTitle, 'outcome'>;
+/** A title as it is read, before any run or person has done anything with it. */
+export type ReadTitle = Omit<LibraryTitle, 'outcome' | 'details'>;
 
 interface QueueRowBase {
   /** The id the main process registered the input under. */
@@ -47,6 +50,8 @@ export type QueueRow = QueueRowBase &
         readonly confirmed: boolean;
         /** The manga a library holds. */
         readonly titles?: readonly LibraryTitle[];
+        /** What was typed for this input's title, author and language (ADR 0030). */
+        readonly details?: BookDetails;
       }
   );
 
@@ -83,6 +88,13 @@ export type QueueAction =
       readonly results: readonly { readonly title: string; readonly outcome: TitleOutcome }[];
     }
   | { readonly type: 'confirm-mapping'; readonly id: string; readonly mapping: MappingDraft }
+  | { readonly type: 'set-details'; readonly id: string; readonly details: BookDetails }
+  | {
+      readonly type: 'set-title-details';
+      readonly id: string;
+      readonly title: string;
+      readonly details: BookDetails;
+    }
   | { readonly type: 'remove'; readonly ids: readonly string[] }
   | { readonly type: 'clear' };
 
@@ -139,9 +151,12 @@ export function queueReducer(rows: readonly QueueRow[], action: QueueAction): re
               ...row,
               titles: action.titles.map((planned) => {
                 const saved = row.titles?.find((known) => known.title === planned.title);
-                return saved?.outcome?.status === 'done'
-                  ? { ...readTitle(planned), outcome: saved.outcome }
-                  : readTitle(planned);
+                // What a person typed for a title is theirs, and outlives the library being read again.
+                return {
+                  ...readTitle(planned),
+                  ...(saved?.details === undefined ? {} : { details: saved.details }),
+                  ...(saved?.outcome?.status === 'done' ? { outcome: saved.outcome } : {}),
+                };
               }),
             }
           : row,
@@ -162,6 +177,25 @@ export function queueReducer(rows: readonly QueueRow[], action: QueueAction): re
       return rows.map((row) =>
         row.id === action.id && row.state === 'inspected'
           ? { ...row, mapping: action.mapping, confirmed: true }
+          : row,
+      );
+    case 'set-details':
+      return rows.map((row) =>
+        row.id === action.id && row.state === 'inspected'
+          ? { ...row, details: normalizeBookDetails(action.details) }
+          : row,
+      );
+    case 'set-title-details':
+      return rows.map((row) =>
+        row.id === action.id && row.state === 'inspected' && row.titles !== undefined
+          ? {
+              ...row,
+              titles: row.titles.map((title) =>
+                title.title === action.title
+                  ? { ...title, details: normalizeBookDetails(action.details) }
+                  : title,
+              ),
+            }
           : row,
       );
     case 'remove': {

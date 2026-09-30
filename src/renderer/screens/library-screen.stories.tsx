@@ -70,6 +70,16 @@ type Story = StoryObj<typeof meta>;
 
 export const EveryState: Story = {};
 
+/** Where mangapress makes the books, each title has its own details; a colored button is set. */
+export const WithDetails: Story = {
+  args: {
+    onEditDetails: () => undefined,
+    titles: titles.map((title, index) =>
+      index === 0 ? { ...title, details: { author: 'Fujimoto Tatsuki' } } : title,
+    ),
+  },
+};
+
 export const AllReady: Story = {
   args: { titles: titles.slice(0, 2) },
 };

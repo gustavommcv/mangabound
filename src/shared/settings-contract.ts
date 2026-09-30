@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { Preferences } from '@/domain/preferences';
 import { processModes } from '@/domain/process-mode';
 import type { NetworkInterfaceOption } from '@/shared/opds-contract';
-import { persistedSettingsSchema } from '@/shared/workflow-contract';
+import { mangapressSettingsSchema } from '@/shared/workflow-contract';
 
 /**
  * What is kept between sessions (ADR 0014). It is the shape of the settings file and of what the
@@ -13,7 +13,7 @@ export const preferencesSchema = z.object({
   mode: z.enum(processModes),
   format: z.enum(['epub', 'cbz', 'pdf']),
   singleBook: z.boolean().default(false),
-  settings: persistedSettingsSchema,
+  settings: mangapressSettingsSchema,
   providerId: z.string().min(1).max(64).optional(),
 });
 

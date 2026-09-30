@@ -19,7 +19,8 @@ export const defaultStoredSettings: StoredSettings = defaultPreferences;
  * What a settings file holds, or undefined when it cannot be used: not JSON, another version, or a
  * value of the wrong kind or out of range (the rules a conversion request is held to, so the file
  * cannot hold what a run would refuse). Keys that are not known are dropped, so nothing outside
- * what is kept (a title, an author) gets back in through the file.
+ * what is kept (such as the title and author an older version once had) gets back in through the
+ * file.
  */
 export function parseStoredSettings(raw: string): StoredSettings | undefined {
   let json: unknown;

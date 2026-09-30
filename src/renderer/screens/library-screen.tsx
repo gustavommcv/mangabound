@@ -1,6 +1,7 @@
-import { ChevronLeft, Folder, Pencil } from 'lucide-react';
+import { ChevronLeft, Folder, Layers, UserPen } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 
+import { hasBookDetails } from '@/domain/book-details';
 import { isPendingTitle, isWaitingTitle, type LibraryTitle } from '@/domain/input-queue';
 import { unassignedChapterCount } from '@/domain/input-queue';
 import { Button } from '@/renderer/components/ui/button';
@@ -11,6 +12,8 @@ export interface LibraryScreenProps {
   readonly name: string;
   readonly onBack: () => void;
   readonly onEdit: (title: string) => void;
+  /** Absent when the run does not make books with mangapress, so there is nothing to edit. */
+  readonly onEditDetails?: (title: string) => void;
   readonly singleBook?: boolean;
   readonly titles: readonly LibraryTitle[];
 }
@@ -23,6 +26,7 @@ export function LibraryScreen({
   name,
   onBack,
   onEdit,
+  onEditDetails,
   singleBook,
   titles,
 }: LibraryScreenProps): React.JSX.Element {
@@ -58,7 +62,12 @@ export function LibraryScreen({
       </div>
       <ul aria-label="Titles" className="space-y-0.5">
         {titles.map((title) => (
-          <TitleRow key={title.title} onEdit={onEdit} title={title} />
+          <TitleRow
+            key={title.title}
+            onEdit={onEdit}
+            {...(onEditDetails === undefined ? {} : { onEditDetails })}
+            title={title}
+          />
         ))}
       </ul>
     </section>
@@ -67,9 +76,11 @@ export function LibraryScreen({
 
 function TitleRow({
   onEdit,
+  onEditDetails,
   title,
 }: {
   readonly onEdit: (title: string) => void;
+  readonly onEditDetails?: (title: string) => void;
   readonly title: LibraryTitle;
 }): React.JSX.Element {
   const saved = title.outcome?.status === 'done';
@@ -114,16 +125,37 @@ function TitleRow({
         // Keeps the status chips of every title in one column.
         <span aria-hidden="true" className="size-9 shrink-0" />
       ) : (
-        <Button
-          aria-label={`Edit volumes for ${title.title}`}
-          onClick={() => {
-            onEdit(title.title);
-          }}
-          size="icon"
-          variant="ghost"
-        >
-          <Pencil />
-        </Button>
+        <>
+          <Button
+            aria-label={`Edit volumes for ${title.title}`}
+            onClick={() => {
+              onEdit(title.title);
+            }}
+            size="icon"
+            title="Edit volumes"
+            variant="ghost"
+          >
+            <Layers />
+          </Button>
+          {onEditDetails !== undefined && (
+            <Button
+              aria-label={`Edit details of ${title.title}`}
+              className={cn(hasBookDetails(title.details) && 'text-accent')}
+              onClick={() => {
+                onEditDetails(title.title);
+              }}
+              size="icon"
+              title={
+                hasBookDetails(title.details)
+                  ? 'Edit title, author and language (set)'
+                  : 'Edit title, author and language'
+              }
+              variant="ghost"
+            >
+              <UserPen />
+            </Button>
+          )}
+        </>
       )}
     </li>
   );

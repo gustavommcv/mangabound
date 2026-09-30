@@ -191,10 +191,11 @@ describe('packaged OPDS delivery', () => {
     await resetQueue();
     await $('button=Files').click();
     await $('span=Ready').waitForDisplayed({ timeout: 30_000 });
-    await $('button*=Advanced conversion options').click();
-    await $('h1=Conversion options').waitForDisplayed({ timeout: 10_000 });
-    await $('#book-author').setValue('A Real Author');
-    await $('button=Back').click();
+    // The author belongs to the item: it is typed on the item's own details page.
+    await $('button[aria-label="Edit details of Mangabound Direct.cbz"]').click();
+    await $('h1=Mangabound Direct.cbz').waitForDisplayed({ timeout: 10_000 });
+    await $('#details-author').setValue('A Real Author');
+    await $('button=Queue').click();
     await $('h1=Queue').waitForDisplayed();
     await $('button=Process 1 item').click();
     await $('h1=1 book ready').waitForDisplayed({ timeout: 120_000 });
