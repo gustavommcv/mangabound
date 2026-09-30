@@ -1,54 +1,30 @@
 ---
-title: Queue & Adding Manga
-description: How to import single volumes, multi-chapter folders, or entire manga libraries into Mangabound.
+title: 'Adding manga'
+description: 'Choose the correct input structure and review your queue.'
 ---
 
-import { Steps } from '@astrojs/starlight/components';
+import MediaSlot from '../../../components/MediaSlot.astro';
 
-The **Queue Screen** is the main dashboard of Mangabound. Here you can load content, organize the conversion order, and review items before triggering processing.
+## Which input should I add?
 
----
+| What you have                                      | What to add                                                         |
+| -------------------------------------------------- | ------------------------------------------------------------------- |
+| A manga's chapter folders or separate chapter CBZs | Their containing manga folder                                       |
+| Several manga folders in one library directory     | The library folder; inspect its individual titles before processing |
+| A complete volume already in a CBZ                 | The CBZ itself                                                      |
 
-## Supported Input Formats
+Use **Files**, **Folder**, or drag files/folders onto the queue. The clickable drop area offers the same choices. Mangabound inspects the input before conversion; chapter folders with missing or conflicting assignments may need review.
 
-Mangabound accepts three main types of inputs:
+<MediaSlot id="queue-inputs" />
 
-1. **Folder of Chapters**: A directory containing subdirectories for each chapter (where each subfolder contains image files like `.jpg`, `.png`, `.webp`), or containing individual chapter `.cbz` files.
-2. **Library Folder (Multi-Manga)**: A parent folder containing multiple series subfolders (e.g. `Manga/Berserk/`, `Manga/One Piece/`). Mangabound will recognize each subfolder as a distinct series.
-3. **Single Volume `.cbz` Archive**: Pre-assembled `.cbz` files that you wish to re-process and convert with `mangapress` for an e-reader.
+## Review an item
 
----
+Use **Edit volumes** for chapter-to-volume mapping. A library opens its list of titles so you can review each manga separately. Removing an input from the queue does not delete its source files.
 
-## Adding Files to the Queue
+Use the book-details action to set **Series title** or **Book title**, **Author**, and **Language** for each item. You can enter the author yourself or look it up online. For a library, set these details for each title.
 
-<Steps>
-1. ### Drag and Drop
-   Simply select your manga folders or `.cbz` files in your file manager (Explorer on Windows, Finder on macOS, or Nautilus/Dolphin on Linux) and drag them anywhere inside the Mangabound window.
+## Chapters have no volume names
 
-2. ### Native Folder Picker
-   Click on the central drop zone or the **Add items** button in the titlebar area to open your system's folder selector.
+You do not have to rename the whole collection. Open the mapping editor: if no volume grouping exists, it switches to **Manual** and offers **Online source** as an optional alternative. Follow [volume mapping](../mapping-editor/).
 
-3. ### Background Inspection
-   As soon as an item lands in the queue, Mangabound runs `mangabind --dry-run --json` in the background. It reads:
-   * Total page counts.
-   * Chapter naming syntax and detected volumes.
-   * Potential chapter conflicts or missing gaps.
-</Steps>
-
-:::tip[Media Demonstration Placeholder]
-> 📹 **GIF Demo**: Showing user dragging two manga directories onto the drop target, watching them inspect instantly, and revealing the volume count badges.
-:::
-
----
-
-## Managing Queue Items
-
-Each item in the queue displays:
-* **Series Title**: Inferred from the folder name.
-* **Volume / Chapter Counts**: How many chapters were found and how many volumes they were assigned to.
-* **Status Badges**:
-  * `Ready`: All chapters are assigned to volumes and ready for conversion.
-  * `Needs Review`: Some chapters are unassigned (e.g. only numbered `Ch. 1`, `Ch. 2`), requiring attention in the [Volume Mapping Editor](../mapping-editor/).
-* **Action Menu**:
-  * **Edit Mappings**: Opens the Volume Mapping Editor.
-  * **Remove**: Removes the item from the current queue (original files on disk are never deleted or modified).
+A loose chapter CBZ added as a file is considered a complete volume. Add its folder if you want it grouped with other chapters.

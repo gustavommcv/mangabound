@@ -1,38 +1,43 @@
 # Mangabound
 
-Mangabound is a desktop app that turns manga you already have, as folders of chapters or as CBZ files, into books ready for your e-reader.
+<!-- Branding: add the finished Mangabound logo here. Placement and asset guidance: docs/MEDIA.md. -->
 
-It is a graphical front end for two small command-line tools that it carries inside itself: **[mangabind](https://github.com/gustavommcv/mangabind)** regroups a folder of chapters into one CBZ per volume, and **[mangapress](https://github.com/gustavommcv/mangapress)** converts a CBZ, or a folder of chapters, into an EPUB, CBZ or PDF sized and tuned for a particular e-reader, the way [Kindle Comic Converter](https://github.com/ciromattia/kcc) does. Mangabound adds what a command line cannot: a queue you drop things on, a volume editor for chapters that do not say which volume they belong to, every option of both tools in one place, and a way to hand the finished books to KOReader over your Wi-Fi.
+Mangabound is a desktop app for organizing manga chapters into volumes and converting them into books for your e-reader. Choose how chapters are grouped and fine-tune page size, margins, and image quality for your device. Once processed, save your books locally or share them directly with KOReader over your local network.
 
-> **Status: alpha (0.x).** Installers are published on [GitHub Releases](https://github.com/gustavommcv/mangabound/releases). Expect rough edges: no auto-update yet, and the installers aren't code-signed (see the release notes for what that means at install time).
+- Group chapters into volumes.
+- Prepare books for devices such as Kindle, Kobo, and reMarkable, or set custom page dimensions.
+- Combine a series' chapters and volumes into a single book.
+- Save processed books locally or share them with KOReader over your local network.
 
 ## Download
 
-Grab the file that matches your system from the [latest release](https://github.com/gustavommcv/mangabound/releases/latest):
+Choose your package from [GitHub Releases](https://github.com/gustavommcv/mangabound/releases). Alpha releases are listed as **Pre-release**.
 
-| Platform                         | File                                            |
-| -------------------------------- | ----------------------------------------------- |
-| Windows x64                      | the `.exe` installer, or the portable `.zip`    |
-| macOS, Apple Silicon             | the `.zip` archive                              |
-| Linux, Debian/Ubuntu family, x64 | the `.deb` package                              |
-| Linux, Fedora/RHEL family, x64   | the `.rpm` package                              |
-| Linux, Arch, x64                 | the `.pkg.tar.zst` package (`pacman -U ./file`) |
+| Platform                         | Package                                   |
+| -------------------------------- | ----------------------------------------- |
+| Windows x64                      | `.Setup.exe` installer or portable `.zip` |
+| macOS, Apple Silicon             | `.zip`                                    |
+| Linux, Debian/Ubuntu family, x64 | `.deb`                                    |
+| Linux, Fedora/RHEL family, x64   | `.rpm`                                    |
+| Linux, Arch, x64                 | `.pkg.tar.zst`                            |
 
-Intel Macs and AppImage aren't built for this alpha — see the release notes for why. Arch's package is a direct download, not an AUR submission — AUR is still out of scope.
+Mangabound is in **alpha**. Read the release notes for installation instructions and signing notices.
 
-## What it does
+## Get started
 
-1. **Add.** Drag manga folders, libraries (a folder of manga folders) or `.cbz` files onto the window, or click the drop area to choose them.
-2. **Check the volumes.** If the folder names carry them (`Vol.02 Ch.0015 - Title`), the chapters are already grouped and nothing needs editing. If not, the volume editor starts from what mangabind could read and lets you take the grouping from an online source you choose, or assign chapters by hand. Every edit can be undone.
-3. **Choose the process.** Join the volumes into CBZ files, convert for an e-reader, or both. Pick the device and format (EPUB, CBZ or PDF). Every option mangapress has is available, starting from the state Kindle Comic Converter's window starts in. For a very long series, **Create one book for the series** makes a single EPUB whose table of contents lists the volumes with their chapters nested underneath (EPUB only for now).
-4. **Process.** Items run one after another, with progress (including how many pages have been copied while volumes are built) and a way to cancel. Unsaved books remain available after closing the app. You can delete an unwanted pending conversion from **Ready books**; a confirmation explains that copies already saved elsewhere are unaffected.
-5. **Save or share.** Use **Save as…** for one book or **Save all to folder…** for several. Save All remains available if you need to export the set again; existing files are never replaced by that action. You can also open a ready book or share it directly over your network (OPDS) for KOReader, without saving it elsewhere first.
+1. **Add your manga.** Drop chapter folders, a library of manga folders, or CBZ files into the queue.
+2. **Choose how to organize and convert it.** Check the volumes, select your device and format, and adjust image settings if needed. Book details let you set each title's name, author, and language.
+3. **Process, then save or share.** Follow the progress, save one book or all of them, or share with KOReader over your local network.
 
-The device, format, process and options are remembered between sessions, and can be put back to their defaults with one button. The last save location is suggested the next time you save; it is never an automatic output destination.
+Your conversion settings are remembered between sessions. Unsaved books remain under **Ready books**, where you can reopen or delete a pending conversion.
 
-## What it is not
+See the [user guide](https://gustavommcv.github.io/mangabound/) for volume editing, single-book mode, custom dimensions, and sharing.
 
-Mangabound is neither a manga downloader nor a reader. It works on files you already have, and opening a finished book is left to your system's default application. It works offline: nothing is sent anywhere unless you pick an online source and search it, and then only a title is sent and only volume and chapter numbers are used. The network catalog runs only while you have started it, on the network interface you chose, and stops when you quit.
+## Local processing
+
+Mangabound accepts chapter folders and CBZ files. Finished books open in your system's default application.
+
+Organization, conversion, and saving run on your computer. Online searches for volumes or an author are optional and use the title and selected work's metadata, not your manga pages. Network sharing runs only when enabled and stops when the app closes.
 
 ## Development
 
@@ -87,11 +92,13 @@ What each kind of test covers, and what Storybook is for, is in [CONTRIBUTING.md
 
 ## Bundled CLI updates
 
-The app is locked to mangabind `v0.6.0` and mangapress `v0.6.0`. `toolchain.lock.json` records the release tag, checksum-file hash, archive hash, and executable hash for all supported targets, and both the build and the app verify them before anything runs.
+The app bundles pinned releases of mangabind and mangapress. `toolchain.lock.json` records the versions and archive/executable checksums for each platform. The build and app verify them before use.
 
 Taking a newer release of either tool is a deliberate, manual step: `npm run toolchain:update -- --tool mangabind` (or `mangapress`) pins its latest release after downloading and checking every platform's asset, and you open a pull request with the result. The steps are in [CONTRIBUTING.md](CONTRIBUTING.md#updating-the-bundled-tools) and the reasoning is in [ADR 0017](docs/adr/0017-bundled-tools-are-updated-by-hand.md). Nothing is ever downloaded or updated in an installed app.
 
 ## Credits
 
-- **[MangaDex](https://mangadex.org)** supplies volume and chapter data when you choose it as an online source in the volume editor. Nothing is sent to it unless you pick it and search, only volume and chapter numbers are used, and nothing is downloaded from it. Mangabound is free and carries no advertisements, as MangaDex's API rules ask. To offer another source, see [the contributor guide](docs/adding-a-metadata-provider.md).
-- **[Kindle Comic Converter](https://github.com/ciromattia/kcc)**, whose conversion behaviour mangapress follows and whose window's default options Mangabound starts from ([ADR 0011](docs/adr/0011-kcc-default-options.md), [ADR 0015](docs/adr/0015-paperwhite-as-the-starting-device.md)).
+- **[mangabind](https://github.com/gustavommcv/mangabind)** handles chapter grouping and volume creation.
+- **[mangapress](https://github.com/gustavommcv/mangapress)** processes pages and creates the finished books.
+- **[MangaDex](https://mangadex.org)** provides optional volume and author metadata. Mangabound is free and ad-free; see the [provider guide](docs/adding-a-metadata-provider.md) for attribution and API requirements.
+- **[Kindle Comic Converter](https://github.com/ciromattia/kcc)** informs mangapress's conversion algorithms and Mangabound's default image settings ([ADR 0011](docs/adr/0011-kcc-default-options.md), [ADR 0015](docs/adr/0015-paperwhite-as-the-starting-device.md)).

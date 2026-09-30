@@ -1,58 +1,41 @@
 ---
-title: Output Profiles & Settings
-description: Explore supported e-reader hardware profiles and image optimization options powered by mangapress.
+title: 'Conversion settings'
+description: 'Choose the device, format, and image settings.'
 ---
 
-Mangabound integrates **mangapress** to deliver pixel-perfect conversions tailored to your exact e-reader model. Instead of stretching or letterboxing images, mangapress resizes, crops, and optimizes manga pages for the physical resolution and e-ink palette of your device.
+import MediaSlot from '../../../components/MediaSlot.astro';
 
----
+## Device and format
 
-## Supported E-Reader Profiles
+Choose your model under **Device**. To set the page size yourself, open **Advanced conversion options** and fill in **Custom width** and **Custom height** in pixels. A custom device profile requires both dimensions.
 
-Mangabound comes with built-in hardware profiles for dozens of devices:
+| Format | When to choose it                                                              |
+| ------ | ------------------------------------------------------------------------------ |
+| EPUB   | A book with chapter navigation; the single-series-book mode requires it        |
+| CBZ    | Processed images in a ZIP archive; often a straightforward choice for KOReader |
+| PDF    | Fixed pages for a reader or tablet that supports PDF                           |
 
-| Brand | Model Code | Resolution | Aspect Ratio | E-Ink Specs |
-|---|---|---|---|---|
-| **Amazon Kindle** | `KPW5` (Paperwhite 11th Gen) | 1236 × 1648 | ~3:4 | 300 PPI, 16 levels of gray |
-| **Amazon Kindle** | `KO` (Oasis 2 & 3) | 1264 × 1680 | ~3:4 | 300 PPI, 16 levels of gray |
-| **Amazon Kindle** | `KS` (Kindle Scribe) | 1860 × 2480 | ~3:4 | 300 PPI, 10.2" screen |
-| **Amazon Kindle** | `KV` (Kindle Voyage) | 1072 × 1448 | ~3:4 | 300 PPI, 16 levels of gray |
-| **Amazon Kindle** | `K11` (Basic 2022 / 2024) | 1072 × 1448 | ~3:4 | 300 PPI, 6.0" screen |
-| **Kobo** | `KoL2` (Libra 2) | 1264 × 1680 | ~3:4 | 300 PPI, 7.0" screen |
-| **Kobo** | `KoC` (Clara 2E / BW) | 1072 × 1448 | ~3:4 | 300 PPI, 6.0" screen |
-| **Kobo** | `KoE` (Elipsa / Elipsa 2E) | 1404 × 1872 | ~3:4 | 227 PPI, 10.3" screen |
-| **Kobo** | `KoAO` (Aura ONE) | 1404 × 1872 | ~3:4 | 300 PPI, 7.8" screen |
-| **reMarkable** | `Rmk2` (reMarkable 2) | 1404 × 1872 | ~3:4 | 226 PPI, Canvas display |
-| **reMarkable** | `RmkP` (Paper Pro) | 1620 × 2160 | ~3:4 | 229 PPI, Color Gallery 3 |
-| **Custom** | `OTHER` | User Defined | Custom | Set custom width and height |
+Compatibility depends on the reader application as well as the device. Kindle's native reader does not directly open EPUB: use a compatible transfer/conversion service or an installed reader such as KOReader. KOReader treats EPUB differently from CBZ/PDF; see [reader settings](../../koreader/recommended-settings/).
 
----
+<MediaSlot id="device-settings" />
 
-## Output Formats
+## Advanced conversion options
 
-* **EPUB (Recommended)**: The standard fixed-layout format for KOReader, Kobo, and modern e-readers. Preserves exact page dimensions, supports table of contents navigation, and loads instantly.
-* **CBZ**: An archive containing the processed, cropped, and resized images. Ideal if your reader prefers raw archives or if you are using image viewer apps.
-* **PDF**: Fixed document format suitable for large-format tablets and reMarkable devices.
+**Advanced conversion options** exposes mangapress's settings, grouped by purpose. Start with the device defaults; change one setting at a time and check the resulting book.
 
----
+- **Cropping** removes margins, with optional page-number detection. If artwork is cut off, reduce or disable cropping.
+- **Splitter** chooses split, rotate, or both for double-page spreads. Manga-style reading order puts the right half first when splitting.
+- **Resize and image encoding** control dimensions, scaling, color, and JPEG quality. An empty optional field uses its documented device/tool default, not zero.
+- **Erase rainbow** reduces certain moiré artifacts. It is optional; compare results on your own pages.
 
-## Image Processing Options
+Modified fields can be reset individually, or together with **Reset to defaults**. Settings are kept between launches.
 
-### 1. Margins & Page Numbers Cropping
-Scanlations and digital rips often contain wide, uneven white margins and distracting digital page numbering.
-* **Margins & Page Numbers (Default)**: Detects outer gutters and eliminates blank borders and marginal numbers, letting manga panels occupy the maximum screen area.
-* **Margins Only**: Removes white padding while preserving peripheral annotations.
-* **Disabled**: Keeps raw original borders intact.
+## One book for the series
 
-### 2. Double-Page Spreads (Splitter)
-Manga frequently features panoramic two-page spreads. You can choose how they should be delivered:
-* **Split (Default)**: Automatically slices the spread down the center into two separate vertical pages. In accordance with Japanese manga conventions (**Manga Style RTL**), the **right page is shown first**, followed by the **left page**.
-* **Rotate**: Rotates the double spread by 90 degrees so you can view it horizontally in landscape mode.
-* **Both**: Generates both the rotated full spread and the split halves.
+Enable **Create one book for the series** in the queue to combine its chapters and volumes into one book, with chapters nested under their volumes in the table of contents.
 
-### 3. Screen Optimization: Erase Rainbow / Moiré
-On color e-ink screens (such as E Ink Kaleido or Gallery 3 panels) and high-resolution monochromatic readers, dense halftone screentones often cause distracting **moiré interference patterns** (rainbow waves).
-* Toggling **Erase Rainbow** applies a frequency filter to attenuate moiré artifacts while keeping line art crisp and sharp.
+This mode uses EPUB and keeps both process steps enabled. Turn it off to change the format or steps. Larger combined books can take longer to open on an e-reader.
 
-### 4. Create One Book for the Series
-For long-running series, checking **Create one book for the series** compiles all volumes into a single cohesive `.epub` file. The internal Table of Contents is structured hierarchically, nesting individual chapters beneath their respective volume headers.
+<MediaSlot id="single-book" />
+
+The standalone CLI has its own defaults; do not assume they match the GUI. For terminal use, see [mangapress](../../cli/mangapress/).

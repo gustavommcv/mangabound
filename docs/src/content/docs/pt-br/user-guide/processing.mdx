@@ -1,52 +1,27 @@
 ---
-title: Processamento e Fila
-description: Acompanhe o progresso de conversão em tempo real, entenda os estágios e controle tarefas em execução.
+title: 'Processamento'
+description: 'Entenda etapas, progresso dos volumes, cancelamento e falhas.'
 ---
 
-Ao clicar em **Iniciar Conversão**, o Mangabound assume a orquestração dos utilitários de baixo nível e alterna para a **Tela de Execução (Running Screen)**.
+import MediaSlot from '../../../../components/MediaSlot.astro';
 
----
+Após **Process**, o Mangabound executa as etapas escolhidas:
 
-## O Ciclo de Execução em Duas Fases
+1. **Building volume files**: o mangabind agrupa os capítulos organizados e escreve CBZs intermediários. Acompanhe a contagem de capítulos e páginas enquanto os volumes são gerados.
+2. **Converting**: o mangapress processa páginas e escreve o formato solicitado. Vários volumes podem executar ao mesmo tempo; use **Show details** para ver seus estados individuais.
 
-Cada obra da fila é executada através de duas fases independentes:
+A barra geral acompanha a execução. Em **Show details**, **Saving** indica que o livro está sendo empacotado ou gravado. Sua barra fica abaixo de 100% até essa etapa terminar, mesmo que todas as páginas já tenham sido processadas.
 
-### Fase 1: Agrupamento em Volumes (`mangabind`)
-Se você selecionou *Reagrupar em CBZ* ou *Ambos*, o Mangabound aciona o `mangabind` utilizando as diretrizes do arquivo `mangabind.json`:
-* Descompacta imagens em áreas isoladas de trabalho temporário.
-* Ordena capítulos e páginas em ordem alfanumérica natural.
-* Gera e inclui metadados `ComicInfo.xml` (com título da série, volume e idioma).
-* Empacota o volume em um arquivo consolidado `.cbz`.
+<MediaSlot id="processing-details" />
 
-### Fase 2: Processamento e Calibração de Imagem (`mangapress`)
-O Mangabound invoca o `mangapress` para cada volume gerado com o parâmetro `--json-events`. Isso estabelece um canal de telemetria contínua via saída padrão:
+## Cancelamento e falhas
 
-```
-[Inspecionar] ➔ [Planejar] ➔ [Processar Páginas (Rayon Multicore)] ➔ [Empacotar EPUB] ➔ [Gravação Atômica]
-```
+Use **Cancel** para interromper a execução. Espere o aplicativo terminar de parar antes de iniciar novamente. O cancelamento não remove o mangá original.
 
-* **Inspecionar e Metadados**: Avalia as resoluções e canais de cor das páginas.
-* **Processar (Progresso ao Vivo)**: A cada página redimensionada, recortada e calibrada por uma das threads da CPU, um evento JSON é emitido. O Mangabound atualiza a barra de progresso imediatamente:
-  * Exemplo: `Convertendo: Página 142 de 210 (68%)`
-* **Empacotar e Gravação Atômica**: O livro é montado e salvo no disco com proteção atômica contra arquivos corrompidos.
+Se um item falhar ou for ignorado, leia sua mensagem nos resultados. Use **Fix**, quando disponível, para corrigir capítulos sem volume. Em erros de gravação, confira espaço e permissões. Uma falha da fonte online não impede a organização manual.
 
-:::tip[Espaço para Demonstração Visual]
-> 📹 **GIF Demonstrativo**: Barra de progresso subindo continuamente conforme os múltiplos núcleos da CPU convertem páginas em paralelo.
-:::
+Livros concluídos podem ser salvos mesmo quando outro item falha. Veja [salvamento e livros pendentes](../exporting/).
 
----
+## Ao relatar um problema
 
-## Cancelamento Seguro de Tarefas
-
-Se você perceber que selecionou o perfil errado ou precisar liberar o computador:
-1. Clique no botão **Cancelar** no item em execução.
-2. O Mangabound envia imediatamente um sinal de encerramento (`SIGINT` e encerramento da árvore de subprocessos) ao `mangabind` ou `mangapress`.
-3. Os arquivos temporários em disco são eliminados automaticamente, evitando lixo ou livros corrompidos na pasta de destino.
-
----
-
-## Persistência de Estado
-
-Livros prontos nunca são perdidos:
-* Se você fechar o Mangabound antes de salvar ou exportar os livros gerados, o aplicativo salva o estado em sua base local.
-* Ao abrir o Mangabound novamente, os livros convertidos continuarão disponíveis na aba **Livros Prontos (Ready Books)**, prontos para serem salvos ou transmitidos para o KOReader.
+Informe versão, estrutura de entrada (pasta, biblioteca ou CBZ), dispositivo, formato, etapas habilitadas e mensagem exata. Não publique arquivos de mangá nem caminhos privados sem decidir conscientemente compartilhá-los.

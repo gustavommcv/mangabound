@@ -1,82 +1,51 @@
 ---
-title: Installation
-description: How to download, install, and run Mangabound on Windows, macOS, and Linux.
+title: 'Installation'
+description: 'Download the right package for your computer.'
 ---
 
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 
-Mangabound is available as pre-built native binaries across Windows, macOS, and Linux. Each build embeds certified releases of **mangabind** and **mangapress**, requiring zero external runtime setup.
-
-Download the latest package for your operating system from the [official GitHub Releases](https://github.com/gustavommcv/mangabound/releases/latest).
-
----
-
-## Operating System Packages
+Download from the [official release page](https://github.com/gustavommcv/mangabound/releases). Expand **Assets** and choose your operating system and processor architecture. Alpha releases are marked **Pre-release**.
 
 <Tabs>
-  <TabItem label="Windows">
-    ### Windows (x64)
-    Choose between the setup installer or the standalone portable package:
+<TabItem label="Windows">
 
-    * **Installer (`.exe`)**: Recommended for most users. Run `mangabound-Setup-<version>.exe` and follow the on-screen prompts.
-    * **Portable (`.zip`)**: Extract `mangabound-win32-x64-<version>.zip` anywhere on your drive and run `mangabound.exe`. Useful for USB drives and environments without administrator permissions.
+### Windows x64
 
-    :::note[Windows SmartScreen]
-    During alpha releases, installers are not yet code-signed with an expensive EV certificate. Windows SmartScreen may present a warning. Click **More info** > **Run anyway** to proceed.
-    :::
-  </TabItem>
+- Choose the **.Setup.exe** installer for a normal installation.
+- Alternatively, extract the **win32-x64 .zip** and run the executable inside the extracted folder.
 
-  <TabItem label="macOS">
-    ### macOS (Apple Silicon - M1/M2/M3/M4)
-    * Download `mangabound-darwin-arm64-<version>.zip`.
-    * Unzip the archive and drag `Mangabound.app` into your `/Applications` folder.
+The alpha installer is not commercially signed. SmartScreen may warn about it. Only proceed if you expected this download and obtained it from the official release page; do not disable Windows security globally.
 
-    :::note[macOS Gatekeeper]
-    Because alpha binaries are self-published without notarization, macOS Gatekeeper may display a message stating the app cannot be opened.
-    
-    To authorize it:
-    1. Right-click (or Control-click) `Mangabound.app` in Finder and select **Open**.
-    2. Click **Open** in the confirmation dialog.
-    Alternatively, allow it in **System Settings** > **Privacy & Security**.
-    :::
-  </TabItem>
+</TabItem>
+<TabItem label="macOS">
 
-  <TabItem label="Linux">
-    ### Linux (x64)
-    Mangabound provides native packages for the most popular Linux distributions:
+### macOS Apple Silicon
 
-    #### Debian / Ubuntu / Mint / Pop!_OS (`.deb`)
-    ```bash
-    sudo dpkg -i mangabound_<version>_amd64.deb
-    # If missing any standard system dependencies:
-    sudo apt-get install -f
-    ```
+Download the **darwin-arm64 .zip**, extract it, and move **Mangabound.app** to **Applications**. There is currently no Intel Mac package.
 
-    #### Fedora / RHEL / openSUSE (`.rpm`)
-    ```bash
-    sudo rpm -i mangabound-<version>.x86_64.rpm
-    ```
+The alpha app is not notarized. If macOS blocks an app you trust, first try opening it, then use **System Settings → Privacy & Security → Open Anyway** if available. Follow [Apple's guidance](https://support.apple.com/en-lamr/102445); do not disable Gatekeeper globally.
 
-    #### Arch Linux / Manjaro (`.pkg.tar.zst`)
-    ```bash
-    sudo pacman -U ./mangabound-<version>-x86_64.pkg.tar.zst
-    ```
-  </TabItem>
+</TabItem>
+<TabItem label="Linux">
+
+### Linux x64
+
+Choose the package for your distribution:
+
+| Distribution                           | Asset          |
+| -------------------------------------- | -------------- |
+| Debian / Ubuntu and compatible systems | `.deb`         |
+| Fedora and compatible systems          | `.rpm`         |
+| Arch Linux and compatible systems      | `.pkg.tar.zst` |
+
+Install the actual downloaded file with your distribution's package manager. Keep its original filename: version and package-release separators differ between package formats.
+
+</TabItem>
 </Tabs>
 
----
+## If installation fails
 
-## Toolchain Verification
+Check that the download matches your system and architecture. If you report a problem, include the release version, operating system, and exact message. Never download an unofficial replacement executable to bypass a toolchain verification error.
 
-Mangabound guarantees absolute security and reproducibility when invoking internal tools.
-
-Every build contains a strictly locked [`toolchain.lock.json`](https://github.com/gustavommcv/mangabound/blob/main/toolchain.lock.json) specification. When Mangabound launches or prepares a conversion job:
-1. It verifies the **SHA-256 cryptographic hash** of the bundled `mangabind` and `mangapress` executables.
-2. Any tampered or corrupted binary is rejected immediately before execution.
-3. Version and protocol handshakes (`--protocol-version`) are run to confirm IPC protocol compatibility.
-
----
-
-## Next Steps
-
-Now that you have Mangabound installed, head over to the [Quick Start Guide](../quickstart/) to convert your first manga!
+Ready? Follow the [quickstart](../quickstart/).

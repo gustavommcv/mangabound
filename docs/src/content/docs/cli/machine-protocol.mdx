@@ -1,86 +1,19 @@
 ---
-title: Machine Protocol v1
-description: The standardized IPC contract connecting Mangabound, mangabind, and mangapress without brittle terminal scraping.
+title: 'Machine interfaces'
+description: "Find the tools' versioned, normative JSON contracts."
 ---
 
-import { Steps } from '@astrojs/starlight/components';
+Mangabound runs the bundled tools as subprocesses and validates their structured output. Use `--protocol-version` to read a tool's version, protocol, and capabilities.
 
-Mangabound does not scrape human-readable terminal text. Instead, both `mangabind` and `mangapress` implement the **Machine Protocol v1** specification, establishing a typed, backwards-compatible inter-process communication (IPC) channel via standard streams.
+## Normative contracts
 
----
+- [mangabind machine protocol v1](https://github.com/gustavommcv/mangabind/blob/main/docs/machine-protocol-v1.md): `--json` returns one final report on stdout. Opt-in `--progress-json` additionally reports progress on stderr, keeping the final report unchanged.
+- [mangapress machine protocol v1](https://github.com/gustavommcv/mangapress/blob/main/docs/machine-protocol-v1.md): `--json-events` emits sequenced JSON Lines on stdout.
 
-## 1. Handshake & Capability Discovery
+Each contract defines its message fields, progress stream, errors, and exit codes.
 
-Before launching any job, Mangabound queries the tool version and capabilities:
+## Working examples in the application
 
-```bash
-mangabind --protocol-version
-mangapress --protocol-version
-```
+The app's [recorded protocol fixtures](https://github.com/gustavommcv/mangabound/tree/main/tests/fixtures/protocol) and [adapter parsers](https://github.com/gustavommcv/mangabound/tree/main/src/adapters) demonstrate the actual payloads it accepts. Its [toolchain lock](https://github.com/gustavommcv/mangabound/blob/main/toolchain.lock.json) records the bundled versions.
 
-### Response Example (`stdout`, Exit Code 0)
-```json
-{
-  "protocol_version": 1,
-  "tool": "mangapress",
-  "tool_version": "0.6.0",
-  "sequence": 1,
-  "type": "protocol",
-  "capabilities": ["events", "profiles"]
-}
-```
-
-If the protocol version does not match the expected major version, Mangabound safely halts execution with an explanatory error.
-
----
-
-## 2. `mangabind` Batch Report Format
-
-When executing with `--json`, `mangabind` outputs a complete structured document on completion:
-
-```json
-{
-  "protocol_version": 1,
-  "mode": "plan",
-  "units": [
-    {
-      "path": "Ch.01",
-      "kind": "folder",
-      "effective_volume": "1",
-      "page_count": 22,
-      "disposition": "included"
-    }
-  ],
-  "volumes": [
-    {
-      "number": "1",
-      "filename": "Manga - Vol.01.cbz",
-      "estimated_pages": 190,
-      "sources": ["Ch.01", "Ch.02", "Ch.03"]
-    }
-  ],
-  "issues": []
-}
-```
-
-* `mode`: Either `"plan"` (when called with `--dry-run`) or `"execute"`.
-* `issues`: Structured warnings and errors (e.g. `chapter_gap`, `unassigned_chapter`).
-
----
-
-## 3. `mangapress` JSON Lines Streaming
-
-Because image conversion can take minutes for large books, `mangapress` emits continuous **UTF-8 JSON Lines** (one valid JSON object per line) on `stdout`:
-
-```json
-{"type": "stage", "stage": "inspect", "state": "started"}
-{"type": "stage", "stage": "inspect", "state": "completed"}
-{"type": "stage", "stage": "process", "state": "started"}
-{"type": "chapter", "chapter_index": 1, "source_pages": 24}
-{"type": "page", "completed": 1, "total": 180, "page": 1, "chapter": "Ch. 1"}
-{"type": "page", "completed": 2, "total": 180, "page": 2, "chapter": "Ch. 1"}
-{"type": "stage", "stage": "package", "state": "started"}
-{"type": "result", "bytes": 14205810, "path": "/path/output.epub", "duration_ms": 4210}
-```
-
-This streaming protocol powers Mangabound's smooth, real-time page progress bar.
+Use fixtures for your target release when testing an integration.

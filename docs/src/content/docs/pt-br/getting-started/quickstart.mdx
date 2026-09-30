@@ -1,74 +1,46 @@
 ---
-title: Guia de Início Rápido
-description: Vá de capítulos avulsos até a leitura no seu e-reader em menos de 3 minutos.
+title: 'Guia rápido'
+description: 'Adicione, organize, processe e salve seu primeiro mangá.'
 ---
 
-import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import MediaSlot from '../../../../components/MediaSlot.astro';
 
-Bem-vindo ao Guia de Início Rápido do Mangabound. Neste passo a passo, você aprenderá a preparar uma obra, organizar capítulos em volumes, converter para o seu e-reader e enviar sem fio para o KOReader.
+## 1. Adicione seu mangá
 
----
+Arraste uma pasta de mangá ou CBZ para a fila ou use **Files** ou **Folder**. Você também pode clicar nessa área para escolher os arquivos.
 
-## O Fluxo de Conversão em 5 Passos
+Uma pasta contém capítulos separados. Um CBZ avulso é tratado como volume completo; para CBZs de capítulos individuais, adicione a pasta que os contém.
 
-<Steps>
-1. ### Adicione seu Mangá
-   Abra o Mangabound. Você verá a **Tela da Fila (Queue Screen)**.
-   
-   * **Arraste e solte (Drag & Drop)** uma pasta de capítulos, arquivos `.cbz` soltos ou uma pasta inteira de biblioteca diretamente na janela do app.
-   * Você também pode clicar na área central para abrir o seletor nativo de arquivos do seu sistema operacional.
+<MediaSlot id="quickstart-add" />
 
-   :::tip[Espaço para Mídia Visual]
-   > 📹 **GIF Demonstrativo**: Arrastando uma pasta de mangá para a tela do Mangabound e vendo os itens entrarem na fila.
-   :::
+## 2. Confira os volumes
 
-2. ### Verifique o Mapeamento dos Volumes
-   O Mangabound executa uma varredura silenciosa e rápida em segundo plano usando o `mangabind`.
-   
-   * Se os nomes das pastas já informam o volume (ex: `Vol.01 Ch.001 - Título`), os capítulos serão **agrupados automaticamente**.
-   * Se os nomes contêm apenas o número do capítulo (`Capítulo 01`, `Capítulo 02`), o **Editor de Mapeamento** os marcará como não atribuídos:
-     * Clique em **Do MangaDex** para pesquisar o nome da obra e importar a contagem oficial de capítulos por volume.
-     * Ou clique em **Atribuir Automaticamente (Auto-Assign)** para que o Mangabound tente inferir os volumes por padrões.
-     * Você também pode arrastar capítulos manualmente, criar novos volumes ou mesclar faixas.
+Para uma pasta de capítulos, use **Edit volumes** para conferir a organização.
 
-   :::tip[Espaço para Mídia Visual]
-   > 📸 **Captura de Tela / GIF**: O Editor de Mapeamento com capítulos distribuídos nos Volumes 1 e 2 após a busca no MangaDex.
-   :::
+- **File names** resume os volumes já reconhecidos nos nomes.
+- **Manual** permite criar volumes e atribuir capítulos selecionados ou um intervalo.
+- **Online source** busca opcionalmente uma sugestão no MangaDex. Confira o resultado antes de confirmar.
 
-3. ### Escolha as Configurações do seu E-Reader
-   No **Painel de Configurações** à direita:
-   
-   * **Etapas do Processo**:
-     * *Reagrupar em CBZ*: Cria apenas arquivos `.cbz` consolidados por volume.
-     * *Converter para e-reader*: Aplica o pipeline do `mangapress` (recorte e otimização).
-     * *Ambos*: Executa as duas fases sequencialmente.
-   * **Perfil do Dispositivo**: Selecione seu modelo (ex: **Kindle Paperwhite**, **Kindle Oasis**, **Kobo Libra 2**, **reMarkable 2**).
-   * **Formato de Saída**: Escolha **EPUB** (recomendado para KOReader e leitores modernos), **CBZ** ou **PDF**.
-   * **Leitura da Direita para a Esquerda (Manga RTL)**: Ativado por padrão para corte correto de páginas duplas.
+Se nenhum volume for reconhecido, o editor abre **Manual** com uma explicação. Você pode organizar tudo offline, sem uma obra cadastrada online. Veja o passo a passo em [organização de volumes](../../user-guide/mapping-editor/).
 
-4. ### Inicie a Conversão
-   Clique no botão **Iniciar Conversão**.
-   
-   * O Mangabound mudará para a tela de execução.
-   * Conforme o `mangapress` processa as imagens, você verá o progresso ao vivo:
-     * Estágio atual: *Inspecionando*, *Cortando margens*, *Otimizando imagens*, *Empacotando EPUB*.
-     * Contador de páginas exato: ex: *Página 84 de 192*.
-   * Caso necessário, o processo pode ser cancelado a qualquer instante com segurança.
+## 3. Escolha dispositivo e formato
 
-   :::tip[Espaço para Mídia Visual]
-   > 📹 **GIF Demonstrativo**: Barra de progresso avançando página por página com alta velocidade em processamento multicore.
-   :::
+Em **Steps**, mantenha **Group chapters into volumes** e **Convert for e-reader** ativados para executar ambas as etapas. Selecione **Device** e **Format**. Use **Advanced conversion options** apenas se precisar alterar os ajustes de imagem.
 
-5. ### Salve ou Envie para o KOReader
-   Ao término, os volumes prontos aparecem na seção **Livros Prontos (Ready Books)**:
-   
-   * **Salvar no Disco**: Clique em **Salvar como…** para um único volume ou **Salvar tudo na pasta…** para salvar todos os volumes da série.
-   * **Enviar para o KOReader (Wi-Fi)**: Clique em **Compartilhar estes livros** para iniciar o servidor OPDS 1.2 local. No KOReader, acesse o catálogo OPDS e faça o download diretamente pelo Wi-Fi, sem cabos!
-</Steps>
+Quer a série inteira em um único livro? Ative **Create one book for the series**. Esse modo usa EPUB e mantém as duas etapas ativadas. Desative-o para mudar o formato ou as etapas.
 
----
+## 4. Processe
 
-## O que Ver em Seguida?
+Clique em **Process** ou **Process N items**, conforme a fila. O aplicativo mostra o progresso geral; **Show details** exibe o progresso dos volumes quando disponível. Livros maiores demoram mais, e o salvamento pode continuar depois do processamento das páginas.
 
-* Conheça a fundo o [Guia do Editor de Mapeamento](../../user-guide/mapping-editor/) para aprender a lidar com convenções complexas de nomenclatura.
-* Veja as [Configurações Recomendadas do KOReader](../../koreader/recommended-settings/) para calibrar o motor de renderização da tela e-ink para mangás.
+## 5. Salve ou compartilhe
+
+Use **Save as…** ao lado de um livro ou **Save all to folder…** para vários. Enquanto os livros pendentes estiverem disponíveis, você pode salvar novamente em outro destino sem reconverter.
+
+**Share these books** permite que o KOReader os baixe pela rede local, mesmo antes de exportar uma cópia. Siga o [guia de compartilhamento](../../koreader/opds-sharing/).
+
+<MediaSlot id="quickstart-save" />
+
+:::note[Não descarte sua única cópia]
+Livros prontos ainda não salvos continuam em **Ready books** após reiniciar o app. **Delete** remove os livros pendentes de uma conversão, não apenas sua linha. Salve primeiro o que quiser preservar. [Como salvar e excluir](../../user-guide/exporting/).
+:::

@@ -1,77 +1,24 @@
 ---
-title: mangapress CLI Reference
-description: Complete command-line manual for mangapress — the high-performance e-ink manga processor in Rust.
+title: 'mangapress CLI'
+description: 'Convert manga and choose a device profile from the terminal.'
 ---
 
-import { Tabs, TabItem } from '@astrojs/starlight/components';
+Download mangapress from [GitHub Releases](https://github.com/gustavommcv/mangapress/releases) to use it from the terminal.
 
-**`mangapress`** is an ultra-fast, multi-threaded CLI tool written in Rust. It takes completed manga volumes (`.cbz` archives or chapter directories) and produces fixed-layout `.epub`, `.cbz`, or `.pdf` books calibrated for the exact resolution, gamma curves, and e-ink display traits of your target device.
+## Try it
 
----
-
-## Installation & Standalone Usage
-
-In Mangabound, `mangapress` is bundled and cryptographically verified on startup.
-
-To use `mangapress` directly from your terminal:
-* Grab the latest static binary from [github.com/gustavommcv/mangapress/releases](https://github.com/gustavommcv/mangapress/releases).
-* Move the executable into your `PATH`.
-
----
-
-## Command Syntax
-
-```bash
-mangapress <input> [options]
-```
-
-### CLI Flags & Arguments
-
-| Flag | Argument | Default | Description |
-|---|---|---|---|
-| `<input>` | Path | *(Required)* | Path to the source `.cbz` archive or folder containing volume images. |
-| `--profile` | Code | `KPW5` | Target hardware profile code (e.g., `KPW5`, `KO`, `KoL2`, `Rmk2`, `OTHER`). |
-| `--format` | `epub \| cbz \| pdf` | `epub` | Final document format. |
-| `-o, --output` | Path | Auto | Output path for the converted file or folder. |
-| `--manga-style` | *(Flag)* | Enabled | Reading order is Right-to-Left (splits two-page spreads with right half first). |
-| `--cropping` | Mode | `margins-and-page-numbers` | Cropping mode: `disabled`, `margins`, or `margins-and-page-numbers`. |
-| `--splitter` | Mode | `split` | Two-page spread handling: `split`, `rotate`, or `both`. |
-| `--eraserainbow` | *(Flag)* | Disabled | Filters out moiré/rainbow interference patterns on color e-ink panels. |
-| `--keepcomicinfo` | *(Flag)* | Enabled | Retains internal `ComicInfo.xml` metadata when building `.cbz`. |
-| `--dry-run` | *(Flag)* | Disabled | Executes inspection and planning without writing the final book. |
-| `--json-events` | *(Flag)* | Disabled | Emits structured JSON Lines progress events to `stdout`. |
-| `--list-profiles` | *(Flag)* | | Lists all ~40 hardware device profile codes. |
-| `--customwidth` | Pixels | | Custom width when using `--profile OTHER`. |
-| `--customheight` | Pixels | | Custom height when using `--profile OTHER`. |
-
----
-
-## Practical Examples
-
-### 1. Standard Conversion for Kindle Paperwhite 11th Gen
-```bash
-mangapress "Berserk - Vol.01.cbz" \
-  --profile KPW5 \
-  --format epub \
-  --output "./Berserk - Vol.01.epub"
-```
-
-### 2. Kobo Libra 2 with Moiré Erase and Spread Rotation
-```bash
-mangapress "One Piece - Vol.100.cbz" \
-  --profile KoL2 \
-  --splitter rotate \
-  --eraserainbow
-```
-
-### 3. List All Hardware Profiles
-```bash
+```sh
+mangapress --help
 mangapress --list-profiles
+mangapress "Volume.cbz" --profile KV --manga-style --format epub
 ```
 
-### 4. Streaming Progress in JSON Lines
-Useful for scripts, wrappers, and GUIs:
-```bash
-mangapress "Volume.cbz" --profile KV --json-events
-```
-Each step produces a single-line JSON object (`{"type": "page", "completed": 45, "total": 190}`) on `stdout`.
+Use `--list-profiles` to find your device's code and resolution. For example, Kobo Libra 2 uses **KoL** and reMarkable Paper Pro uses **RmkPP**.
+
+The CLI defaults to **KV**. Add `--manga-style` for right-to-left reading order and `--keepcomicinfo` to retain supported ComicInfo data. Mangabound sets its own defaults, so use matching options when comparing a terminal conversion with the app.
+
+## More options
+
+The tool's [README](https://github.com/gustavommcv/mangapress#readme) covers image adjustments, custom dimensions, metadata, nested contents, and dry runs.
+
+For integrations, see the [machine protocol](https://github.com/gustavommcv/mangapress/blob/main/docs/machine-protocol-v1.md). Use the reference for your installed version.

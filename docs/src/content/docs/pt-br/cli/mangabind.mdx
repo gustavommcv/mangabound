@@ -1,83 +1,24 @@
 ---
-title: Referência da CLI mangabind
-description: Manual completo de linha de comando do mangabind — o organizador de volumes autônomo em Go.
+title: 'CLI mangabind'
+description: 'Agrupe capítulos em volumes pelo terminal.'
 ---
 
-import { Tabs, TabItem } from '@astrojs/starlight/components';
+Para usar o mangabind no terminal, baixe-o nas [releases do GitHub](https://github.com/gustavommcv/mangabind/releases) e adicione sua pasta ao PATH.
 
-O **`mangabind`** é um utilitário CLI estático em Go, sem dependências externas de runtime. Sua função exclusiva é inspecionar pastas de capítulos ou arquivos `.cbz` individuais e consolidá-los em volumes `.cbz` fechados e numerados, contendo metadados no padrão `ComicInfo.xml`.
+## Experimente
 
----
-
-## Instalação e Executável
-
-Nas versões desktop do Mangabound, o `mangabind` já vem embutido nos pacotes da aplicação.
-
-Para utilizá-lo de forma independente no terminal:
-* Baixe o binário compilado diretamente em [github.com/gustavommcv/mangabind/releases](https://github.com/gustavommcv/mangabind/releases).
-* Mova o executável para uma pasta registrada no seu `PATH` (ex: `/usr/local/bin` no Linux/macOS ou `C:\Windows\System32` no Windows).
-
----
-
-## Sintaxe de Linha de Comando
-
-```bash
-mangabind [opções] --input <caminho> --output <caminho>
+```sh
+mangabind --help
+mangabind --input "./Manga" --dry-run --json
+mangabind --input "./Library" --output "./Volumes" --batch
 ```
 
-### Principais Parâmetros
+O dry run mostra o plano sem gerar volumes. Use `--batch` para processar uma biblioteca de pastas de mangá.
 
-| Flag | Abreviação | Descrição |
-|---|---|---|
-| `--input <caminho>` | `-i` | Pasta de entrada contendo capítulos soltos ou arquivos `.cbz`. |
-| `--output <caminho>` | `-o` | Pasta de destino onde os volumes `.cbz` finais serão gerados. |
-| `--dry-run` | `-n` | Simula o agrupamento de capítulos sem gravar nada no disco. |
-| `--batch` | `-b` | **Modo Biblioteca**: Trata cada subpasta imediata como um mangá individual. |
-| `--metadata-file <caminho>` | | Caminho explícito para um manifesto `mangabind.json`. |
-| `--json` | | Emite o relatório de planejamento/execução em JSON na saída padrão (`stdout`). |
-| `--quiet` | `-q` | Silencia logs informativos, mantendo apenas avisos e erros críticos. |
-| `--protocol-version` | | Retorna o handshake de compatibilidade do Machine Protocol v1. |
-| `--version` | | Exibe a versão do executável. |
-| `--help` | `-h` | Exibe o menu de ajuda com todas as opções. |
+Para definir sua própria organização de capítulos, use `--metadata-file`. Em um lote, cada pasta de mangá recebe seu próprio `mangabind.json`.
 
----
+## Outras opções
 
-## Exemplos Práticos
+O [README da ferramenta](https://github.com/gustavommcv/mangabind#readme) descreve as opções, incluindo reunir uma série com `--combine` e informar progresso com `--progress-json`.
 
-### 1. Simulação com Relatório JSON
-Verifica a estrutura de capítulos sem criar arquivos:
-```bash
-mangabind --input "./Chainsaw Man" --output "./Volumes" --dry-run --json
-```
-
-### 2. Agrupamento Padrão de Volume
-Consolida os capítulos e grava os arquivos `.cbz`:
-```bash
-mangabind --input "./Frieren" --output "./Volumes_Prontos"
-```
-
-### 3. Processamento em Lote (Biblioteca)
-Varre uma pasta contendo dezenas de obras em uma única execução:
-```bash
-mangabind --input "/dados/Mangas" --output "/dados/Volumes_CBZ" --batch
-```
-
----
-
-## Formato do `mangabind.json`
-
-Caso os capítulos não contenham o volume nos nomes das pastas, adicione um arquivo `mangabind.json` no diretório da série:
-
-```json
-{
-  "schema_version": 1,
-  "volumes": [
-    { "number": "1", "chapters": ["1-7"] },
-    { "number": "2", "chapters": ["8-16", "8.5"] }
-  ]
-}
-```
-
-* Suporta intervalos inteiros (`"1-7"`).
-* Suporta capítulos avulsos e decimais (`"8.5"`).
-* A indicação explícita de volume no nome do próprio arquivo tem prioridade sobre o `mangabind.json`.
+Para integrações, consulte o [formato de metadados](https://github.com/gustavommcv/mangabind/blob/main/docs/adr/0010-local-metadata-file.md) e o [protocolo de máquina](https://github.com/gustavommcv/mangabind/blob/main/docs/machine-protocol-v1.md). Use a referência correspondente à versão executada.

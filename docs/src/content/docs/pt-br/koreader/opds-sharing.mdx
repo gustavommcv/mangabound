@@ -1,50 +1,31 @@
 ---
-title: Compartilhamento Wi-Fi via OPDS
-description: Como hospedar um catálogo local OPDS 1.2 no Mangabound para transferir mangás sem fios pela sua rede doméstica.
+title: 'Compartilhamento local'
+description: 'Compartilhe livros pendentes ou uma biblioteca pela rede local.'
 ---
 
-import { Steps } from '@astrojs/starlight/components';
+import MediaSlot from '../../../../components/MediaSlot.astro';
 
-Conectar cabos USB toda vez que você converte um novo volume de mangá é cansativo. O Mangabound possui um servidor web embutido de **OPDS 1.2 (Open Publication Distribution System)**, permitindo que qualquer leitor conectado à mesma rede Wi-Fi — como um Kindle ou Kobo executando o **KOReader** — navegue e faça download dos seus mangás sem fios.
+Compartilhe livros com o KOReader pela rede local. Abra o **catálogo OPDS** do Mangabound no leitor e escolha quais livros baixar.
 
----
+## Inicie o compartilhamento
 
-## O que é OPDS?
+1. Use **Share these books** nos resultados para compartilhar aquela conversão ou **Share** na barra superior para escolher uma pasta de biblioteca existente.
+2. Selecione **Network interface** da rede acessível ao leitor. O computador pode usar Ethernet mesmo com o leitor no Wi-Fi. Evite adaptadores VPN, a menos que ambos alcancem essa rede. A interface escolhida é lembrada.
+3. Preencha opcionalmente **Username** e **Password**, ou deixe ambos vazios.
+4. Selecione **Start sharing** e use **Copy** no endereço mostrado. Mantenha o Mangabound aberto até os downloads terminarem.
 
-O OPDS é um padrão aberto da indústria editorial para catalogação e entrega de livros digitais via protocolo HTTP.
-* Ele entrega um catálogo estruturado (com categorias como *Adicionados Recentemente*).
-* Aplicativos de leitura modernos como o KOReader conectam-se a esse catálogo, exibem capas e sinopses e baixam os volumes em `.epub` ou `.cbz` com apenas um toque na tela.
+O endereço tem o formato `http://192.168.1.150:48123/`. Use o que aparece no seu aplicativo.
 
----
+Abra **Recently converted** para encontrar os livros mais recentes primeiro. **Other files** lista outros livros da biblioteca compartilhada.
 
-## Iniciando o Servidor no Mangabound
+<MediaSlot id="share-panel" />
 
-<Steps>
-1. ### Abra o Painel de Compartilhamento
-   Clique no ícone de **Torre de Rádio (Radio Tower)** na barra superior do Mangabound, ou no botão **Compartilhar estes livros** na tela de Livros Prontos.
-
-2. ### Escolha a Biblioteca e a Interface de Rede
-   * **Biblioteca Compartilhada**: Escolha a pasta onde seus livros prontos foram gerados ou uma pasta de biblioteca existente no seu computador.
-   * **Interface de Rede**: Selecione o adaptador da sua rede Wi-Fi ou cabo Ethernet (ex: `192.168.1.150`). O Mangabound detecta automaticamente todos os IPs da máquina.
-
-3. ### Autenticação Opcional
-   Se estiver em uma rede compartilhada (república, escritório ou faculdade), você pode definir um **Nome de Usuário** e **Senha**. Em redes residenciais privadas, basta deixar ambos os campos em branco para acesso sem senha.
-
-4. ### Clique em Iniciar Compartilhamento
-   Assim que o servidor iniciar, o Mangabound exibe o **Endereço do Catálogo**:
-   ```
-   http://192.168.1.150:8080/opds
-   ```
-   * Clique em **Copiar** para salvar o endereço.
-   * Deixe o Mangabound aberto enquanto o seu e-reader faz o download dos livros.
-</Steps>
-
-:::tip[Espaço para Demonstração Visual]
-> 📸 **Captura de Tela**: Painel de Compartilhamento do Mangabound ativo exibindo a URL do catálogo `http://192.168.1.150:8080/opds` com os botões "Copiar" e "Parar compartilhamento".
+:::caution[Apenas redes locais confiáveis]
+O compartilhamento usa HTTP. A autenticação Basic opcional restringe acesso, mas não criptografa credenciais nem livros. Não exponha a porta na internet nem utilize uma rede não confiável.
 :::
 
----
+Continue em [conectando o KOReader](../connecting/). Use **Stop sharing** ao terminar.
 
-## Próximo Passo
+## Se o leitor não conectar
 
-Siga o guia [Conectando no KOReader](../connecting/) para vincular seu leitor a este catálogo!
+Confira se ambos alcançam a mesma rede local, a interface escolhida está correta, o compartilhamento está ativo e o firewall permite o aplicativo nessa rede confiável. Wi-Fi de convidados, isolamento de clientes e VPNs podem bloquear acesso mesmo com internet nos dois aparelhos. Se o IP do computador mudar, atualize o endereço no KOReader.

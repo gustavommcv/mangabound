@@ -1,58 +1,41 @@
 ---
-title: Perfis de Saída e Configurações
-description: Conheça os perfis de hardware e as opções de processamento visual para e-ink do mangapress.
+title: 'Configurações de conversão'
+description: 'Escolha dispositivo, formato e ajustes de imagem.'
 ---
 
-O Mangabound integra o **mangapress** para entregar conversões milimetricamente ajustadas para o modelo exato do seu e-reader. Em vez de esticar ou adicionar faixas pretas nas imagens, o mangapress redimensiona, corta margens e calibra os tons de cinza respeitando a resolução nativa e a tecnologia de tinta eletrônica do seu aparelho.
+import MediaSlot from '../../../../components/MediaSlot.astro';
 
----
+## Dispositivo e formato
 
-## Perfis de E-Readers Suportados
+Escolha seu modelo em **Device**. Para definir o tamanho das páginas, abra **Advanced conversion options** e preencha **Custom width** e **Custom height** em pixels. Um perfil de dispositivo personalizado exige ambas as dimensões.
 
-O aplicativo já inclui perfis pré-calibrados para dezenas de aparelhos:
+| Formato | Quando escolher                                                             |
+| ------- | --------------------------------------------------------------------------- |
+| EPUB    | Livro com navegação de capítulos; obrigatório para o modo de livro único    |
+| CBZ     | Imagens processadas em um ZIP; costuma ser uma escolha direta para KOReader |
+| PDF     | Páginas fixas para leitores ou tablets com suporte a PDF                    |
 
-| Marca | Código do Modelo | Resolução | Proporção | Especificações de Tela |
-|---|---|---|---|---|
-| **Amazon Kindle** | `KPW5` (Paperwhite 11ª Geração) | 1236 × 1648 | ~3:4 | 300 PPI, 16 níveis de cinza |
-| **Amazon Kindle** | `KO` (Oasis 2 e 3) | 1264 × 1680 | ~3:4 | 300 PPI, 16 níveis de cinza |
-| **Amazon Kindle** | `KS` (Kindle Scribe) | 1860 × 2480 | ~3:4 | 300 PPI, tela de 10.2" |
-| **Amazon Kindle** | `KV` (Kindle Voyage) | 1072 × 1448 | ~3:4 | 300 PPI, 16 níveis de cinza |
-| **Amazon Kindle** | `K11` (Básico 2022 / 2024) | 1072 × 1448 | ~3:4 | 300 PPI, tela de 6.0" |
-| **Kobo** | `KoL2` (Libra 2) | 1264 × 1680 | ~3:4 | 300 PPI, tela de 7.0" |
-| **Kobo** | `KoC` (Clara 2E / BW) | 1072 × 1448 | ~3:4 | 300 PPI, tela de 6.0" |
-| **Kobo** | `KoE` (Elipsa / Elipsa 2E) | 1404 × 1872 | ~3:4 | 227 PPI, tela de 10.3" |
-| **Kobo** | `KoAO` (Aura ONE) | 1404 × 1872 | ~3:4 | 300 PPI, tela de 7.8" |
-| **reMarkable** | `Rmk2` (reMarkable 2) | 1404 × 1872 | ~3:4 | 226 PPI, tela Canvas |
-| **reMarkable** | `RmkP` (Paper Pro) | 1620 × 2160 | ~3:4 | 229 PPI, Color Gallery 3 |
-| **Customizado** | `OTHER` | Definido pelo usuário | Custom | Largura e altura manuais |
+A compatibilidade depende do aplicativo de leitura, não apenas do dispositivo. O leitor nativo do Kindle não abre EPUB diretamente: use um serviço de transferência/conversão compatível ou um leitor instalado, como KOReader. O KOReader trata EPUB de forma diferente de CBZ/PDF; veja [configurações do leitor](../../koreader/recommended-settings/).
 
----
+<MediaSlot id="device-settings" />
 
-## Formatos de Saída
+## Advanced conversion options
 
-* **EPUB (Recomendado)**: O formato de layout fixo ideal para KOReader, Kobo e leitores modernos. Mantém dimensões exatas de cada página, suporte a índice de capítulos (TOC) e transições instantâneas.
-* **CBZ**: Arquivo comprimido contendo as imagens já processadas, cortadas e otimizadas. Perfeito caso seu app prefira arquivos zip diretos de imagens.
-* **PDF**: Documento com páginas fixas indicado para tablets de grande formato e aparelhos reMarkable.
+**Advanced conversion options** disponibiliza os ajustes do mangapress, agrupados por finalidade. Comece pelos padrões do dispositivo, altere um ajuste de cada vez e confira o livro gerado.
 
----
+- **Cropping** remove margens, com detecção opcional de números de página. Se cortar a arte, reduza ou desative o recorte.
+- **Splitter** escolhe divisão, rotação ou ambas para páginas duplas. A ordem de leitura de mangá coloca a metade direita primeiro ao dividir.
+- **Resize e codificação de imagem** controlam dimensões, escala, cor e qualidade JPEG. Um campo opcional vazio utiliza o padrão indicado do dispositivo/ferramenta, não zero.
+- **Erase rainbow** reduz certos artefatos de moiré. É opcional; compare o resultado nas suas páginas.
 
-## Opções de Processamento de Imagem
+Campos modificados podem ser restaurados individualmente ou em conjunto com **Reset to defaults**. As opções são lembradas entre sessões.
 
-### 1. Recorte de Margens e Números de Página
-Scans frequentemente contêm bordas brancas desiguais e números de página digitais que poluem a leitura.
-* **Margens e Números de Página (Padrão)**: Detecta os limites reais da arte e remove margens brancas e rodapés numéricos, fazendo os quadrinhos ocuparem toda a tela útil.
-* **Apenas Margens**: Remove apenas o excesso de bordas brancas, mantendo anotações externas.
-* **Desativado**: Preserva as bordas originais do arquivo.
+## Um livro para a série
 
-### 2. Páginas Duplas (*Spreads*)
-Mangás possuem ilustrações panorâmicas que ocupam duas páginas abertas. Escolha como tratá-las:
-* **Dividir (Padrão)**: Corta a imagem dupla ao meio em duas páginas verticais. Seguindo a regra de leitura oriental (**Manga Style RTL**), a **página direita é exibida primeiro**, seguida pela **página esquerda**.
-* **Rotacionar**: Gira a página dupla em 90 graus para que você possa visualizá-la deitada em modo paisagem.
-* **Ambos**: Mantém a versão rotacionada e também gera as duas metades cortadas.
+Ative **Create one book for the series** na fila para reunir seus capítulos e volumes em um único livro, com os capítulos organizados por volume no índice.
 
-### 3. Filtro Anti-Moiré (Erase Rainbow)
-Em telas e-ink coloridas (tecnologias Kaleido ou Gallery 3) e displays de alta densidade, as retículas de pontilhismo de mangás podem produzir interferências visuais (*moiré* ou ondas de arco-íris).
-* Ativar o **Erase Rainbow** aplica uma suavização seletiva que neutraliza esses artefatos sem perder a nitidez do traço original.
+Esse modo usa EPUB e mantém as duas etapas ativadas. Desative-o para mudar o formato ou as etapas. Livros combinados maiores podem demorar mais para abrir no e-reader.
 
-### 4. Criar um Único Livro para a Série
-Para mangás longos, marcar **Criar um único livro para a série** compila todos os volumes em um único arquivo `.epub`. O índice interno é montado em hierarquia, agrupando capítulos sob o cabeçalho de seus respectivos volumes.
+<MediaSlot id="single-book" />
+
+A CLI independente tem padrões próprios; não presuma que sejam iguais aos da interface. Para uso no terminal, veja [mangapress](../../cli/mangapress/).

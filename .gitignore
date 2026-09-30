@@ -16,3 +16,4 @@ Thumbs.db
 .claude/settings.local.json
 docs/.astro/
 docs/dist/
+docs/playwright-report/

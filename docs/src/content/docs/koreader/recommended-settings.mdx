@@ -1,103 +1,48 @@
 ---
-title: Recommended KOReader Settings
-description: Crucial reader configurations in KOReader for pristine manga rendering, zero ghosting, and full-screen immersion on e-ink devices.
+title: 'KOReader settings'
+description: 'Choose reader settings for the actual book format and device.'
 ---
 
-import { Steps } from '@astrojs/starlight/components';
+import MediaSlot from '../../../components/MediaSlot.astro';
 
-While KOReader works out of the box, manga pages feature dense screentones, dark contrast, and intricate artwork that benefit greatly from specific e-ink optimizations.
+## Choose settings for your book
 
-Applying the following settings will eliminate e-ink ghosting, maximize screen estate, and guarantee sharp, washed-out-free illustrations.
+KOReader handles EPUB differently from CBZ and PDF, so the available page controls depend on the book format. CBZ is a straightforward choice for image-page controls; EPUB is useful for a chapter and volume table of contents.
 
-:::tip[Make it Permanent]
-In KOReader, **long-pressing (tapping and holding)** any setting will save it as the **default configuration for the current file type** (`.epub` or `.cbz`).
-:::
+Start with a few pages and adjust the settings below to suit your screen. Menu names and locations can vary with the KOReader version, language, and device. The [official KOReader guide](https://koreader.rocks/user_guide/) explains each format's controls and how to search the menus.
 
----
+## Overlap status bar
 
-## 1. Overlap Status Bar
+With a book open, find **Status bar → Overlap status bar**. This lets the page use the area reserved for the status bar. Check that the bar does not cover artwork you want to see.
 
-By default, the status bar can push the manga page downward, shrinking the artwork or causing unnecessary margins.
+See [KOReader's status-bar settings](https://github.com/koreader/koreader/blob/master/frontend/apps/reader/modules/readerfooter.lua).
 
-* Open a manga volume in KOReader.
-* Tap the top area to open the top menu.
-* Navigate to the **Document / Gear** menu (second tab).
-* Enable **Overlap status bar**.
+<MediaSlot id="reader-statusbar" />
 
-This allows the manga art to occupy 100% of the screen height, overlaying page counts or battery icons semi-transparently over empty gutters.
+## Full refresh rate
 
-:::tip[Visual Media Placeholder]
-> 📸 **Screenshot**: KOReader setting "Overlap status bar" enabled in the document menu.
-:::
+On an e-ink reader, try **Screen → eInk settings → Full refresh rate → Every page** if you see traces of the previous page.
 
----
+A full refresh can reduce these traces, but may add a visible flash or slow page turns. Compare it with the default on your device. This setting applies to supported e-ink screens, not LCD displays. See the [KOReader guide](https://koreader.rocks/user_guide/) for refresh options.
 
-## 2. E-Ink Full Refresh on Every Page (Ghosting Fix)
+<MediaSlot id="reader-refresh" />
 
-Because manga pages alternate between deep black panels and bright whites, e-ink screens easily accumulate "ghost" shadows of previous drawings. Setting full refresh on every page turn ensures pristine black levels.
+## CBZ/PDF page controls
 
-<Steps>
-1. Tap the top area of the screen to open the menu.
-2. Go to the **Device / Screen settings** menu.
-3. Select **eInk settings**.
-4. Set **Full refresh rate** to **Every page** (or `1`).
-</Steps>
+Try a page-based view and fit-to-page zoom to show each page as a whole. If the book already fills the screen, leave cropping off: the conversion may have removed margins, and another crop could cut off artwork.
 
-```text
-Menu ➔ Screen ➔ eInk settings ➔ Full refresh rate ➔ Every page
-```
+These are CBZ/PDF controls. For EPUB, use the options available in its own reading menu. Change one setting at a time and compare a sample before saving your preferences.
 
-:::note[Battery Impact]
-Modern e-ink controllers (Kindle Paperwhite, Kobo Carta 1200, etc.) perform full refreshes in milliseconds. The battery impact is negligible, but image clarity and contrast improvement is dramatic.
-:::
+## Tweak document settings
 
----
+To give a manga folder different defaults from your text books, use KOReader's advanced **Tweak document settings** plugin. It applies directory-specific defaults when a book is first opened.
 
-## 3. View Mode: "Page" & Auto Page Crop
+The plugin uses a Lua configuration file rather than EPUB style tweaks. Follow the [official setup instructions](https://github.com/koreader/koreader/wiki/Tweak-document-settings-by-directory) and back up your configuration before editing it. Books you have already opened can keep their individual settings.
 
-Ensure KOReader does not treat manga pages as continuous scrollable text:
+<MediaSlot id="reader-directory-defaults" />
 
-* Go to the bottom menu.
-* Select the **View Mode** menu (fourth tab) and set it to **Page**.
-* Select the **Page Crop** menu (second tab) and set it to **Auto** (or *Manual* if fine-tuning margin bounds).
+## Saving a default
 
-:::tip[Visual Media Placeholder]
-> 📸 **Screenshot**: Bottom menu showing View Mode set to "Page" and Page Crop set to "Auto".
-:::
+Some controls let you save a default with a long press; others open help or another dialog. Follow the confirmation shown for that control. Previously opened books may keep their own settings.
 
----
-
-## 4. Fit the Entire Page to Screen
-
-* In the bottom menu, open the **Fit** submenu (third tab).
-* Set **Fit** to **Full** (or *Fit to Page* / *Best Fit*).
-
-This ensures every manga page resizes dynamically to fit within your device's physical aspect ratio without requiring panning or accidental zoom shifts.
-
----
-
-## 5. Enable Dithering
-
-On 16-shade grayscale and color e-ink displays, subtle gradients in skies or character shadows can exhibit harsh digital banding.
-
-* In the bottom menu, navigate to the next-to-last submenu.
-* Toggle **Dithering** to **On**.
-
-Dithering applies an ordered diffusion pattern that smooths transitions between dark tones, making artwork look rich and analog.
-
-:::tip[Visual Media Placeholder]
-> 📸 **Screenshot**: Comparison showing banding with dithering OFF vs. smooth grayscale transitions with dithering ON.
-:::
-
----
-
-## Summary of Ideal Settings
-
-| Setting | Location | Recommended Value | Why |
-|---|---|---|---|
-| **Overlap status bar** | Top menu ➔ Document | **Enabled** | Maximum vertical screen area |
-| **Full refresh rate** | Screen ➔ eInk settings | **Every page** | Prevents screentone ghosting |
-| **View Mode** | Bottom menu ➔ View | **Page** | Single-page layout |
-| **Page Crop** | Bottom menu ➔ Crop | **Auto** | Trims lingering scan margins |
-| **Fit** | Bottom menu ➔ Fit | **Full** | Fits page strictly to screen bounds |
-| **Dithering** | Bottom menu ➔ Image | **On** | Smooth grayscale gradients |
+If a book still displays incorrectly, include the KOReader version, device, file format, and settings when asking for help.

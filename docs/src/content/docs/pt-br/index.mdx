@@ -1,42 +1,23 @@
 ---
-title: Introdução
-description: O Mangabound é um aplicativo desktop que transforma capítulos avulsos e arquivos CBZ em livros prontos para o seu e-reader.
+title: 'Mangabound'
+description: 'Organize capítulos de mangá em volumes, prepare livros para seu e-reader e compartilhe com o KOReader pela rede local.'
 ---
 
-# Mangabound
+import MediaSlot from '../../../components/MediaSlot.astro';
 
-O **Mangabound** é um aplicativo desktop que transforma mangás que você já possui, como pastas de capítulos ou arquivos CBZ, em livros digitais prontos para o seu e-reader.
+O Mangabound é um aplicativo para organizar capítulos de mangá em volumes e convertê-los em livros para o seu e-reader. Você escolhe como agrupar os capítulos e pode ajustar tamanho, margens e qualidade das imagens para o seu dispositivo. Ao terminar, salve os livros no computador ou compartilhe-os diretamente com o KOReader pela rede local.
 
-<div align="center" style="margin: 2.5rem 0;">
-  <div style="border: 1px solid var(--sl-color-gray-5); border-radius: 0.75rem; padding: 2.5rem 1.5rem; background: var(--sl-color-gray-6); max-width: 640px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
-    <div style="font-size: 3rem; margin-bottom: 0.75rem; letter-spacing: 0.5rem;">📖 ➔ ⚡ ➔ 📱</div>
-    <h3 style="margin: 0.5rem 0; font-size: 1.15rem; color: var(--sl-color-white);">Fluxo do Mangabound</h3>
-    <p style="color: var(--sl-color-gray-2); font-size: 0.9rem; line-height: 1.5; margin: 0.5rem 0 0 0;">
-      Fila com Drag & Drop • Editor de Mapeamento com Sincronização MangaDex<br/>
-      Calibração para E-Ink via Mangapress • Entrega Sem Fio para KOReader via OPDS
-    </p>
-  </div>
-</div>
+<MediaSlot id="intro-logo" />
 
-:::tip[Espaço para Demonstração Visual]
-> 📹 **Demonstração Visual**: GIF animado ou vídeo centralizado demonstrando o fluxo do Mangabound convertendo um mangá e transmitindo para o KOReader (semelhante à demo do Rakuyomi).
-:::
+[Instale o Mangabound](getting-started/installation/) · [Comece por aqui](getting-started/quickstart/) · [Configure o compartilhamento com KOReader](koreader/opds-sharing/)
 
----
+## O que você pode fazer
 
-## O que ele faz
+- Agrupar capítulos em volumes.
+- Preparar livros para dispositivos como Kindle, Kobo e reMarkable, ou definir as dimensões manualmente.
+- Reunir os capítulos e volumes de uma série em um único livro.
+- Salvar os livros processados no computador ou compartilhar com o KOReader pela rede local.
 
-1. **Adicionar**: Arraste pastas de mangá, bibliotecas inteiras ou arquivos `.cbz` para a fila.
-2. **Conferir Volumes**: Se os nomes já contiverem o número do volume (`Vol.01 Ch.001`), os capítulos já vêm agrupados. Caso contrário, o editor visual de mapeamento busca a contagem oficial no **MangaDex** ou permite organizar manualmente com suporte a desfazer/refazer.
-3. **Escolher o Processo**: Reagrupar em CBZ, converter para e-reader ou ambos. Escolha o dispositivo alvo (**Kindle**, **Kobo**, **reMarkable**) e formato (**EPUB**, **CBZ**, **PDF**).
-4. **Processar**: A conversão exibe progresso contínuo página a página com cancelamento instantâneo seguro.
-5. **Salvar ou Compartilhar**: Salve volumes individuais, exporte a série inteira em lote ou compartilhe pela rede Wi-Fi diretamente para o **KOReader** via catálogo OPDS.
+Adicione uma pasta de capítulos ou um arquivo CBZ.
 
----
-
-## O Ecossistema
-
-O Mangabound é uma interface visual que orquestra duas ferramentas autônomas de linha de comando:
-
-* **[mangabind](https://github.com/gustavommcv/mangabind)**: Agrupa capítulos em arquivos `.cbz` por volume com metadados `ComicInfo.xml`.
-* **[mangapress](https://github.com/gustavommcv/mangapress)**: Redimensiona, ajusta contraste, recorta margens e divide páginas duplas em Rust com alta performance.
+O Mangabound está em **alfa**. Os nomes dos controles são mantidos em inglês, como aparecem no aplicativo.

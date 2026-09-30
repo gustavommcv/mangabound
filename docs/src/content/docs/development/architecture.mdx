@@ -1,68 +1,18 @@
 ---
-title: Architecture & Quality Gates
-description: Explore the clean hexagonal architecture, quality gates, and security lockfiles inside Mangabound.
+title: 'Architecture and contributing'
+description: "Use the repository's canonical architecture and contribution guides."
 ---
 
-import { Steps } from '@astrojs/starlight/components';
+Start with the repository's implementation guides:
 
-Mangabound is engineered with a strict **Hexagonal (Ports and Adapters) Architecture**. The core domain rules remain purely functional, decoupled from Electron, Node.js APIs, or DOM manipulation.
+- [Architecture overview](https://github.com/gustavommcv/mangabound/blob/main/docs/architecture.md): layers, allowed dependencies, conversion flow, persistence, and extension points.
+- [CONTRIBUTING](https://github.com/gustavommcv/mangabound/blob/main/CONTRIBUTING.md): setup, formatting, linting, type checking, fixture-based tests, Storybook, packaged E2E, and the exact-commit remote CI gate.
+- [Architecture decision records](https://github.com/gustavommcv/mangabound/tree/main/docs/adr): the reasons and tradeoffs behind accepted decisions.
 
----
+Domain rules do not depend on Electron or React. Adapters implement the application's ports; the sandboxed renderer uses the validated preload bridge instead of accessing files or processes directly.
 
-## Directory & Architectural Layers
+## Contributing to this site
 
-```text
-src/
-├── domain/                  # Pure business logic (Zero dependency on Electron or DOM)
-│   ├── mapping.ts           # Models: MappingDraft, VolumeDraft, ChapterUnit
-│   ├── mapping-editor.ts    # Reducer for mapping operations with undo/redo history
-│   ├── conversion.ts        # Finite state machine for conversion requests
-│   └── output-profile.ts    # Device profiles and validation rules
-│
-├── application/             # Application use cases and boundary ports
-│   ├── ports/               # TypeScript interfaces for adapters
-│   │   ├── conversion-tools.ts # BindingPort and ConversionPort abstractions
-│   │   ├── library-store.ts    # Persistence port for .mangabound/library.json
-│   │   └── opds-server.ts      # Abstract port for the local OPDS catalog
-│   └── workflows/           # Orchestrated end-to-end workflows
-│
-├── adapters/                # Infrastructure implementations
-│   ├── mangabind/           # CLI spawn adapter for Go tool and report parser
-│   ├── mangapress/          # CLI spawn adapter for Rust tool and JSON Lines stream
-│   ├── toolchain/           # SHA-256 verification via toolchain.lock.json
-│   └── opds/                # Express-based HTTP server delivering OPDS 1.2 XML
-│
-├── main/                    # Electron Main process (Window lifecycle & IPC handlers)
-├── preload/                 # Secure ContextBridge exposing strictly-typed APIs
-└── renderer/                # React 19 interface (Tailwind CSS, Radix UI, Lucide)
-```
+See [docs/README.md](https://github.com/gustavommcv/mangabound/blob/main/docs/README.md) for the independent documentation checks and publication policy. GIFs and screenshots follow [the media guide](https://github.com/gustavommcv/mangabound/blob/main/docs/MEDIA.md).
 
----
-
-## Quality Gates & Verification
-
-Mangabound enforces strict local quality gates before any code is merged or released:
-
-```bash
-# Run all gates sequentially
-npm run check
-```
-
-The validation suite includes:
-1. **Formatting & Linting**: ESLint 9 (flat config) and Prettier.
-2. **Type Checking**: Strict TypeScript (`tsc --noEmit`).
-3. **Unit & Contract Testing**: Vitest with strict code coverage gates.
-4. **Visual Testing**: Playwright visual regression tests running against isolated Storybook components.
-5. **End-to-End Testing**: WebdriverIO exercising the packaged desktop application.
-
----
-
-## Storybook Component Isolation
-
-Every visual component in Mangabound is developed and tested in isolation inside Storybook:
-
-```bash
-npm run storybook
-```
-
-This allows contributors to preview and test every error dialog, mapping permutation, and queue state without needing to run real conversions or launch background CLI processes.
+Update both languages when changing a user task. Verify button labels and behavior against the released app; visual media illustrates the instructions but does not replace them.

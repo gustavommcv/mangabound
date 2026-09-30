@@ -1,56 +1,12 @@
 ---
-title: Adding Metadata Providers
-description: Guidelines and interfaces for contributing new online volume metadata sources to Mangabound.
+title: 'Adding metadata sources'
+description: 'Extend the existing provider boundary without duplicating it.'
 ---
 
-import { Steps } from '@astrojs/starlight/components';
+Follow the repository's [canonical provider guide](https://github.com/gustavommcv/mangabound/blob/main/docs/adding-a-metadata-provider.md). It is the maintained checklist for API suitability, terms, attribution, privacy, implementation, and real-response fixtures.
 
-Mangabound currently ships with **MangaDex** as its built-in online metadata provider. If you want to contribute support for other databases (such as AniList, MyAnimeList, Kitsu, or Bangumi), follow the architectural rules outlined below.
+The boundary is **MetadataProviderPort**, in [src/application/ports/metadata-provider.ts](https://github.com/gustavommcv/mangabound/blob/main/src/application/ports/metadata-provider.ts). Providers live under **src/adapters/metadata-providers/** and use its existing registry.
 
----
+Reuse the shared HTTP/error helpers and test against recorded service responses.
 
-## Architectural Ground Rules
-
-Before implementing a new provider, ensure the service adheres to Mangabound's core principles:
-
-1. **Metadata Only**: The provider must only supply title lookups, volume numbers, and chapter counts. Providers that download scans or link to image files will not be accepted.
-2. **Zero Account Requirement**: Users must not be required to register personal API keys or log into third-party accounts.
-3. **Respectful API Usage**:
-   * Adhere strictly to the upstream service's Terms of Service and rate-limit guidelines.
-   * Send a descriptive `User-Agent` header identifying Mangabound.
-4. **Privacy First**: Only query the exact title typed by the user. Never transmit file names, directory paths, or local metadata to external servers.
-
----
-
-## The Provider Interface Contract
-
-All providers implement the `MetadataProvider` interface located in `src/domain/metadata-provider.ts`:
-
-```typescript
-export interface MetadataProvider {
-  readonly id: string;
-  readonly displayName: string;
-  readonly attribution: string;
-
-  /** Searches for series titles matching the query string */
-  search(query: string, signal?: AbortSignal): Promise<readonly ProviderSearchResult[]>;
-
-  /** Retrieves the canonical volume-to-chapter mapping for a selected series */
-  getVolumeMap(seriesId: string, signal?: AbortSignal): Promise<readonly VolumeChapterMap[]>;
-}
-```
-
----
-
-## Step-by-Step Implementation
-
-<Steps>
-1. ### Create the Adapter
-   Add your implementation under `src/adapters/metadata/<provider-name>.ts`. Use standard `fetch` with proper error handling and exponential backoff on HTTP 429 (rate limiting).
-
-2. ### Write Unit & Contract Tests
-   Add comprehensive test coverage in `tests/adapters/metadata/<provider-name>.test.ts`. Use mock HTTP responses to verify edge cases (unreleased volumes, decimal chapters, extra chapters).
-
-3. ### Register in the Provider Picker
-   Expose your new provider inside `src/renderer/components/mapping/provider-picker.tsx` so users can choose between available sources in the Volume Mapping Editor.
-</Steps>
+A source supplies metadata, never manga pages, downloads, or reader links. If an API cannot provide the required volume data or does not meet the acceptance rules, discuss it before implementing an adapter.

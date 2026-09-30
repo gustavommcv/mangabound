@@ -1,50 +1,19 @@
 ---
-title: Conectando no KOReader
-description: Passo a passo para adicionar o catálogo OPDS do Mangabound no KOReader no Kindle, Kobo ou Android.
+title: 'Conectando o KOReader'
+description: 'Adicione o catálogo, baixe um livro e abra no leitor.'
 ---
 
-import { Steps } from '@astrojs/starlight/components';
+import MediaSlot from '../../../../components/MediaSlot.astro';
 
-Depois de iniciar o compartilhamento no Mangabound, conectar o KOReader leva menos de um minuto.
+Primeiro [ative o compartilhamento no Mangabound](../opds-sharing/) e conecte o leitor à mesma rede local acessível.
 
----
+1. No navegador de arquivos do KOReader, abra **OPDS catalog** pelo menu de pesquisa. Os nomes podem variar com a versão e o idioma do KOReader.
+2. Adicione um catálogo chamado **Mangabound**. Cole o endereço exato exibido pelo aplicativo. Preencha usuário/senha apenas se os configurou no Mangabound.
+3. Abra o catálogo e escolha **Recently converted** para encontrar os livros recém-processados, mais recentes primeiro. **Other files** lista livros não registrados na biblioteca compartilhada.
+4. Escolha o livro e baixe para uma pasta do leitor. Abra o arquivo baixado com o KOReader.
 
-## Passo a Passo de Conexão
+<MediaSlot id="reader-catalog" />
 
-<Steps>
-1. ### Conecte na Mesma Rede Wi-Fi
-   Certifique-se de que o seu leitor digital (Kindle, Kobo ou dispositivo Android) está conectado na **mesma rede Wi-Fi local** do computador que está executando o Mangabound.
+Após baixar, o livro é local ao leitor. O Mangabound não precisa continuar aberto para a leitura, apenas para novos downloads. Se o endereço do computador não mudar, reutilize o catálogo quando ativar o compartilhamento novamente.
 
-2. ### Abra o Menu OPDS no KOReader
-   Na tela principal do gerenciador de arquivos do KOReader:
-   * Toque no ícone de **Lupa (Pesquisa)** no menu superior.
-   * Selecione a opção **Catálogo OPDS (OPDS catalog)**.
-
-   :::tip[Espaço para Demonstração Visual]
-   > 📸 **Captura de Tela**: Barra superior do KOReader destacando a lupa de pesquisa e a opção "Catálogo OPDS".
-   :::
-
-3. ### Adicione o Catálogo do Mangabound
-   * Toque em **Adicionar novo catálogo** (ou no botão `+`).
-   * Preencha as informações:
-     * **Título do Catálogo**: `Mangabound`
-     * **URL do Catálogo**: O endereço exibido no painel de compartilhamento do Mangabound (ex: `http://192.168.1.150:8080/opds`).
-     * **Usuário e Senha**: Preencha apenas se tiver configurado no aplicativo; caso contrário, deixe em branco.
-   * Toque em **Salvar** ou **OK**.
-
-4. ### Navegue e Baixe seus Mangás
-   * Toque no catálogo **Mangabound** na lista.
-   * Escolha **Todos os Mangás** ou **Adicionados Recentemente**.
-   * Toque no volume desejado e clique em **Baixar (Download)**.
-   * O KOReader grava o arquivo `.epub` ou `.cbz` diretamente na pasta de livros do seu dispositivo e oferece a opção de abri-lo imediatamente!
-</Steps>
-
-:::tip[Espaço para Demonstração Visual]
-> 📹 **GIF Demonstrativo**: Navegando pelas capas no KOReader, clicando em Baixar via Wi-Fi e abrindo o mangá instantaneamente.
-:::
-
----
-
-## Próximo Passo Recomendado
-
-Antes de começar a ler, consulte o guia de [Configurações Recomendadas do KOReader](../recommended-settings/) para ajustar o refresh de tela e-ink, dithering e corte de páginas.
+Para problemas de conexão, veja a [lista de verificações](../opds-sharing/#se-o-leitor-não-conectar). Para ajustes de exibição, veja [configurações do KOReader](../recommended-settings/).

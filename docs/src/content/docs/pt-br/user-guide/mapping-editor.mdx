@@ -1,70 +1,40 @@
 ---
-title: Editor de Mapeamento de Volumes
-description: Domine o Editor de Mapeamento do Mangabound para agrupar capítulos soltos de scanlation em volumes perfeitos.
+title: 'Organização de volumes'
+description: 'Agrupe capítulos manualmente ou confira uma sugestão online.'
 ---
 
-import { Steps } from '@astrojs/starlight/components';
+import MediaSlot from '../../../../components/MediaSlot.astro';
 
-Um dos maiores desafios ao preparar coleções de mangá é a inconsistência na nomenclatura dos capítulos. Grupos de scanlation frequentemente salvam arquivos apenas como `Capítulo 01`, `Capítulo 02`, sem indicar a qual volume encadernado pertencem.
+O editor define a quais volumes pertencem os capítulos locais. As três abas de **Chapters from** trabalham na mesma organização: você pode corrigir uma sugestão ou criar volumes do zero.
 
-O **Editor de Mapeamento de Volumes** do Mangabound resolve esse problema permitindo inspecionar, agrupar e dividir capítulos com total clareza visual.
+## File names
 
----
+Se os nomes contiverem números de volume, **File names** mostra um resumo da organização reconhecida. O agrupamento usa esses números, não uma quantidade fixa de capítulos por volume.
 
-## Anatomia do Editor
+Use **Edit chapter mapping** para abrir os controles manuais quando precisar corrigir o resumo. **Start over from the names** restaura a organização inicial pelos nomes e descarta as edições.
 
-A interface do editor é dividida em duas áreas principais:
+## Manual: sem consulta online
 
-1. **Árvore de Volumes (Volumes Atribuídos)**: Exibe cada volume criado (ex: `Volume 1`, `Volume 2`), a estimativa total de páginas e os capítulos contidos nele.
-2. **Capítulos Não Atribuídos**: Lista todos os capítulos encontrados no disco que ainda não possuem um volume associado.
+1. Selecione **Manual**. A aba abre automaticamente quando nenhum volume é encontrado nos nomes.
+2. Use **Create volume** para adicionar o primeiro volume.
+3. Selecione capítulos na lista, escolha o volume de destino e use **Assign selected**. Para capítulos numerados consecutivos, use **Assign range**.
+4. Repita para os outros volumes. Atribuir um capítulo já colocado o move, sem duplicá-lo.
+5. Resolva os problemas listados e use **Confirm mapping**.
 
-:::tip[Espaço para Demonstração Visual]
-> 📸 **Captura de Tela**: Interface do Editor de Mapeamento com o Volume 1 contendo os Capítulos 1 a 7 e uma gaveta lateral com capítulos restantes.
-:::
+Use os controles do editor para alterar números de volume ou mesclar volumes. Os botões de desfazer/refazer permitem reverter alterações.
 
----
+<MediaSlot id="manual-mapping" />
 
-## Métodos de Agrupamento
+## Online source: sugestões opcionais
 
-Você dispõe de três maneiras práticas para organizar seus capítulos:
+Escolha **Online source**, selecione MangaDex, informe o título e pressione **Search**.
 
-### 1. Busca Online via MangaDex
-O método mais rápido para séries conhecidas:
-<Steps>
-1. Clique no botão **Do MangaDex** na barra superior do editor.
-2. Digite o título oficial da obra (ex: *Chainsaw Man* ou *Sousou no Frieren*).
-3. Selecione o resultado correspondente na lista de busca.
-4. O Mangabound consulta a API pública do MangaDex, identifica quais capítulos compõem cada volume oficial e distribui seus arquivos locais automaticamente!
-</Steps>
+Escolha a obra com **Use these volumes**, confira o resumo e confirme ou use **Edit chapter mapping**. Uma sugestão pode estar incompleta ou diferir da sua edição; confira capítulos especiais e decimais. Se a obra não existir na fonte, use **Manual**.
 
-:::note[Privacidade e Conformidade com APIs]
-O Mangabound consulta exclusivamente metadados numéricos de capítulos. O aplicativo nunca baixa imagens protegidas por direitos autorais nem faz upload dos seus arquivos locais.
-:::
+<MediaSlot id="online-mapping" />
 
-### 2. Atribuição Automática (Auto-Assign)
-Para uso offline, clique em **Auto-Assign**. O Mangabound utiliza algoritmos heurísticos locais para identificar padrões nos nomes das pastas (como marcadores `[v01]`, `Vol. 1` ou intervalos numéricos comuns).
+## Pulando o agrupamento
 
-### 3. Edição Manual e Ajuste Fino
-Controle granular sobre cada capítulo individual:
-* **Arrastar e Soltar**: Mova capítulos entre volumes ou retorne-os para a lista de não atribuídos.
-* **Adicionar Volume**: Clique em **Adicionar Volume** para criar o Volume `N+1`.
-* **Mesclar Volumes**: Una volumes adjacentes para criar volumes duplos ou edições omnibus.
-* **Desfazer e Refazer (Undo/Redo)**: Qualquer alteração errada pode ser revertida com `Ctrl+Z` / `Cmd+Z` ou pelos botões de desfazer na barra superior.
+**Skip grouping** aparece quando o fluxo permite converter sem reagrupar. Fica bloqueado em **Create one book for the series**, pois esse modo precisa dos volumes organizados para o índice aninhado do EPUB.
 
----
-
-## O Arquivo `mangabind.json`
-
-Ao confirmar o mapeamento, o Mangabound salva a organização em um arquivo padronizado chamado `mangabind.json`:
-
-```json
-{
-  "schema_version": 1,
-  "volumes": [
-    { "number": "1", "chapters": ["1-7"] },
-    { "number": "2", "chapters": ["8-16", "8.5"] }
-  ]
-}
-```
-
-Seguindo o [Princípio CLI-First](../../getting-started/overview/#1-regra-mandat%C3%B3ria-de-cli-first), este arquivo é universal. Você pode copiá-lo para a pasta do mangá em qualquer outro computador e executar o `mangabind` pelo terminal sem precisar abrir a interface gráfica!
+A organização é enviada ao mangabind no [formato de metadados documentado](https://github.com/gustavommcv/mangabind/blob/main/docs/adr/0010-local-metadata-file.md). Não é necessário editar JSON para utilizar o editor.

@@ -1,52 +1,27 @@
 ---
-title: Processing & Queue
-description: Track real-time conversion progress, understand stages, and manage running tasks.
+title: 'Processing'
+description: 'Understand stages, volume progress, cancellation, and failures.'
 ---
 
-When you click **Start Conversion**, Mangabound orchestrates the underlying tools and transitions to the **Running Screen**.
+import MediaSlot from '../../../components/MediaSlot.astro';
 
----
+After **Process**, Mangabound performs the selected steps:
 
-## The Execution Pipeline
+1. **Building volume files**: mangabind groups the mapped chapters and writes intermediate CBZs. Follow the chapter and page counts as the volumes are built.
+2. **Converting**: mangapress processes pages and writes the requested format. Several volumes may run at the same time, so use **Show details** to see their individual states.
 
-Because tasks run sequentially or in parallel depending on CPU resources, each item proceeds through two distinct phases:
+The overall bar tracks the run. Under **Show details**, **Saving** means a book is being packaged or written. Its bar stays below 100% until that finishes, even after all pages have been processed.
 
-### Phase 1: Chapter Binding (`mangabind`)
-If you selected *Regroup into CBZ* or *Both*, Mangabound runs `mangabind` with your saved `mangabind.json` metadata:
-* Uncompresses images safely in isolated temporary workspaces.
-* Arranges chapters into volume folders in natural alphanumeric order.
-* Embeds standard `ComicInfo.xml` metadata containing series name, volume numbers, and language codes.
-* Packs each volume into an uncorrupted `.cbz` archive.
+<MediaSlot id="processing-details" />
 
-### Phase 2: Hardware Image Processing (`mangapress`)
-Mangabound launches `mangapress` for each volume with the `--json-events` flag enabled. This allows the GUI to receive real-time telemetry over standard output:
+## Cancel or handle a failure
 
-```
-[Inspect] ➔ [Plan] ➔ [Process Pages (Parallel CPU Rayon)] ➔ [Package EPUB] ➔ [Atomic Write]
-```
+Use **Cancel** to stop the active run. Wait for the app to finish stopping before starting again. Cancellation does not remove your source manga.
 
-* **Inspect & Metadata**: Reads image dimensions and color depths.
-* **Process (Live Progress)**: Every time a core finishes resizing, cropping, and contrast-tuning a page, a JSON event is dispatched. Mangabound updates the progress bar instantly:
-  * Example: `Converting: Page 142 of 210 (68%)`
-* **Package & Atomic Write**: The book is assembled and written to disk safely to prevent corrupt files.
+If an item fails or is skipped, read its message on the results screen. Use **Fix** when offered to correct missing volume assignments. For a disk/write error, check available space and permissions. An online-source error does not stop you from using manual mapping.
 
-:::tip[Media Demonstration Placeholder]
-> 📹 **GIF Demo**: Real-time progress bar ticking smoothly as multiple CPU threads process manga pages in parallel.
-:::
+Successful books can still be saved even if another item failed. See [saving and pending books](../exporting/).
 
----
+## If you report a problem
 
-## Safe Task Cancellation
-
-If you realize you selected the wrong device profile or need to stop a long job:
-1. Click the **Cancel** button on the running item.
-2. Mangabound sends an immediate termination signal (`SIGINT` / process tree kill) to the active `mangabind` or `mangapress` process.
-3. Temporary working files are cleaned up, ensuring no incomplete or corrupt `.epub` files clutter your destination directory.
-
----
-
-## State Persistence
-
-Unsaved ready books are never lost!
-* If you close Mangabound while finished books are waiting to be saved, Mangabound records them in its local application state.
-* When you re-open Mangabound, your converted books will still be listed under **Ready books**, ready to be exported or shared to KOReader.
+Include the app version, input structure (folder, library, or CBZ), device, format, enabled steps, and the exact message. Do not post your manga files or private filesystem paths unless you deliberately choose to share them.

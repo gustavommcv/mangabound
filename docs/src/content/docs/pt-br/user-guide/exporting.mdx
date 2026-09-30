@@ -1,35 +1,40 @@
 ---
-title: Exportação e Livros Prontos
-description: Como salvar livros finalizados no seu disco, abrir no aplicativo padrão do sistema ou organizar sua biblioteca.
+title: 'Salvamento e livros prontos'
+description: 'Salve, abra, compartilhe ou descarte conversões pendentes.'
 ---
 
-Quando o processamento termina, o Mangabound reúne todos os arquivos concluídos na tela **Livros Prontos (Ready Books)**.
+import MediaSlot from '../../../../components/MediaSlot.astro';
 
----
+## Salve uma cópia
 
-## Opções de Exportação
+Use **Save as…** ao lado de um livro para escolher nome e destino. Para vários livros, **Save all to folder…** copia todos para a pasta selecionada.
 
-### 1. Salvar como… (Volume Individual)
-Clique em **Salvar como…** ao lado de qualquer livro finalizado para abrir o diálogo nativo do sistema operacional. Escolha o destino no seu computador, em um HD externo ou diretamente no armazenamento de um leitor conectado via cabo USB.
+Você pode salvar novamente enquanto os livros pendentes estiverem disponíveis. O salvamento em lote não substitui arquivos existentes: utiliza um nome numerado livre. Portanto, salvar repetidamente pode gerar cópias extras. **Save as…** individual utiliza a confirmação de sobrescrita do diálogo nativo.
 
-### 2. Salvar tudo na pasta… (Exportação em Lote)
-Se você converteu uma série completa com dezenas de volumes:
-1. Clique no botão **Salvar tudo na pasta…** no topo da lista.
-2. Selecione o diretório de destino (ex: `D:/Mangas/Berserk/`).
-3. O Mangabound exporta todos os volumes sequencialmente. Arquivos com o mesmo nome já existentes na pasta nunca são sobrescritos sem aviso prévio.
+Se houver falha ou aviso, leia a mensagem e tente novamente. Um livro pode ter sido copiado mesmo quando seu registro no catálogo do destino falhou; confira a pasta antes de fazer outra cópia. A cópia pendente continua disponível para recuperação.
 
-:::note[Memorização do Último Local]
-O Mangabound memoriza a última pasta de exportação utilizada e a sugere automaticamente nas próximas conversões, eliminando navegação repetitiva.
-:::
+<MediaSlot id="save-results" />
 
----
+## Abra ou compartilhe
 
-## Gerenciando Livros Prontos
+- A ação de abrir ao lado do livro utiliza o aplicativo padrão do sistema operacional. Se nenhum estiver associado a EPUB/CBZ/PDF, instale um leitor compatível ou configure a associação.
+- A ação de pasta aparece para um livro salvo e mostra seu destino.
+- **Share these books** disponibiliza os livros pendentes por OPDS sem exigir exportação antes. Veja [compartilhamento local](../../koreader/opds-sharing/).
 
-* **Abrir Livro**: Clicar sobre o título ou ícone do livro abre o arquivo imediatamente no leitor padrão instalado no seu sistema (ex: Calibre, SumatraPDF ou Apple Books).
-* **Remover da Lista**: Se um volume foi convertido com configurações incorretas e você deseja descartá-lo da memória temporária, clique no ícone de lixeira. Uma caixa de confirmação explica que cópias já gravadas no disco não são afetadas.
-* **Enviar para o KOReader**: Clique em **Compartilhar estes livros** para abrir a central OPDS de entrega sem fio sem precisar salvar manualmente os arquivos antes!
+## O que permanece após reiniciar?
 
-:::tip[Espaço para Demonstração Visual]
-> 📸 **Captura de Tela**: Tela de Livros Prontos com 12 volumes gerados, destacando os botões "Salvar tudo na pasta" e "Enviar para o KOReader".
+Os livros pendentes ficam nos dados locais persistentes do Mangabound, não na pasta temporária do sistema. Conversões ainda não salvas, parcialmente salvas ou com avisos continuam em **Ready books** na fila. **View books** abre seus resultados.
+
+Quando todos os livros de uma conversão concluída foram salvos e registrados com sucesso, suas cópias pendentes podem ser removidas ao fechar o aplicativo. As cópias exportadas permanecem no destino escolhido. Faça seus próprios backups; os dados pendentes não são uma biblioteca permanente.
+
+<MediaSlot id="ready-books" />
+
+## Exclua livros pendentes
+
+Em **Ready books**, na fila, cada grupo de conversão tem uma ação **Delete**. Após confirmação, ela remove permanentemente **todos os livros gerados pendentes daquele grupo**, não apenas uma linha ou um volume escolhido.
+
+A exclusão não remove a entrada original nem cópias exportadas para outra pasta. Fica bloqueada durante uma conversão ou enquanto os livros daquele grupo estão sendo salvos ou compartilhados. Pare o compartilhamento ou espere a operação terminar e tente novamente.
+
+:::caution[Salve primeiro]
+Se a conversão pendente for sua única cópia, Delete descarta seus livros gerados. Para recuperá-los, seria necessário processar a entrada original novamente.
 :::

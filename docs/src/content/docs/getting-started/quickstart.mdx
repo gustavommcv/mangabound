@@ -1,74 +1,46 @@
 ---
-title: Quick Start Guide
-description: Go from raw manga chapters to reading on your e-reader in under 3 minutes.
+title: 'Quickstart'
+description: 'Add, organize, process, and save your first manga.'
 ---
 
-import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import MediaSlot from '../../../components/MediaSlot.astro';
 
-Welcome to the Mangabound Quick Start guide. In this walkthrough, you'll see how to prepare a series, organize its chapters into volumes, convert it for your e-reader, and optionally send it over Wi-Fi to KOReader.
+## 1. Add your manga
 
----
+Drag a manga folder or CBZ into the queue, or use **Files** or **Folder**. Clicking the drop area lets you choose what to add.
 
-## The 5-Step Conversion Workflow
+A folder holds separate chapters. A single CBZ is treated as one complete volume; for separate chapter CBZs, add their containing folder instead.
 
-<Steps>
-1. ### Add Your Manga
-   Launch Mangabound. You will be greeted by the **Queue Screen**.
-   
-   * **Drag and drop** a folder of manga chapters, individual `.cbz` files, or an entire manga library folder directly into the window.
-   * Alternatively, click the large drop area to open your system's native folder picker.
+<MediaSlot id="quickstart-add" />
 
-   :::tip[Visual Media Placeholder]
-   > 📹 **GIF Demo**: Dragging a manga folder onto Mangabound's drop target and seeing it added to the conversion queue.
-   :::
+## 2. Check the volumes
 
-2. ### Check Volume Mappings
-   Mangabound immediately executes a background dry-run using `mangabind` to parse chapter names.
-   
-   * If folder names include volume information (e.g. `Vol.01 Ch.001 - Title`), chapters are **automatically assigned** to their corresponding volumes.
-   * If folder names only contain chapter numbers (`Chapter 01`, `Chapter 02`), the **Volume Mapping Editor** will flag them as unassigned:
-     * Click **From MangaDex** to search the series title online and fetch official volume chapter counts.
-     * Or click **Auto-Assign** to let Mangabound detect volume boundaries from patterns.
-     * You can also drag chapters, create new volumes, or split ranges manually.
+For a chapter folder, use the **Edit volumes** action to check its mapping.
 
-   :::tip[Visual Media Placeholder]
-   > 📸 **Screenshot / GIF**: The Volume Mapping Editor showing chapters grouped into Volume 1 and Volume 2 with MangaDex sync.
-   :::
+- **File names** summarizes volumes already recognized from chapter names.
+- **Manual** lets you create volumes and assign selected chapters or a chapter range.
+- **Online source** optionally searches MangaDex for a suggestion. Check its result before confirming.
 
-3. ### Choose Your E-Reader Settings
-   In the **Settings Panel** on the right side:
-   
-   * **Process Steps**:
-     * *Regroup into CBZ*: Consolidates chapters into clean `.cbz` files per volume.
-     * *Convert for e-reader*: Applies the `mangapress` image processing pipeline.
-     * *Both*: Does both steps in a single automated pass.
-   * **Device Profile**: Select your target hardware (e.g., **Kindle Paperwhite**, **Kindle Oasis**, **Kobo Libra 2**, **reMarkable 2**).
-   * **Format**: Choose between **EPUB** (recommended for KOReader and native reading), **CBZ**, or **PDF**.
-   * **Manga Reading Direction**: Enabled by default (right-to-left spread splitting).
+If no volumes were recognized, the editor opens **Manual** with an explanation. You can organize everything offline; an online entry is not required. See [volume mapping](../../user-guide/mapping-editor/) for the steps.
 
-4. ### Start Processing
-   Click the **Start Conversion** button.
-   
-   * Mangabound will switch to the **Running Screen**.
-   * As `mangapress` processes each page, you will see real-time updates:
-     * Current stage: *Inspecting*, *Cropping margins*, *Optimizing images*, *Packaging EPUB*.
-     * Precise page counter: e.g. *Page 84 of 192*.
-   * If needed, conversions can be safely cancelled at any moment.
+## 3. Choose your device and format
 
-   :::tip[Visual Media Placeholder]
-   > 📹 **GIF Demo**: Live progress bar ticking page-by-page as mangapress converts a volume in parallel.
-   :::
+In **Steps**, keep **Group chapters into volumes** and **Convert for e-reader** enabled to do both. Select **Device** and **Format**. Use **Advanced conversion options** only if you need to change image settings.
 
-5. ### Save or Share to KOReader
-   Once finished, your items appear in **Ready Books**:
-   
-   * **Save to Disk**: Click **Save as…** for an individual book or **Save all to folder…** for a series export.
-   * **Send to KOReader (Over Wi-Fi)**: Click **Share these books** to start the local OPDS 1.2 server. In KOReader, navigate to OPDS catalogs and download your new books wirelessly!
-</Steps>
+Want the entire series in one book? Enable **Create one book for the series**. This mode uses EPUB and keeps both steps enabled. Turn it off to change the format or steps.
 
----
+## 4. Process
 
-## What's Next?
+Click **Process** (or **Process N items** for a queue). The app shows overall progress; **Show details** reveals individual volume progress where available. Larger books take longer, and saving can continue after page processing finishes.
 
-* Dive into the [Volume Mapping Editor Guide](../../user-guide/mapping-editor/) to learn how to handle complex scanlation naming conventions.
-* Read the [KOReader Recommended Settings](../../koreader/recommended-settings/) to optimize KOReader's e-ink rendering engine for manga.
+## 5. Save or share
+
+Use **Save as…** beside a book, or **Save all to folder…** for several books. You can save again to a different destination without converting again while the pending books remain available.
+
+**Share these books** lets KOReader download them over your local network, even before you export a copy. Follow the [sharing guide](../../koreader/opds-sharing/).
+
+<MediaSlot id="quickstart-save" />
+
+:::note[Do not discard your only copy]
+Unsaved finished books remain under **Ready books** after restarting the app. **Delete** removes a conversion's pending books, not just its row. Save anything you want to keep first. [How saving and deletion work](../../user-guide/exporting/).
+:::

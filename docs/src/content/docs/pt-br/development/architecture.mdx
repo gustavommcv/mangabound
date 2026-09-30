@@ -1,68 +1,18 @@
 ---
-title: Arquitetura e Critérios de Qualidade
-description: Conheça a arquitetura hexagonal limpa, critérios de testes e travas de segurança do Mangabound.
+title: 'Arquitetura e contribuição'
+description: 'Consulte os guias de arquitetura e contribuição.'
 ---
 
-import { Steps } from '@astrojs/starlight/components';
+Comece pelos guias de implementação do repositório:
 
-O Mangabound foi estruturado seguindo rigorosamente os princípios da **Arquitetura Hexagonal (Portas e Adaptadores)**. As regras de negócio centrais são puras e totalmente desacopladas do Electron, APIs nativas do Node.js ou do DOM.
+- [Visão geral da arquitetura](https://github.com/gustavommcv/mangabound/blob/main/docs/architecture.md): camadas, dependências permitidas, conversão, persistência e pontos de extensão.
+- [CONTRIBUTING](https://github.com/gustavommcv/mangabound/blob/main/CONTRIBUTING.md): preparação, formatação, lint, tipos, testes com fixtures, Storybook, E2E empacotado e verificação da CI remota do commit exato.
+- [Registros de decisão](https://github.com/gustavommcv/mangabound/tree/main/docs/adr): motivos e limitações das decisões aceitas.
 
----
+As regras de domínio não dependem de Electron ou React. Adaptadores implementam as portas da aplicação; a interface isolada usa a ponte validada do preload, sem acessar diretamente arquivos ou processos.
 
-## Camadas da Aplicação
+## Contribuindo com o site
 
-```text
-src/
-├── domain/                  # Lógica de domínio pura (Zero dependência de Electron ou DOM)
-│   ├── mapping.ts           # Modelos de dados imutáveis (MappingDraft, VolumeDraft, etc.)
-│   ├── mapping-editor.ts    # Redutor de ações do editor com histórico de Undo/Redo
-│   ├── conversion.ts        # Máquina de estados finitos do ciclo de conversão
-│   └── output-profile.ts    # Definição e validação de perfis de hardware
-│
-├── application/             # Casos de uso e portas de entrada/saída
-│   ├── ports/               # Interfaces TypeScript desacopladas
-│   │   ├── conversion-tools.ts # Portas abstratas BindingPort e ConversionPort
-│   │   ├── library-store.ts    # Porta de persistência da biblioteca
-│   │   └── opds-server.ts      # Porta para o servidor local OPDS
-│   └── workflows/           # Orquestração dos fluxos ponta a ponta
-│
-├── adapters/                # Implementações concretas de infraestrutura
-│   ├── mangabind/           # Adaptador de execução da CLI em Go e parser JSON
-│   ├── mangapress/          # Adaptador da CLI em Rust e parser do stream JSON Lines
-│   ├── toolchain/           # Verificação criptográfica SHA-256 via toolchain.lock.json
-│   └── opds/                # Servidor HTTP Express servindo catálogo OPDS 1.2
-│
-├── main/                    # Processo Principal do Electron (Janela nativa e IPC)
-├── preload/                 # Ponte segura de contexto (ContextBridge) fortemente tipada
-└── renderer/                # Interface visual em React 19 (Tailwind CSS, Radix UI, Lucide)
-```
+Consulte [docs/README.md](https://github.com/gustavommcv/mangabound/blob/main/docs/README.md) para as verificações independentes e a política de publicação. GIFs e capturas seguem o [guia de mídia](https://github.com/gustavommcv/mangabound/blob/main/docs/MEDIA.md).
 
----
-
-## Critérios de Qualidade (Gates)
-
-Antes de qualquer código ser mesclado ou liberado em release, todos os gates de validação são testados:
-
-```bash
-# Executa todos os testes e verificações
-npm run check
-```
-
-A esteira de qualidade contempla:
-1. **Formatação e Lint**: ESLint 9 e Prettier.
-2. **Checagem de Tipos**: TypeScript rigoroso (`tsc --noEmit`).
-3. **Testes Unitários e de Contrato**: Vitest com cobertura estrita de código.
-4. **Testes Visuais**: Playwright para regressão visual rodando sobre histórias do Storybook.
-5. **Testes End-to-End**: WebdriverIO testando o executável final empacotado.
-
----
-
-## Desenvolvimento Isolado com Storybook
-
-Todos os componentes visuais do Mangabound podem ser inspecionados no Storybook:
-
-```bash
-npm run storybook
-```
-
-Isso permite testar telas de erro, volumes complexos e variações de layout sem precisar processar arquivos reais de mangá no disco.
+Atualize os dois idiomas ao alterar uma tarefa. Confira rótulos e comportamento na versão publicada; as mídias ilustram as instruções, sem substituí-las.

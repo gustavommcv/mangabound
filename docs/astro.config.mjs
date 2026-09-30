@@ -2,10 +2,15 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 
+import { base, site } from './site.config.mjs';
+
 // https://astro.build/config
 export default defineConfig({
-  site: 'https://gustavommcv.github.io',
-  base: process.env.BASE_PATH || '/mangabound/',
+  site,
+  base,
+  trailingSlash: 'always',
+  // This package must not load the Electron application's parent PostCSS configuration.
+  vite: { css: { postcss: { plugins: [] } } },
   devToolbar: {
     enabled: false,
   },
@@ -29,10 +34,6 @@ export default defineConfig({
         },
       },
       customCss: ['./src/styles/custom.css'],
-      components: {
-        ThemeSelect: './src/components/ThemeSelect.astro',
-        ThemeProvider: './src/components/ThemeProvider.astro',
-      },
       sidebar: [
         {
           label: 'Introduction',
@@ -43,41 +44,38 @@ export default defineConfig({
           label: 'User Guide',
           translations: { 'pt-BR': 'Guia do Usuário' },
           items: [
-            { label: 'Overview & Ecosystem', slug: 'getting-started/overview' },
-            { label: 'Installation', slug: 'getting-started/installation' },
-            { label: 'Quickstart', slug: 'getting-started/quickstart' },
-            { label: 'Queue & Adding Manga', slug: 'user-guide/adding-manga' },
-            { label: 'Volume Mapping Editor', slug: 'user-guide/mapping-editor' },
-            { label: 'Output Profiles & Settings', slug: 'user-guide/output-profiles' },
-            { label: 'Processing & Queue', slug: 'user-guide/processing' },
-            { label: 'Exporting & Ready Books', slug: 'user-guide/exporting' },
+            { slug: 'getting-started/installation' },
+            { slug: 'getting-started/quickstart' },
+            { slug: 'user-guide/adding-manga' },
+            { slug: 'user-guide/mapping-editor' },
+            { slug: 'user-guide/output-profiles' },
+            { slug: 'user-guide/processing' },
+            { slug: 'user-guide/exporting' },
+            { slug: 'getting-started/overview' },
           ],
         },
         {
           label: 'KOReader & E-Reader Setup',
           translations: { 'pt-BR': 'KOReader e E-Readers' },
           items: [
-            { label: 'Recommended Reader Settings', slug: 'koreader/recommended-settings' },
-            { label: 'Wi-Fi Sharing via OPDS', slug: 'koreader/opds-sharing' },
-            { label: 'Connecting in KOReader', slug: 'koreader/connecting' },
+            { slug: 'koreader/opds-sharing' },
+            { slug: 'koreader/connecting' },
+            { slug: 'koreader/recommended-settings' },
           ],
         },
         {
           label: 'CLI Reference (Power Users)',
           translations: { 'pt-BR': 'Referência das CLIs' },
           items: [
-            { label: 'mangabind CLI (Go)', slug: 'cli/mangabind' },
-            { label: 'mangapress CLI (Rust)', slug: 'cli/mangapress' },
-            { label: 'Machine Protocol v1', slug: 'cli/machine-protocol' },
+            { slug: 'cli/mangabind' },
+            { slug: 'cli/mangapress' },
+            { slug: 'cli/machine-protocol' },
           ],
         },
         {
           label: 'Contributing & Development',
           translations: { 'pt-BR': 'Contribuição e Desenvolvimento' },
-          items: [
-            { label: 'Architecture & Verification', slug: 'development/architecture' },
-            { label: 'Adding Metadata Providers', slug: 'development/metadata-providers' },
-          ],
+          items: [{ slug: 'development/architecture' }, { slug: 'development/metadata-providers' }],
         },
       ],
     }),

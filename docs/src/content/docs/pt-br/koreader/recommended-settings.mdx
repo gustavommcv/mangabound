@@ -1,103 +1,48 @@
 ---
-title: Configurações Recomendadas do KOReader
-description: Ajustes essenciais no KOReader para renderização perfeita de mangá, eliminação de ghosting e imersão total em telas e-ink.
+title: 'Configurações do KOReader'
+description: 'Escolha ajustes para o formato do livro e seu dispositivo.'
 ---
 
-import { Steps } from '@astrojs/starlight/components';
+import MediaSlot from '../../../../components/MediaSlot.astro';
 
-Embora o KOReader funcione de forma satisfatória logo após a instalação, páginas de mangá possuem retículas densas, contrastes profundos e artes complexas que demandam calibrações específicas em telas de tinta eletrônica (*e-ink*).
+## Ajustes para o seu livro
 
-As configurações abaixo eliminam imagens-fantasma (*ghosting*), maximizam a área útil da tela e garantem ilustrações nítidas e com gradientes suaves.
+O KOReader trata EPUB de forma diferente de CBZ e PDF, por isso os controles de página dependem do formato do livro. CBZ é uma escolha prática para ajustar páginas de imagem; EPUB é útil para navegar pelo índice de capítulos e volumes.
 
-:::tip[Salvar como Padrão Permanente]
-No KOReader, ao **pressionar e segurar (toque longo)** sobre qualquer uma dessas opções, ela será gravada como a **configuração padrão permanente para aquele formato de arquivo** (`.epub` ou `.cbz`).
-:::
+Abra algumas páginas e experimente os ajustes abaixo na sua tela. Os nomes e a posição dos menus podem variar conforme a versão, o idioma e o dispositivo. O [guia oficial do KOReader](https://koreader.rocks/user_guide/) explica os controles de cada formato e a pesquisa de menus.
 
----
+## Overlap status bar
 
-## 1. Sobrepor Barra de Status (Overlap status bar)
+Com um livro aberto, procure **Status bar → Overlap status bar**. A opção permite que a página use a área reservada à barra de status. Confira se a barra não cobre detalhes que você quer ver.
 
-Por padrão, a barra de status inferior ou superior pode empurrar a arte do mangá, encolhendo os quadrinhos e criando faixas pretas indesejadas.
+Veja as [configurações da barra de status do KOReader](https://github.com/koreader/koreader/blob/master/frontend/apps/reader/modules/readerfooter.lua).
 
-* Abra um volume de mangá no KOReader.
-* Toque na parte superior da tela para abrir o menu suspenso.
-* Vá para a aba **Documento / Engrenagem** (segundo menu).
-* Ative a opção **Sobrepor barra de status (Overlap status bar)**.
+<MediaSlot id="reader-statusbar" />
 
-Isso permite que a página de mangá ocupe 100% da altura física da tela, posicionando informações como porcentagem e bateria de forma discreta sobre as margens da página.
+## Full refresh rate
 
-:::tip[Espaço para Demonstração Visual]
-> 📸 **Captura de Tela**: Opção "Overlap status bar" habilitada no menu de documento do KOReader.
-:::
+Em um leitor e-ink, experimente **Screen → eInk settings → Full refresh rate → Every page** se aparecerem marcas da página anterior.
 
----
+A atualização completa pode reduzir essas marcas, mas também causar um flash visível ou tornar a troca de páginas mais lenta. Compare com o padrão no seu aparelho. A opção se aplica a telas e-ink compatíveis, não a telas LCD. Consulte as opções de atualização no [guia do KOReader](https://koreader.rocks/user_guide/).
 
-## 2. Atualização Completa da Tela em Cada Página (Full Refresh)
+<MediaSlot id="reader-refresh" />
 
-Como páginas de mangá alternam quadros pretos densos com áreas brancas abertas, as telas e-ink acumulam sombras da página anterior (*ghosting*). Forçar uma atualização completa a cada virada de página mantém os pretos puros e os traços cristalinos.
+## Controles de página para CBZ/PDF
 
-<Steps>
-1. Toque na parte superior da tela para abrir o menu do KOReader.
-2. Acesse a aba **Configurações de Tela (Screen)**.
-3. Toque em **Configurações do eInk (eInk settings)**.
-4. Ajuste a **Taxa de atualização completa (Full refresh rate)** para **A cada página (Every page)** ou `1`.
-</Steps>
+Experimente a exibição por página e o ajuste da página inteira à tela. Se o livro já ocupa bem a tela, deixe o recorte desativado: a conversão pode ter removido as margens, e outro recorte pode cortar a arte.
 
-```text
-Menu Superior ➔ Tela ➔ Configurações do eInk ➔ Taxa de atualização completa ➔ A cada página
-```
+Esses são controles de CBZ/PDF. Para EPUB, use as opções do próprio menu de leitura. Altere um ajuste por vez e compare algumas páginas antes de salvar suas preferências.
 
-:::note[Consumo de Bateria]
-Os controladores modernos de e-ink (Kindle Paperwhite, Kobo Carta 1200, etc.) realizam o refresh em milissegundos. O impacto na bateria é insignificante, mas a nitidez e o contraste visual aumentam drasticamente.
-:::
+## Tweak document settings
 
----
+Para usar padrões diferentes em uma pasta de mangás e outra de livros de texto, há o plugin avançado **Tweak document settings**. Ele aplica os padrões da pasta na primeira abertura de um livro.
 
-## 3. Modo de Exibição: "Página" e Corte Automático (Page Crop)
+O plugin usa um arquivo de configuração Lua e não é a mesma função dos ajustes de estilo de EPUB. Siga as [instruções oficiais](https://github.com/koreader/koreader/wiki/Tweak-document-settings-by-directory) e faça backup antes de editar a configuração. Livros que você já abriu podem manter seus ajustes individuais.
 
-Garanta que o KOReader trate o mangá como páginas fixas fechadas e não como texto contínuo:
+<MediaSlot id="reader-directory-defaults" />
 
-* Abra o menu inferior do KOReader.
-* Na quarta aba, ajuste o **Modo de Exibição (View Mode)** para **Página (Page)**.
-* Na segunda aba, defina o **Corte de Página (Page Crop)** para **Automático (Auto)**.
+## Salvando um padrão
 
-:::tip[Espaço para Demonstração Visual]
-> 📸 **Captura de Tela**: Menu inferior com Modo de Exibição em "Page" e Corte de Página em "Auto".
-:::
+Alguns controles permitem salvar um padrão com toque longo; outros abrem ajuda ou outro diálogo. Siga a confirmação exibida para aquele controle. Livros já abertos podem manter seus próprios ajustes.
 
----
-
-## 4. Ajustar Página Inteira na Tela (Fit to Screen)
-
-* No menu inferior, acerte o submenu **Ajuste (Fit)** (terceira aba).
-* Configure o **Ajuste** para **Completo (Full)** ou **Ajustar à Página (Fit to page)**.
-
-Isso garante que cada página seja redimensionada proporcionalmente para caber inteira no display, sem exigir rolagem horizontal ou cortes acidentais.
-
----
-
-## 5. Ativar Dithering
-
-Em displays e-ink de 16 tons de cinza ou coloridos, gradientes de céu ou sombras podem gerar faixas digitais duras (*banding*).
-
-* No menu inferior, navegue até a penúltima aba (ajustes de imagem).
-* Ative o **Dithering** (deixe em **On**).
-
-O pontilhismo de difusão (*dithering*) suaviza as passagens entre tons escuros e claros, conferindo um acabamento rico e análogo à arte impressa.
-
-:::tip[Espaço para Demonstração Visual]
-> 📸 **Captura de Tela**: Comparação com Dithering desligado (faixas duras) versus Dithering ligado (gradiente suave).
-:::
-
----
-
-## Tabela Resumo das Configurações Ideais
-
-| Configuração | Onde Encontrar | Valor Recomendado | Finalidade |
-|---|---|---|---|
-| **Overlap status bar** | Menu Superior ➔ Documento | **Ativado (On)** | Aproveitamento de 100% da altura da tela |
-| **Full refresh rate** | Tela ➔ Configurações eInk | **A cada página (Every page)** | Elimina fantasmas e sombras de retículas |
-| **View Mode** | Menu Inferior ➔ Exibição | **Página (Page)** | Layout de página individual |
-| **Page Crop** | Menu Inferior ➔ Recorte | **Auto** | Remove bordas brancas residuais |
-| **Fit** | Menu Inferior ➔ Ajuste | **Full (Completo)** | Enquadra toda a página no display |
-| **Dithering** | Menu Inferior ➔ Imagem | **Ativado (On)** | Gradientes contínuos em 16 tons de cinza |
+Se um livro continuar sendo exibido incorretamente, informe a versão do KOReader, o dispositivo, o formato e os ajustes ao pedir ajuda.

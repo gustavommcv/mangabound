@@ -1,83 +1,24 @@
 ---
-title: mangabind CLI Reference
-description: Complete command-line manual for mangabind — the autonomous chapter bundler in Go.
+title: 'mangabind CLI'
+description: 'Group chapters into volumes from the terminal.'
 ---
 
-import { Tabs, TabItem } from '@astrojs/starlight/components';
+To use mangabind from the terminal, download it from [GitHub Releases](https://github.com/gustavommcv/mangabind/releases) and add its folder to your PATH.
 
-**`mangabind`** is a standalone, dependency-free CLI utility written in Go. Its sole responsibility is inspecting unstructured chapter directories or loose chapter `.cbz` files and organizing them into consolidated, numbered volume `.cbz` archives containing standard `ComicInfo.xml` metadata.
+## Try it
 
----
-
-## Installation & Binary Location
-
-In a standard Mangabound desktop installation, `mangabind` is bundled internally under the application's runtime directories.
-
-To use `mangabind` standalone:
-* Download the compiled binary directly from [github.com/gustavommcv/mangabind/releases](https://github.com/gustavommcv/mangabind/releases).
-* Place it in your system's `PATH` (e.g. `/usr/local/bin` on Linux/macOS or `C:\Windows\System32` on Windows).
-
----
-
-## Command-Line Usage
-
-```bash
-mangabind [options] --input <path> --output <path>
+```sh
+mangabind --help
+mangabind --input "./Manga" --dry-run --json
+mangabind --input "./Library" --output "./Volumes" --batch
 ```
 
-### Essential Flags
+The dry run shows the plan without writing volumes. Use `--batch` to process a library of manga folders.
 
-| Flag | Short | Description |
-|---|---|---|
-| `--input <path>` | `-i` | Path to the directory containing raw chapter folders or `.cbz` files. |
-| `--output <path>` | `-o` | Destination directory where finished volume `.cbz` files will be written. |
-| `--dry-run` | `-n` | Simulates chapter parsing and volume grouping without modifying the disk. |
-| `--batch` | `-b` | **Library Mode**: Treats each immediate subfolder as an independent manga series. |
-| `--metadata-file <path>` | | Explicit path to a `mangabind.json` volume mapping manifest. |
-| `--json` | | Emits the complete machine-readable report to `stdout`. |
-| `--quiet` | `-q` | Suppresses non-essential terminal logging; errors and warnings remain visible. |
-| `--protocol-version` | | Returns the Machine Protocol v1 handshake JSON. |
-| `--version` | | Prints the binary version string. |
-| `--help` | `-h` | Displays the help text. |
+For your own chapter mapping, use `--metadata-file`. In a batch, give each manga folder its own `mangabind.json`.
 
----
+## More options
 
-## Practical Examples
+The tool's [README](https://github.com/gustavommcv/mangabind#readme) covers its options, including combining a series with `--combine` and reporting progress with `--progress-json`.
 
-### 1. Dry-Run Planning with JSON Output
-Inspect a series folder without creating any archives:
-```bash
-mangabind --input "./Chainsaw Man" --output "./Volumes" --dry-run --json
-```
-
-### 2. Standard Volume Bundling
-Bundle chapters into volumes, writing resulting `.cbz` files:
-```bash
-mangabind --input "./Frieren" --output "./Ready_Volumes"
-```
-
-### 3. Batch Library Processing
-Process an entire library folder with dozens of manga series in one command:
-```bash
-mangabind --input "/mnt/storage/MangaLibrary" --output "/mnt/storage/BundledVolumes" --batch
-```
-
----
-
-## The `mangabind.json` Format
-
-If chapters lack volume tags in their folder names, place a `mangabind.json` file inside the manga directory:
-
-```json
-{
-  "schema_version": 1,
-  "volumes": [
-    { "number": "1", "chapters": ["1-7"] },
-    { "number": "2", "chapters": ["8-16", "8.5"] }
-  ]
-}
-```
-
-* Supports inclusive integer ranges (`"1-7"`).
-* Supports specific chapters and fractional chapters (`"8.5"`).
-* Explicit volume names inside filenames always take precedence over `mangabind.json`.
+For integrations, see the [metadata format](https://github.com/gustavommcv/mangabind/blob/main/docs/adr/0010-local-metadata-file.md) and [machine protocol](https://github.com/gustavommcv/mangabind/blob/main/docs/machine-protocol-v1.md). Match the reference to the version you run.

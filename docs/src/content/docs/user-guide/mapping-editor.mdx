@@ -1,70 +1,40 @@
 ---
-title: Volume Mapping Editor
-description: Master the interactive Volume Mapping Editor to organize loose scanlation chapters into pristine volumes.
+title: 'Volume mapping'
+description: 'Group chapters manually or review an optional online suggestion.'
 ---
 
-import { Steps } from '@astrojs/starlight/components';
+import MediaSlot from '../../../components/MediaSlot.astro';
 
-One of the most frequent challenges when preparing digital manga collections is inconsistent chapter naming. Scanlation groups often name releases simply as `Chapter 01`, `Chapter 02`, without indicating which physical volume they belong to.
+The mapping editor decides which local chapters belong to each volume. All three **Chapters from** tabs work on the same mapping; you can edit a suggestion just as you can build volumes from scratch.
 
-The **Volume Mapping Editor** solves this problem by allowing you to inspect, group, and split chapters with visual confidence.
+## File names
 
----
+If names contain volume numbers, **File names** shows a summary of the recognized grouping. It does not infer volume boundaries from typical chapter counts.
 
-## Anatomy of the Editor
+Use **Edit chapter mapping** to open manual controls when a summary needs correction. **Start over from the names** restores the initial filename grouping, discarding edits.
 
-The editor displays two main columns:
+## Manual: no online lookup needed
 
-1. **Volume Tree (Assigned Volumes)**: Shows each created volume (e.g. `Volume 1`, `Volume 2`), its estimated total page count, and the chapters nested inside.
-2. **Unassigned Chapters**: Lists any chapters that were discovered without an explicit volume tag.
+1. Select **Manual**. If no volumes were found in names, this tab opens automatically.
+2. Use **Create volume** to add the first volume.
+3. Select chapters in the chapter list, choose the destination volume, and use **Assign selected**. For consecutive numbered chapters, use **Assign range**.
+4. Repeat for the other volumes. Assigning an already placed chapter moves it rather than duplicating it.
+5. Resolve the listed issues, then use **Confirm mapping**.
 
-:::tip[Visual Media Placeholder]
-> 📸 **Screenshot**: The Volume Mapping Editor interface displaying Volume 1 with Chapters 1–7, and a drawer of remaining chapters on the right.
-:::
+Use the editor's controls to change volume numbers or merge volumes. The undo/redo buttons let you reverse changes.
 
----
+<MediaSlot id="manual-mapping" />
 
-## Grouping Methods
+## Online source: optional suggestions
 
-You have three powerful ways to map your chapters:
+Choose **Online source**, select MangaDex, enter the title, and press **Search**.
 
-### 1. Online Lookup via MangaDex
-This is the fastest method for popular series:
-<Steps>
-1. Click the **From MangaDex** button at the top of the editor.
-2. Enter the official series title (e.g. *Chainsaw Man* or *Frieren*).
-3. Select the matching entry from the search results.
-4. Mangabound pulls the official volume-to-chapter index from MangaDex's public API and automatically sorts all loose chapters into their canonical volumes.
-</Steps>
+Select the matching work with **Use these volumes**, review the summary, then confirm it or use **Edit chapter mapping**. An online mapping may be incomplete or differ from your edition; verify special and decimal chapters. If the work is absent, use **Manual**.
 
-:::note[Privacy & API Compliance]
-Mangabound only queries the MangaDex metadata API for chapter numbers and volume counts. It never downloads images or uploads your personal files.
-:::
+<MediaSlot id="online-mapping" />
 
-### 2. Auto-Assign
-If you are working offline, click **Auto-Assign**. Mangabound runs local heuristic pattern matching to detect volume signals inside folder names (e.g., tags like `[v01]`, `Vol. 1`, or common chapter count intervals).
+## Skipping grouping
 
-### 3. Manual Editing & Fine-Tuning
-You have full granular control over every chapter:
-* **Drag and Drop**: Drag chapters between volumes or move them back to the unassigned list.
-* **Add Volume**: Click **Add Volume** to instantiate Volume `N+1`.
-* **Merge Volumes**: Combine adjacent volumes into a single omnibus volume.
-* **Undo & Redo**: Mistakes happen! Use the `Undo` (`Ctrl+Z` / `Cmd+Z`) and `Redo` buttons to step backwards and forwards through your editing history.
+**Skip grouping** is available where the workflow allows conversion without regrouping. It is disabled in **Create one book for the series** mode because that mode needs mapped volumes for the nested EPUB contents.
 
----
-
-## The `mangabind.json` File
-
-When you finish organizing your chapters, Mangabound serializes your decisions into a standardized `mangabind.json` manifest:
-
-```json
-{
-  "schema_version": 1,
-  "volumes": [
-    { "number": "1", "chapters": ["1-7"] },
-    { "number": "2", "chapters": ["8-16", "8.5"] }
-  ]
-}
-```
-
-Because `mangabind` adheres to the [CLI-First Principle](../../getting-started/overview/#1-the-cli-first-rule), this file is completely portable. You can copy this `mangabind.json` file into the manga's folder on any machine and run `mangabind` directly via terminal to reproduce the exact same volume packaging!
+The mapping is exchanged with mangabind through its [documented metadata format](https://github.com/gustavommcv/mangabind/blob/main/docs/adr/0010-local-metadata-file.md). You do not need to edit JSON to use the editor.
