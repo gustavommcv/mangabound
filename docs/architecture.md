@@ -42,7 +42,7 @@ Two rules follow from this: **the renderer never touches Node** (it is sandboxed
 
 - **Options, the last Save-dialog folder and the chosen sharing interface** are in `settings.json` in the operating system's per-user app data folder, written atomically and read once at launch ([ADR 0014](adr/0014-persisted-settings-and-reset.md), [ADR 0022](adr/0022-remember-chosen-network-interface.md), [ADR 0026](adr/0026-process-then-save-pending-books.md)). The last folder is a suggestion, never an automatic destination. The OPDS server still starts only when requested.
 - **Pending books and their catalog** are in per-run directories under local persistent app data, not the OS temp directory. A complete run is removed after every book has been exported and recorded successfully and the app closes; unsaved, partly saved, or warning-affected runs remain. A person can also explicitly delete one pending run from the queue after confirming; this does not delete copies already exported elsewhere. Deletion is refused while that run is being saved or shared, and a conversion in progress blocks deletion.
-- **Each exported library's catalog** is `<library>/.mangabound/library.json`.
+- **Each exported library's catalog** is `<library>/.mangabound/library.json`. It is a file anyone can edit, so its reader refuses a catalog whose entries name a place that is not below the library (a `..`, an absolute path, a drive), and the OPDS server resolves each entry again before it opens a file.
 - The queue, drafts and sessions are gone when the app closes, and mangabind scratch workspaces are removed with them.
 
 ## Where to change what

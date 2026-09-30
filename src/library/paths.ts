@@ -12,3 +12,21 @@ export function toLibraryRelativePath(libraryRoot: string, artifactPath: string)
   }
   return relative.split(path.sep).join('/');
 }
+
+/**
+ * Where a catalog entry's file is, or `undefined` when the entry names a place outside the library.
+ * Checked on the resolved path, so a `..`, a drive or a separator of this platform cannot get out,
+ * while a file whose name merely starts with two dots stays in.
+ */
+export function resolveLibraryFile(libraryRoot: string, relativePath: string): string | undefined {
+  const root = path.resolve(libraryRoot);
+  const file = path.resolve(root, ...relativePath.split('/'));
+  const inside = path.relative(root, file);
+  const outside =
+    inside === '' ||
+    inside === '..' ||
+    inside.startsWith(`..${path.sep}`) ||
+    // Another drive: there is no way to write the path relative to the root.
+    path.isAbsolute(inside);
+  return outside ? undefined : file;
+}

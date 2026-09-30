@@ -70,3 +70,52 @@ describe('library manifest', () => {
     );
   });
 });
+
+describe('the path of a catalog entry', () => {
+  const manifestWith = (relativePath: string): string =>
+    JSON.stringify({
+      schemaVersion: libraryManifestSchemaVersion,
+      books: [
+        {
+          relativePath,
+          title: 'A Quiet Journey',
+          author: 'Unknown',
+          format: 'epub',
+          bytes: 1,
+          convertedAt: '2026-09-16T10:00:00.000Z',
+        },
+      ],
+    });
+
+  it.each([
+    'Book.epub',
+    'A Quiet Journey/Vol.01.epub',
+    'Series (2024)/Vol. 1 (2).epub',
+    // Two dots are only a step when they are the whole step.
+    '..hidden.epub',
+    'a..b/c.epub',
+  ])('accepts %j', (relativePath) => {
+    expect(parseLibraryManifest(manifestWith(relativePath)).books[0]?.relativePath).toBe(
+      relativePath,
+    );
+  });
+
+  it.each([
+    '..',
+    '../outside.epub',
+    'a/../../outside.epub',
+    'a/../b.epub',
+    './book.epub',
+    'a//b.epub',
+    'a/b.epub/',
+    '/etc/book.epub',
+    '..\\outside.epub',
+    'C:/books/a.epub',
+    'c:a.epub',
+    'bad\0name.epub',
+  ])('throws invalid_manifest for %j, which does not stay below the library', (relativePath) => {
+    expect(() => parseLibraryManifest(manifestWith(relativePath))).toThrowError(
+      expect.objectContaining({ code: 'invalid_manifest' }),
+    );
+  });
+});
