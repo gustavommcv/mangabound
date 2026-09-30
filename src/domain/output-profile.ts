@@ -26,10 +26,9 @@ export interface MangapressSettings {
   readonly noAutoContrast: boolean;
   readonly interPanelCrop: InterPanelCropMode;
   readonly eraseRainbow: boolean;
-  readonly title?: string;
-  readonly author?: string;
   readonly metadataTitle: MetadataTitleMode;
   readonly keepComicInfo: boolean;
+  /** The EPUB language a book gets unless its own details name another (ADR 0030). */
   readonly language: string;
   readonly customWidth?: number;
   readonly customHeight?: number;

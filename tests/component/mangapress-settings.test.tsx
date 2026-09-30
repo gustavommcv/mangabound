@@ -80,11 +80,6 @@ describe('mangapress settings editor', () => {
     );
     expect(screen.getByLabelText('JPEG quality (optional)')).toHaveAttribute('placeholder', '85%');
     expect(screen.getByLabelText('Gamma (optional)')).toHaveAttribute('placeholder', '1.0');
-    expect(screen.getByLabelText('Title')).toHaveAttribute('placeholder', 'Use input name');
-    expect(screen.getByLabelText('Author')).toHaveAttribute(
-      'placeholder',
-      'Leave blank if unknown',
-    );
     expect(screen.getByLabelText('EPUB language')).not.toHaveAttribute('placeholder');
   });
 
@@ -147,8 +142,6 @@ describe('mangapress settings editor', () => {
       'Disable auto contrast',
       'Auto-level black point',
       'Reduce rainbow effect',
-      'Title',
-      'Author',
       'ComicInfo title',
       'EPUB language',
       'Keep ComicInfo.xml',
@@ -267,14 +260,15 @@ describe('mangapress settings editor', () => {
     await user.selectOptions(screen.getByLabelText('Double-page spreads'), 'rotate');
     await user.click(screen.getByLabelText('Manga reading order'));
     await user.type(screen.getByLabelText('Gamma (optional)'), '1.2');
-    await user.type(screen.getByLabelText('Title'), 'A new book');
+    await user.clear(screen.getByLabelText('EPUB language'));
+    await user.type(screen.getByLabelText('EPUB language'), 'pt-br');
 
     for (const label of [
       'Book format',
       'Double-page spreads',
       'Manga reading order',
       'Gamma',
-      'Title',
+      'EPUB language',
     ]) {
       expect(screen.getByRole('button', { name: `Restore default for ${label}` })).toBeVisible();
     }
@@ -295,11 +289,11 @@ describe('mangapress settings editor', () => {
     await user.click(
       screen.getByRole('button', { name: 'Restore default for Manga reading order' }),
     );
-    await user.click(screen.getByRole('button', { name: 'Restore default for Title' }));
+    await user.click(screen.getByRole('button', { name: 'Restore default for EPUB language' }));
     expect(screen.getByLabelText('Book format')).toHaveValue('epub');
     expect(screen.getByLabelText('Double-page spreads')).toHaveValue('both');
     expect(screen.getByLabelText('Manga reading order')).toBeChecked();
-    expect(screen.getByLabelText('Title')).toHaveValue('');
+    expect(screen.getByLabelText('EPUB language')).toHaveValue('en-US');
     expect(screen.queryByRole('button', { name: /^Restore default for/u })).not.toBeInTheDocument();
   });
 

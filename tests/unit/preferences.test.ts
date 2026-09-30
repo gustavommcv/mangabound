@@ -5,7 +5,6 @@ import {
   defaultFormat,
   defaultPreferences,
   isDefaultMangapress,
-  persistedSettings,
   sameSettings,
 } from '@/domain/preferences';
 import { defaultProcessMode } from '@/domain/process-mode';
@@ -24,30 +23,6 @@ describe('the defaults everything starts from', () => {
 
   it('cannot be changed by whoever holds them', () => {
     expect(Object.isFrozen(defaultPreferences)).toBe(true);
-  });
-});
-
-describe('persistedSettings', () => {
-  it('drops the title and the author, which name one book, and keeps everything else', () => {
-    const kept = persistedSettings({
-      ...defaultMangapressSettings,
-      deviceProfile: 'KS',
-      jpegQuality: 80,
-      title: 'Only for this book',
-      author: 'Someone',
-    });
-
-    expect(kept).toEqual({ ...defaultMangapressSettings, deviceProfile: 'KS', jpegQuality: 80 });
-    expect(kept).not.toHaveProperty('title');
-    expect(kept).not.toHaveProperty('author');
-  });
-
-  it('is a copy, so the settings on screen are not touched', () => {
-    const settings = { ...defaultMangapressSettings, title: 'A title' };
-
-    persistedSettings(settings);
-
-    expect(settings.title).toBe('A title');
   });
 });
 
@@ -80,12 +55,12 @@ describe('isDefaultMangapress', () => {
     expect(isDefaultMangapress('epub', defaultMangapressSettings)).toBe(true);
   });
 
-  it('is false once the format or an option was changed, and for a title typed for one book', () => {
+  it('is false once the format or an option was changed', () => {
     expect(isDefaultMangapress('pdf', defaultMangapressSettings)).toBe(false);
     expect(isDefaultMangapress('epub', { ...defaultMangapressSettings, splitter: 'split' })).toBe(
       false,
     );
-    expect(isDefaultMangapress('epub', { ...defaultMangapressSettings, title: 'A title' })).toBe(
+    expect(isDefaultMangapress('epub', { ...defaultMangapressSettings, language: 'pt-br' })).toBe(
       false,
     );
   });

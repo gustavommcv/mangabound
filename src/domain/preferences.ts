@@ -2,18 +2,12 @@ import type { BookFormat } from './conversion';
 import { defaultMangapressSettings, type MangapressSettings } from './output-profile';
 import { defaultProcessMode, type ProcessMode } from './process-mode';
 
-/**
- * The mangapress options that are kept between sessions: all of them but the title and the author,
- * which name one book rather than a person's preferences (ADR 0014).
- */
-export type PersistedMangapressSettings = Omit<MangapressSettings, 'title' | 'author'>;
-
 /** What a person chose that outlives the session. */
 export interface Preferences {
   readonly mode: ProcessMode;
   readonly format: BookFormat;
   readonly singleBook: boolean;
-  readonly settings: PersistedMangapressSettings;
+  readonly settings: MangapressSettings;
   /** The id of the online source chosen for volume data, when one was. */
   readonly providerId?: string;
 }
@@ -27,15 +21,6 @@ export const defaultPreferences: Preferences = Object.freeze({
   singleBook: false,
   settings: defaultMangapressSettings,
 });
-
-const bookIdentityFields: ReadonlySet<string> = new Set(['title', 'author']);
-
-/** The settings as they are kept: without what belongs to the book in hand. */
-export function persistedSettings(settings: MangapressSettings): PersistedMangapressSettings {
-  return Object.fromEntries(
-    Object.entries(settings).filter(([field]) => !bookIdentityFields.has(field)),
-  ) as unknown as PersistedMangapressSettings;
-}
 
 /** Whether two sets of options are the same, an option that was cleared counting as one never set. */
 export function sameSettings(a: MangapressSettings, b: MangapressSettings): boolean {

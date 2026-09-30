@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { defaultMangapressSettings } from '@/domain/output-profile';
 import { defaultPreferences } from '@/domain/preferences';
 import { preferencesSchema, saveSettingsCommandSchema } from '@/shared/settings-contract';
-import { persistedSettingsSchema } from '@/shared/workflow-contract';
+import { mangapressSettingsSchema } from '@/shared/workflow-contract';
 
 describe('the options that are kept', () => {
   it('accept the defaults', () => {
@@ -11,7 +11,7 @@ describe('the options that are kept', () => {
   });
 
   it('drop a title and an author instead of keeping them', () => {
-    const parsed = persistedSettingsSchema.parse({
+    const parsed = mangapressSettingsSchema.parse({
       ...defaultMangapressSettings,
       title: 'Only for this book',
       author: 'Someone',
@@ -38,9 +38,9 @@ describe('the options that are kept', () => {
   it('want a size for the custom device, as a conversion does', () => {
     const custom = { ...defaultMangapressSettings, deviceProfile: 'OTHER' };
 
-    expect(persistedSettingsSchema.safeParse(custom).success).toBe(false);
+    expect(mangapressSettingsSchema.safeParse(custom).success).toBe(false);
     expect(
-      persistedSettingsSchema.safeParse({ ...custom, customWidth: 1000, customHeight: 1400 })
+      mangapressSettingsSchema.safeParse({ ...custom, customWidth: 1000, customHeight: 1400 })
         .success,
     ).toBe(true);
   });

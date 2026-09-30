@@ -1,3 +1,4 @@
+import type { BookDetails } from './book-details';
 import type { MappingDraft } from './mapping';
 import type { MangapressSettings } from './output-profile';
 import type { ProcessMode } from './process-mode';
@@ -121,6 +122,8 @@ export interface ConversionRequest {
   /** Defaults to running both tools when omitted. */
   readonly mode?: ProcessMode;
   readonly singleBook?: boolean;
+  /** What was typed for this input's title, author and language; the defaults apply otherwise. */
+  readonly details?: BookDetails;
 }
 
 export class ConversionWorkflowError extends Error {

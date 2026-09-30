@@ -625,3 +625,112 @@ describe('describing a library row', () => {
     expect(runnableRows(rows, 'convert-only').map(({ row }) => row.id)).toEqual(['b']);
   });
 });
+
+describe('what was typed for an item', () => {
+  it('is kept on the item, trimmed, with a blank field taken as not set', () => {
+    const rows = queueReducer([inspectedFolder(grouped)], {
+      type: 'set-details',
+      id: 'a',
+      details: { title: '  Chainsaw Man ', author: '   ', language: 'pt-br' },
+    });
+
+    expect((rows[0] as InspectedRow).details).toEqual({
+      title: 'Chainsaw Man',
+      language: 'pt-br',
+    });
+  });
+
+  it('is replaced as a whole, so clearing every field leaves nothing set', () => {
+    const typed = queueReducer([inspectedFolder(grouped)], {
+      type: 'set-details',
+      id: 'a',
+      details: { title: 'Chainsaw Man', author: 'Fujimoto Tatsuki' },
+    });
+
+    const cleared = queueReducer(typed, { type: 'set-details', id: 'a', details: {} });
+
+    expect((cleared[0] as InspectedRow).details).toEqual({});
+  });
+
+  it('only reaches the item it names, and only once that item has been read', () => {
+    const reading: QueueRow = { ...cbzInput, state: 'inspecting' };
+    const rows: readonly QueueRow[] = [inspectedFolder(grouped), reading];
+
+    const elsewhere = queueReducer(rows, {
+      type: 'set-details',
+      id: 'not-a-row',
+      details: { title: 'X' },
+    });
+    const unread = queueReducer(rows, { type: 'set-details', id: 'b', details: { title: 'X' } });
+
+    expect(elsewhere).toEqual(rows);
+    expect(unread[1]).toBe(reading);
+  });
+
+  it('is kept per title of a library, leaving the other titles alone', () => {
+    const rows = queueReducer([libraryRow(readTitle('Good', 1), readTitle('Bad', 1))], {
+      type: 'set-title-details',
+      id: 'a',
+      title: 'Good',
+      details: { author: ' Someone ' },
+    });
+
+    expect((rows[0] as InspectedRow).titles?.map((title) => title.details)).toEqual([
+      { author: 'Someone' },
+      undefined,
+    ]);
+  });
+
+  it('only reaches a title of a library that has been read', () => {
+    const others: readonly QueueRow[] = [
+      libraryRow(readTitle('Good', 1)),
+      inspectedFolder(grouped),
+      { ...folderInput, state: 'inspecting' },
+    ];
+
+    const rows = queueReducer(others, {
+      type: 'set-title-details',
+      id: 'a',
+      title: 'Nothing like it',
+      details: { title: 'X' },
+    });
+    const folder = queueReducer(others, {
+      type: 'set-title-details',
+      id: 'not-a-row',
+      title: 'Good',
+      details: { title: 'X' },
+    });
+
+    expect((rows[0] as InspectedRow).titles?.[0]?.details).toBeUndefined();
+    expect(rows[1]).toBe(others[1]);
+    expect(rows[2]).toBe(others[2]);
+    expect(folder).toEqual(others);
+  });
+
+  it('stays with a title when the library is read again, saved or not', () => {
+    const typed = queueReducer([libraryRow(readTitle('Good', 1), readTitle('Bad', 1))], {
+      type: 'set-title-details',
+      id: 'a',
+      title: 'Bad',
+      details: { title: 'Bad Manga', author: 'Someone' },
+    });
+    const resulted = queueReducer(typed, {
+      type: 'library-results',
+      id: 'a',
+      results: [{ title: 'Good', outcome: saved }],
+    });
+
+    const again = queueReducer(resulted, {
+      type: 'library-planned',
+      id: 'a',
+      titles: [readTitle('Good', 1), readTitle('Bad', 2), readTitle('New', 1)],
+    });
+
+    const titles = (again[0] as InspectedRow).titles ?? [];
+    expect(titles.map((title) => [title.title, title.details, title.outcome?.status])).toEqual([
+      ['Good', undefined, 'done'],
+      ['Bad', { title: 'Bad Manga', author: 'Someone' }, undefined],
+      ['New', undefined, undefined],
+    ]);
+  });
+});

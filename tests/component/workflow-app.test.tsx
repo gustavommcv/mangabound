@@ -1318,7 +1318,7 @@ describe('the options kept between sessions', () => {
     expect(screen.queryByRole('status', { name: 'Notices' })).not.toBeInTheDocument();
   });
 
-  it('keeps each change without the title, author or an output folder', async () => {
+  it('keeps each change, and never an output folder', async () => {
     const user = userEvent.setup();
     const saveSettings = okSave();
     installBridge(bridge({ saveSettings, getDeviceProfiles: twoDevices() }));
@@ -1332,8 +1332,6 @@ describe('the options kept between sessions', () => {
 
     expectNoOutputFolderPicker();
     await user.click(screen.getByRole('radio', { name: 'PDF' }));
-    await user.click(screen.getByRole('button', { name: /Advanced conversion options/u }));
-    await user.type(await screen.findByLabelText('Title'), 'Only for this book');
 
     await waitFor(() => {
       const last = saveCalls(saveSettings).at(-1);
@@ -1346,11 +1344,6 @@ describe('the options kept between sessions', () => {
         },
       });
     });
-    // A title belongs to one book: it is on screen but is not among what is kept.
-    expect(screen.getByLabelText('Title')).toHaveValue('Only for this book');
-    for (const command of saveCalls(saveSettings)) {
-      expect(command.preferences.settings).not.toHaveProperty('title');
-    }
   });
 
   it('keeps the source that was chosen, and forgets one the list no longer has', async () => {
@@ -1704,14 +1697,17 @@ describe('the options kept between sessions', () => {
       await user.click(await screen.findByRole('button', { name: /Advanced conversion options/u }));
 
       await user.click(screen.getByLabelText('Dithered grayscale PNG'));
-      await user.type(screen.getByLabelText('Title'), 'My manga');
-      expect(screen.getByRole('button', { name: 'Restore default for Title' })).toBeVisible();
+      await user.clear(screen.getByLabelText('EPUB language'));
+      await user.type(screen.getByLabelText('EPUB language'), 'pt-br');
+      expect(
+        screen.getByRole('button', { name: 'Restore default for EPUB language' }),
+      ).toBeVisible();
       expect(
         screen.getByRole('button', { name: 'Restore default for Dithered grayscale PNG' }),
       ).toBeVisible();
 
-      await user.click(screen.getByRole('button', { name: 'Restore default for Title' }));
-      expect(screen.getByLabelText('Title')).toHaveValue('');
+      await user.click(screen.getByRole('button', { name: 'Restore default for EPUB language' }));
+      expect(screen.getByLabelText('EPUB language')).toHaveValue('en-US');
       expect(screen.getByLabelText('Dithered grayscale PNG')).toBeChecked();
       expect(screen.getByRole('button', { name: 'Reset to defaults' })).toHaveAttribute(
         'aria-disabled',
@@ -3049,5 +3045,164 @@ describe('libraries in the queue', () => {
     await user.click(screen.getByRole('button', { name: 'Fix Manga Library' }));
 
     expect(await screen.findByRole('list', { name: 'Titles' })).toBeVisible();
+  });
+});
+
+describe('the title, author and language typed for an item', () => {
+  const openDetails = async (user: UserEvent, name = 'Offline Work'): Promise<void> => {
+    await user.click(await screen.findByRole('button', { name: `Edit details of ${name}` }));
+    expect(await screen.findByRole('heading', { name })).toBeVisible();
+  };
+
+  it('are typed on a page of their own, kept when going back, and sent with the conversion', async () => {
+    const user = userEvent.setup();
+    const convert = vi.fn<MangaboundBridge['convert']>(bridge().convert);
+    installBridge(bridge({ convert }));
+    render(<App />);
+    await addFolder(user);
+
+    await openDetails(user);
+    await user.type(screen.getByLabelText('Series title'), 'Chainsaw Man');
+    await user.type(screen.getByLabelText('Author'), 'Fujimoto Tatsuki');
+    await user.type(screen.getByLabelText('Language'), 'pt-br');
+    expect(
+      within(screen.getByRole('list', { name: 'Book titles' })).getByText('Chainsaw Man - Vol.01'),
+    ).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Queue' }));
+    expect(await screen.findByRole('heading', { name: 'Queue' })).toBeVisible();
+    // The page still has what was typed.
+    await openDetails(user);
+    expect(screen.getByLabelText('Series title')).toHaveValue('Chainsaw Man');
+    await user.click(screen.getByRole('button', { name: 'Queue' }));
+
+    await user.click(await runButton(1));
+    expect(await screen.findByRole('heading', { name: '1 book ready' })).toBeVisible();
+    expect(convert.mock.calls[0]?.[0].details).toEqual({
+      title: 'Chainsaw Man',
+      author: 'Fujimoto Tatsuki',
+      language: 'pt-br',
+    });
+    // The options no longer carry a title or an author of their own.
+    expect(convert.mock.calls[0]?.[0].settings).not.toHaveProperty('title');
+    expect(convert.mock.calls[0]?.[0].settings).not.toHaveProperty('author');
+  });
+
+  it('send nothing for an item that has none, and clearing them again sends nothing either', async () => {
+    const user = userEvent.setup();
+    const convert = vi.fn<MangaboundBridge['convert']>(bridge().convert);
+    installBridge(bridge({ convert }));
+    render(<App />);
+    await addFolder(user);
+
+    await openDetails(user);
+    await user.type(screen.getByLabelText('Author'), 'Someone');
+    await user.clear(screen.getByLabelText('Author'));
+    await user.click(screen.getByRole('button', { name: 'Queue' }));
+    await user.click(await runButton(1));
+
+    expect(await screen.findByRole('heading', { name: '1 book ready' })).toBeVisible();
+    expect(convert.mock.calls[0]?.[0]).not.toHaveProperty('details');
+  });
+
+  it('keep a space between two words, and refuse a language that is not a tag', async () => {
+    const user = userEvent.setup();
+    installBridge(bridge());
+    render(<App />);
+    await addFolder(user);
+
+    await openDetails(user);
+    await user.type(screen.getByLabelText('Series title'), 'Two Words');
+    await user.type(screen.getByLabelText('Language'), 'pt-br');
+    await user.type(screen.getByLabelText('Language'), ' not');
+
+    expect(screen.getByLabelText('Series title')).toHaveValue('Two Words');
+    expect(screen.getByLabelText('Language')).toBeInvalid();
+    expect(screen.getByText(/Use a language tag such as en-US or pt-br/u)).toBeVisible();
+  });
+
+  it('are for one book, not a series, when the item makes a single book', async () => {
+    const user = userEvent.setup();
+    installBridge(
+      bridge({
+        chooseInputs: () => Promise.resolve({ ok: true, value: { inputs: [cbz], rejected: [] } }),
+      }),
+    );
+    render(<App />);
+    await addFolder(user);
+
+    await openDetails(user, 'Standalone.cbz');
+
+    expect(screen.getByLabelText('Book title')).toHaveAttribute('placeholder', 'Standalone');
+    expect(screen.getByText('The book will be titled')).toBeVisible();
+  });
+
+  it('are not offered when only joining, because mangapress makes no book then', async () => {
+    const user = userEvent.setup();
+    installBridge(bridge());
+    render(<App />);
+    await addFolder(user);
+    expect(screen.getByRole('button', { name: 'Edit details of Offline Work' })).toBeVisible();
+
+    await user.click(screen.getByRole('checkbox', { name: 'Convert for e-reader' }));
+
+    expect(
+      screen.queryByRole('button', { name: 'Edit details of Offline Work' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('make a validated plan stale, so it is validated again before running', async () => {
+    const user = userEvent.setup();
+    installBridge(bridge());
+    render(<App />);
+    await addFolder(user);
+    await user.click(screen.getByRole('button', { name: 'Validate plan' }));
+    expect(await screen.findByRole('heading', { name: 'Plan validated' })).toBeVisible();
+
+    await openDetails(user);
+    await user.type(screen.getByLabelText('Author'), 'Someone');
+    await user.click(screen.getByRole('button', { name: 'Queue' }));
+
+    expect(screen.queryByRole('heading', { name: 'Plan validated' })).not.toBeInTheDocument();
+  });
+
+  it('are typed per title in a library, and sent for the titles they were typed for', async () => {
+    const user = userEvent.setup();
+    const convertLibrary = vi.fn<MangaboundBridge['convertLibrary']>(() =>
+      Promise.resolve({ ok: true, value: [converted('Good Manga', 'good-1')] }),
+    );
+    installBridge(libraryBridge([goodTitle, looseTitle], { convertLibrary }));
+    render(<App />);
+    await addFolder(user);
+    await user.click(screen.getByRole('button', { name: 'Edit titles of Manga Library' }));
+
+    await user.click(await screen.findByRole('button', { name: 'Edit details of Good Manga' }));
+    expect(await screen.findByRole('heading', { name: 'Good Manga' })).toBeVisible();
+    await user.type(screen.getByLabelText('Author'), 'Someone');
+    // Back goes to the library the title belongs to.
+    await user.click(screen.getByRole('button', { name: 'Manga Library' }));
+    expect(await screen.findByRole('list', { name: 'Titles' })).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Queue' }));
+
+    await user.click(await runButton(1));
+
+    expect(await screen.findByRole('heading', { name: '1 book ready' })).toBeVisible();
+    expect(convertLibrary.mock.calls[0]?.[0].titleDetails).toEqual([
+      { title: 'Good Manga', details: { author: 'Someone' } },
+    ]);
+  });
+
+  it('are not offered for a library when only joining', async () => {
+    const user = userEvent.setup();
+    installBridge(libraryBridge([goodTitle]));
+    render(<App />);
+    await addFolder(user);
+    await user.click(screen.getByRole('checkbox', { name: 'Convert for e-reader' }));
+    await user.click(screen.getByRole('button', { name: 'Edit titles of Manga Library' }));
+
+    expect(await screen.findByRole('list', { name: 'Titles' })).toBeVisible();
+    expect(
+      screen.queryByRole('button', { name: 'Edit details of Good Manga' }),
+    ).not.toBeInTheDocument();
   });
 });

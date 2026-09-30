@@ -306,4 +306,49 @@ describe('mangapress conversion port', () => {
       issue: { code: 'input_empty' },
     });
   });
+
+  describe('the title, author and language of a book', () => {
+    const book = { title: 'Chainsaw Man - Vol.02', author: 'Fujimoto Tatsuki', language: 'pt-br' };
+    const argumentsOf = (run: { mock: { calls: unknown[][] } }) =>
+      run.mock.calls[0]?.[0] as Record<string, unknown>;
+
+    it('are sent to mangapress when converting, over the language chosen in the options', async () => {
+      const run = vi.fn<MangapressCliAdapter['run']>(() => Promise.resolve(runResult()));
+      const adapter = new MangapressConversionAdapter({ run });
+
+      await adapter.convert({ ...request, book }, { onProgress: vi.fn() });
+
+      expect(argumentsOf(run)).toMatchObject(book);
+    });
+
+    it('are sent when planning too, so the plan names the book that would be made', async () => {
+      const planned = resultEvent({ dry_run: true, written: false, bytes: undefined });
+      const run = vi.fn<MangapressCliAdapter['run']>(() =>
+        Promise.resolve(runResult({ result: planned })),
+      );
+      const adapter = new MangapressConversionAdapter({ run });
+
+      await adapter.plan({ ...request, book });
+
+      expect(argumentsOf(run)).toMatchObject({ ...book, dryRun: true });
+    });
+
+    it('leave the title and the author out when none was typed, and use the language of the options', async () => {
+      const run = vi.fn<MangapressCliAdapter['run']>(() => Promise.resolve(runResult()));
+      const adapter = new MangapressConversionAdapter({ run });
+
+      await adapter.convert(
+        { ...request, settings: { ...defaultMangapressSettings, language: 'ja' }, book: {} },
+        { onProgress: vi.fn() },
+      );
+      await adapter.convert(request, { onProgress: vi.fn() });
+
+      for (const [sent] of run.mock.calls) {
+        expect(sent).not.toHaveProperty('title');
+        expect(sent).not.toHaveProperty('author');
+      }
+      expect(run.mock.calls[0]?.[0]).toMatchObject({ language: 'ja' });
+      expect(run.mock.calls[1]?.[0]).toMatchObject({ language: 'en-US' });
+    });
+  });
 });

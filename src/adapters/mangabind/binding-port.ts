@@ -154,17 +154,20 @@ export class MangabindBindingAdapter implements BindingPort {
         throw new Error('Mangabind did not report a combined output path for a -combine run.');
       }
       return {
-        volumePaths: [],
+        volumes: [],
         combinedOutputPath: checkedChildPath(workspace.volumesPath, combinedOutputPath),
         issues: collectIssues(result),
       };
     }
-    const volumePaths = result.report.manga
+    const volumes = result.report.manga
       .flatMap((manga) => manga.volumes)
       .filter((volume) => volume.written)
       .sort((left, right) => left.number - right.number)
-      .map((volume) => checkedChildPath(workspace.volumesPath, volume.output_path));
-    return { volumePaths, issues: collectIssues(result) };
+      .map((volume) => ({
+        number: volume.number,
+        path: checkedChildPath(workspace.volumesPath, volume.output_path),
+      }));
+    return { volumes, issues: collectIssues(result) };
   }
 
   async plan(
@@ -271,10 +274,13 @@ export class MangabindBindingAdapter implements BindingPort {
           return {
             title: manga.name,
             status: manga.status,
-            volumePaths: manga.volumes
+            volumes: manga.volumes
               .filter((volume) => volume.written)
               .sort((left, right) => left.number - right.number)
-              .map((volume) => checkedChildPath(volumesPath, volume.output_path)),
+              .map((volume) => ({
+                number: volume.number,
+                path: checkedChildPath(volumesPath, volume.output_path),
+              })),
             ...(combinedOutputPath === undefined ? {} : { combinedOutputPath }),
             issues: manga.issues.map(toPipelineIssue),
           };

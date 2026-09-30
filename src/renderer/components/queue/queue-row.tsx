@@ -1,7 +1,8 @@
-import { FileArchive, Folder, Library, LoaderCircle, Pencil, X } from 'lucide-react';
+import { FileArchive, Folder, Layers, Library, LoaderCircle, UserPen, X } from 'lucide-react';
 
-import { describeRow, type QueueRow, type RowTone } from '@/domain/input-queue';
-import type { ProcessMode } from '@/domain/process-mode';
+import { hasBookDetails } from '@/domain/book-details';
+import { describeRow, type QueueRow, type RowTone, rowMode } from '@/domain/input-queue';
+import { type ProcessMode, usesMangapress } from '@/domain/process-mode';
 import { Button } from '@/renderer/components/ui/button';
 import { cn } from '@/renderer/lib/utils';
 
@@ -16,11 +17,14 @@ const chipTone: Record<RowTone, string> = {
 export function QueueRowItem({
   mode,
   onEdit,
+  onEditDetails,
   onRemove,
   row,
 }: {
   readonly mode: ProcessMode;
   readonly onEdit: () => void;
+  /** Opens the title, author and language of the item. */
+  readonly onEditDetails: () => void;
   readonly onRemove: () => void;
   readonly row: QueueRow;
 }): React.JSX.Element {
@@ -28,6 +32,15 @@ export function QueueRowItem({
   const Icon = row.kind === 'folder' ? Folder : row.kind === 'library' ? Library : FileArchive;
   // A folder or a library has volumes to edit, and only while volumes are in play.
   const editable = row.state === 'inspected' && row.kind !== 'cbz' && mode !== 'convert-only';
+  // A book's own title, author and language matter where mangapress makes the book. A library
+  // has them per title, from the screen that lists its titles.
+  const process = rowMode(row.kind, mode);
+  const detailsEditable =
+    row.state === 'inspected' &&
+    row.kind !== 'library' &&
+    process !== 'skip' &&
+    usesMangapress(process);
+  const detailsSet = row.state === 'inspected' && hasBookDetails(row.details);
   return (
     <li className="hover:bg-muted/40 flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors">
       <span
@@ -66,9 +79,24 @@ export function QueueRowItem({
           }
           onClick={onEdit}
           size="icon"
+          title={row.kind === 'library' ? 'Edit titles' : 'Edit volumes'}
           variant="ghost"
         >
-          <Pencil />
+          <Layers />
+        </Button>
+      )}
+      {detailsEditable && (
+        <Button
+          aria-label={`Edit details of ${row.displayName}`}
+          className={cn(detailsSet && 'text-accent')}
+          onClick={onEditDetails}
+          size="icon"
+          title={
+            detailsSet ? 'Edit title, author and language (set)' : 'Edit title, author and language'
+          }
+          variant="ghost"
+        >
+          <UserPen />
         </Button>
       )}
       <Button
