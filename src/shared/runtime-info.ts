@@ -14,6 +14,7 @@ import type {
   MetadataSearchResult,
   PlanSummary,
   PlanConversionCommand,
+  SaveBookDetailsCommand,
   PendingRunSummary,
   SaveAllResult,
   RegisteredInputs,
@@ -68,6 +69,8 @@ export interface MangaboundBridge {
     title: string,
     mapping: MappingDraft,
   ) => Promise<WorkflowResult<undefined>>;
+  /** Keeps the author and language of a folder, or of a library's title, with that folder. */
+  readonly saveBookDetails: (command: SaveBookDetailsCommand) => Promise<WorkflowResult<undefined>>;
   readonly convertLibrary: (
     command: LibraryConversionCommand,
   ) => Promise<WorkflowResult<readonly LibraryTitleResult[]>>;

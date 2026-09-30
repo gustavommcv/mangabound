@@ -41,6 +41,19 @@ export function normalizeBookDetails(details: BookDetails): BookDetails {
   };
 }
 
+/**
+ * The details that stay true of a series, and so are kept with its folder: the author and the
+ * language. A title is not among them: what mangabind.json calls a manga's title is the folder's
+ * name, and a title typed for a run is not a fact about the folder (ADR 0032).
+ */
+export function persistableDetails(details: BookDetails): BookDetails {
+  const { author, language } = normalizeBookDetails(details);
+  return {
+    ...(author === undefined ? {} : { author }),
+    ...(language === undefined ? {} : { language }),
+  };
+}
+
 export function hasBookDetails(details: BookDetails | undefined): boolean {
   return details !== undefined && Object.keys(normalizeBookDetails(details)).length > 0;
 }

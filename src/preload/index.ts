@@ -22,6 +22,7 @@ import type {
   MetadataSearchResult,
   PlanSummary,
   PlanConversionCommand,
+  SaveBookDetailsCommand,
   PendingRunSummary,
   SaveAllResult,
   RegisteredInputs,
@@ -85,6 +86,8 @@ const bridge: MangaboundBridge = Object.freeze({
     invoke<LibraryPlanSummary>('workflow:plan-library', { jobId, sessionId }),
   writeTitleMapping: (sessionId: string, title: string, mapping: MappingDraft) =>
     invoke<undefined>('workflow:write-title-mapping', { sessionId, title, mapping }),
+  saveBookDetails: (command: SaveBookDetailsCommand) =>
+    invoke<undefined>('workflow:save-book-details', command),
   convertLibrary: (command: LibraryConversionCommand) =>
     invoke<readonly LibraryTitleResult[]>('workflow:convert-library', command),
   listMetadataProviders: () =>

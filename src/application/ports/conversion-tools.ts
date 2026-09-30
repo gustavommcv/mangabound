@@ -109,6 +109,13 @@ export interface BindingPort {
   ): Promise<BindingBatchResult>;
   /** Saves the mapping a user confirmed for one title as that title folder's mangabind.json. */
   writeTitleMapping(inputPath: string, mapping: MappingDraft): Promise<void>;
+  /**
+   * The author and language kept with a folder (in its mangabind.json, ADR 0032). It never fails:
+   * a folder with nothing kept, or nothing readable, has no details.
+   */
+  readDetails(inputPath: string): Promise<BookDetails>;
+  /** Keeps the author and language with a folder, or forgets them when there are none. */
+  writeDetails(inputPath: string, details: BookDetails): Promise<void>;
 }
 
 export interface ConversionPort {

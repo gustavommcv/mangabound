@@ -13,6 +13,7 @@ import {
   type LibraryTitleResult,
   planLibraryCommandSchema,
   type PlanSummary,
+  saveBookDetailsCommandSchema,
   writeTitleMappingCommandSchema,
   type WorkflowResult,
 } from '@/shared/workflow-contract';
@@ -228,6 +229,23 @@ export function registerConversionHandlers(context: ConversionContext): void {
           command.sessionId,
           command.title,
           command.mapping,
+        );
+        return ok(undefined);
+      } catch (error) {
+        return failed(toFailure(error));
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'workflow:save-book-details',
+    async (_event, rawCommand: unknown): Promise<WorkflowResult<undefined>> => {
+      try {
+        const command = saveBookDetailsCommandSchema.parse(rawCommand);
+        await requireWorkflow(context).saveDetails(
+          command.sessionId,
+          command.details,
+          command.title,
         );
         return ok(undefined);
       } catch (error) {

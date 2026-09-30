@@ -734,3 +734,75 @@ describe('what was typed for an item', () => {
     ]);
   });
 });
+
+describe('the author and language read with a folder', () => {
+  it('are on the row of the folder they were kept with, cleaned up', () => {
+    const rows = queueReducer(queueReducer(emptyQueue, { type: 'add', inputs: [folderInput] }), {
+      type: 'inspected',
+      id: 'a',
+      sessionId: 'session-a',
+      mapping: grouped,
+      details: { author: '  Fujimoto Tatsuki ', language: 'pt-br' },
+    });
+
+    expect((rows[0] as InspectedRow).details).toEqual({
+      author: 'Fujimoto Tatsuki',
+      language: 'pt-br',
+    });
+  });
+
+  it('leave no details on a row read with none, or with only blanks', () => {
+    for (const details of [undefined, {}, { author: '   ' }]) {
+      const rows = queueReducer(queueReducer(emptyQueue, { type: 'add', inputs: [folderInput] }), {
+        type: 'inspected',
+        id: 'a',
+        sessionId: 'session-a',
+        mapping: grouped,
+        ...(details === undefined ? {} : { details }),
+      });
+
+      expect(rows[0]).not.toHaveProperty('details');
+    }
+  });
+
+  it('are on each title of a library that was read with them', () => {
+    const row = libraryRow(
+      { ...readTitle('Good', 1), details: { author: ' Someone ' } },
+      { ...readTitle('Blank', 1), details: { author: '  ' } },
+      readTitle('None', 1),
+    );
+
+    expect(row.titles?.map((title) => title.details)).toEqual([
+      { author: 'Someone' },
+      undefined,
+      undefined,
+    ]);
+  });
+
+  it('fill in a title read again, unless what was typed for it stays', () => {
+    const typed = queueReducer([libraryRow(readTitle('Typed', 1), readTitle('Other', 1))], {
+      type: 'set-title-details',
+      id: 'a',
+      title: 'Typed',
+      details: { author: 'Typed Author' },
+    });
+
+    const again = queueReducer(typed, {
+      type: 'library-planned',
+      id: 'a',
+      titles: [
+        { ...readTitle('Typed', 1), details: { author: 'Read Author' } },
+        { ...readTitle('Other', 1), details: { author: 'Read Author' } },
+        readTitle('New', 1),
+      ],
+    });
+
+    expect((again[0] as InspectedRow).titles?.map((title) => [title.title, title.details])).toEqual(
+      [
+        ['Typed', { author: 'Typed Author' }],
+        ['Other', { author: 'Read Author' }],
+        ['New', undefined],
+      ],
+    );
+  });
+});
