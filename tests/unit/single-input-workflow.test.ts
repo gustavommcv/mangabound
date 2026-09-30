@@ -122,6 +122,12 @@ function dependencies({
     const name = sourcePath.split('/').at(-1) ?? 'volume.cbz';
     return Promise.resolve({ path: `${libraryPath}/${name}`, name, bytes: 1234 });
   });
+  // Publishes under the name the tool gave the file, the way a library with no clash would.
+  const stageBook: BookFileStorePort['stageBook'] = async (request, produce) => {
+    const produced = await produce(`${request.libraryPath}/.mangabound/incoming/staged`);
+    const name = produced.path.split('/').at(-1) ?? 'book';
+    return { produced, saved: { path: `${request.libraryPath}/${name}`, name, bytes: 100 } };
+  };
   return {
     binding: {
       bind,
@@ -133,7 +139,7 @@ function dependencies({
       writeTitleMapping,
     } satisfies BindingPort,
     conversion: { convert, plan: conversionPlan } satisfies ConversionPort,
-    bookFiles: { saveBook } satisfies BookFileStorePort,
+    bookFiles: { saveBook, stageBook } satisfies BookFileStorePort,
     saveBook,
     bind,
     bindingPlan,
@@ -1592,10 +1598,107 @@ describe('single-input workflow process modes', () => {
     expect(ports.bind).not.toHaveBeenCalled();
     expect(ports.saveBook).not.toHaveBeenCalled();
     expect(ports.convert).toHaveBeenCalledOnce();
+    // The tool writes into a folder of its own; the book is published into the library afterwards.
     expect(ports.convert).toHaveBeenCalledWith(
-      expect.objectContaining({ inputPath: '/input/Trusted Manga', outputDirectory: '/library' }),
+      expect.objectContaining({
+        inputPath: '/input/Trusted Manga',
+        outputDirectory: '/library/.mangabound/incoming/staged',
+      }),
       expect.anything(),
     );
+  });
+
+  it('reports the name and path a book was published under, not the name the tool gave it', async () => {
+    const ports = dependencies();
+    ports.bookFiles.stageBook = async (request, produce) => {
+      const produced = await produce('/library/.mangabound/incoming/one');
+      return {
+        produced,
+        saved: {
+          path: `${request.libraryPath}/Standalone (2).epub`,
+          name: 'Standalone (2).epub',
+          bytes: 7,
+        },
+      };
+    };
+    const workflow = folderWorkflow(ports);
+    const inspected = await workflow.inspect(folder);
+    const artifacts: ConversionArtifact[] = [];
+
+    await workflow.convert(
+      {
+        sessionId: inspected.sessionId,
+        libraryPath: '/library',
+        settings: defaultMangapressSettings,
+        format: 'epub',
+        mode: 'convert-only',
+      },
+      { onProgress: vi.fn(), onArtifact: (artifact) => artifacts.push(artifact) },
+    );
+
+    expect(artifacts).toHaveLength(1);
+    expect(artifacts[0]).toMatchObject({
+      name: 'Standalone (2).epub',
+      path: '/library/Standalone (2).epub',
+      bytes: 7,
+      title: 'Standalone',
+    });
+  });
+
+  it('reports a book that cannot be published as publish_failed, and a failed conversion as it was', async () => {
+    const disk = new Error('disk full');
+    const ports = dependencies();
+    ports.bookFiles.stageBook = async (_request, produce) => {
+      await produce('/library/.mangabound/incoming/one');
+      throw disk;
+    };
+    const workflow = folderWorkflow(ports);
+    const inspected = await workflow.inspect(folder);
+    const request = {
+      sessionId: inspected.sessionId,
+      libraryPath: '/library',
+      settings: defaultMangapressSettings,
+      format: 'epub' as const,
+      mode: 'convert-only' as const,
+    };
+
+    await expect(workflow.convert(request, { onProgress: vi.fn() })).rejects.toMatchObject({
+      code: 'publish_failed',
+      cause: disk,
+    });
+
+    const broken = new Error('mangapress exited with code 1');
+    ports.convert.mockRejectedValueOnce(broken);
+    ports.bookFiles.stageBook = async (_request, produce) => ({
+      produced: await produce('/library/.mangabound/incoming/two'),
+      saved: { path: '/library/x.epub', name: 'x.epub', bytes: 1 },
+    });
+    await expect(workflow.convert(request, { onProgress: vi.fn() })).rejects.toBe(broken);
+  });
+
+  it('keeps a cancellation a cancellation even when it interrupts the publishing', async () => {
+    const ports = dependencies();
+    const controller = new AbortController();
+    ports.bookFiles.stageBook = async (_request, produce) => {
+      await produce('/library/.mangabound/incoming/one');
+      controller.abort();
+      throw controller.signal.reason;
+    };
+    const workflow = folderWorkflow(ports);
+    const inspected = await workflow.inspect(folder);
+
+    await expect(
+      workflow.convert(
+        {
+          sessionId: inspected.sessionId,
+          libraryPath: '/library',
+          settings: defaultMangapressSettings,
+          format: 'epub',
+          mode: 'convert-only',
+        },
+        { onProgress: vi.fn(), signal: controller.signal },
+      ),
+    ).rejects.toMatchObject({ name: 'AbortError' });
   });
 
   it('still validates the mangapress settings when mangapress will run', async () => {
