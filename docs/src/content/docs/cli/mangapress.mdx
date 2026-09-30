@@ -1,0 +1,24 @@
+---
+title: 'mangapress CLI'
+description: 'Convert manga and choose a device profile from the terminal.'
+---
+
+Download mangapress from [GitHub Releases](https://github.com/gustavommcv/mangapress/releases) to use it from the terminal.
+
+## Try it
+
+```sh
+mangapress --help
+mangapress --list-profiles
+mangapress "Volume.cbz" --profile KV --manga-style --format epub
+```
+
+Use `--list-profiles` to find your device's code and resolution. For example, Kobo Libra 2 uses **KoL** and reMarkable Paper Pro uses **RmkPP**.
+
+The CLI defaults to **KV**. Add `--manga-style` for right-to-left reading order and `--keepcomicinfo` to retain supported ComicInfo data. Mangabound sets its own defaults, so use matching options when comparing a terminal conversion with the app.
+
+## More options
+
+The tool's [README](https://github.com/gustavommcv/mangapress#readme) covers image adjustments, custom dimensions, metadata, nested contents, and dry runs.
+
+For integrations, see the [machine protocol](https://github.com/gustavommcv/mangapress/blob/main/docs/machine-protocol-v1.md). Use the reference for your installed version.

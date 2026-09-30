@@ -1,0 +1,19 @@
+---
+title: 'Conectando o KOReader'
+description: 'Adicione o catálogo, baixe um livro e abra no leitor.'
+---
+
+import MediaSlot from '../../../../components/MediaSlot.astro';
+
+Primeiro [ative o compartilhamento no Mangabound](../opds-sharing/) e conecte o leitor à mesma rede local acessível.
+
+1. No navegador de arquivos do KOReader, abra **OPDS catalog** pelo menu de pesquisa. Os nomes podem variar com a versão e o idioma do KOReader.
+2. Adicione um catálogo chamado **Mangabound**. Cole o endereço exato exibido pelo aplicativo. Preencha usuário/senha apenas se os configurou no Mangabound.
+3. Abra o catálogo e escolha **Recently converted** para encontrar os livros recém-processados, mais recentes primeiro. **Other files** lista livros não registrados na biblioteca compartilhada.
+4. Escolha o livro e baixe para uma pasta do leitor. Abra o arquivo baixado com o KOReader.
+
+<MediaSlot id="reader-catalog" />
+
+Após baixar, o livro é local ao leitor. O Mangabound não precisa continuar aberto para a leitura, apenas para novos downloads. Se o endereço do computador não mudar, reutilize o catálogo quando ativar o compartilhamento novamente.
+
+Para problemas de conexão, veja a [lista de verificações](../opds-sharing/#se-o-leitor-não-conectar). Para ajustes de exibição, veja [configurações do KOReader](../recommended-settings/).

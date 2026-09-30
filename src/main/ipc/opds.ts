@@ -14,6 +14,7 @@ import type { WorkflowResult } from '@/shared/workflow-contract';
 import { opdsPort } from '../constants';
 import type { MainContext } from '../context';
 import { failed, ok, toFailure } from './result';
+import { sharingFailure } from './sharing-failure';
 
 type OpdsContext = Pick<
   MainContext,
@@ -68,11 +69,11 @@ export function registerOpdsHandlers(context: OpdsContext): void {
         // The listener never reads the catalog on start, so a corrupt one would otherwise only
         // surface as a broken feed on the reader. A missing catalog is fine (read() returns an
         // empty one); only unreadable content stops sharing here. Any read failure gets the same
-        // message: a permissions error must not fall through to toFailure()'s network-address
-        // wording.
+        // message, and its cause goes to the log.
         try {
           await context.libraryStore.read(libraryPath);
         } catch (error) {
+          console.error('The library catalog could not be read to start sharing.', error);
           context.activeSharingLibraryId = undefined;
           return failed({
             code: error instanceof LibraryIndexError ? error.code : 'library_unreadable',
@@ -82,13 +83,23 @@ export function registerOpdsHandlers(context: OpdsContext): void {
         const isPendingRun =
           context.pendingRuns !== undefined &&
           path.dirname(path.resolve(libraryPath)) === path.resolve(context.pendingRuns.root);
-        context.activeSharing = await context.opdsServer.start({
-          libraryPath,
-          libraryTitle: isPendingRun ? 'Mangabound ready books' : path.basename(libraryPath),
-          interfaceAddress: command.interfaceAddress,
-          port: opdsPort,
-          auth: command.auth,
-        });
+        try {
+          context.activeSharing = await context.opdsServer.start({
+            libraryPath,
+            libraryTitle: isPendingRun ? 'Mangabound ready books' : path.basename(libraryPath),
+            interfaceAddress: command.interfaceAddress,
+            port: opdsPort,
+            auth: command.auth,
+          });
+        } catch (error) {
+          // Only here do these system errors mean the network: the same codes from a file operation
+          // do not, and go through toFailure().
+          const failure = sharingFailure(error);
+          if (failure === undefined) throw error;
+          console.error('The sharing server could not be started.', error);
+          context.activeSharingLibraryId = undefined;
+          return failed(failure);
+        }
         return ok(toSharingStatus(context.activeSharing));
       } catch (error) {
         context.activeSharingLibraryId = undefined;

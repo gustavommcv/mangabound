@@ -39,8 +39,19 @@ export class LibraryIndexError extends Error {
   }
 }
 
+/**
+ * Whether a catalog entry's path is one the app could have written: forward slashes, below the
+ * library, never a drive, a `..` or an empty step. The catalog is a file anyone can edit or hand
+ * over inside a folder, so what it names is checked before anything is opened by it.
+ */
+export function isLibraryRelativePath(value: string): boolean {
+  if (value.includes('\\') || value.includes('\0') || value.startsWith('/')) return false;
+  if (/^[A-Za-z]:/u.test(value)) return false;
+  return value.split('/').every((step) => step !== '' && step !== '.' && step !== '..');
+}
+
 const libraryBookEntrySchema = z.object({
-  relativePath: z.string().min(1),
+  relativePath: z.string().min(1).refine(isLibraryRelativePath),
   title: z.string().min(1),
   author: z.string().min(1),
   format: z.enum(['epub', 'cbz', 'pdf']),

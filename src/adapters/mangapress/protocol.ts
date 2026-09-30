@@ -152,7 +152,10 @@ export function parseMangapressEventLine(line: string): MangapressEvent {
     );
   }
 
-  const schema = knownEventSchemas[baseResult.data.type as keyof typeof knownEventSchemas];
+  // An own property only: a type such as "constructor" would otherwise find a method of every object.
+  const schema = Object.hasOwn(knownEventSchemas, baseResult.data.type)
+    ? knownEventSchemas[baseResult.data.type as keyof typeof knownEventSchemas]
+    : undefined;
   if (schema === undefined) {
     return baseResult.data;
   }

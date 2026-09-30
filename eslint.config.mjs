@@ -10,6 +10,7 @@ export default tseslint.config(
     ignores: [
       '.webpack/**',
       'coverage/**',
+      'docs/**', // Independent Astro package; docs/eslint.config.mjs and documentation CI own it.
       'node_modules/**',
       'out/**',
       'storybook-static/**',
@@ -42,6 +43,7 @@ export default tseslint.config(
     rules: {
       '@typescript-eslint/consistent-type-imports': ['error', { fixStyle: 'inline-type-imports' }],
       '@typescript-eslint/no-confusing-void-expression': 'error',
+      '@typescript-eslint/no-unnecessary-condition': 'error',
       '@typescript-eslint/no-misused-promises': [
         'error',
         { checksVoidReturn: { attributes: false } },

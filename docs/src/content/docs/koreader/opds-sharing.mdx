@@ -1,0 +1,31 @@
+---
+title: 'Local sharing'
+description: 'Share pending books or a library over your local network.'
+---
+
+import MediaSlot from '../../../components/MediaSlot.astro';
+
+Share books with KOReader over your local network. Open Mangabound's **OPDS catalog** on the reader and choose which books to download.
+
+## Start sharing
+
+1. Use **Share these books** in the results to share that conversion, or **Share** in the titlebar to choose an existing library folder.
+2. Select **Network interface** for the network your reader can reach—Ethernet is fine even if the reader uses Wi-Fi. Avoid a VPN adapter unless both devices can reach that network. The chosen interface is remembered.
+3. Optionally fill in both **Username** and **Password**, or leave both empty.
+4. Select **Start sharing**, then **Copy** the address the app displays. Keep Mangabound open until downloads finish.
+
+The address looks like `http://192.168.1.150:48123/`. Use the one shown in your app.
+
+Open **Recently converted** to find your latest books first. **Other files** lists additional books from the shared library.
+
+<MediaSlot id="share-panel" />
+
+:::caution[Trusted local networks only]
+Sharing uses HTTP. Optional Basic authentication restricts access but does not encrypt credentials or books. Do not expose the port to the internet or use it on an untrusted network.
+:::
+
+Continue with [connecting KOReader](../connecting/). Use **Stop sharing** when finished.
+
+## If your reader cannot connect
+
+Check that both devices can reach the same local network, the chosen interface is correct, sharing is still active, and your firewall allows the app on that trusted network. Guest Wi-Fi/client isolation and VPNs can block access even when both devices have internet. If the selected computer IP changes, update the catalog address in KOReader.

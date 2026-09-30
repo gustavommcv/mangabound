@@ -250,13 +250,11 @@ export function registerPendingHandlers(context: PendingContext): void {
           const defaultFolder = context.lastSaveFolder ?? app.getPath('documents');
           const result = await dialog.showSaveDialog({
             title: 'Save book as',
-            defaultPath: path.join(
-              defaultFolder ?? path.dirname(book.path),
-              path.basename(book.path),
-            ),
+            defaultPath: path.join(defaultFolder, path.basename(book.path)),
             filters: [{ name: book.entry.format.toUpperCase(), extensions: [book.entry.format] }],
           });
-          if (result.canceled || result.filePath === undefined) return ok({ saved: false });
+          // A cancelled dialog gives an empty path, so `canceled` is the whole answer.
+          if (result.canceled) return ok({ saved: false });
           const warning = await saveBook(context, id, result.filePath, true);
           return ok({ saved: true, ...(warning === undefined ? {} : { warning }) });
         } finally {

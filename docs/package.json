@@ -1,0 +1,46 @@
+{
+  "name": "mangabound-docs",
+  "private": true,
+  "type": "module",
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "astro check",
+    "test:unit": "node --experimental-test-coverage --test-coverage-include=scripts/verification.mjs --test-coverage-lines=100 --test-coverage-branches=100 --test-coverage-functions=100 --test tests/unit/*.test.mjs",
+    "test:browser": "playwright test",
+    "test:media": "playwright test --config playwright.media.config.mjs",
+    "test": "npm run test:unit && node scripts/check-i18n.mjs && node scripts/verify-links.mjs",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm run build && npm test && npm run test:browser && npm run test:media",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.42.4",
+    "astro": "^7.2.10",
+    "sharp": "^0.35.3"
+  },
+  "allowScripts": {
+    "esbuild": true
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.10",
+    "@axe-core/playwright": "4.13.0",
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.63.0",
+    "cheerio": "1.2.0",
+    "eslint": "10.11.0",
+    "globals": "^17.12.0",
+    "prettier": "^3.6.2",
+    "prettier-plugin-astro": "1.1.0",
+    "typescript": "6.0.3"
+  },
+  "engines": {
+    "node": ">=24.0.0",
+    "npm": ">=11.0.0"
+  }
+}

@@ -1,0 +1,28 @@
+---
+import { Aside } from '@astrojs/starlight/components';
+
+import { mediaPlacements } from '../../media-plan.mjs';
+
+interface Props {
+  id: string;
+}
+
+const { id } = Astro.props;
+const placement = mediaPlacements.find((item) => item.id === id);
+if (!placement) throw new Error(`Unknown media placement: ${id}`);
+const portuguese = Astro.locals.starlightRoute.lang === 'pt-BR';
+---
+
+{import.meta.env.DEV && (
+  <div data-media-slot={id} data-pagefind-ignore>
+    <Aside type="tip" title={portuguese ? 'Imagem / GIF planejado' : 'Planned image / GIF'}>
+      <p>{portuguese ? placement.pt : placement.en}</p>
+      <p>
+        <code>{id}</code> —{' '}
+        {portuguese
+          ? 'Marcação de edição: não aparece no site publicado.'
+          : 'Authoring marker: hidden on the published site.'}
+      </p>
+    </Aside>
+  </div>
+)}

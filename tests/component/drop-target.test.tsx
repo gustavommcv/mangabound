@@ -46,7 +46,7 @@ describe('DropTarget', () => {
     expect(
       within(menu)
         .getAllByRole('menuitem')
-        .map((item) => item.textContent?.trim()),
+        .map((item) => item.textContent.trim()),
     ).toEqual(['Choose files', 'Choose a folder']);
     // Asking what to add adds nothing yet.
     expect(onAddFiles).not.toHaveBeenCalled();

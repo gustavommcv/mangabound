@@ -49,12 +49,6 @@ export function defaultJpegQualityFor(deviceProfile: string): number {
   return deviceProfile.startsWith('KS') || deviceProfile === 'KCS' ? 90 : 85;
 }
 
-export interface OutputProfile {
-  readonly id: string;
-  readonly name: string;
-  readonly settings: MangapressSettings;
-}
-
 export type MangapressSettingField = keyof MangapressSettings;
 
 export interface MangapressSettingIssue {

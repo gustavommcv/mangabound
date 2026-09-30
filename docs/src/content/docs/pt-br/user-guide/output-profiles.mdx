@@ -1,0 +1,41 @@
+---
+title: 'Configurações de conversão'
+description: 'Escolha dispositivo, formato e ajustes de imagem.'
+---
+
+import MediaSlot from '../../../../components/MediaSlot.astro';
+
+## Dispositivo e formato
+
+Escolha seu modelo em **Device**. Para definir o tamanho das páginas, abra **Advanced conversion options** e preencha **Custom width** e **Custom height** em pixels. Um perfil de dispositivo personalizado exige ambas as dimensões.
+
+| Formato | Quando escolher                                                             |
+| ------- | --------------------------------------------------------------------------- |
+| EPUB    | Livro com navegação de capítulos; obrigatório para o modo de livro único    |
+| CBZ     | Imagens processadas em um ZIP; costuma ser uma escolha direta para KOReader |
+| PDF     | Páginas fixas para leitores ou tablets com suporte a PDF                    |
+
+A compatibilidade depende do aplicativo de leitura, não apenas do dispositivo. O leitor nativo do Kindle não abre EPUB diretamente: use um serviço de transferência/conversão compatível ou um leitor instalado, como KOReader. O KOReader trata EPUB de forma diferente de CBZ/PDF; veja [configurações do leitor](../../koreader/recommended-settings/).
+
+<MediaSlot id="device-settings" />
+
+## Advanced conversion options
+
+**Advanced conversion options** disponibiliza os ajustes do mangapress, agrupados por finalidade. Comece pelos padrões do dispositivo, altere um ajuste de cada vez e confira o livro gerado.
+
+- **Cropping** remove margens, com detecção opcional de números de página. Se cortar a arte, reduza ou desative o recorte.
+- **Splitter** escolhe divisão, rotação ou ambas para páginas duplas. A ordem de leitura de mangá coloca a metade direita primeiro ao dividir.
+- **Resize e codificação de imagem** controlam dimensões, escala, cor e qualidade JPEG. Um campo opcional vazio utiliza o padrão indicado do dispositivo/ferramenta, não zero.
+- **Erase rainbow** reduz certos artefatos de moiré. É opcional; compare o resultado nas suas páginas.
+
+Campos modificados podem ser restaurados individualmente ou em conjunto com **Reset to defaults**. As opções são lembradas entre sessões.
+
+## Um livro para a série
+
+Ative **Create one book for the series** na fila para reunir seus capítulos e volumes em um único livro, com os capítulos organizados por volume no índice.
+
+Esse modo usa EPUB e mantém as duas etapas ativadas. Desative-o para mudar o formato ou as etapas. Livros combinados maiores podem demorar mais para abrir no e-reader.
+
+<MediaSlot id="single-book" />
+
+A CLI independente tem padrões próprios; não presuma que sejam iguais aos da interface. Para uso no terminal, veja [mangapress](../../cli/mangapress/).

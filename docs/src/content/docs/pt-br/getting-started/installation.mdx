@@ -1,0 +1,51 @@
+---
+title: 'Instalação'
+description: 'Baixe o pacote adequado para seu computador.'
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+Baixe pela [página oficial de releases](https://github.com/gustavommcv/mangabound/releases). Expanda **Assets** e escolha seu sistema operacional e arquitetura. Versões alfa aparecem como **Pre-release**.
+
+<Tabs>
+<TabItem label="Windows">
+
+### Windows x64
+
+- Escolha o instalador **.Setup.exe** para uma instalação normal.
+- Como alternativa, extraia o **.zip win32-x64** e execute o aplicativo dentro da pasta extraída.
+
+O instalador alfa não possui assinatura comercial. O SmartScreen pode mostrar um aviso. Só prossiga se esperava esse download e o obteve na página oficial; não desative a segurança do Windows globalmente.
+
+</TabItem>
+<TabItem label="macOS">
+
+### macOS Apple Silicon
+
+Baixe o **.zip darwin-arm64**, extraia e mova **Mangabound.app** para **Applications**. Ainda não há pacote para Mac Intel.
+
+O aplicativo alfa não é notarizado. Se o macOS bloquear um aplicativo em que você confia, primeiro tente abri-lo e depois use **Ajustes do Sistema → Privacidade e Segurança → Abrir Mesmo Assim**, se disponível. Siga as [orientações da Apple](https://support.apple.com/en-lamr/102445); não desative o Gatekeeper globalmente.
+
+</TabItem>
+<TabItem label="Linux">
+
+### Linux x64
+
+Escolha o pacote da sua distribuição:
+
+| Distribuição                           | Arquivo        |
+| -------------------------------------- | -------------- |
+| Debian / Ubuntu e sistemas compatíveis | `.deb`         |
+| Fedora e sistemas compatíveis          | `.rpm`         |
+| Arch Linux e sistemas compatíveis      | `.pkg.tar.zst` |
+
+Instale o arquivo baixado com o gerenciador de pacotes da distribuição. Preserve seu nome original: os separadores de versão e revisão variam conforme o formato.
+
+</TabItem>
+</Tabs>
+
+## Se a instalação falhar
+
+Confira se o download corresponde ao sistema e à arquitetura. Ao relatar um problema, inclua a versão, o sistema operacional e a mensagem exata. Não baixe executáveis substitutos não oficiais para contornar um erro de verificação das ferramentas.
+
+Tudo pronto? Siga o [guia rápido](../quickstart/).

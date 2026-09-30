@@ -19,7 +19,7 @@ Mangabound does not reimplement chapter grouping or image conversion. Those are 
 | `src/preload`             | The typed bridge `window.mangabound`, the only way the page reaches the main process                                                                                                                               | `shared`                              | packaged e2e                                                      |
 | `src/renderer`            | The React app: `app.tsx` holds the state and wires screens together; `screens/`, `components/` draw it; `lib/` has pure helpers, `hooks/` has shared React hooks                                                   | domain, `shared`                      | component tests, Storybook, visual and e2e; `lib/` under the gate |
 
-Two rules follow from this and are checked in review: **the renderer never touches Node** (it is sandboxed, context-isolated, and has no filesystem or process access), and **the domain imports nothing from Electron, React, Node or any adapter**.
+Two rules follow from this: **the renderer never touches Node** (it is sandboxed, context-isolated, and has no filesystem or process access), and **the domain imports nothing from Electron, React, Node or any adapter**. The ESLint module-boundary rule enforces these import constraints in `npm run lint:boundaries`, which also tests that valid imports pass and forbidden imports fail. See [CONTRIBUTING](../CONTRIBUTING.md#module-boundaries).
 
 ## A conversion, step by step
 
@@ -35,14 +35,14 @@ Two rules follow from this and are checked in review: **the renderer never touch
 - The window is sandboxed with context isolation on, Node integration off, navigation and new windows denied.
 - Every IPC payload is validated against a zod schema in the main process before it is used.
 - The page holds no paths it typed or was handed, apart from the dropped files the preload resolves and main re-checks. A pending run, a session, a title in a library and a ready book are all ids that main resolves. Native dialogs choose export destinations in main.
-- An online source can only search by title and list a work's volumes. The port has no way to ask for chapters, pages or images ([ADR 0013](adr/0013-online-sources-for-volume-data.md)). Opening a source's homepage takes the source's id; the address comes from the registry, never from the page.
+- An online source searches for works by title and suggests volume/chapter assignments. Search results can include author names and the work's year; the port has no way to download manga pages or files. See the [provider guide](adding-a-metadata-provider.md). Opening a source's homepage takes the source's id; the address comes from the registry, never from the page.
 - The two bundled tools are verified against `toolchain.lock.json` (checksums, versions, protocol handshake) before any job can start; if they do not match, the app says so and does not convert.
 
 ## What is kept between runs
 
 - **Options, the last Save-dialog folder and the chosen sharing interface** are in `settings.json` in the operating system's per-user app data folder, written atomically and read once at launch ([ADR 0014](adr/0014-persisted-settings-and-reset.md), [ADR 0022](adr/0022-remember-chosen-network-interface.md), [ADR 0026](adr/0026-process-then-save-pending-books.md)). The last folder is a suggestion, never an automatic destination. The OPDS server still starts only when requested.
 - **Pending books and their catalog** are in per-run directories under local persistent app data, not the OS temp directory. A complete run is removed after every book has been exported and recorded successfully and the app closes; unsaved, partly saved, or warning-affected runs remain. A person can also explicitly delete one pending run from the queue after confirming; this does not delete copies already exported elsewhere. Deletion is refused while that run is being saved or shared, and a conversion in progress blocks deletion.
-- **Each exported library's catalog** is `<library>/.mangabound/library.json`.
+- **Each exported library's catalog** is `<library>/.mangabound/library.json`. It is a file anyone can edit, so its reader refuses a catalog whose entries name a place that is not below the library (a `..`, an absolute path, a drive), and the OPDS server resolves each entry again before it opens a file.
 - The queue, drafts and sessions are gone when the app closes, and mangabind scratch workspaces are removed with them.
 
 ## Where to change what
@@ -65,3 +65,5 @@ Two rules follow from this and are checked in review: **the renderer never touch
 | Storybook stories (`*.stories.tsx`) | Storybook with Vitest and axe        | Every screen and state on its own, their interactions, and a WCAG A and AA accessibility check that fails the build.            |
 | `tests/visual`                      | Playwright                           | Screenshots of the stories compared with the baselines in `tests/visual/__screenshots__`.                                       |
 | `tests/e2e`                         | WebdriverIO against the packaged app | The real window with the real tools: reading, converting, sharing, saving options, the title bar.                               |
+
+The component tests of the whole `App` are split by topic (`tests/component/workflow-*.test.tsx`: the queue, the options, process control, sharing, libraries, and the details of a book). They share a fake bridge and fixtures from `tests/component/support`, and each file installs its own bridge, so one can be run alone.

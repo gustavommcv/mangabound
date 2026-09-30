@@ -1,0 +1,18 @@
+---
+title: 'Arquitetura e contribuição'
+description: 'Consulte os guias de arquitetura e contribuição.'
+---
+
+Comece pelos guias de implementação do repositório:
+
+- [Visão geral da arquitetura](https://github.com/gustavommcv/mangabound/blob/main/docs/architecture.md): camadas, dependências permitidas, conversão, persistência e pontos de extensão.
+- [CONTRIBUTING](https://github.com/gustavommcv/mangabound/blob/main/CONTRIBUTING.md): preparação, formatação, lint, tipos, testes com fixtures, Storybook, E2E empacotado e verificação da CI remota do commit exato.
+- [Registros de decisão](https://github.com/gustavommcv/mangabound/tree/main/docs/adr): motivos e limitações das decisões aceitas.
+
+As regras de domínio não dependem de Electron ou React. Adaptadores implementam as portas da aplicação; a interface isolada usa a ponte validada do preload, sem acessar diretamente arquivos ou processos.
+
+## Contribuindo com o site
+
+Consulte [docs/README.md](https://github.com/gustavommcv/mangabound/blob/main/docs/README.md) para as verificações independentes e a política de publicação. GIFs e capturas seguem o [guia de mídia](https://github.com/gustavommcv/mangabound/blob/main/docs/MEDIA.md).
+
+Atualize os dois idiomas ao alterar uma tarefa. Confira rótulos e comportamento na versão publicada; as mídias ilustram as instruções, sem substituí-las.

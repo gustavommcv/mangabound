@@ -1,0 +1,19 @@
+---
+title: 'Interfaces de máquina'
+description: 'Encontre os contratos JSON oficiais e versionados das ferramentas.'
+---
+
+O Mangabound executa as ferramentas incluídas como subprocessos e valida sua saída estruturada. Use `--protocol-version` para consultar versão, protocolo e capacidades de uma ferramenta.
+
+## Contratos oficiais
+
+- [Protocolo v1 do mangabind](https://github.com/gustavommcv/mangabind/blob/main/docs/machine-protocol-v1.md): `--json` retorna um relatório final no stdout. A opção `--progress-json` acrescenta progresso no stderr sem alterar o relatório final.
+- [Protocolo v1 do mangapress](https://github.com/gustavommcv/mangapress/blob/main/docs/machine-protocol-v1.md): `--json-events` emite JSON Lines com sequência no stdout.
+
+Cada contrato define os campos das mensagens, o canal de progresso, os erros e os códigos de saída.
+
+## Exemplos reais no aplicativo
+
+As [fixtures de protocolo registradas](https://github.com/gustavommcv/mangabound/tree/main/tests/fixtures/protocol) e os [parsers dos adaptadores](https://github.com/gustavommcv/mangabound/tree/main/src/adapters) demonstram as mensagens aceitas. O [toolchain lock](https://github.com/gustavommcv/mangabound/blob/main/toolchain.lock.json) registra as versões incluídas.
+
+Use fixtures da versão desejada ao testar uma integração.

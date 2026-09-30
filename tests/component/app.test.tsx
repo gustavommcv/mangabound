@@ -3,9 +3,18 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from '@/renderer/app';
 
+import { inertBridge } from './support/bridge';
+
 afterEach(() => {
   Reflect.deleteProperty(window, 'mangabound');
 });
+
+function installBridge(overrides: Parameters<typeof inertBridge>[0]): void {
+  Object.defineProperty(window, 'mangabound', {
+    configurable: true,
+    value: inertBridge(overrides),
+  });
+}
 
 describe('application foundation', () => {
   it('identifies the scaffold, saying nothing about tools that are still being checked', () => {
@@ -19,30 +28,26 @@ describe('application foundation', () => {
   });
 
   it('says nothing once the bridge reports the tools are ready: they are mandatory, not a status', async () => {
-    Object.defineProperty(window, 'mangabound', {
-      configurable: true,
-      value: {
-        getToolchainStatus: vi.fn().mockResolvedValue({
-          state: 'ready',
-          target: 'win32-x64',
-          tools: [
-            {
-              name: 'mangabind',
-              releaseTag: 'v0.4.0',
-              state: 'ready',
-              message: 'mangabind v0.4.0 is verified.',
-            },
-            {
-              name: 'mangapress',
-              releaseTag: 'v0.5.0',
-              state: 'ready',
-              message: 'mangapress v0.5.0 is verified.',
-            },
-          ],
-          message: 'Bundled conversion tools are verified and ready.',
-        }),
-        runtime: { electron: '44.3.0', platform: 'win32', version: '0.1.0-alpha.1' },
-      },
+    installBridge({
+      getToolchainStatus: vi.fn().mockResolvedValue({
+        state: 'ready',
+        target: 'win32-x64',
+        tools: [
+          {
+            name: 'mangabind',
+            releaseTag: 'v0.4.0',
+            state: 'ready',
+            message: 'mangabind v0.4.0 is verified.',
+          },
+          {
+            name: 'mangapress',
+            releaseTag: 'v0.5.0',
+            state: 'ready',
+            message: 'mangapress v0.5.0 is verified.',
+          },
+        ],
+        message: 'Bundled conversion tools are verified and ready.',
+      }),
     });
 
     render(<App />);
@@ -55,12 +60,8 @@ describe('application foundation', () => {
   });
 
   it('presents a safe recovery message if the preload status call fails', async () => {
-    Object.defineProperty(window, 'mangabound', {
-      configurable: true,
-      value: {
-        getToolchainStatus: vi.fn().mockRejectedValue(new Error('internal detail')),
-        runtime: { electron: '44.3.0', platform: 'win32', version: '0.1.0-alpha.1' },
-      },
+    installBridge({
+      getToolchainStatus: vi.fn().mockRejectedValue(new Error('internal detail')),
     });
 
     render(<App />);
@@ -73,30 +74,26 @@ describe('application foundation', () => {
   it('shows the repair path when the bridge resolves with a blocked toolchain, not only when it rejects', async () => {
     const message =
       'A bundled conversion tool failed verification. Reinstall Mangabound to restore it.';
-    Object.defineProperty(window, 'mangabound', {
-      configurable: true,
-      value: {
-        getToolchainStatus: vi.fn().mockResolvedValue({
-          state: 'blocked',
-          target: 'win32-x64',
-          tools: [
-            {
-              name: 'mangabind',
-              releaseTag: 'v0.4.0',
-              state: 'failed',
-              message: 'mangabind failed verification. Reinstall Mangabound to restore it.',
-            },
-            {
-              name: 'mangapress',
-              releaseTag: 'v0.5.0',
-              state: 'ready',
-              message: 'mangapress v0.5.0 is verified.',
-            },
-          ],
-          message,
-        }),
-        runtime: { electron: '44.3.0', platform: 'win32', version: '0.1.0-alpha.1' },
-      },
+    installBridge({
+      getToolchainStatus: vi.fn().mockResolvedValue({
+        state: 'blocked',
+        target: 'win32-x64',
+        tools: [
+          {
+            name: 'mangabind',
+            releaseTag: 'v0.4.0',
+            state: 'failed',
+            message: 'mangabind failed verification. Reinstall Mangabound to restore it.',
+          },
+          {
+            name: 'mangapress',
+            releaseTag: 'v0.5.0',
+            state: 'ready',
+            message: 'mangapress v0.5.0 is verified.',
+          },
+        ],
+        message,
+      }),
     });
 
     render(<App />);

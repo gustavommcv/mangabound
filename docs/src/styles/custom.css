@@ -1,0 +1,24 @@
+/* Keep Starlight's accessible navigation, theme switching, and layout. */
+:root {
+  --sl-font-system:
+    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+:root[data-theme='dark'] {
+  --sl-color-accent-low: #2c2442;
+  --sl-color-accent: #b8a6e8;
+  --sl-color-accent-high: #eee8fb;
+  --sl-color-bg: #121214;
+  --sl-color-bg-nav: #151518;
+  --sl-color-bg-sidebar: #131316;
+}
+
+:root[data-theme='light'] {
+  --sl-color-accent-low: #f0ebfa;
+  --sl-color-accent: #65419e;
+  --sl-color-accent-high: #372056;
+}
+
+.starlight-aside {
+  border-radius: 0.625rem;
+}

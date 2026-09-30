@@ -1,0 +1,27 @@
+---
+title: 'How Mangabound works'
+description: 'From chapter folders to finished books.'
+---
+
+## From chapters to books
+
+Mangabound brings volume organization, conversion, and local sharing into one desktop app.
+
+Choose a chapter folder, a library of manga folders, or a CBZ. Check the volumes, set your device and format, and process the queue. You can then save the books or share them with your reader.
+
+## Behind the scenes
+
+Two tools handle the processing:
+
+- **[mangabind](https://github.com/gustavommcv/mangabind)** groups chapters into volumes.
+- **[mangapress](https://github.com/gustavommcv/mangapress)** adjusts the pages and creates EPUB, CBZ, or PDF books.
+
+Both come with Mangabound.
+
+## Local processing
+
+Organization, conversion, and saving happen on your computer. Online searches for volume information or an author are optional. They use the title you enter and the selected work's identifier and language where needed; your manga pages stay local.
+
+Network sharing is enabled from the **Share** panel. Keep the app open while your reader downloads the books.
+
+Follow the [quickstart](../quickstart/) to try it. For implementation details, see the [architecture guide](../../development/architecture/).

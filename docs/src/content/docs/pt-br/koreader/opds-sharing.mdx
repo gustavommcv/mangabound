@@ -1,0 +1,31 @@
+---
+title: 'Compartilhamento local'
+description: 'Compartilhe livros pendentes ou uma biblioteca pela rede local.'
+---
+
+import MediaSlot from '../../../../components/MediaSlot.astro';
+
+Compartilhe livros com o KOReader pela rede local. Abra o **catálogo OPDS** do Mangabound no leitor e escolha quais livros baixar.
+
+## Inicie o compartilhamento
+
+1. Use **Share these books** nos resultados para compartilhar aquela conversão ou **Share** na barra superior para escolher uma pasta de biblioteca existente.
+2. Selecione **Network interface** da rede acessível ao leitor. O computador pode usar Ethernet mesmo com o leitor no Wi-Fi. Evite adaptadores VPN, a menos que ambos alcancem essa rede. A interface escolhida é lembrada.
+3. Preencha opcionalmente **Username** e **Password**, ou deixe ambos vazios.
+4. Selecione **Start sharing** e use **Copy** no endereço mostrado. Mantenha o Mangabound aberto até os downloads terminarem.
+
+O endereço tem o formato `http://192.168.1.150:48123/`. Use o que aparece no seu aplicativo.
+
+Abra **Recently converted** para encontrar os livros mais recentes primeiro. **Other files** lista outros livros da biblioteca compartilhada.
+
+<MediaSlot id="share-panel" />
+
+:::caution[Apenas redes locais confiáveis]
+O compartilhamento usa HTTP. A autenticação Basic opcional restringe acesso, mas não criptografa credenciais nem livros. Não exponha a porta na internet nem utilize uma rede não confiável.
+:::
+
+Continue em [conectando o KOReader](../connecting/). Use **Stop sharing** ao terminar.
+
+## Se o leitor não conectar
+
+Confira se ambos alcançam a mesma rede local, a interface escolhida está correta, o compartilhamento está ativo e o firewall permite o aplicativo nessa rede confiável. Wi-Fi de convidados, isolamento de clientes e VPNs podem bloquear acesso mesmo com internet nos dois aparelhos. Se o IP do computador mudar, atualize o endereço no KOReader.

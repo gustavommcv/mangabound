@@ -1,0 +1,48 @@
+---
+title: 'KOReader settings'
+description: 'Choose reader settings for the actual book format and device.'
+---
+
+import MediaSlot from '../../../components/MediaSlot.astro';
+
+## Choose settings for your book
+
+KOReader handles EPUB differently from CBZ and PDF, so the available page controls depend on the book format. CBZ is a straightforward choice for image-page controls; EPUB is useful for a chapter and volume table of contents.
+
+Start with a few pages and adjust the settings below to suit your screen. Menu names and locations can vary with the KOReader version, language, and device. The [official KOReader guide](https://koreader.rocks/user_guide/) explains each format's controls and how to search the menus.
+
+## Overlap status bar
+
+With a book open, find **Status bar → Overlap status bar**. This lets the page use the area reserved for the status bar. Check that the bar does not cover artwork you want to see.
+
+See [KOReader's status-bar settings](https://github.com/koreader/koreader/blob/master/frontend/apps/reader/modules/readerfooter.lua).
+
+<MediaSlot id="reader-statusbar" />
+
+## Full refresh rate
+
+On an e-ink reader, try **Screen → eInk settings → Full refresh rate → Every page** if you see traces of the previous page.
+
+A full refresh can reduce these traces, but may add a visible flash or slow page turns. Compare it with the default on your device. This setting applies to supported e-ink screens, not LCD displays. See the [KOReader guide](https://koreader.rocks/user_guide/) for refresh options.
+
+<MediaSlot id="reader-refresh" />
+
+## CBZ/PDF page controls
+
+Try a page-based view and fit-to-page zoom to show each page as a whole. If the book already fills the screen, leave cropping off: the conversion may have removed margins, and another crop could cut off artwork.
+
+These are CBZ/PDF controls. For EPUB, use the options available in its own reading menu. Change one setting at a time and compare a sample before saving your preferences.
+
+## Tweak document settings
+
+To give a manga folder different defaults from your text books, use KOReader's advanced **Tweak document settings** plugin. It applies directory-specific defaults when a book is first opened.
+
+The plugin uses a Lua configuration file rather than EPUB style tweaks. Follow the [official setup instructions](https://github.com/koreader/koreader/wiki/Tweak-document-settings-by-directory) and back up your configuration before editing it. Books you have already opened can keep their individual settings.
+
+<MediaSlot id="reader-directory-defaults" />
+
+## Saving a default
+
+Some controls let you save a default with a long press; others open help or another dialog. Follow the confirmation shown for that control. Previously opened books may keep their own settings.
+
+If a book still displays incorrectly, include the KOReader version, device, file format, and settings when asking for help.
