@@ -38,30 +38,30 @@ function memoryDeps(initial?: string): {
     calls,
     deps: {
       createTempSuffix: () => `t${String(++suffix)}`,
-      mkdir: ((directory: string) => {
+      mkdir: (directory: string) => {
         calls.push(`mkdir ${directory}`);
         return Promise.resolve(undefined);
-      }) as unknown as FsSettingsStoreDeps['mkdir'],
-      readFile: ((file: string) => {
+      },
+      readFile: (file: string) => {
         const text = files.get(file);
         return text === undefined ? Promise.reject(errno('ENOENT')) : Promise.resolve(text);
-      }) as unknown as FsSettingsStoreDeps['readFile'],
-      writeFile: ((file: string, text: string) => {
+      },
+      writeFile: (file: string, text: string) => {
         calls.push(`write ${file}`);
         files.set(file, text);
         return Promise.resolve();
-      }) as unknown as FsSettingsStoreDeps['writeFile'],
-      rename: ((from: string, to: string) => {
+      },
+      rename: (from: string, to: string) => {
         calls.push(`rename ${from} ${to}`);
         files.set(to, files.get(from) ?? '');
         files.delete(from);
         return Promise.resolve();
-      }) as unknown as FsSettingsStoreDeps['rename'],
-      rm: ((file: string) => {
+      },
+      rm: (file: string) => {
         calls.push(`rm ${file}`);
         files.delete(file);
         return Promise.resolve();
-      }) as unknown as FsSettingsStoreDeps['rm'],
+      },
     },
   };
 }
@@ -96,8 +96,7 @@ describe('loading the settings file', () => {
 
   it('gives the defaults, and says so, when the file is there but cannot be read', async () => {
     const store = new FsSettingsStore(settingsFile, {
-      readFile: (() =>
-        Promise.reject(errno('EACCES'))) as unknown as FsSettingsStoreDeps['readFile'],
+      readFile: () => Promise.reject(errno('EACCES')),
     });
 
     expect(await store.load()).toEqual({ settings: defaultPreferences, unreadable: true });
@@ -132,12 +131,12 @@ describe('saving the settings file', () => {
     let writes = 0;
     const store = new FsSettingsStore(settingsFile, {
       ...deps,
-      writeFile: (async (file: string, text: string) => {
+      writeFile: async (file: string, text: string) => {
         writes += 1;
         // The first write takes longer than the ones after it.
         if (writes === 1) await firstIsHeld;
         files.set(file, text);
-      }) as unknown as FsSettingsStoreDeps['writeFile'],
+      },
     });
 
     const first = store.save({ ...defaultPreferences, format: 'pdf' });
@@ -153,7 +152,7 @@ describe('saving the settings file', () => {
     const failure = errno('ENOSPC');
     const store = new FsSettingsStore(settingsFile, {
       ...deps,
-      rename: (() => Promise.reject(failure)) as unknown as FsSettingsStoreDeps['rename'],
+      rename: () => Promise.reject(failure),
     });
 
     const saved = store.save(defaultPreferences);
@@ -173,9 +172,8 @@ describe('saving the settings file', () => {
     const { deps } = memoryDeps();
     const store = new FsSettingsStore(settingsFile, {
       ...deps,
-      writeFile: (() =>
-        Promise.reject(errno('EACCES'))) as unknown as FsSettingsStoreDeps['writeFile'],
-      rm: (() => Promise.reject(errno('EPERM'))) as unknown as FsSettingsStoreDeps['rm'],
+      writeFile: () => Promise.reject(errno('EACCES')),
+      rm: () => Promise.reject(errno('EPERM')),
     });
 
     await expect(store.save(defaultPreferences)).rejects.toBeInstanceOf(SettingsSaveError);
@@ -187,11 +185,11 @@ describe('saving the settings file', () => {
       .fn<FsSettingsStoreDeps['rename']>()
       .mockRejectedValueOnce(errno('EBUSY'))
       .mockRejectedValueOnce(errno('EPERM'))
-      .mockImplementation(((from: string, to: string) => {
+      .mockImplementation((from: string, to: string) => {
         files.set(to, files.get(from) ?? '');
         files.delete(from);
         return Promise.resolve();
-      }) as unknown as FsSettingsStoreDeps['rename']);
+      });
     const store = new FsSettingsStore(settingsFile, { ...deps, rename });
 
     await store.save(kept);
@@ -219,10 +217,10 @@ describe('saving the settings file', () => {
     const writeFile = vi
       .fn<FsSettingsStoreDeps['writeFile']>()
       .mockRejectedValueOnce(errno('EACCES'))
-      .mockImplementation(((file: string, text: string) => {
+      .mockImplementation((file: string, text: string) => {
         files.set(file, text);
         return Promise.resolve();
-      }) as unknown as FsSettingsStoreDeps['writeFile']);
+      });
     const store = new FsSettingsStore(settingsFile, { ...deps, writeFile });
 
     await expect(store.save(defaultPreferences)).rejects.toBeInstanceOf(SettingsSaveError);
@@ -244,11 +242,11 @@ describe('waiting for saves', () => {
     let finished = false;
     const store = new FsSettingsStore(settingsFile, {
       ...deps,
-      rename: (async () => {
+      rename: async () => {
         await Promise.resolve();
         finished = true;
         throw errno('EBUSY');
-      }) as unknown as FsSettingsStoreDeps['rename'],
+      },
     });
     const failing = store.save(defaultPreferences);
     failing.catch(() => undefined);
@@ -290,5 +288,21 @@ describe('on a real disk', () => {
     await store.save(kept);
 
     expect(await store.load()).toEqual({ settings: kept, unreadable: false });
+  });
+
+  it('reports a temporary-name collision without overwriting or deleting either file', async () => {
+    const file = path.join(directory, 'settings.json');
+    const temporary = `${file}.taken.tmp`;
+    await writeFile(file, 'old settings');
+    await writeFile(temporary, 'another writer');
+    const store = new FsSettingsStore(file, { createTempSuffix: () => 'taken' });
+
+    await expect(store.save(kept)).rejects.toMatchObject({
+      code: 'settings_save_failed',
+      cause: { code: 'EEXIST' },
+    });
+
+    expect(await readFile(file, 'utf8')).toBe('old settings');
+    expect(await readFile(temporary, 'utf8')).toBe('another writer');
   });
 });

@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import type { Dirent } from 'node:fs';
-import { mkdir, readdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
+import type { Dirent, Stats } from 'node:fs';
+import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import { writeFileAtomically, type AtomicWriteDeps } from '@/adapters/fs/write-file-atomically';
 import type { LibraryStorePort } from '@/application/ports/library-store';
 import {
   type LibraryBookEntry,
@@ -17,14 +18,17 @@ import { publishBook } from '@/library/publish';
 const manifestDirName = '.mangabound';
 const manifestFileName = 'library.json';
 
-export interface FsLibraryStoreDeps {
-  readonly readFile: typeof readFile;
-  readonly writeFile: typeof writeFile;
-  readonly rename: typeof rename;
-  readonly mkdir: typeof mkdir;
-  readonly readdir: typeof readdir;
-  readonly stat: typeof stat;
-  readonly createTempSuffix: () => string;
+export interface FsLibraryStoreDeps extends AtomicWriteDeps {
+  readonly readFile: (filePath: string, encoding: 'utf8') => Promise<string>;
+  readonly mkdir: (
+    directoryPath: string,
+    options: { readonly recursive: true },
+  ) => Promise<string | undefined>;
+  readonly readdir: (
+    directoryPath: string,
+    options: { readonly withFileTypes: true },
+  ) => Promise<readonly Pick<Dirent, 'name' | 'isFile'>[]>;
+  readonly stat: (filePath: string) => Promise<Pick<Stats, 'size' | 'mtime'>>;
 }
 
 function manifestDir(libraryPath: string): string {
@@ -47,6 +51,7 @@ export class FsLibraryStore implements LibraryStorePort {
       readFile: deps.readFile ?? readFile,
       writeFile: deps.writeFile ?? writeFile,
       rename: deps.rename ?? rename,
+      rm: deps.rm ?? rm,
       mkdir: deps.mkdir ?? mkdir,
       readdir: deps.readdir ?? readdir,
       stat: deps.stat ?? stat,
@@ -70,9 +75,7 @@ export class FsLibraryStore implements LibraryStorePort {
     const next = publishBook(current, entry);
     await this.io.mkdir(manifestDir(libraryPath), { recursive: true });
     const finalPath = manifestPath(libraryPath);
-    const tempPath = `${finalPath}.${this.io.createTempSuffix()}.tmp`;
-    await this.io.writeFile(tempPath, serializeLibraryManifest(next), 'utf8');
-    await this.io.rename(tempPath, finalPath);
+    await writeFileAtomically(finalPath, serializeLibraryManifest(next), this.io);
     return next;
   }
 
@@ -81,7 +84,7 @@ export class FsLibraryStore implements LibraryStorePort {
     manifest: LibraryManifest,
   ): Promise<readonly LibraryBookEntry[]> {
     const known = new Set(manifest.books.map((book) => book.relativePath));
-    let entries: Dirent[];
+    let entries: Awaited<ReturnType<FsLibraryStoreDeps['readdir']>>;
     try {
       entries = await this.io.readdir(libraryPath, { withFileTypes: true });
     } catch (error) {

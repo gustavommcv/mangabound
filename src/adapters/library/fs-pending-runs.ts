@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { constants } from 'node:fs';
+import { constants, type Stats } from 'node:fs';
 import {
   copyFile,
   link,
@@ -13,6 +13,7 @@ import {
 } from 'node:fs/promises';
 import path from 'node:path';
 
+import { writeFileAtomically, type AtomicWriteDeps } from '@/adapters/fs/write-file-atomically';
 import type { LibraryBookEntry } from '@/library/manifest';
 import { toLibraryRelativePath } from '@/library/paths';
 import { FsLibraryStore } from './fs-library-store';
@@ -41,27 +42,29 @@ interface PendingState {
 
 const emptyState: PendingState = { version: 1, saved: {} };
 
+export interface FsPendingRunsDeps extends AtomicWriteDeps {
+  readonly readFile: (filePath: string, encoding: 'utf8') => Promise<string>;
+  readonly stat: (filePath: string) => Promise<Pick<Stats, 'isFile' | 'birthtimeMs'>>;
+  readonly link: (from: string, to: string) => Promise<void>;
+}
+
 /** Owns durable, app-local conversion output. Each run is isolated from name collisions in others. */
 export class FsPendingRuns {
-  private readonly io: {
-    readonly readFile: typeof readFile;
-    readonly stat: typeof stat;
-    readonly link: typeof link;
-  };
+  private readonly io: FsPendingRunsDeps;
 
   constructor(
     readonly root: string,
     private readonly libraries = new FsLibraryStore(),
-    deps: Partial<{
-      readonly readFile: typeof readFile;
-      readonly stat: typeof stat;
-      readonly link: typeof link;
-    }> = {},
+    deps: Partial<FsPendingRunsDeps> = {},
   ) {
     this.io = {
       readFile: deps.readFile ?? readFile,
       stat: deps.stat ?? stat,
       link: deps.link ?? link,
+      writeFile: deps.writeFile ?? writeFile,
+      rename: deps.rename ?? rename,
+      rm: deps.rm ?? rm,
+      createTempSuffix: deps.createTempSuffix ?? randomUUID,
     };
   }
 
@@ -120,14 +123,8 @@ export class FsPendingRuns {
       saved: { ...state.saved, [book.entry.relativePath]: savedPath },
     };
     const finalPath = path.join(run.path, '.mangabound', 'pending.json');
-    const tempPath = `${finalPath}.${randomUUID()}.tmp`;
     await mkdir(path.dirname(finalPath), { recursive: true });
-    try {
-      await writeFile(tempPath, `${JSON.stringify(next, null, 2)}\n`, 'utf8');
-      await rename(tempPath, finalPath);
-    } finally {
-      await rm(tempPath, { force: true });
-    }
+    await writeFileAtomically(finalPath, `${JSON.stringify(next, null, 2)}\n`, this.io);
   }
 
   /** Never modifies the source. A same-folder staged file protects it from failed exports. */

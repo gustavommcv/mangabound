@@ -1,12 +1,11 @@
-import { mkdtemp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
-import type { link } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { FsLibraryStore } from '@/adapters/library/fs-library-store';
-import { FsPendingRuns } from '@/adapters/library/fs-pending-runs';
+import { FsPendingRuns, type FsPendingRunsDeps } from '@/adapters/library/fs-pending-runs';
 import type { LibraryBookEntry } from '@/library/manifest';
 
 const roots: string[] = [];
@@ -39,6 +38,82 @@ afterEach(async () => {
 });
 
 describe('FsPendingRuns', () => {
+  it('removes a partial state write and retains the previous saved destination', async () => {
+    const { root, store, library } = await bookFixture();
+    const run = (await store.list())[0];
+    const book = run?.books[0];
+    if (run === undefined || book === undefined) throw new Error('Fixture missing');
+    const previous = path.join(root, 'First.epub');
+    await store.markSaved(run, book, previous);
+    const failure = Object.assign(new Error('full'), { code: 'ENOSPC' });
+    const cleanup = vi.fn<FsPendingRunsDeps['rm']>().mockImplementation(rm);
+    const writer = new FsPendingRuns(store.root, library, {
+      createTempSuffix: () => 'partial',
+      rm: cleanup,
+      writeFile: async (file, _contents, options) => {
+        await writeFile(file, 'partial', options);
+        throw failure;
+      },
+    });
+
+    await expect(writer.markSaved(run, book, path.join(root, 'Second.epub'))).rejects.toBe(failure);
+
+    expect((await store.list())[0]?.books[0]?.savedPath).toBe(previous);
+    expect((await readdir(path.join(run.path, '.mangabound'))).sort()).toEqual([
+      'library.json',
+      'pending.json',
+    ]);
+    expect(cleanup).toHaveBeenCalledExactlyOnceWith(
+      path.join(run.path, '.mangabound', 'pending.json.partial.tmp'),
+      { force: true },
+    );
+  });
+
+  it('retries a transient saved-state rename lock and recovers the saved destination', async () => {
+    const { root, store, library } = await bookFixture();
+    const run = (await store.list())[0];
+    const book = run?.books[0];
+    if (run === undefined || book === undefined) throw new Error('Fixture missing');
+    const retryingRename = vi
+      .fn<FsPendingRunsDeps['rename']>()
+      .mockRejectedValueOnce(Object.assign(new Error('locked'), { code: 'EBUSY' }))
+      .mockImplementation(rename);
+    const writer = new FsPendingRuns(store.root, library, { rename: retryingRename });
+    const destination = path.join(root, 'Book.epub');
+
+    await writer.markSaved(run, book, destination);
+
+    expect(retryingRename).toHaveBeenCalledTimes(2);
+    expect((await new FsPendingRuns(store.root, library).list())[0]?.books[0]?.savedPath).toBe(
+      destination,
+    );
+    expect((await readdir(path.join(run.path, '.mangabound'))).sort()).toEqual([
+      'library.json',
+      'pending.json',
+    ]);
+  });
+
+  it('keeps the previous saved-state record and removes its temporary file on a failed rename', async () => {
+    const { root, store, library } = await bookFixture();
+    const run = (await store.list())[0];
+    const book = run?.books[0];
+    if (run === undefined || book === undefined) throw new Error('Fixture missing');
+    const firstDestination = path.join(root, 'First.epub');
+    await store.markSaved(run, book, firstDestination);
+    const failure = Object.assign(new Error('full'), { code: 'ENOSPC' });
+    const writer = new FsPendingRuns(store.root, library, {
+      rename: () => Promise.reject(failure),
+    });
+
+    await expect(writer.markSaved(run, book, path.join(root, 'Second.epub'))).rejects.toBe(failure);
+
+    expect((await store.list())[0]?.books[0]?.savedPath).toBe(firstDestination);
+    expect((await readdir(path.join(run.path, '.mangabound'))).sort()).toEqual([
+      'library.json',
+      'pending.json',
+    ]);
+  });
+
   it('prepares durable storage, isolates runs, and omits empty ones from recovery', async () => {
     const { store } = await fixture();
     expect(await store.prepare()).toBe(store.root);
@@ -168,7 +243,7 @@ describe('FsPendingRuns', () => {
     const noLinks = new FsPendingRuns(store.root, new FsLibraryStore(), {
       link: vi.fn(() =>
         Promise.reject(Object.assign(new Error('unsupported'), { code: 'ENOTSUP' })),
-      ) as unknown as typeof link,
+      ),
     });
     const destination = path.join(root, 'On USB.epub');
     await noLinks.export(book, destination, false);
@@ -181,7 +256,7 @@ describe('FsPendingRuns', () => {
     if (book === undefined) throw new Error('Fixture missing');
     const failure = new Error('unexpected');
     const broken = new FsPendingRuns(store.root, new FsLibraryStore(), {
-      link: vi.fn(() => Promise.reject(failure)) as unknown as typeof link,
+      link: vi.fn(() => Promise.reject(failure)),
     });
     const destination = path.join(root, 'Never.epub');
     await expect(broken.export(book, destination, false)).rejects.toBe(failure);
@@ -209,11 +284,11 @@ describe('FsPendingRuns', () => {
     const statFailure = new FsPendingRuns(store.root, new FsLibraryStore(), {
       stat: vi.fn((target: string) =>
         target === path.join(run.path, 'Book.epub') ? Promise.reject(denied) : stat(target),
-      ) as unknown as typeof stat,
+      ),
     });
     await expect(statFailure.list()).rejects.toBe(denied);
     const readFailure = new FsPendingRuns(store.root, new FsLibraryStore(), {
-      readFile: vi.fn(() => Promise.reject(denied)) as unknown as typeof readFile,
+      readFile: vi.fn(() => Promise.reject(denied)),
     });
     await expect(readFailure.list()).rejects.toBe(denied);
   });
