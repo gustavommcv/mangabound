@@ -65,3 +65,5 @@ Two rules follow from this: **the renderer never touches Node** (it is sandboxed
 | Storybook stories (`*.stories.tsx`) | Storybook with Vitest and axe        | Every screen and state on its own, their interactions, and a WCAG A and AA accessibility check that fails the build.            |
 | `tests/visual`                      | Playwright                           | Screenshots of the stories compared with the baselines in `tests/visual/__screenshots__`.                                       |
 | `tests/e2e`                         | WebdriverIO against the packaged app | The real window with the real tools: reading, converting, sharing, saving options, the title bar.                               |
+
+The component tests of the whole `App` are split by topic (`tests/component/workflow-*.test.tsx`: the queue, the options, process control, sharing, libraries, and the details of a book). They share a fake bridge and fixtures from `tests/component/support`, and each file installs its own bridge, so one can be run alone.
