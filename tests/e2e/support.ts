@@ -50,6 +50,17 @@ export async function saveBookAs(name: string, filePath: string): Promise<void> 
     timeout: 30_000,
     timeoutMsg: `${name} was not exported to ${filePath}.`,
   });
+  // The file appears first; the folder's catalog and the saved-state record follow, and the row
+  // says "Saved" only after both. A test that lists the folder next has to wait for that.
+  await browser.waitUntil(
+    () =>
+      browser.execute((bookName: string) => {
+        const rows = Array.from(document.querySelectorAll('ul[aria-label="Ready books"] li'));
+        const row = rows.find((item) => item.querySelector('p')?.textContent === bookName);
+        return row?.textContent?.includes(' · Saved') === true;
+      }, name),
+    { timeout: 30_000, timeoutMsg: `${name} was exported but not marked saved.` },
+  );
 }
 
 /** The caller queues the native folder-dialog response after its input picker responses. */
