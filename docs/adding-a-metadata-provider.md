@@ -81,7 +81,7 @@ export class ExampleProvider implements MetadataProviderPort {
 }
 ```
 
-Always go through `requestText` (`../http`). It sends the user agent, reads the answer, and turns a network failure, a rate limit (429) or an error status into the same `MetadataProviderError`, so every source fails the same way. Encode everything you put in a URL.
+Always go through `requestText` (`../http`). It sends the user agent, reads the answer, and turns a network failure, a service that does not answer within fifteen seconds, a rate limit (429) or an error status into the same `MetadataProviderError`, so every source fails the same way. Encode everything you put in a URL.
 
 A volume's `number` is the string the service gives (`"1"`, `"2.5"`); `chapterNumbers` are numbers. Leave out anything that has no number (a service may file loose chapters under "none").
 

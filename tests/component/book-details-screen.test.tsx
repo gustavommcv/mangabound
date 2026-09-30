@@ -377,8 +377,10 @@ describe('looking up the author of a work', () => {
 
     const notice = await screen.findByRole('status', { name: 'No matches' });
     expect(notice).toHaveTextContent('No matches for “Chainsaw Man - EN”.');
-    expect(notice).toHaveTextContent('Extra characters in the title, such as “- EN”');
-    expect(notice).toHaveTextContent('Edit the title above and try again.');
+    expect(notice).toHaveTextContent(
+      'Extra characters in the title can keep a work from being found.',
+    );
+    expect(notice).toHaveTextContent('Try a simpler title above and search again.');
   });
 
   it('shows why a search failed, and leaves the author to be typed', async () => {

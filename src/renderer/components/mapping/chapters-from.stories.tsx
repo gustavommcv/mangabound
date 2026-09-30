@@ -142,7 +142,7 @@ export const OnlineSearchNoMatches: Story = {
     await userEvent.click(canvas.getByRole('tab', { name: 'Online source' }));
     await userEvent.click(await canvas.findByRole('button', { name: 'Search' }));
     await expect(await canvas.findByRole('status', { name: 'No matches' })).toHaveTextContent(
-      'Edit the search above and try again.',
+      'Try simpler words above and search again.',
     );
   },
 };

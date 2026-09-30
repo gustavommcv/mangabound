@@ -182,7 +182,10 @@ describe('MangaDex provider', () => {
 
       await new MangaDexProvider(fetchImpl).search('x', controller.signal);
 
-      expect(fetchImpl.mock.calls[0]?.[1]?.signal).toBe(controller.signal);
+      const sent = fetchImpl.mock.calls[0]?.[1]?.signal;
+      expect(sent?.aborted).toBe(false);
+      controller.abort();
+      expect(sent?.aborted).toBe(true);
     });
   });
 
@@ -279,7 +282,10 @@ describe('MangaDex provider', () => {
 
       await new MangaDexProvider(fetchImpl).suggestVolumes(work, { signal: controller.signal });
 
-      expect(fetchImpl.mock.calls[0]?.[1]?.signal).toBe(controller.signal);
+      const sent = fetchImpl.mock.calls[0]?.[1]?.signal;
+      expect(sent?.aborted).toBe(false);
+      controller.abort();
+      expect(sent?.aborted).toBe(true);
     });
   });
 

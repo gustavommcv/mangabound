@@ -200,7 +200,7 @@ export const NoAuthorMatches: Story = {
     await userEvent.click(await canvas.findByRole('option', { name: /MangaDex/u }));
     await userEvent.click(await canvas.findByRole('button', { name: 'Search' }));
     await expect(await canvas.findByRole('status', { name: 'No matches' })).toHaveTextContent(
-      'Edit the title above and try again.',
+      'Try a simpler title above and search again.',
     );
   },
 };

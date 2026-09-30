@@ -643,8 +643,10 @@ describe('mapping editor', () => {
       // It says what found nothing, and where to change it, since extra characters are the likely cause.
       const notice = await screen.findByRole('status', { name: 'No matches' });
       expect(notice).toHaveTextContent('No matches for “Offline Work Extra”.');
-      expect(notice).toHaveTextContent('Extra characters in the search, such as “- EN”');
-      expect(notice).toHaveTextContent('Edit the search above and try again.');
+      expect(notice).toHaveTextContent(
+        'Extra characters in the search can keep a work from being found.',
+      );
+      expect(notice).toHaveTextContent('Try simpler words above and search again.');
     });
 
     it('says what it searched for even after the search box was changed again', async () => {

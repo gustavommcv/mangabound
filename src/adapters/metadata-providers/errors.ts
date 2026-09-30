@@ -1,5 +1,10 @@
 export type MetadataProviderErrorCode =
-  'malformed_json' | 'invalid_payload' | 'http_error' | 'rate_limited' | 'network_error';
+  | 'malformed_json'
+  | 'invalid_payload'
+  | 'http_error'
+  | 'rate_limited'
+  | 'network_error'
+  | 'timeout';
 
 /**
  * What a provider throws when its service cannot be used right now. The message is written for the
