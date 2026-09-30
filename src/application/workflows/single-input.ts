@@ -6,7 +6,12 @@ import type {
   BindingPort,
   ConversionPort,
 } from '@/application/ports/conversion-tools';
-import { type BookDetails, detailsForBook, noBookDetails } from '@/domain/book-details';
+import {
+  type BookDetails,
+  detailsForBook,
+  hasBookDetails,
+  noBookDetails,
+} from '@/domain/book-details';
 import {
   type BatchTitleOutcome,
   type BookFormat,
@@ -89,7 +94,7 @@ export class SingleInputWorkflow {
         sessionId,
         displayName: selection.displayName,
         kind: 'library',
-        titles: library.titles.map(summarizeTitle),
+        titles: await this.summarize(library.titles),
         issues: library.issues,
       };
     }
@@ -98,13 +103,25 @@ export class SingleInputWorkflow {
       trustedDraft: inspection.draft,
       workspaceId: inspection.workspaceId,
     });
+    const details = await this.binding.readDetails(selection.inputPath);
     return {
       sessionId,
       displayName: selection.displayName,
       kind: 'folder',
       mapping: inspection.draft,
+      ...(hasBookDetails(details) ? { details } : {}),
       issues: inspection.issues,
     };
+  }
+
+  /** What is told of each title of a library, with the author and language kept with its folder. */
+  private summarize(titles: readonly BindingBatchTitle[]): Promise<InspectedTitle[]> {
+    return Promise.all(
+      titles.map(async (title) => {
+        const details = await this.binding.readDetails(title.inputPath);
+        return { ...summarizeTitle(title), ...(hasBookDetails(details) ? { details } : {}) };
+      }),
+    );
   }
 
   /**
@@ -361,7 +378,7 @@ export class SingleInputWorkflow {
     const plan = await this.binding.planBatch(session.selection.inputPath, signal);
     const titles = plan.titles.filter((title) => title.draft.chapters.length > 0);
     this.sessions.set(sessionId, { ...session, library: { ...library, titles } });
-    return { titles: titles.map(summarizeTitle), issues: plan.issues };
+    return { titles: await this.summarize(titles), issues: plan.issues };
   }
 
   /**
@@ -379,6 +396,41 @@ export class SingleInputWorkflow {
       );
     }
     await this.binding.writeTitleMapping(known.inputPath, trustedMapping(known.draft, mapping));
+  }
+
+  /**
+   * Keeps the author and language typed for a folder, or for one title of a library, with that
+   * folder (ADR 0032). The folder is looked up in what the workflow read: only a folder can keep
+   * them, and a loose CBZ has none.
+   */
+  async saveDetails(sessionId: string, details: BookDetails, title?: string): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (session === undefined) {
+      throw new ConversionWorkflowError(
+        'session_not_found',
+        'This input is no longer available. Choose it again.',
+      );
+    }
+    if (title !== undefined) {
+      const known = this.librarySession(sessionId).library.titles.find(
+        (candidate) => candidate.title === title,
+      );
+      if (known === undefined) {
+        throw new ConversionWorkflowError(
+          'title_not_found',
+          'That title is no longer in the library. Choose the library again.',
+        );
+      }
+      await this.binding.writeDetails(known.inputPath, details);
+      return;
+    }
+    if (session.selection.kind !== 'folder' || session.library !== undefined) {
+      throw new ConversionWorkflowError(
+        'unsupported_mode',
+        'The author and language are kept with a folder, and this input is not one.',
+      );
+    }
+    await this.binding.writeDetails(session.selection.inputPath, details);
   }
 
   /** Joins a library with one mangabind call, then makes a book of each volume of each title. */

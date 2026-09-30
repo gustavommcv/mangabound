@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, mkdtemp, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -7,6 +7,7 @@ import { pathToFileURL } from 'node:url';
 import type { MangabindCliAdapter, MangabindRunResult } from './cli';
 import type { MangabindProgressEvent } from './protocol';
 import { mappingDraftFromMangabindReport } from './mapping-draft';
+import { carryStoredDetails, readStoredDetails, withStoredDetails } from './stored-details';
 import type { MangabindReport } from './protocol';
 
 import type {
@@ -18,6 +19,7 @@ import type {
   BindingPort,
   BindingResult,
 } from '@/application/ports/conversion-tools';
+import type { BookDetails } from '@/domain/book-details';
 import {
   ConversionWorkflowError,
   type PipelineIssue,
@@ -39,10 +41,14 @@ export interface WorkspaceFileSystem {
   readonly createDirectory: (directoryPath: string) => Promise<void>;
   readonly writeText: (filePath: string, contents: string) => Promise<void>;
   readonly writeTextAtomically: (filePath: string, contents: string) => Promise<void>;
+  /** The text of a file, or undefined when there is no such file. */
+  readonly readText: (filePath: string) => Promise<string | undefined>;
+  /** Removes a file, and does nothing when there is none. */
+  readonly removeFile: (filePath: string) => Promise<void>;
   readonly removeDirectory: (directoryPath: string) => Promise<void>;
 }
 
-const workspaceFileSystem: WorkspaceFileSystem = {
+export const workspaceFileSystem: WorkspaceFileSystem = {
   createTemporaryDirectory: (prefix) => mkdtemp(prefix),
   createDirectory: (directoryPath) =>
     mkdir(directoryPath, { recursive: true }).then(() => undefined),
@@ -57,8 +63,19 @@ const workspaceFileSystem: WorkspaceFileSystem = {
       throw error;
     }
   },
+  readText: async (filePath) => {
+    try {
+      return await readFile(filePath, 'utf8');
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+      throw error;
+    }
+  },
+  removeFile: (filePath) => rm(filePath, { force: true }),
   removeDirectory: (directoryPath) => rm(directoryPath, { recursive: true, force: true }),
 };
+
+const metadataFileName = 'mangabind.json';
 
 export class MangabindBindingAdapter implements BindingPort {
   private readonly workspaces = new Map<string, Workspace>();
@@ -116,9 +133,10 @@ export class MangabindBindingAdapter implements BindingPort {
     // read-only or network folder fail for no reason. Any edit still gets saved.
     if (workspace.seedSignature !== mappingSignature(mapping)) {
       try {
+        const file = path.join(workspace.inputPath, metadataFileName);
         await this.files.writeTextAtomically(
-          path.join(workspace.inputPath, 'mangabind.json'),
-          metadata,
+          file,
+          carryStoredDetails(await this.files.readText(file), metadata),
         );
       } catch (error) {
         throw new ConversionWorkflowError(
@@ -299,11 +317,41 @@ export class MangabindBindingAdapter implements BindingPort {
   ): Promise<void> {
     const metadata = serializeMangabindMetadata(mapping);
     try {
-      await this.files.writeTextAtomically(path.join(inputPath, 'mangabind.json'), metadata);
+      const file = path.join(inputPath, metadataFileName);
+      await this.files.writeTextAtomically(
+        file,
+        carryStoredDetails(await this.files.readText(file), metadata),
+      );
     } catch (error) {
       throw new ConversionWorkflowError(
         'mapping_save_failed',
         "Couldn't save mangabind.json in the source folder. Check that the folder is writable and try again.",
+        { cause: error },
+      );
+    }
+  }
+
+  async readDetails(inputPath: string): Promise<BookDetails> {
+    try {
+      const text = await this.files.readText(path.join(inputPath, metadataFileName));
+      return text === undefined ? {} : readStoredDetails(text);
+    } catch {
+      // A folder that cannot be read this way is still a folder: it just has nothing kept for it.
+      return {};
+    }
+  }
+
+  async writeDetails(inputPath: string, details: BookDetails): Promise<void> {
+    const file = path.join(inputPath, metadataFileName);
+    try {
+      const existing = await this.files.readText(file);
+      const next = withStoredDetails(existing, details);
+      if (next !== undefined) await this.files.writeTextAtomically(file, next);
+      else if (existing !== undefined) await this.files.removeFile(file);
+    } catch (error) {
+      throw new ConversionWorkflowError(
+        'details_save_failed',
+        "Couldn't keep the author and language with the source folder. Check that the folder is writable and that its mangabind.json is valid.",
         { cause: error },
       );
     }

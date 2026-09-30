@@ -20,6 +20,8 @@ export interface InspectedTitle {
   readonly draft: MappingDraft;
   readonly volumes: readonly PlannedBook[];
   readonly issues: readonly PipelineIssue[];
+  /** The author and language kept with the title's folder, when there are any. */
+  readonly details?: BookDetails;
 }
 
 export interface InspectedInput {
@@ -27,6 +29,8 @@ export interface InspectedInput {
   readonly displayName: string;
   readonly kind: InspectedKind;
   readonly mapping?: MappingDraft;
+  /** The author and language kept with the folder, when there are any. */
+  readonly details?: BookDetails;
   /** The manga folders of a library. Their paths stay with the workflow. */
   readonly titles?: readonly InspectedTitle[];
   readonly issues: readonly PipelineIssue[];
@@ -130,6 +134,7 @@ export class ConversionWorkflowError extends Error {
   constructor(
     readonly code:
       | 'binding_failed'
+      | 'details_save_failed'
       | 'invalid_mapping'
       | 'invalid_settings'
       | 'mapping_save_failed'

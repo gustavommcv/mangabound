@@ -1,7 +1,12 @@
 import { ArrowLeft, Boxes, ChevronLeft, CircleAlert, Library, RadioTower } from 'lucide-react';
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 
-import { hasBookDetails, noBookDetails } from '@/domain/book-details';
+import {
+  type BookDetails,
+  hasBookDetails,
+  noBookDetails,
+  persistableDetails,
+} from '@/domain/book-details';
 import { type BookFormat, type ConversionProgress, plannedSingleBook } from '@/domain/conversion';
 import {
   describeRow,
@@ -445,6 +450,7 @@ export function App(): React.JSX.Element {
           kind: result.value.kind,
           ...(result.value.mapping === undefined ? {} : { mapping: result.value.mapping }),
           ...(result.value.titles === undefined ? {} : { titles: result.value.titles }),
+          ...(result.value.details === undefined ? {} : { details: result.value.details }),
         });
       }
     })();
@@ -760,9 +766,46 @@ export function App(): React.JSX.Element {
     if (!result.ok) setFailure(result.error);
   };
 
+  // What was kept with the folder when its details were opened, so leaving them saves only a change.
+  const keptOnOpen = useRef<BookDetails>(noBookDetails);
+
   const openDetails = (rowId: string): void => {
+    const row = rows.find((candidate) => candidate.id === rowId);
+    keptOnOpen.current = persistableDetails(
+      row?.state === 'inspected' ? (row.details ?? noBookDetails) : noBookDetails,
+    );
     setEditingId(rowId);
     setStep('details');
+  };
+
+  const openTitleDetails = (row: InspectedRow, title: string): void => {
+    keptOnOpen.current = persistableDetails(
+      row.titles?.find((candidate) => candidate.title === title)?.details ?? noBookDetails,
+    );
+    setEditingTitle(title);
+    setStep('details-title');
+  };
+
+  /**
+   * Keeps the author and language of a folder with it once their page is left, when they changed.
+   * It never stops anyone: what could not be kept is said, and the details stay for this session.
+   */
+  const keepDetails = (
+    row: InspectedRow,
+    title: string | undefined,
+    current: BookDetails,
+  ): void => {
+    const kept = persistableDetails(current);
+    if (JSON.stringify(kept) === JSON.stringify(keptOnOpen.current) || bridge === undefined) return;
+    void bridge
+      .saveBookDetails({
+        sessionId: row.sessionId,
+        ...(title === undefined ? {} : { title }),
+        details: kept,
+      })
+      .then((result) => {
+        if (!result.ok) notify(result.error.message);
+      });
   };
 
   const openEditor = (rowId: string): void => {
@@ -1236,8 +1279,7 @@ export function App(): React.JSX.Element {
                   {...(libraryMakesBooks
                     ? {
                         onEditDetails: (title: string) => {
-                          setEditingTitle(title);
-                          setStep('details-title');
+                          openTitleDetails(editingRow, title);
                         },
                       }
                     : {})}
@@ -1285,6 +1327,10 @@ export function App(): React.JSX.Element {
                   lookup={authorLookup}
                   name={editingRow.displayName}
                   onBack={() => {
+                    // A loose CBZ has no folder to keep anything with.
+                    if (editingRow.kind === 'folder') {
+                      keepDetails(editingRow, undefined, editingRow.details ?? noBookDetails);
+                    }
                     setStep('queue');
                   }}
                   onChange={(details) => {
@@ -1311,6 +1357,11 @@ export function App(): React.JSX.Element {
                   lookup={authorLookup}
                   name={editingTitleEntry.title}
                   onBack={() => {
+                    keepDetails(
+                      editingRow,
+                      editingTitleEntry.title,
+                      editingTitleEntry.details ?? noBookDetails,
+                    );
                     setStep('library');
                   }}
                   onChange={(details) => {

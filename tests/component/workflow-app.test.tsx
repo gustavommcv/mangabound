@@ -141,6 +141,7 @@ function bridge(overrides: Partial<MangaboundBridge> = {}): MangaboundBridge {
     cancelConversion: () => Promise.resolve({ ok: true, value: undefined }),
     planLibrary: () => Promise.resolve({ ok: true, value: { titles: [], issues: [] } }),
     writeTitleMapping: () => Promise.resolve({ ok: true, value: undefined }),
+    saveBookDetails: () => Promise.resolve({ ok: true, value: undefined }),
     convertLibrary: () => Promise.resolve({ ok: true, value: [] }),
     listMetadataProviders: () => Promise.resolve({ ok: true, value: [] }),
     searchMetadata: () => Promise.resolve({ ok: true, value: [] }),
@@ -3337,5 +3338,170 @@ describe('looking up the author from the details of an item', () => {
 
     expect(await screen.findByLabelText('Author')).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Find author' })).not.toBeInTheDocument();
+  });
+});
+
+describe('keeping the author and language with the folder', () => {
+  const saveBookDetails = () =>
+    vi.fn<MangaboundBridge['saveBookDetails']>(() =>
+      Promise.resolve({ ok: true, value: undefined }),
+    );
+
+  const inspectedWith =
+    (details: { author?: string; language?: string }): MangaboundBridge['inspectInput'] =>
+    (id) => {
+      const base = inspection(id);
+      return Promise.resolve(base.ok ? { ok: true, value: { ...base.value, details } } : base);
+    };
+
+  const openDetails = async (user: UserEvent, name = 'Offline Work'): Promise<void> => {
+    await user.click(await screen.findByRole('button', { name: `Edit details of ${name}` }));
+    expect(await screen.findByRole('heading', { name })).toBeVisible();
+  };
+
+  it('are saved when the page is left after the author was typed, for the folder of the item', async () => {
+    const user = userEvent.setup();
+    const save = saveBookDetails();
+    installBridge(bridge({ saveBookDetails: save }));
+    render(<App />);
+    await addFolder(user);
+    await openDetails(user);
+
+    await user.type(screen.getByLabelText('Author'), 'Fujimoto Tatsuki');
+    await user.type(screen.getByLabelText('Language'), 'pt-br');
+    // Nothing is written while typing, only once the page is left.
+    expect(save).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Queue' }));
+
+    expect(save).toHaveBeenCalledExactlyOnceWith({
+      sessionId: 'session',
+      details: { author: 'Fujimoto Tatsuki', language: 'pt-br' },
+    });
+  });
+
+  it('are not saved when nothing that a folder keeps changed, or only the title did', async () => {
+    const user = userEvent.setup();
+    const save = saveBookDetails();
+    installBridge(bridge({ saveBookDetails: save }));
+    render(<App />);
+    await addFolder(user);
+
+    await openDetails(user);
+    await user.click(screen.getByRole('button', { name: 'Queue' }));
+    await openDetails(user);
+    await user.type(screen.getByLabelText('Series title'), 'A title for this run');
+    await user.click(screen.getByRole('button', { name: 'Queue' }));
+
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it('are saved as cleared when what was kept is emptied', async () => {
+    const user = userEvent.setup();
+    const save = saveBookDetails();
+    installBridge(
+      bridge({ saveBookDetails: save, inspectInput: inspectedWith({ author: 'Old Author' }) }),
+    );
+    render(<App />);
+    await addFolder(user);
+    await openDetails(user);
+    expect(screen.getByLabelText('Author')).toHaveValue('Old Author');
+
+    await user.clear(screen.getByLabelText('Author'));
+    await user.click(screen.getByRole('button', { name: 'Queue' }));
+
+    expect(save).toHaveBeenCalledExactlyOnceWith({ sessionId: 'session', details: {} });
+  });
+
+  it('come back with the folder, colored on its row and sent with the conversion', async () => {
+    const user = userEvent.setup();
+    const convert = vi.fn<MangaboundBridge['convert']>(bridge().convert);
+    installBridge(
+      bridge({
+        convert,
+        inspectInput: inspectedWith({ author: 'Kept Author', language: 'ja' }),
+      }),
+    );
+    render(<App />);
+    await addFolder(user);
+
+    expect(screen.getByRole('button', { name: 'Edit details of Offline Work' })).toHaveClass(
+      'text-accent',
+    );
+    await user.click(await runButton(1));
+
+    expect(await screen.findByRole('heading', { name: '1 book ready' })).toBeVisible();
+    expect(convert.mock.calls[0]?.[0].details).toEqual({ author: 'Kept Author', language: 'ja' });
+  });
+
+  it('are not offered a place to be kept for a loose CBZ, which has no folder', async () => {
+    const user = userEvent.setup();
+    const save = saveBookDetails();
+    installBridge(
+      bridge({
+        saveBookDetails: save,
+        chooseInputs: () => Promise.resolve({ ok: true, value: { inputs: [cbz], rejected: [] } }),
+      }),
+    );
+    render(<App />);
+    await addFolder(user);
+    await openDetails(user, 'Standalone.cbz');
+
+    await user.type(screen.getByLabelText('Author'), 'Someone');
+    await user.click(screen.getByRole('button', { name: 'Queue' }));
+
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it('say so when they could not be saved, and stay for the session', async () => {
+    const user = userEvent.setup();
+    const save = vi.fn<MangaboundBridge['saveBookDetails']>(() =>
+      Promise.resolve({
+        ok: false,
+        error: {
+          code: 'details_save_failed',
+          message: "Couldn't keep the author and language with the source folder.",
+        },
+      }),
+    );
+    installBridge(bridge({ saveBookDetails: save }));
+    render(<App />);
+    await addFolder(user);
+    await openDetails(user);
+    await user.type(screen.getByLabelText('Author'), 'Someone');
+
+    await user.click(screen.getByRole('button', { name: 'Queue' }));
+
+    expect(await screen.findByRole('status', { name: 'Notices' })).toHaveTextContent(
+      "Couldn't keep the author and language with the source folder.",
+    );
+    await openDetails(user);
+    expect(screen.getByLabelText('Author')).toHaveValue('Someone');
+  });
+
+  it('are kept with the folder of a title in a library, and the titles come with theirs', async () => {
+    const user = userEvent.setup();
+    const save = saveBookDetails();
+    const kept = { ...goodTitle, details: { author: 'Kept Author' } };
+    installBridge(libraryBridge([kept, looseTitle], { saveBookDetails: save }));
+    render(<App />);
+    await addFolder(user);
+    await user.click(screen.getByRole('button', { name: 'Edit titles of Manga Library' }));
+
+    // The title read with an author shows it kept, and the other has none.
+    expect(await screen.findByRole('button', { name: 'Edit details of Good Manga' })).toHaveClass(
+      'text-accent',
+    );
+    expect(screen.getByRole('button', { name: 'Edit details of Broken Manga' })).not.toHaveClass(
+      'text-accent',
+    );
+    await user.click(screen.getByRole('button', { name: 'Edit details of Broken Manga' }));
+    await user.type(await screen.findByLabelText('Author'), 'Someone');
+    await user.click(screen.getByRole('button', { name: 'Manga Library' }));
+
+    expect(save).toHaveBeenCalledExactlyOnceWith({
+      sessionId: 'library-session',
+      title: 'Broken Manga',
+      details: { author: 'Someone' },
+    });
   });
 });

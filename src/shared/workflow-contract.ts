@@ -142,6 +142,20 @@ export const libraryConversionCommandSchema = z.object({
     .optional(),
 });
 
+/** Keeps the author and language of a folder, or of one title of a library, with that folder. */
+export const saveBookDetailsCommandSchema = z.object({
+  sessionId: identifierSchema,
+  /** The title's name in the library the session read; absent for a folder of its own. */
+  title: z.string().min(1).optional(),
+  details: bookDetailsSchema,
+});
+
+export interface SaveBookDetailsCommand {
+  readonly sessionId: string;
+  readonly title?: string;
+  readonly details: BookDetails;
+}
+
 export const writeTitleMappingCommandSchema = z.object({
   sessionId: identifierSchema,
   /** The title's name in the library the session read; its folder is found from that. */
@@ -193,6 +207,8 @@ export interface LibraryTitleSummary {
     readonly pageCount: number;
   }[];
   readonly issues: readonly PipelineIssue[];
+  /** The author and language kept with the title's folder, when there are any. */
+  readonly details?: BookDetails;
 }
 
 export interface InspectedInputPayload {
@@ -200,6 +216,8 @@ export interface InspectedInputPayload {
   readonly displayName: string;
   readonly kind: InspectedKind;
   readonly mapping?: MappingDraft;
+  /** The author and language kept with the folder, when there are any. */
+  readonly details?: BookDetails;
   /** The manga of a library. */
   readonly titles?: readonly LibraryTitleSummary[];
   readonly issues: readonly PipelineIssue[];

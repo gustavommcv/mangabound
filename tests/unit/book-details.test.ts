@@ -6,6 +6,7 @@ import {
   isLanguageTag,
   noBookDetails,
   normalizeBookDetails,
+  persistableDetails,
   volumeBookTitle,
   volumeLabel,
 } from '@/domain/book-details';
@@ -97,4 +98,18 @@ describe('isLanguageTag', () => {
       expect(isLanguageTag(tag)).toBe(false);
     },
   );
+});
+
+describe('persistableDetails', () => {
+  it('keeps the author and the language, cleaned up, and never the title', () => {
+    expect(
+      persistableDetails({ title: 'A run title', author: ' Fujimoto Tatsuki ', language: 'pt-br' }),
+    ).toEqual({ author: 'Fujimoto Tatsuki', language: 'pt-br' });
+  });
+
+  it('leaves out what is blank, and is empty for a title alone', () => {
+    expect(persistableDetails({ title: 'Only a title', author: '  ' })).toEqual({});
+    expect(persistableDetails({ language: 'ja' })).toEqual({ language: 'ja' });
+    expect(persistableDetails(noBookDetails)).toEqual({});
+  });
 });

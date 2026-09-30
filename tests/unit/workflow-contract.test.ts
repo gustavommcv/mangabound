@@ -8,6 +8,7 @@ import {
   libraryConversionCommandSchema,
   planLibraryCommandSchema,
   registerInputsCommandSchema,
+  saveBookDetailsCommandSchema,
   writeTitleMappingCommandSchema,
 } from '@/shared/workflow-contract';
 
@@ -161,5 +162,42 @@ describe('workflow IPC contract', () => {
         }).success,
       ).toBe(false);
     });
+  });
+});
+
+describe('the command that keeps details with a folder', () => {
+  it('names a session, and a title only for a library, with the details to keep', () => {
+    const details = { author: 'Fujimoto Tatsuki', language: 'pt-br' };
+
+    expect(saveBookDetailsCommandSchema.parse({ sessionId: 'session', details })).toEqual({
+      sessionId: 'session',
+      details,
+    });
+    expect(
+      saveBookDetailsCommandSchema.parse({
+        sessionId: 'session',
+        title: 'Good Manga',
+        details: {},
+      }),
+    ).toEqual({ sessionId: 'session', title: 'Good Manga', details: {} });
+  });
+
+  it('never names a folder by its path, and refuses what a run would refuse', () => {
+    expect(
+      saveBookDetailsCommandSchema.parse({
+        sessionId: 'session',
+        details: {},
+        inputPath: 'C:\\Manga\\Good Manga',
+      }),
+    ).not.toHaveProperty('inputPath');
+    for (const command of [
+      { details: {} },
+      { sessionId: '', details: {} },
+      { sessionId: 'session', title: '', details: {} },
+      { sessionId: 'session', details: { author: '' } },
+      { sessionId: 'session', details: { language: 'not a language' } },
+    ]) {
+      expect(saveBookDetailsCommandSchema.safeParse(command).success).toBe(false);
+    }
   });
 });
