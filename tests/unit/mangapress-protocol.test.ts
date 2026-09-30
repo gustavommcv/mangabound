@@ -76,6 +76,15 @@ describe('mangapress protocol v1', () => {
     expect(event.new_context).toEqual({ useful: true });
   });
 
+  it.each(['constructor', 'toString', '__proto__', 'hasOwnProperty'])(
+    'treats %j as an unknown event type, not as one it has a schema for',
+    (type) => {
+      const line = `{"protocol_version":1,"tool":"mangapress","tool_version":"future","sequence":1,"type":${JSON.stringify(type)}}`;
+
+      expect(parseMangapressEventLine(line).type).toBe(type);
+    },
+  );
+
   it.each([
     {
       name: 'an empty stream',

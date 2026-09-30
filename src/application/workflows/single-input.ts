@@ -653,6 +653,10 @@ export class SingleInputWorkflow {
     let next = 0;
     let nextToPublish = 0;
     let failure: { readonly error: unknown } | undefined;
+    // The first failure is the one reported; a worker that fails later, while others finish, is not.
+    const recordFailure = (error: unknown): void => {
+      failure ??= { error };
+    };
 
     const publishReady = (): void => {
       while (ordered[nextToPublish] !== undefined) {
@@ -710,9 +714,7 @@ export class SingleInputWorkflow {
           progressFor(index);
           publishReady();
         } catch (error) {
-          if (failure === undefined) {
-            failure = { error };
-          }
+          recordFailure(error);
         }
       }
     };
@@ -773,7 +775,9 @@ export class SingleInputWorkflow {
     context.onProgress({ stage: 'processing', ...tag, message: `Converting ${where}…` });
     // The tool writes into a folder of its own and the book is then given a name no other book of
     // the run has, so two books that would be called the same never overwrite each other.
-    let converted = false;
+    // Set from inside the callback below, so it is read as a property, not as a variable that the
+    // compiler would take for still being false.
+    const stage = { converted: false };
     try {
       const { produced, saved } = await this.bookFiles.stageBook(
         { libraryPath: request.libraryPath },
@@ -794,14 +798,14 @@ export class SingleInputWorkflow {
               },
             },
           );
-          converted = true;
+          stage.converted = true;
           return artifact;
         },
         context.signal === undefined ? {} : { signal: context.signal },
       );
       return { ...produced, path: saved.path, name: saved.name, bytes: saved.bytes };
     } catch (error) {
-      throw converted ? publishFailure(error, context.signal) : error;
+      throw stage.converted ? publishFailure(error, context.signal) : error;
     }
   }
 

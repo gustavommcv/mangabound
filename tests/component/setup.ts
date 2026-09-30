@@ -10,7 +10,8 @@ class SilentResizeObserver {
   unobserve(): void {}
   disconnect(): void {}
 }
-globalThis.ResizeObserver ??= SilentResizeObserver;
+// jsdom has none, though the type says every environment does.
+if (!('ResizeObserver' in globalThis)) globalThis.ResizeObserver = SilentResizeObserver;
 
 afterEach(() => {
   cleanup();

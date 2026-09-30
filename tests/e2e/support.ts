@@ -57,7 +57,7 @@ export async function saveBookAs(name: string, filePath: string): Promise<void> 
       browser.execute((bookName: string) => {
         const rows = Array.from(document.querySelectorAll('ul[aria-label="Ready books"] li'));
         const row = rows.find((item) => item.querySelector('p')?.textContent === bookName);
-        return row?.textContent?.includes(' · Saved') === true;
+        return row?.textContent.includes(' · Saved') === true;
       }, name),
     { timeout: 30_000, timeoutMsg: `${name} was exported but not marked saved.` },
   );
@@ -71,7 +71,7 @@ export async function saveAllBooks(): Promise<void> {
       browser.execute(() => {
         const rows = Array.from(document.querySelectorAll('ul[aria-label="Ready books"] li'));
         return (
-          rows.length > 0 && rows.every((row) => row.textContent?.includes(' · Saved') === true)
+          rows.length > 0 && rows.every((row) => row.textContent.includes(' · Saved') === true)
         );
       }),
     { timeout: 30_000, timeoutMsg: 'The ready books were not all marked saved.' },
