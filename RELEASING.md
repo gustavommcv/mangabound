@@ -29,6 +29,8 @@ git tag v<version>
 git push origin v<version>
 ```
 
+Tag a commit of `main`: it is the only long-lived branch, and releases are cut from it. The tag then names exactly what the release was built from.
+
 Pushing a tag matching `v*` is the only thing that triggers `.github/workflows/release.yml` — nothing runs on an ordinary push or PR.
 
 ## 4. What the workflow does automatically

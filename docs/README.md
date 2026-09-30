@@ -38,7 +38,7 @@ Link verification resolves the URLs the browser will use, using the shared `site
 
 ## Deployment
 
-`.github/workflows/deploy-docs.yml` verifies every PR and every `main`/`develop` update on Windows and Linux. Pull requests have read-only permissions and cannot deploy or cancel a production deployment. Publication is restricted to `main`, after both verification jobs succeed. Merging into `develop` alone does **not** publish the website. New work targets `develop` first, following [the repository's branch workflow](../CONTRIBUTING.md#pull-requests).
+`.github/workflows/deploy-docs.yml` verifies every PR and every `main` update on Windows and Linux. Pull requests have read-only permissions and cannot deploy or cancel a production deployment. Publication is restricted to `main`, after both verification jobs succeed. Merging a pull request into `main` publishes the website, following [the repository's branch workflow](../CONTRIBUTING.md#pull-requests).
 
 `site.config.mjs` is the single source of the GitHub Pages base. Production obtains `BASE_PATH` from `actions/configure-pages`; local development defaults to `/mangabound/`. Keep links base-aware and test any hosting change.
 

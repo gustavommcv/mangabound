@@ -131,13 +131,13 @@ A decision that changes how the app is built or what it does gets a short record
 
 ## Pull requests
 
-- Start feature and fix branches from an up-to-date `develop` and target their pull requests to `develop`. New implementation work is integrated and tested there before being promoted to `main`.
-- Keep `develop` synchronized with `main` without rewriting shared history. Promote tested changes through a separate `develop` → `main` pull request; merging a feature into `develop` does not authorize promotion or a release.
-- Application and documentation CI run for pull requests and pushes to both integration branches. Verify the exact PR head before merging and the exact resulting branch commit after merging, following the remote-CI gate below. The documentation site is published only from `main`; releases still require an explicitly authorized version tag.
+- Start feature and fix branches from an up-to-date `main` and target their pull requests to `main`. There is one long-lived branch: `main` is the latest state, and a release is a version tag on a commit of `main`.
+- A pull request is merged only when every check has passed, as a squash merge, so `main` has one commit per change. A release needs an explicitly authorized version tag: merging a change does not authorize one.
+- Application and documentation CI run for pull requests and pushes to `main`. Verify the exact PR head before merging and the exact resulting `main` commit after merging, following the remote-CI gate below. The documentation site is published only from `main`.
 - One topic per pull request, and a description that says what changed, why, and how it was checked. Reviewers should be able to judge it without opening the diff first.
 - Keep a change small enough to review. A refactor and a feature are two pull requests.
 - The description of a user-visible change says what a person will notice.
-- Delete merged feature/fix branches after the resulting commit's CI succeeds. Keep the long-lived `develop` and `main` branches.
+- Delete merged feature/fix branches after the resulting commit's CI succeeds. `main` is the only long-lived branch.
 
 ## Remote CI is the completion gate
 
