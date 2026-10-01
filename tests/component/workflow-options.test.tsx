@@ -20,6 +20,27 @@ afterEach(() => {
   Reflect.deleteProperty(window, 'mangabound');
 });
 
+describe('entering conversion options', () => {
+  it('focuses the page on every entry, keeps focus while typing and retains choices after returning to the queue', async () => {
+    const user = userEvent.setup();
+    installBridge(bridge());
+    render(<App />);
+    await user.click(await screen.findByRole('button', { name: 'Advanced conversion options' }));
+    expect(await screen.findByRole('heading', { name: 'Conversion options' })).toHaveFocus();
+
+    const quality = screen.getByLabelText(/^JPEG quality/u);
+    await user.type(quality, '80');
+    expect(quality).toHaveValue(80);
+    expect(quality).toHaveFocus();
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(await screen.findByRole('heading', { name: 'Queue' })).toHaveFocus();
+
+    await user.click(screen.getByRole('button', { name: 'Advanced conversion options' }));
+    expect(await screen.findByRole('heading', { name: 'Conversion options' })).toHaveFocus();
+    expect(screen.getByLabelText(/^JPEG quality/u)).toHaveValue(80);
+  });
+});
+
 describe('the options a run starts with', () => {
   const scribe = {
     code: 'KS',

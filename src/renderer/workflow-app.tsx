@@ -1,4 +1,4 @@
-import { ArrowLeft, ChevronLeft, CircleAlert } from 'lucide-react';
+import { ChevronLeft, CircleAlert } from 'lucide-react';
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 
 import {
@@ -26,7 +26,7 @@ import {
   validateMangapressSettings,
   withDeviceProfile,
 } from '@/domain/output-profile';
-import { defaultFormat, isDefaultMangapress } from '@/domain/preferences';
+import { defaultFormat } from '@/domain/preferences';
 import {
   defaultProcessMode,
   type ProcessMode,
@@ -44,8 +44,6 @@ import {
   type MappingEditorProps,
 } from '@/renderer/components/mapping/mapping-editor';
 import { Notices } from '@/renderer/components/shared/notices';
-import { MangapressSettingsEditor } from '@/renderer/components/settings/mangapress-settings';
-import { ResetOptions } from '@/renderer/components/settings/reset-options';
 import { SendToKoreader } from '@/renderer/components/sharing/send-to-koreader';
 import { SharePanel } from '@/renderer/components/sharing/share-panel';
 import { ShareMenu } from '@/renderer/components/sharing/share-menu';
@@ -54,6 +52,7 @@ import { Titlebar } from '@/renderer/components/shell/titlebar';
 import { Button } from '@/renderer/components/ui/button';
 import { type AuthorLookup } from '@/renderer/components/details/author-lookup';
 import { BookDetailsScreen } from '@/renderer/screens/book-details-screen';
+import { ConversionOptionsScreen } from '@/renderer/screens/conversion-options-screen';
 import { LibraryScreen } from '@/renderer/screens/library-screen';
 import { QueueScreen, type RowPlan } from '@/renderer/screens/queue-screen';
 import { ResultsScreen, type RunOutcome } from '@/renderer/screens/results-screen';
@@ -215,15 +214,6 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
   const rowsRef = useRef(rows);
   const attemptedInspection = useRef(new Set<string>());
   const cancelRequested = useRef(false);
-  // The options section is inline JSX, not its own component, so its heading can't get a plain
-  // mount-only focus effect the way the other five screens do; this fires whenever the screen becomes
-  // 'options', by which point the heading has already mounted (refs attach during commit, before
-  // effects run).
-  const optionsTitleRef = useRef<HTMLHeadingElement>(null);
-  useEffect(() => {
-    if (navigation.screen === 'options') optionsTitleRef.current?.focus();
-  }, [navigation.screen]);
-
   useEffect(() => {
     let current = true;
     // Asked again after an await, where the flag may have been cleared meanwhile.
@@ -1054,49 +1044,19 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
             />
           )}
           {navigation.screen === 'options' && (
-            <section className="mx-auto max-w-5xl space-y-6" aria-labelledby="options-title">
-              <Button
-                onClick={() => {
-                  setNavigation({ screen: 'queue' });
-                }}
-                variant="ghost"
-              >
-                <ArrowLeft /> Back
-              </Button>
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <p className="text-muted-foreground text-xs font-medium">Advanced</p>
-                  <h1
-                    className="focus-visible:ring-ring focus-visible:ring-offset-background mt-2 rounded-md text-3xl font-semibold tracking-tight outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
-                    id="options-title"
-                    ref={optionsTitleRef}
-                    tabIndex={-1}
-                  >
-                    Conversion options
-                  </h1>
-                  <p className="text-muted-foreground mt-3 text-sm">
-                    Fine-tune page layout, images, metadata, and output for everything in the queue.
-                    Your choices are saved for next time.
-                  </p>
-                </div>
-                <div className="w-72 shrink-0">
-                  <ResetOptions
-                    changed={!isDefaultMangapress(format, settings)}
-                    onReset={resetMangapress}
-                    scope="the device, format and every mangapress option"
-                  />
-                </div>
-              </div>
-              <MangapressSettingsEditor
-                format={format}
-                onFormat={handleFormat}
-                onNotify={notify}
-                onSettings={setSettings}
-                profiles={profiles}
-                settings={settings}
-                singleBook={singleBookActive}
-              />
-            </section>
+            <ConversionOptionsScreen
+              format={format}
+              onBack={() => {
+                setNavigation({ screen: 'queue' });
+              }}
+              onFormat={handleFormat}
+              onNotify={notify}
+              onReset={resetMangapress}
+              onSettings={setSettings}
+              profiles={profiles}
+              settings={settings}
+              singleBook={singleBookActive}
+            />
           )}
           {navigation.screen === 'mapping' &&
             navigation.target.kind === 'input' &&
