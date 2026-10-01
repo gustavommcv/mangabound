@@ -17,6 +17,21 @@ updates:
         patterns:
           - '@wdio/*'
 
+  - package-ecosystem: npm
+    directory: /website
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      astro:
+        patterns:
+          - astro
+          - '@astrojs/*'
+      playwright:
+        patterns:
+          - '@playwright/test'
+          - '@axe-core/playwright'
+
   - package-ecosystem: github-actions
     directory: /
     schedule:
