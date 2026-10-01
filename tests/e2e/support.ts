@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { inflateRawSync } from 'node:zlib';
 
@@ -61,6 +61,42 @@ export async function saveBookAs(name: string, filePath: string): Promise<void> 
       }, name),
     { timeout: 30_000, timeoutMsg: `${name} was exported but not marked saved.` },
   );
+}
+
+/**
+ * Waits until a folder holds exactly these names. A save stages a hidden `.tmp` copy beside the
+ * book, links it to the book's name and only then removes it, so one look at the folder in the
+ * middle of a save can see the temporary file as an entry of its own: a count of entries is not
+ * the end of a save, the names are. A timeout reports what the folder held and what the app showed.
+ */
+export async function waitForFolderNames(
+  directory: string,
+  expected: readonly string[],
+  options: {
+    readonly timeout?: number;
+    readonly describeAppState?: () => Promise<string>;
+  } = {},
+): Promise<void> {
+  const wanted = [...expected].sort();
+  const deadline = Date.now() + (options.timeout ?? 30_000);
+  for (;;) {
+    const names = (await readdir(directory)).sort();
+    if (names.length === wanted.length && names.every((name, index) => name === wanted[index])) {
+      return;
+    }
+    if (Date.now() >= deadline) {
+      // A bare timeout says nothing about why, so the failure carries what was there instead.
+      const shown = await options
+        .describeAppState?.()
+        .catch(() => '(the page text was unavailable)');
+      throw new Error(
+        `Timed out waiting for ${wanted.join(', ')} in ${directory}. ` +
+          `Found: ${names.join(', ') || '(nothing)'}.` +
+          (shown === undefined ? '' : `\nThe app showed:\n${shown}`),
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
 }
 
 /** The caller queues the native folder-dialog response after its input picker responses. */

@@ -5,7 +5,7 @@ import path from 'node:path';
 
 import { $, browser } from '@wdio/globals';
 
-import { resetQueue, saveAllBooks, setSteps } from './support';
+import { resetQueue, saveAllBooks, setSteps, waitForFolderNames } from './support';
 
 const temporaryDirectories: string[] = [];
 
@@ -64,17 +64,19 @@ describe('packaged runs never let one book replace another', () => {
     const firstCopy = await readFile(path.join(libraryPath, 'Mangabound E2E.epub'));
     const secondCopy = await readFile(path.join(libraryPath, 'Mangabound E2E (2).epub'));
     await saveAllBooks();
-    await browser.waitUntil(async () => (await readdir(libraryPath)).length === 5, {
-      timeout: 30_000,
-      timeoutMsg: 'The repeated export did not produce two uniquely named copies.',
-    });
-    assert.deepEqual((await readdir(libraryPath)).sort(), [
-      '.mangabound',
-      'Mangabound E2E (2) (2).epub',
-      'Mangabound E2E (2).epub',
-      'Mangabound E2E (3).epub',
-      'Mangabound E2E.epub',
-    ]);
+    // The books were already marked saved, so nothing on screen says when the repeated export is
+    // over: only the folder does, once it holds the two new names and no staged copy.
+    await waitForFolderNames(
+      libraryPath,
+      [
+        '.mangabound',
+        'Mangabound E2E (2) (2).epub',
+        'Mangabound E2E (2).epub',
+        'Mangabound E2E (3).epub',
+        'Mangabound E2E.epub',
+      ],
+      { describeAppState: () => $('main').getText() },
+    );
     assert.deepEqual(await readFile(path.join(libraryPath, 'Mangabound E2E.epub')), firstCopy);
     assert.deepEqual(await readFile(path.join(libraryPath, 'Mangabound E2E (2).epub')), secondCopy);
     assert.deepEqual(await readFile(path.join(libraryPath, 'Mangabound E2E (3).epub')), firstCopy);
