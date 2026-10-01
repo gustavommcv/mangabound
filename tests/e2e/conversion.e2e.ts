@@ -5,7 +5,7 @@ import path from 'node:path';
 
 import { $, browser } from '@wdio/globals';
 
-import { readZipEntry, resetQueue, saveAllBooks, saveBookAs } from './support';
+import { readZipEntry, resetQueue, saveAllBooks, saveBookAs, waitForFolderNames } from './support';
 
 const temporaryDirectories: string[] = [];
 
@@ -16,29 +16,6 @@ after(async () => {
       .map((directory) => rm(directory, { recursive: true, force: true })),
   );
 });
-
-async function waitForEntryCount(
-  dirPath: string,
-  count: number,
-  timeoutMs: number,
-  describeAppState: () => Promise<string>,
-): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  for (;;) {
-    const entries = await readdir(dirPath);
-    if (entries.length === count) return;
-    if (Date.now() >= deadline) {
-      // A bare timeout says nothing about why. This once passed on a rerun with no trace of
-      // the cause, so the failure carries what the directory held and what the app showed.
-      const shown = await describeAppState().catch(() => '(the page text was unavailable)');
-      throw new Error(
-        `Timed out waiting for ${String(count)} entries in ${dirPath}. ` +
-          `Found: ${entries.join(', ') || '(nothing)'}.\nThe app showed:\n${shown}`,
-      );
-    }
-    await new Promise((resolve) => setTimeout(resolve, 500));
-  }
-}
 
 describe('packaged conversion pipeline', () => {
   it('converts a real manga folder and direct CBZ with the pinned tools', async () => {
@@ -246,15 +223,12 @@ describe('packaged conversion pipeline', () => {
     for (const name of bookNames) await rm(path.join(outputLibraryPath, name));
     await $('button[aria-label="Dismiss these notices"]').click();
     await $('button=Save all to folder…').click();
-    await waitForEntryCount(outputLibraryPath, 3, 120_000, () => $('main').getText());
-
-    const entries = (await readdir(outputLibraryPath)).sort();
-    assert.deepEqual(entries, [
-      '.mangabound',
-      'Auto-Resolved Manga - Vol.01.epub',
-      'Needs Mapping Manga - Vol.01.epub',
-    ]);
-    const savedBooks = entries.filter((name) => name !== '.mangabound');
+    const entries = ['.mangabound', ...bookNames];
+    await waitForFolderNames(outputLibraryPath, entries, {
+      timeout: 120_000,
+      describeAppState: () => $('main').getText(),
+    });
+    const savedBooks = bookNames;
     for (const name of savedBooks) {
       const bytes = await readFile(path.join(outputLibraryPath, name));
       assert.ok(bytes.length > 1_024);
@@ -264,8 +238,9 @@ describe('packaged conversion pipeline', () => {
     // Save All disappear or force the person to process the source again.
     for (const name of savedBooks) await rm(path.join(outputLibraryPath, name));
     await $('button=Save all to folder…').click();
-    await waitForEntryCount(outputLibraryPath, 3, 30_000, () => $('main').getText());
-    assert.deepEqual((await readdir(outputLibraryPath)).sort(), entries);
+    await waitForFolderNames(outputLibraryPath, entries, {
+      describeAppState: () => $('main').getText(),
+    });
     assert.equal(openDialog.mock.calls.length, 4);
   });
 
