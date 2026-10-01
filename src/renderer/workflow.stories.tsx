@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 
-import { IssueCallout } from './app';
+import { IssueCallout } from './workflow-app';
 import { RunningScreen } from './screens/running-screen';
 
 const meta = {

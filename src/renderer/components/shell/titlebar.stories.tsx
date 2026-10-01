@@ -21,7 +21,7 @@ const meta = {
     ),
   ],
   parameters: { layout: 'fullscreen' },
-  args: { desktop: true, platform: 'win32' },
+  args: { platform: 'win32' },
 } satisfies Meta<typeof Titlebar>;
 
 export default meta;
@@ -59,9 +59,6 @@ export const WhileSharing: Story = {
 
 /** The window buttons sit on the left on macOS, so the name starts further in. */
 export const OnMacOS: Story = { args: { platform: 'darwin' } };
-
-/** A plain browser preview has no desktop shell behind it. */
-export const Foundation: Story = { args: { desktop: false } };
 
 /** The running app version, shown low-key next to the name. */
 export const WithVersion: Story = { args: { version: '0.1.0-alpha.1' } };

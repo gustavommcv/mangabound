@@ -267,6 +267,18 @@ test('the title bar remains visually consistent', async ({ page }) => {
   await expect(page.locator('#storybook-root')).toHaveScreenshot('titlebar.png');
 });
 
+test('a missing desktop bridge presents readable recovery instructions', async ({ page }) => {
+  await page.goto(
+    '/iframe.html?id=shell-application-startup--missing-desktop-bridge&viewMode=story',
+  );
+  await expect(page.getByRole('alert', { name: 'Startup error' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Mangabound could not start correctly.' }),
+  ).toBeVisible();
+  await page.evaluate(async () => document.fonts.ready);
+  await expect(page.locator('#storybook-root')).toHaveScreenshot('startup-error.png');
+});
+
 test('the notices remain visually consistent', async ({ page }) => {
   await page.goto(
     '/iframe.html?id=workflows-notices--saved-settings-could-not-be-used&viewMode=story',

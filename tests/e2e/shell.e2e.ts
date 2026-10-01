@@ -17,6 +17,8 @@ describe('packaged application shell', () => {
     // Proves app.getVersion() reaches the title bar through additionalArguments, for real - not
     // just a mocked bridge in a component test.
     assert.equal(await $('header').$(`span=v${version}`).isDisplayed(), true);
+    assert.equal(await $('header').$('span=Desktop').isExisting(), false);
+    assert.equal(await $('header').$('span=Foundation').isExisting(), false);
   });
 
   it('returns safe command-specific failures for invalid IPC payloads without side effects', async () => {
