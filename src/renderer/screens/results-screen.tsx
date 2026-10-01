@@ -8,20 +8,12 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 
+import type { RunOutcome as ReportOutcome } from '@/domain/run-report';
 import { Button } from '@/renderer/components/ui/button';
 import type { ArtifactSummary } from '@/shared/workflow-contract';
 
 /** What became of one queue item in a run. */
-export interface RunOutcome {
-  readonly rowId: string;
-  readonly name: string;
-  readonly status: 'done' | 'failed' | 'skipped';
-  readonly artifacts: readonly ArtifactSummary[];
-  /** Why it failed or was left out. */
-  readonly message?: string;
-  /** Whether the item can be fixed from the queue (a folder with volumes still to assign). */
-  readonly fixable?: boolean;
-}
+export type RunOutcome = ReportOutcome<ArtifactSummary>;
 
 export interface ResultsScreenProps {
   readonly onBack: () => void;
