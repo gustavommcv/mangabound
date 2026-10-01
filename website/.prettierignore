@@ -4,6 +4,3 @@ dist
 test-results
 playwright-report
 package-lock.json
-adr
-architecture.md
-adding-a-metadata-provider.md

@@ -1,6 +1,6 @@
 # Mangabound
 
-<!-- Branding: add the finished Mangabound logo here. Placement and asset guidance: docs/MEDIA.md. -->
+<!-- Branding: add the finished Mangabound logo here. Placement and asset guidance: website/MEDIA.md. -->
 
 Mangabound is a desktop app for organizing manga chapters into volumes and converting them into books for your e-reader. Choose how chapters are grouped and fine-tune page size, margins, and image quality for your device. Once processed, save your books locally or share them directly with KOReader over your local network.
 
@@ -83,7 +83,7 @@ What each kind of test covers, and what Storybook is for, is in [CONTRIBUTING.md
 
 | Read this                                                          | To learn                                                                        |
 | ------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
-| [Documentation Website](https://gustavommcv.github.io/mangabound/) | Official bilingual user guides, KOReader setup, and CLI reference (`docs/`)     |
+| [Documentation Website](https://gustavommcv.github.io/mangabound/) | Official bilingual user guides, KOReader setup, and CLI reference (`website/`)  |
 | [Architecture overview](docs/architecture.md)                      | How the code is layered, how a conversion runs end to end, where to change what |
 | [Architecture decisions](docs/adr/README.md)                       | Why it is built this way, one short record per decision                         |
 | [Contributing](CONTRIBUTING.md)                                    | The gates, the kinds of tests, Storybook, and how to open a pull request        |

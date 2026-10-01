@@ -21,9 +21,9 @@ Use Conventional Commit-style subjects where practical. Architecture changes req
 
 ### Documentation website
 
-The Astro/Starlight website is a separate package under `docs/`, with its own lockfile and gates. For website changes, also run `npm --prefix docs ci`, install its Playwright browser, and run `npm --prefix docs run check`. This checks the built site, both language trees, links and media, keyboard navigation, search, mobile layout, accessibility, and development-only media markers on Windows and Linux CI. The application's checks do not replace these gates, and website checks do not replace the application's CI.
+The Astro/Starlight website is a separate package under `website/`, with its own lockfile and gates; `docs/` holds only the contributor documents (architecture, ADRs, releases) that GitHub renders. For website changes, also run `npm --prefix website ci`, install its Playwright browser, and run `npm --prefix website run check` (from the root, `npm run site:dev` starts it). This checks the built site, both language trees, links and media, keyboard navigation, search, mobile layout, accessibility, and development-only media markers on Windows and Linux CI. The application's checks do not replace these gates, and website checks do not replace the application's CI.
 
-Read [the website contributor guide](docs/README.md) and [the tutorial media plan](docs/MEDIA.md). Keep English and Portuguese pages together, preserve the actual English application labels, and link to canonical architecture/protocol/provider documents instead of copying them into a second reference. Screenshots and GIFs must match released behavior and never be the only instructions for a task.
+Read [the website contributor guide](website/README.md) and [the tutorial media plan](website/MEDIA.md). Keep English and Portuguese pages together, preserve the actual English application labels, and link to canonical architecture/protocol/provider documents instead of copying them into a second reference. Screenshots and GIFs must match released behavior and never be the only instructions for a task.
 
 ## The gates, and what each is for
 
