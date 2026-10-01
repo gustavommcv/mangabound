@@ -23,14 +23,14 @@ jobs:
         os: [ubuntu-latest, windows-latest]
     defaults:
       run:
-        working-directory: docs
+        working-directory: website
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: docs/package-lock.json
+          cache-dependency-path: website/package-lock.json
       - run: npm ci
       - name: Install Chromium and system dependencies
         if: runner.os == 'Linux'
@@ -45,7 +45,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: documentation-${{ runner.os }}
-          path: docs/test-results/
+          path: website/test-results/
           if-no-files-found: ignore
 
   build-pages:
@@ -62,17 +62,17 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: docs/package-lock.json
+          cache-dependency-path: website/package-lock.json
       - id: pages
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
-      - run: npm --prefix docs ci
+      - run: npm --prefix website ci
       - name: Build and check the deployment URLs
-        run: npm --prefix docs run build && npm --prefix docs test
+        run: npm --prefix website run build && npm --prefix website test
         env:
           BASE_PATH: ${{ steps.pages.outputs.base_path || '/' }}
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
-          path: docs/dist
+          path: website/dist
 
   deploy:
     name: Deploy to GitHub Pages
