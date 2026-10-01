@@ -82,16 +82,15 @@ import type {
   WorkflowFailure,
 } from '@/shared/workflow-contract';
 
-type WorkflowStep =
-  | 'queue'
-  | 'editing'
-  | 'library'
-  | 'editing-title'
-  | 'details'
-  | 'details-title'
-  | 'options'
-  | 'running'
-  | 'results';
+type EditingTarget =
+  | { readonly kind: 'input'; readonly rowId: string }
+  | { readonly kind: 'title'; readonly rowId: string; readonly title: string };
+
+/** A screen and its target travel together; non-editing screens keep no stale selection. */
+type WorkflowNavigation =
+  | { readonly screen: 'queue' | 'options' | 'running' | 'results' }
+  | { readonly screen: 'library'; readonly rowId: string }
+  | { readonly screen: 'mapping' | 'details'; readonly target: EditingTarget };
 
 /** The volumes of a mapping, numbered, in order: what a series of books is made of. */
 const volumeNumbers = (mapping: MappingDraft | undefined): readonly number[] =>
@@ -162,12 +161,11 @@ const toQueueInput = (input: SelectedInput): QueueInput => ({
 export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): React.JSX.Element {
   const [toolchain, setToolchain] = useState<ToolchainStatus>();
   const [profiles, setProfiles] = useState<readonly DeviceProfileSummary[]>([]);
-  const [step, setStep] = useState<WorkflowStep>('queue');
+  const [navigation, setNavigation] = useState<WorkflowNavigation>({ screen: 'queue' });
   const [rows, dispatch] = useReducer(queueReducer, emptyQueue);
   const [rejected, setRejected] = useState<
     readonly { readonly name: string; readonly reason: string }[]
   >([]);
-  const [editingId, setEditingId] = useState<string>();
   const [pendingRuns, setPendingRuns] = useState<readonly PendingRunSummary[]>([]);
   const [activeRunId, setActiveRunId] = useState<string>();
   const [savedIds, setSavedIds] = useState<ReadonlySet<string>>(new Set());
@@ -194,7 +192,6 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
   }>();
   const [validating, setValidating] = useState(false);
   const [failure, setFailure] = useState<WorkflowFailure>();
-  const [editingTitle, setEditingTitle] = useState<string>();
   const [sharePanelOpen, setSharePanelOpen] = useState(false);
   const [sharedLibrary, setSharedLibrary] = useState<SelectedLibrary>();
   const [interfaces, setInterfaces] = useState<readonly NetworkInterfaceOption[]>([]);
@@ -219,13 +216,13 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
   const attemptedInspection = useRef(new Set<string>());
   const cancelRequested = useRef(false);
   // The options section is inline JSX, not its own component, so its heading can't get a plain
-  // mount-only focus effect the way the other five screens do; this fires whenever `step` becomes
+  // mount-only focus effect the way the other five screens do; this fires whenever the screen becomes
   // 'options', by which point the heading has already mounted (refs attach during commit, before
   // effects run).
   const optionsTitleRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
-    if (step === 'options') optionsTitleRef.current?.focus();
-  }, [step]);
+    if (navigation.screen === 'options') optionsTitleRef.current?.focus();
+  }, [navigation.screen]);
 
   useEffect(() => {
     let current = true;
@@ -577,7 +574,7 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
     setActiveRunId(runId);
     setSavedIds(new Set());
     cancelRequested.current = false;
-    setStep('running');
+    setNavigation({ screen: 'running' });
     const settled: RunOutcome[] = [];
     // Titles that produced books in this run, so completed library rows can leave the queue.
     const completedTitles = new Map<string, ReadonlySet<string>>();
@@ -628,7 +625,7 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
     const report = finishRunReport({ rows, mode, settled, attempted, completedTitles });
     removeRows(report.completedRowIds);
     if (!report.hasResults) {
-      setStep('queue');
+      setNavigation({ screen: 'queue' });
       return;
     }
     setOutcomes(report.outcomes);
@@ -636,7 +633,7 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
     const refreshed = await bridge.listPendingRuns();
     if (refreshed.ok) setPendingRuns(refreshed.value);
     else setFailure(refreshed.error);
-    setStep('results');
+    setNavigation({ screen: 'results' });
   };
 
   const cancelConversion = async (): Promise<void> => {
@@ -654,16 +651,14 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
     keptOnOpen.current = persistableDetails(
       row?.state === 'inspected' ? (row.details ?? noBookDetails) : noBookDetails,
     );
-    setEditingId(rowId);
-    setStep('details');
+    setNavigation({ screen: 'details', target: { kind: 'input', rowId } });
   };
 
   const openTitleDetails = (row: InspectedRow, title: string): void => {
     keptOnOpen.current = persistableDetails(
       row.titles?.find((candidate) => candidate.title === title)?.details ?? noBookDetails,
     );
-    setEditingTitle(title);
-    setStep('details-title');
+    setNavigation({ screen: 'details', target: { kind: 'title', rowId: row.id, title } });
   };
 
   /**
@@ -689,8 +684,11 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
   };
 
   const openEditor = (rowId: string): void => {
-    setEditingId(rowId);
-    setStep(rows.find((row) => row.id === rowId)?.kind === 'library' ? 'library' : 'editing');
+    setNavigation(
+      rows.find((row) => row.id === rowId)?.kind === 'library'
+        ? { screen: 'library', rowId }
+        : { screen: 'mapping', target: { kind: 'input', rowId } },
+    );
   };
 
   const confirmTitleMapping = async (
@@ -711,7 +709,7 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
       return;
     }
     dispatch({ type: 'library-planned', id: row.id, titles: planned.value.titles });
-    setStep('library');
+    setNavigation({ screen: 'library', rowId: row.id });
   };
 
   const runArtifactAction = async (
@@ -795,7 +793,7 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
       },
     ]);
     setResultSummary('Ready to save or share');
-    setStep('results');
+    setNavigation({ screen: 'results' });
   };
 
   const refreshPendingRuns = async (): Promise<void> => {
@@ -933,13 +931,22 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
     selectedId: activeProviderId,
   };
 
-  const editingRow = rows.find((row) => row.id === editingId);
+  const editingTarget =
+    navigation.screen === 'mapping' || navigation.screen === 'details'
+      ? navigation.target
+      : undefined;
+  const editingRow =
+    navigation.screen === 'library'
+      ? rows.find((row) => row.id === navigation.rowId)
+      : editingTarget !== undefined
+        ? rows.find((row) => row.id === editingTarget.rowId)
+        : undefined;
   // A library's titles can have their own details only where mangapress makes their books.
   const libraryProcess = rowMode('library', mode);
   const libraryMakesBooks = libraryProcess !== 'skip' && usesMangapress(libraryProcess);
   const editingTitleEntry =
-    editingRow?.state === 'inspected'
-      ? editingRow.titles?.find((title) => title.title === editingTitle)
+    editingTarget?.kind === 'title' && editingRow?.state === 'inspected'
+      ? editingRow.titles?.find((title) => title.title === editingTarget.title)
       : undefined;
   // A device the tools no longer list cannot be converted for, whether it came from the file or is
   // the default. This adjusts state while rendering, the way React documents for state that follows
@@ -993,7 +1000,7 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
             }}
           />
           {failure !== undefined && <IssueCallout failure={failure} />}
-          {step === 'queue' && (
+          {navigation.screen === 'queue' && (
             <QueueScreen
               disabled={toolchain?.state !== 'ready'}
               format={format}
@@ -1027,7 +1034,7 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
               onFormat={handleFormat}
               onMode={handleMode}
               onOpenOptions={() => {
-                setStep('options');
+                setNavigation({ screen: 'options' });
               }}
               onRemove={(id) => {
                 removeRows([id]);
@@ -1046,11 +1053,11 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
               validating={validating}
             />
           )}
-          {step === 'options' && (
+          {navigation.screen === 'options' && (
             <section className="mx-auto max-w-5xl space-y-6" aria-labelledby="options-title">
               <Button
                 onClick={() => {
-                  setStep('queue');
+                  setNavigation({ screen: 'queue' });
                 }}
                 variant="ghost"
               >
@@ -1091,13 +1098,14 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
               />
             </section>
           )}
-          {step === 'editing' &&
+          {navigation.screen === 'mapping' &&
+            navigation.target.kind === 'input' &&
             editingRow?.state === 'inspected' &&
             editingRow.mapping !== undefined && (
               <div className="space-y-4">
                 <Button
                   onClick={() => {
-                    setStep('queue');
+                    setNavigation({ screen: 'queue' });
                   }}
                   variant="ghost"
                 >
@@ -1107,11 +1115,11 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
                   initialDraft={editingRow.mapping}
                   onConfirm={(_metadata, draft) => {
                     dispatch({ type: 'confirm-mapping', id: editingRow.id, mapping: draft });
-                    setStep('queue');
+                    setNavigation({ screen: 'queue' });
                   }}
                   onSkipGrouping={() => {
                     setMode('convert-only');
-                    setStep('queue');
+                    setNavigation({ screen: 'queue' });
                   }}
                   singleBook={singleBook}
                   {...metadataProviderProps}
@@ -1125,17 +1133,19 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
                 />
               </div>
             )}
-          {step === 'library' &&
+          {navigation.screen === 'library' &&
             editingRow?.state === 'inspected' &&
             editingRow.titles !== undefined && (
               <LibraryScreen
                 name={editingRow.displayName}
                 onBack={() => {
-                  setStep('queue');
+                  setNavigation({ screen: 'queue' });
                 }}
                 onEdit={(title) => {
-                  setEditingTitle(title);
-                  setStep('editing-title');
+                  setNavigation({
+                    screen: 'mapping',
+                    target: { kind: 'title', rowId: editingRow.id, title },
+                  });
                 }}
                 {...(libraryMakesBooks
                   ? {
@@ -1148,13 +1158,14 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
                 titles={editingRow.titles}
               />
             )}
-          {step === 'editing-title' &&
+          {navigation.screen === 'mapping' &&
+            navigation.target.kind === 'title' &&
             editingRow?.state === 'inspected' &&
             editingTitleEntry !== undefined && (
               <div className="space-y-4">
                 <Button
                   onClick={() => {
-                    setStep('library');
+                    setNavigation({ screen: 'library', rowId: editingRow.id });
                   }}
                   variant="ghost"
                 >
@@ -1172,7 +1183,8 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
                 />
               </div>
             )}
-          {step === 'details' &&
+          {navigation.screen === 'details' &&
+            navigation.target.kind === 'input' &&
             editingRow?.state === 'inspected' &&
             editingRow.kind !== 'library' && (
               <BookDetailsScreen
@@ -1190,7 +1202,7 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
                   if (editingRow.kind === 'folder') {
                     keepDetails(editingRow, undefined, editingRow.details ?? noBookDetails);
                   }
-                  setStep('queue');
+                  setNavigation({ screen: 'queue' });
                 }}
                 onChange={(details) => {
                   dispatch({ type: 'set-details', id: editingRow.id, details });
@@ -1202,7 +1214,8 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
                   : {})}
               />
             )}
-          {step === 'details-title' &&
+          {navigation.screen === 'details' &&
+            navigation.target.kind === 'title' &&
             editingRow?.state === 'inspected' &&
             editingTitleEntry !== undefined && (
               <BookDetailsScreen
@@ -1221,7 +1234,7 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
                     editingTitleEntry.title,
                     editingTitleEntry.details ?? noBookDetails,
                   );
-                  setStep('library');
+                  setNavigation({ screen: 'library', rowId: editingRow.id });
                 }}
                 onChange={(details) => {
                   dispatch({
@@ -1234,7 +1247,7 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
                 {...(singleBook ? {} : { volumes: volumeNumbers(editingTitleEntry.draft) })}
               />
             )}
-          {step === 'running' && (
+          {navigation.screen === 'running' && (
             <RunningScreen
               onCancel={() => {
                 void cancelConversion();
@@ -1243,7 +1256,7 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
               {...(runPosition === undefined ? {} : { position: runPosition })}
             />
           )}
-          {step === 'results' && (
+          {navigation.screen === 'results' && (
             <ResultsScreen
               aside={
                 outcomes.some((outcome) => outcome.artifacts.length > 0) &&
@@ -1261,7 +1274,7 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
               }
               onBack={() => {
                 setOutcomes([]);
-                setStep('queue');
+                setNavigation({ screen: 'queue' });
               }}
               onFix={(rowId) => {
                 setOutcomes([]);
