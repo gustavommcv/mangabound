@@ -48,6 +48,7 @@ import { SendToKoreader } from '@/renderer/components/sharing/send-to-koreader';
 import { SharePanel } from '@/renderer/components/sharing/share-panel';
 import { ShareMenu } from '@/renderer/components/sharing/share-menu';
 import { usePendingRuns } from '@/renderer/hooks/use-pending-runs';
+import { useSharing } from '@/renderer/hooks/use-sharing';
 import { useToolchain } from '@/renderer/hooks/use-toolchain';
 import { resolveNetworkInterface } from '@/renderer/lib/sharing';
 import { Titlebar } from '@/renderer/components/shell/titlebar';
@@ -59,11 +60,7 @@ import { LibraryScreen } from '@/renderer/screens/library-screen';
 import { QueueScreen, type RowPlan } from '@/renderer/screens/queue-screen';
 import { ResultsScreen, type RunOutcome } from '@/renderer/screens/results-screen';
 import { RunningScreen } from '@/renderer/screens/running-screen';
-import type {
-  NetworkInterfaceOption,
-  OpdsAuthConfig,
-  OpdsSharingStatus,
-} from '@/shared/opds-contract';
+import type { NetworkInterfaceOption } from '@/shared/opds-contract';
 import type { MangaboundBridge } from '@/shared/runtime-info';
 import type { SaveSettingsCommand } from '@/shared/settings-contract';
 import type { ToolchainStatus } from '@/shared/toolchain-status';
@@ -76,7 +73,6 @@ import type {
   PlanConversionCommand,
   RegisteredInputs,
   SelectedInput,
-  SelectedLibrary,
   VolumeSuggestion,
   WorkflowFailure,
 } from '@/shared/workflow-contract';
@@ -189,12 +185,8 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
     readonly plans: readonly RowPlan[];
   }>();
   const [validating, setValidating] = useState(false);
-  const [sharePanelOpen, setSharePanelOpen] = useState(false);
-  const [sharedLibrary, setSharedLibrary] = useState<SelectedLibrary>();
-  const [interfaces, setInterfaces] = useState<readonly NetworkInterfaceOption[]>([]);
   const [preferredNetworkInterface, setPreferredNetworkInterface] =
     useState<NetworkInterfaceOption>();
-  const [sharingStatus, setSharingStatus] = useState<OpdsSharingStatus>({ active: false });
   const [metadataProviders, setMetadataProviders] = useState<readonly MetadataProviderDescriptor[]>(
     [],
   );
@@ -312,19 +304,7 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
     });
   }, [bridge, jobId]);
 
-  useEffect(() => {
-    let current = true;
-    void Promise.all([bridge.listNetworkInterfaces(), bridge.getSharingStatus()]).then(
-      ([interfacesResult, statusResult]) => {
-        if (!current) return;
-        if (interfacesResult.ok) setInterfaces(interfacesResult.value);
-        if (statusResult.ok) setSharingStatus(statusResult.value);
-      },
-    );
-    return () => {
-      current = false;
-    };
-  }, [bridge]);
+  const sharing = useSharing(bridge, setFailure);
 
   useEffect(() => {
     let current = true;
@@ -706,28 +686,6 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
     });
   };
 
-  const chooseSharedLibrary = async (): Promise<void> => {
-    const result = await bridge.chooseLibrary();
-    if (!result.ok) setFailure(result.error);
-    else if (result.value !== null) setSharedLibrary(result.value);
-  };
-
-  const startSharing = async (interfaceAddress: string, auth: OpdsAuthConfig): Promise<void> => {
-    if (sharedLibrary === undefined) return;
-    const result = await bridge.startSharing(sharedLibrary.libraryId, interfaceAddress, auth);
-    if (!result.ok) setFailure(result.error);
-    else setSharingStatus(result.value);
-  };
-
-  /**
-   * Opens the Share panel from the results screen with the books just saved chosen. Sharing that is
-   * already on keeps serving what it serves: changing it is what Stop sharing is for.
-   */
-  const shareSavedBooks = (saved: SelectedLibrary): void => {
-    if (!sharingStatus.active) setSharedLibrary(saved);
-    setSharePanelOpen(true);
-  };
-
   const openPendingRun = (libraryId: string): void => {
     const run = pendingRuns.find((candidate) => candidate.libraryId === libraryId);
     if (run === undefined) return;
@@ -750,7 +708,7 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
   const discardPendingRun = async (libraryId: string): Promise<boolean> => {
     setFailure(undefined);
     if (!(await discardPendingBooks(libraryId))) return false;
-    if (sharedLibrary?.libraryId === libraryId) setSharedLibrary(undefined);
+    sharing.forgetLibrary(libraryId);
     if (activeRunId === libraryId) setActiveRunId(undefined);
     return true;
   };
@@ -785,12 +743,6 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
       notify(`${name}: ${item.message}`);
     }
     await refreshPendingRuns();
-  };
-
-  const stopSharing = async (): Promise<void> => {
-    const result = await bridge.stopSharing();
-    if (!result.ok) setFailure(result.error);
-    else setSharingStatus({ active: false });
   };
 
   const resetMangapress = (): void => {
@@ -833,7 +785,10 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
   const activeProviderId = metadataProviders.some((provider) => provider.id === selectedProviderId)
     ? selectedProviderId
     : undefined;
-  const selectedNetworkInterface = resolveNetworkInterface(interfaces, preferredNetworkInterface);
+  const selectedNetworkInterface = resolveNetworkInterface(
+    sharing.interfaces,
+    preferredNetworkInterface,
+  );
   // Both MappingEditor placements (a single input, one title of a library) offer the same online
   // sources the same way; only the draft, its confirm/skip behavior and where it came from differ.
   const metadataProviderProps: Pick<
@@ -898,25 +853,25 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
     <div className="bg-background text-foreground flex h-screen flex-col">
       <Titlebar platform={bridge.runtime.platform} version={bridge.runtime.version}>
         <ShareMenu
-          onOpenChange={setSharePanelOpen}
-          open={sharePanelOpen}
-          sharing={sharingStatus.active}
+          onOpenChange={sharing.setPanelOpen}
+          open={sharing.panelOpen}
+          sharing={sharing.status.active}
         >
           <SharePanel
-            interfaces={interfaces}
+            interfaces={sharing.interfaces}
             selectedInterface={selectedNetworkInterface}
-            library={sharedLibrary}
+            library={sharing.library}
             onChooseLibrary={() => {
-              void chooseSharedLibrary();
+              void sharing.chooseLibrary();
             }}
             onStart={(interfaceAddress, auth) => {
-              void startSharing(interfaceAddress, auth);
+              void sharing.start(interfaceAddress, auth);
             }}
             onSelectInterface={setPreferredNetworkInterface}
             onStop={() => {
-              void stopSharing();
+              void sharing.stop();
             }}
-            status={sharingStatus}
+            status={sharing.status}
           />
         </ShareMenu>
       </Titlebar>
@@ -1164,12 +1119,12 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
                 activeRunId !== undefined ? (
                   <SendToKoreader
                     onOpen={() => {
-                      shareSavedBooks({
+                      sharing.shareBooks({
                         libraryId: activeRunId,
                         displayPath: 'Books ready to share',
                       });
                     }}
-                    status={sharingStatus}
+                    status={sharing.status}
                   />
                 ) : undefined
               }
