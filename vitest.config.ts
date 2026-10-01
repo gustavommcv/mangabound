@@ -21,6 +21,8 @@ export default defineConfig({
         'src/application/**/*.ts',
         'src/domain/**/*.ts',
         'src/library/**/*.ts',
+        'src/main/ipc/handle.ts',
+        'src/main/ipc/run-job.ts',
         'src/opds/**/*.ts',
         'src/renderer/lib/**/*.ts',
       ],

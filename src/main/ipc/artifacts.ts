@@ -1,53 +1,49 @@
 import { stat } from 'node:fs/promises';
 
-import { ipcMain, shell } from 'electron';
+import { shell } from 'electron';
 
 import { identifierSchema, type WorkflowResult } from '@/shared/workflow-contract';
 
 import type { MainContext } from '../context';
-import { failed, ok, toFailure } from './result';
+import { handle } from './handle';
+import { failed, ok } from './result';
 
 type ArtifactsContext = Pick<MainContext, 'artifactPaths'>;
 
 async function withArtifact(
-  rawArtifactId: unknown,
+  artifactId: string,
   action: (artifactPath: string) => Promise<void>,
   context: ArtifactsContext,
 ): Promise<WorkflowResult<undefined>> {
-  try {
-    const artifactId = identifierSchema.parse(rawArtifactId);
-    const artifactPath = context.artifactPaths.get(artifactId);
-    if (artifactPath === undefined) {
-      return failed({
-        code: 'artifact_not_found',
-        message: 'The saved book is no longer available.',
-      });
-    }
-    try {
-      if (!(await stat(artifactPath)).isFile()) {
-        return failed({
-          code: 'artifact_not_found',
-          message: 'The saved book is no longer available.',
-        });
-      }
-    } catch {
-      return failed({
-        code: 'artifact_not_found',
-        message: 'The saved book is no longer available.',
-      });
-    }
-    await action(artifactPath);
-    return ok(undefined);
-  } catch (error) {
-    return failed(toFailure(error));
+  const artifactPath = context.artifactPaths.get(artifactId);
+  if (artifactPath === undefined) {
+    return failed({
+      code: 'artifact_not_found',
+      message: 'The saved book is no longer available.',
+    });
   }
+  try {
+    if (!(await stat(artifactPath)).isFile()) {
+      return failed({
+        code: 'artifact_not_found',
+        message: 'The saved book is no longer available.',
+      });
+    }
+  } catch {
+    return failed({
+      code: 'artifact_not_found',
+      message: 'The saved book is no longer available.',
+    });
+  }
+  await action(artifactPath);
+  return ok(undefined);
 }
 
 /** Opening a saved book, or showing it in its folder, by the artifact id a finished job returned. */
 export function registerArtifactHandlers(context: ArtifactsContext): void {
-  ipcMain.handle('artifact:open', async (_event, rawArtifactId: unknown) =>
+  handle('artifact:open', identifierSchema, (_event, artifactId) =>
     withArtifact(
-      rawArtifactId,
+      artifactId,
       async (artifactPath) => {
         const message = await shell.openPath(artifactPath);
         if (message !== '') throw new Error(message);
@@ -55,9 +51,9 @@ export function registerArtifactHandlers(context: ArtifactsContext): void {
       context,
     ),
   );
-  ipcMain.handle('artifact:show-in-folder', (_event, rawArtifactId: unknown) =>
+  handle('artifact:show-in-folder', identifierSchema, (_event, artifactId) =>
     withArtifact(
-      rawArtifactId,
+      artifactId,
       (artifactPath) => {
         shell.showItemInFolder(artifactPath);
         return Promise.resolve();

@@ -293,6 +293,30 @@ describe('packaged conversion pipeline', () => {
     await $('h2=Ready books').waitForDisplayed({ timeout: 30_000 });
     await $('button=View books').click();
     await $('h1=1 book ready').waitForDisplayed();
+    const saveDialog = await browser.electron.mock('dialog', 'showSaveDialog');
+    const wrongExtension = path.join(testRoot, 'Recovered.pdf');
+    await saveDialog.mockResolvedValueOnce({ canceled: false, filePath: wrongExtension });
+    const rejectedSave = JSON.parse(
+      await browser.execute(async () => {
+        const bridge = window.mangabound;
+        if (bridge === undefined) throw new Error('The app bridge is unavailable.');
+        const listed = await bridge.listPendingRuns();
+        if (!listed.ok) throw new Error(listed.error.message);
+        const artifact = listed.value
+          .flatMap((run) => run.artifacts)
+          .find((book) => book.name === 'Mangabound Direct.epub' && !book.saved);
+        if (artifact === undefined) throw new Error('The pending book is missing.');
+        return JSON.stringify(await bridge.saveArtifactAs(artifact.id));
+      }),
+    ) as unknown;
+    assert.deepEqual(rejectedSave, {
+      ok: false,
+      error: {
+        code: 'save_failed',
+        message: 'Choose a .epub file for this book.',
+      },
+    });
+    await assert.rejects(readFile(wrongExtension));
     await saveBookAs('Mangabound Direct.epub', destination);
     assert.equal((await readFile(destination)).subarray(0, 2).toString('ascii'), 'PK');
 
