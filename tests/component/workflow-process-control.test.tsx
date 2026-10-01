@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createMappingDraft } from '@/domain/mapping';
@@ -12,6 +12,7 @@ import {
   bridge,
   cbz,
   chapters,
+  deferred,
   expectNoOutputFolderPicker,
   folder,
   installBridge,
@@ -241,6 +242,46 @@ describe('process control in the queue', () => {
     expect(await screen.findByRole('heading', { name: 'No books were produced' })).toBeVisible();
     expect(convert).toHaveBeenCalledOnce();
     expect(screen.getByText('First could not be converted')).toBeVisible();
+  });
+
+  it('keeps a user cancellation requested while the active input finishes successfully', async () => {
+    const user = userEvent.setup();
+    const completion = deferred<Awaited<ReturnType<MangaboundBridge['convert']>>>();
+    const convert = vi.fn<MangaboundBridge['convert']>(() => completion.promise);
+    const releaseInput = vi.fn<MangaboundBridge['releaseInput']>(() =>
+      Promise.resolve({ ok: true, value: undefined }),
+    );
+    installBridge(
+      bridge({
+        convert,
+        releaseInput,
+        chooseInputs: () =>
+          Promise.resolve({
+            ok: true,
+            value: { inputs: [folder('First', 'first'), folder('Second', 'second')], rejected: [] },
+          }),
+      }),
+    );
+    render(<App />);
+    await addFolder(user);
+    await user.click(await runButton(2));
+    await user.click(await screen.findByRole('button', { name: 'Cancel conversion' }));
+    await act(async () => {
+      completion.resolve({
+        ok: true,
+        value: [{ id: 'first-book', name: 'First.epub', bytes: 2048, format: 'epub' }],
+      });
+      await completion.promise;
+    });
+
+    expect(await screen.findByRole('heading', { name: '1 book ready' })).toBeVisible();
+    expect(convert).toHaveBeenCalledOnce();
+    expect(screen.queryByText('Second was skipped')).not.toBeInTheDocument();
+    expect(releaseInput).toHaveBeenCalledExactlyOnceWith('session-first');
+    await user.click(screen.getByRole('button', { name: 'Convert more' }));
+    const queue = screen.getByRole('list', { name: 'Queued items' });
+    expect(within(queue).getByText('Second')).toBeVisible();
+    expect(within(queue).queryByText('First')).not.toBeInTheDocument();
   });
 
   it('offers to fix a folder that was left out, and opens its volumes', async () => {

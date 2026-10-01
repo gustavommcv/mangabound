@@ -161,6 +161,47 @@ describe('libraries in the queue', () => {
     expect(screen.queryByRole('list', { name: 'Queued items' })).not.toBeInTheDocument();
   });
 
+  it('shows a failed title’s partial books and retries that title without releasing the library early', async () => {
+    const user = userEvent.setup();
+    const releaseInput = vi.fn<MangaboundBridge['releaseInput']>(() =>
+      Promise.resolve({ ok: true, value: undefined }),
+    );
+    const convertLibrary = vi
+      .fn<MangaboundBridge['convertLibrary']>()
+      .mockResolvedValueOnce({
+        ok: true,
+        value: [
+          converted('Good Manga', 'good-book'),
+          {
+            title: 'Broken Manga',
+            status: 'failed',
+            artifacts: converted('Broken Manga', 'partial-book').artifacts,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ ok: true, value: [converted('Broken Manga', 'retried-book')] });
+    installBridge(libraryBridge([goodTitle, groupedTitle], { convertLibrary, releaseInput }));
+    render(<App />);
+    await addFolder(user);
+    await user.click(await runButton(1));
+
+    expect(await screen.findByRole('heading', { name: '2 books ready' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Open Broken Manga.epub' })).toBeVisible();
+    expect(screen.getByText('Manga Library · Broken Manga could not be converted')).toBeVisible();
+    expect(releaseInput).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Convert more' }));
+    await user.click(screen.getByRole('button', { name: 'Edit titles of Manga Library' }));
+    expect(await screen.findByText('It could not be converted.')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Queue' }));
+    await user.click(await runButton(1));
+
+    expect(await screen.findByRole('heading', { name: '1 book ready' })).toBeVisible();
+    expect(convertLibrary.mock.calls[1]?.[0].titles).toEqual(['Broken Manga']);
+    expect(releaseInput).toHaveBeenCalledExactlyOnceWith('library-session');
+    await user.click(screen.getByRole('button', { name: 'Convert more' }));
+    expect(screen.queryByRole('list', { name: 'Queued items' })).not.toBeInTheDocument();
+  });
+
   it('reports a library that could not be run at all', async () => {
     const user = userEvent.setup();
     installBridge(

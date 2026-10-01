@@ -9,17 +9,14 @@ import {
 } from '@/domain/book-details';
 import { type BookFormat, type ConversionProgress, plannedSingleBook } from '@/domain/conversion';
 import {
-  describeRow,
   emptyQueue,
   type InspectedRow,
   isPendingTitle,
-  isWaitingTitle,
   type QueueInput,
   queueReducer,
   rowMode,
   runnableRows,
   sessionIds,
-  type TitleOutcome,
 } from '@/domain/input-queue';
 import { dominantLanguage, type MappingDraft, mappingSignature } from '@/domain/mapping';
 import {
@@ -36,6 +33,12 @@ import {
   resolveMode,
   usesMangapress,
 } from '@/domain/process-mode';
+import {
+  describeRun,
+  finishRunReport,
+  reportInputRun,
+  reportLibraryRun,
+} from '@/domain/run-report';
 import {
   MappingEditor,
   type MappingEditorProps,
@@ -67,7 +70,6 @@ import type {
   ConversionCommand,
   DeviceProfileSummary,
   LibraryPlanSummary,
-  LibraryTitleResult,
   MetadataProviderDescriptor,
   MetadataSearchResult,
   PlanSummary,
@@ -126,11 +128,6 @@ function settingsToKeep(values: {
       : { preferredNetworkInterface: values.preferredNetworkInterface }),
   };
 }
-
-const outcomeOf = (title: LibraryTitleResult): TitleOutcome =>
-  title.status === 'done'
-    ? { status: 'done' }
-    : { status: 'failed', message: title.failure?.message ?? 'It could not be converted.' };
 
 /** What validating a library shows: the books its ready titles would be joined into. */
 function libraryPlanSummary(
@@ -642,117 +639,30 @@ export function App(): React.JSX.Element {
           titles: pendingTitles.map((title) => title.title),
           ...(titleDetails.length === 0 ? {} : { titleDetails }),
         });
-        if (!ran.ok) {
-          settled.push({
-            rowId: row.id,
-            name: row.displayName,
-            status: 'failed',
-            artifacts: [],
-            message: ran.error.message,
-          });
-          if (ran.error.code === 'cancelled') cancelRequested.current = true;
-          continue;
-        }
-        // One outcome for each title, so a book produced and one that failed are told apart.
-        for (const title of ran.value) {
-          settled.push({
-            rowId: row.id,
-            name: `${row.displayName} · ${title.title}`,
-            status: title.status,
-            artifacts: title.artifacts,
-            ...(title.failure === undefined ? {} : { message: title.failure.message }),
-          });
-          if (title.failure?.code === 'cancelled') cancelRequested.current = true;
-        }
-        completedTitles.set(
-          row.id,
-          new Set(ran.value.filter((title) => title.status === 'done').map((title) => title.title)),
-        );
-        dispatch({
-          type: 'library-results',
-          id: row.id,
-          results: ran.value.map((title) => ({ title: title.title, outcome: outcomeOf(title) })),
-        });
+        const report = reportLibraryRun(row, ran);
+        settled.push(...report.outcomes);
+        if (report.cancelled) cancelRequested.current = true;
+        if (report.completedTitles !== undefined)
+          completedTitles.set(row.id, report.completedTitles);
+        if (report.queueUpdate !== undefined) dispatch(report.queueUpdate);
         continue;
       }
       const result = await bridge.convert(commandFor(row, rowProcess, runId, nextJobId));
-      if (result.ok) {
-        settled.push({
-          rowId: row.id,
-          name: row.displayName,
-          status: 'done',
-          artifacts: result.value,
-        });
-      } else {
-        settled.push({
-          rowId: row.id,
-          name: row.displayName,
-          status: 'failed',
-          artifacts: [],
-          message: result.error.message,
-        });
-        if (result.error.code === 'cancelled') cancelRequested.current = true;
-      }
+      const report = reportInputRun(row, result);
+      settled.push(...report.outcomes);
+      if (report.cancelled) cancelRequested.current = true;
     }
     setJobId(undefined);
     setProgress(undefined);
     setRunPosition(undefined);
-    // Everything that was left out is reported with the reason and, when it can be fixed, a way to.
-    for (const row of rows) {
-      if (row.state === 'inspecting') continue;
-      if (row.state === 'inspected' && row.kind === 'library' && attempted.has(row.id)) {
-        // A library that ran can still have titles that wait for volumes.
-        const waiting = (row.titles ?? []).filter(isWaitingTitle).length;
-        if (waiting > 0) {
-          settled.push({
-            rowId: row.id,
-            name: row.displayName,
-            status: 'skipped',
-            artifacts: [],
-            message: `${plural(waiting, 'title')} left out until they have volumes.`,
-            fixable: true,
-          });
-        }
-        continue;
-      }
-      if (attempted.has(row.id)) continue;
-      const view = describeRow(row, mode);
-      if (view.runnable) continue;
-      settled.push({
-        rowId: row.id,
-        name: row.displayName,
-        status: 'skipped',
-        artifacts: [],
-        message: view.note ?? view.chip,
-        fixable: row.state === 'inspected' && row.kind !== 'cbz' && mode !== 'convert-only',
-      });
-    }
-    // Successfully processed inputs leave the queue. The rest stays so it can be fixed and retried.
-    removeRows(
-      rows
-        .filter((row) => {
-          if (row.state !== 'inspected') return false;
-          if (row.kind === 'library') {
-            const completed = completedTitles.get(row.id);
-            return (
-              completed !== undefined &&
-              (row.titles ?? []).every(
-                (title) => title.outcome?.status === 'done' || completed.has(title.title),
-              )
-            );
-          }
-          return settled.some((outcome) => outcome.rowId === row.id && outcome.status === 'done');
-        })
-        .map((row) => row.id),
-    );
-    if (settled.length === 0) {
+    const report = finishRunReport({ rows, mode, settled, attempted, completedTitles });
+    removeRows(report.completedRowIds);
+    if (!report.hasResults) {
       setStep('queue');
       return;
     }
-    setOutcomes(settled);
-    setResultSummary(
-      mode === 'bind-only' ? 'Joined volumes · CBZ' : `${deviceName} · ${format.toUpperCase()}`,
-    );
+    setOutcomes(report.outcomes);
+    setResultSummary(describeRun(mode, deviceName, format));
     const refreshed = await bridge.listPendingRuns();
     if (refreshed.ok) setPendingRuns(refreshed.value);
     else setFailure(refreshed.error);
