@@ -11,6 +11,13 @@ import { defaultProcessMode, type ProcessMode, usesMangapress } from '@/domain/p
 
 export type RunAction = 'converting' | 'validating the plan';
 
+export function emptyBindingError(code: 'no_volumes' | 'binding_failed'): ConversionWorkflowError {
+  return new ConversionWorkflowError(
+    code,
+    'No volume files were produced. Review the chapter mapping and try again.',
+  );
+}
+
 /** Resolve the default mode and validate only the settings of a tool the run will use. */
 export function validateRunOptions(
   request: Pick<ConversionRequest, 'mode' | 'settings' | 'format'>,
