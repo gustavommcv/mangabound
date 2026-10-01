@@ -23,7 +23,6 @@ import {
   defaultMangapressSettings,
   type MangapressSettings,
   resolveDeviceProfileFallback,
-  validateMangapressSettings,
   withDeviceProfile,
 } from '@/domain/output-profile';
 import { defaultFormat } from '@/domain/preferences';
@@ -47,6 +46,7 @@ import { Notices } from '@/renderer/components/shared/notices';
 import { SendToKoreader } from '@/renderer/components/sharing/send-to-koreader';
 import { SharePanel } from '@/renderer/components/sharing/share-panel';
 import { ShareMenu } from '@/renderer/components/sharing/share-menu';
+import { useKeptSettings } from '@/renderer/hooks/use-kept-settings';
 import { usePendingRuns } from '@/renderer/hooks/use-pending-runs';
 import { useSharing } from '@/renderer/hooks/use-sharing';
 import { useToolchain } from '@/renderer/hooks/use-toolchain';
@@ -60,9 +60,7 @@ import { LibraryScreen } from '@/renderer/screens/library-screen';
 import { QueueScreen, type RowPlan } from '@/renderer/screens/queue-screen';
 import { ResultsScreen, type RunOutcome } from '@/renderer/screens/results-screen';
 import { RunningScreen } from '@/renderer/screens/running-screen';
-import type { NetworkInterfaceOption } from '@/shared/opds-contract';
 import type { MangaboundBridge } from '@/shared/runtime-info';
-import type { SaveSettingsCommand } from '@/shared/settings-contract';
 import type { ToolchainStatus } from '@/shared/toolchain-status';
 import type {
   ConversionCommand,
@@ -99,29 +97,6 @@ const plural = (count: number, word: string): string =>
 
 const withNotice = (current: readonly string[], message: string): readonly string[] =>
   current.includes(message) ? current : [...current, message];
-
-/** What is kept of the choices on screen. */
-function settingsToKeep(values: {
-  readonly mode: ProcessMode;
-  readonly format: BookFormat;
-  readonly settings: MangapressSettings;
-  readonly singleBook: boolean;
-  readonly providerId: string | undefined;
-  readonly preferredNetworkInterface: NetworkInterfaceOption | undefined;
-}): SaveSettingsCommand {
-  return {
-    preferences: {
-      mode: values.mode,
-      format: values.format,
-      settings: values.settings,
-      singleBook: values.singleBook,
-      ...(values.providerId === undefined ? {} : { providerId: values.providerId }),
-    },
-    ...(values.preferredNetworkInterface === undefined
-      ? {}
-      : { preferredNetworkInterface: values.preferredNetworkInterface }),
-  };
-}
 
 /** What validating a library shows: the books its ready titles would be joined into. */
 function libraryPlanSummary(
@@ -163,10 +138,24 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
   >([]);
   const [activeRunId, setActiveRunId] = useState<string>();
   const [savedIds, setSavedIds] = useState<ReadonlySet<string>>(new Set());
-  const [settings, setSettings] = useState<MangapressSettings>(defaultMangapressSettings);
-  const [format, setFormat] = useState<BookFormat>(defaultFormat);
-  const [mode, setMode] = useState<ProcessMode>(defaultProcessMode);
-  const [singleBook, setSingleBook] = useState(false);
+  const [notices, setNotices] = useState<readonly string[]>([]);
+  const notify = useCallback((message: string) => {
+    setNotices((current) => withNotice(current, message));
+  }, []);
+  const {
+    mode,
+    setMode,
+    format,
+    setFormat,
+    settings,
+    setSettings,
+    singleBook,
+    setSingleBook,
+    selectedProviderId,
+    setSelectedProviderId,
+    preferredNetworkInterface,
+    setPreferredNetworkInterface,
+  } = useKeptSettings(bridge, notify);
   // A standalone CBZ is already one book. Keep the saved choice for a later folder, but do not
   // present its grouping/EPUB locks as active while the queue contains only CBZ files.
   const singleBookActive =
@@ -185,118 +174,17 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
     readonly plans: readonly RowPlan[];
   }>();
   const [validating, setValidating] = useState(false);
-  const [preferredNetworkInterface, setPreferredNetworkInterface] =
-    useState<NetworkInterfaceOption>();
   const [metadataProviders, setMetadataProviders] = useState<readonly MetadataProviderDescriptor[]>(
     [],
   );
-  // No online source is chosen until a person chooses one; it is then kept for the next title.
-  const [selectedProviderId, setSelectedProviderId] = useState<string>();
-  // What was kept from the last session is read once; nothing is saved before it has been (ADR 0014).
-  const [restored, setRestored] = useState(false);
-  // What was last read or written, so only a real change is written: a first launch leaves no file,
-  // and a file that could not be read stays until something is changed.
-  const lastKept = useRef<string | undefined>(undefined);
-  const [notices, setNotices] = useState<readonly string[]>([]);
-  const notify = useCallback((message: string) => {
-    setNotices((current) => withNotice(current, message));
-  }, []);
   const rowsRef = useRef(rows);
   const attemptedInspection = useRef(new Set<string>());
   const cancelRequested = useRef(false);
-  useEffect(() => {
-    let current = true;
-    void bridge
-      .loadSettings()
-      .then(
-        (result) => (result.ok ? result.value : undefined),
-        () => undefined,
-      )
-      .then((saved) => {
-        if (!current) return;
-        if (saved === undefined) {
-          // Nothing is saved from here on: what is on screen is only the defaults, and saving
-          // them would overwrite what was kept.
-          notify('The saved settings could not be loaded.');
-          return;
-        }
-        const restoredSingleBook = Boolean(saved.preferences.singleBook);
-        const resolvedMode = restoredSingleBook ? 'bind-and-convert' : saved.preferences.mode;
-        const resolvedFormat = restoredSingleBook ? 'epub' : saved.preferences.format;
-        const resolvedSettings = {
-          ...saved.preferences.settings,
-          combineIntoOneVolume: false,
-        };
-        lastKept.current = JSON.stringify(
-          settingsToKeep({
-            ...saved.preferences,
-            mode: resolvedMode,
-            format: resolvedFormat,
-            singleBook: restoredSingleBook,
-            settings: resolvedSettings,
-            providerId: saved.preferences.providerId,
-            preferredNetworkInterface: saved.preferredNetworkInterface,
-          }),
-        );
-        setSingleBook(restoredSingleBook);
-        setMode(resolvedMode);
-        setFormat(resolvedFormat);
-        setSettings(resolvedSettings);
-        setSelectedProviderId(saved.preferences.providerId);
-        setPreferredNetworkInterface(saved.preferredNetworkInterface);
-        for (const notice of saved.notices) notify(notice);
-        setRestored(true);
-      });
-    return () => {
-      current = false;
-    };
-  }, [bridge, notify]);
-
   const {
     pendingRuns,
     refresh: refreshPendingRuns,
     discard: discardPendingBooks,
   } = usePendingRuns(bridge, setFailure);
-
-  useEffect(() => {
-    if (!restored) return;
-    // A value that is half typed is not kept: the last valid options stay saved until it is fixed.
-    if (validateMangapressSettings(settings, format).length > 0) return;
-    const command = settingsToKeep({
-      mode,
-      format,
-      settings,
-      singleBook,
-      providerId: selectedProviderId,
-      preferredNetworkInterface,
-    });
-    const key = JSON.stringify(command);
-    if (key === lastKept.current) return;
-    lastKept.current = key;
-    // A failed save is tried again with the next change, whatever it is.
-    const failedToSave = (message: string): void => {
-      lastKept.current = undefined;
-      notify(message);
-    };
-    void bridge.saveSettings(command).then(
-      (result) => {
-        if (!result.ok) failedToSave(result.error.message);
-      },
-      () => {
-        failedToSave('The settings could not be saved.');
-      },
-    );
-  }, [
-    bridge,
-    restored,
-    mode,
-    format,
-    settings,
-    singleBook,
-    selectedProviderId,
-    preferredNetworkInterface,
-    notify,
-  ]);
 
   useEffect(() => {
     return bridge.onConversionProgress((update) => {
