@@ -106,7 +106,7 @@
     "typescript": "6.0.3",
     "typescript-eslint": "^8.70.1",
     "vitest": "5.0.2",
-    "webdriverio": "9.31.9",
+    "webdriverio": "9.32.0",
     "webpack": "^5.102.1",
     "webpack-cli": "^7.2.3"
   },
