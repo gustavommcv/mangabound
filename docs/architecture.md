@@ -32,6 +32,8 @@ Two rules follow from this: **the renderer never touches Node** (it is sandboxed
 
 Planning and conversion share their output-settings and single-book checks in `application/workflows/run-preconditions.ts`. `SingleInputWorkflow.assertRunnable` applies the same session, input-kind and mode checks to a single-input plan and run; `requireSession` also serves library operations and details saves. Library conversion uses the same option checks before resolving its session, preserving its existing error order. A loose CBZ remains one book and ignores single-book mode. The shared checks reuse the domain's validators; they do not run tools or own sessions.
 
+The per-title scheduler is `application/workflows/volume-production.ts`. The workflow supplies the callback that makes each book; the scheduler owns the bounded workers, cancellation forwarding, aggregate progress and ordered artifact notifications. It returns an explicit success/failure result with completed artifacts rather than filling an array supplied by the caller. Single-input conversion rethrows the original failure, while a library records it with that title's completed books and continues to the next title. The machine-capacity limit still comes from main; bind-only copies and a single book remain sequential (ADR 0027).
+
 ## What keeps it safe
 
 - The window is sandboxed with context isolation on, Node integration off, navigation and new windows denied.
