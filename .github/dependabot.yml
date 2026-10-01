@@ -31,6 +31,12 @@ updates:
         patterns:
           - '@playwright/test'
           - '@axe-core/playwright'
+    ignore:
+      # @astrojs/check accepts TypeScript 5 and 6 only as its peer, so a TypeScript 7 bump makes
+      # `npm ci` fail with ERESOLVE (the site's checks did, on the first proposal). Remove this when
+      # a release of @astrojs/check lists 7.
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
 
   - package-ecosystem: github-actions
     directory: /
