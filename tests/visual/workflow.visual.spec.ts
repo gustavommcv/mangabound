@@ -36,6 +36,31 @@ test.describe('at the size the window opens at', () => {
     await expect(page.locator('#storybook-root')).toHaveScreenshot('queue-empty.png');
   });
 
+  test('the conversion options page keeps its heading, reset and editor aligned', async ({
+    page,
+  }) => {
+    await page.goto('/iframe.html?id=workflows-conversion-options--normal&viewMode=story');
+    await expect(page.getByRole('heading', { name: 'Conversion options' })).toBeFocused();
+    await expect(page.getByRole('button', { name: 'Reset to defaults' })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+    await page.evaluate(async () => document.fonts.ready);
+    await expect(page).toHaveScreenshot('conversion-options.png');
+  });
+
+  test('the conversion options page keeps the single-book warning above its locked controls', async ({
+    page,
+  }) => {
+    await page.goto(
+      '/iframe.html?id=workflows-conversion-options--single-book-active&viewMode=story',
+    );
+    await expect(page.getByRole('status', { name: 'Single book for the series' })).toBeVisible();
+    await expect(page.getByLabel('Book format')).toBeDisabled();
+    await page.evaluate(async () => document.fonts.ready);
+    await expect(page).toHaveScreenshot('conversion-options-single-book.png');
+  });
+
   test('the menu a click on the empty queue opens remains visually consistent', async ({
     page,
   }) => {
