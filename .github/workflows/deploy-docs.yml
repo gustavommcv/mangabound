@@ -34,9 +34,11 @@ jobs:
       - run: npm ci
       - name: Install Chromium and system dependencies
         if: runner.os == 'Linux'
+        timeout-minutes: 10
         run: npx playwright install --with-deps chromium
       - name: Install Chromium
         if: runner.os != 'Linux'
+        timeout-minutes: 10
         run: npx playwright install chromium
       - run: npm run check
       - run: npm audit
