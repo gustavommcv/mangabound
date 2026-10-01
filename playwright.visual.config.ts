@@ -10,6 +10,10 @@ export default defineConfig({
     },
   },
   fullyParallel: false,
+  // The preview is Storybook's development server, and on a CI runner its preview file
+  // (`vite-app.js`) has failed to load once in a run and loaded on the next try. A screenshot that
+  // really differs fails on every try, so a retry hides no regression.
+  retries: process.env.CI === 'true' ? 2 : 0,
   reporter: process.env.CI === 'true' ? 'github' : 'list',
   snapshotPathTemplate: '{testDir}/__screenshots__/{arg}{ext}',
   testDir: './tests/visual',

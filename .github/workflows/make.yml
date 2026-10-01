@@ -58,6 +58,7 @@ jobs:
         # MakerRpm needs the `rpmbuild` binary (apt's `rpm` package provides it on
         # Debian/Ubuntu - there is no separate "rpmbuild" package there); MakerDeb needs
         # `dpkg` (already present on any Debian-family runner) and `fakeroot`.
+        timeout-minutes: 10
         run: sudo apt-get update && sudo apt-get install --yes rpm fakeroot
       - run: npm run make
       - name: Upload installer artifacts
