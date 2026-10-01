@@ -47,6 +47,7 @@ import { Notices } from '@/renderer/components/shared/notices';
 import { SendToKoreader } from '@/renderer/components/sharing/send-to-koreader';
 import { SharePanel } from '@/renderer/components/sharing/share-panel';
 import { ShareMenu } from '@/renderer/components/sharing/share-menu';
+import { useToolchain } from '@/renderer/hooks/use-toolchain';
 import { resolveNetworkInterface } from '@/renderer/lib/sharing';
 import { Titlebar } from '@/renderer/components/shell/titlebar';
 import { Button } from '@/renderer/components/ui/button';
@@ -67,7 +68,6 @@ import type { SaveSettingsCommand } from '@/shared/settings-contract';
 import type { ToolchainStatus } from '@/shared/toolchain-status';
 import type {
   ConversionCommand,
-  DeviceProfileSummary,
   LibraryPlanSummary,
   MetadataProviderDescriptor,
   MetadataSearchResult,
@@ -158,8 +158,8 @@ const toQueueInput = (input: SelectedInput): QueueInput => ({
 
 /** The workflow depends on the bridge interface, not on where its implementation comes from. */
 export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): React.JSX.Element {
-  const [toolchain, setToolchain] = useState<ToolchainStatus>();
-  const [profiles, setProfiles] = useState<readonly DeviceProfileSummary[]>([]);
+  const [failure, setFailure] = useState<WorkflowFailure>();
+  const { toolchain, profiles } = useToolchain(bridge, setFailure);
   const [navigation, setNavigation] = useState<WorkflowNavigation>({ screen: 'queue' });
   const [rows, dispatch] = useReducer(queueReducer, emptyQueue);
   const [rejected, setRejected] = useState<
@@ -190,7 +190,6 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
     readonly plans: readonly RowPlan[];
   }>();
   const [validating, setValidating] = useState(false);
-  const [failure, setFailure] = useState<WorkflowFailure>();
   const [sharePanelOpen, setSharePanelOpen] = useState(false);
   const [sharedLibrary, setSharedLibrary] = useState<SelectedLibrary>();
   const [interfaces, setInterfaces] = useState<readonly NetworkInterfaceOption[]>([]);
@@ -214,35 +213,6 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
   const rowsRef = useRef(rows);
   const attemptedInspection = useRef(new Set<string>());
   const cancelRequested = useRef(false);
-  useEffect(() => {
-    let current = true;
-    // Asked again after an await, where the flag may have been cleared meanwhile.
-    const isStale = (): boolean => !current;
-    void bridge
-      .getToolchainStatus()
-      .then(async (status) => {
-        if (isStale()) return;
-        setToolchain(status);
-        if (status.state !== 'ready') return;
-        const result = await bridge.getDeviceProfiles();
-        if (isStale()) return;
-        if (result.ok) setProfiles(result.value);
-        else setFailure(result.error);
-      })
-      .catch(() => {
-        if (current) {
-          setToolchain({
-            state: 'blocked',
-            tools: [],
-            message: 'The bundled conversion tools could not be checked.',
-          });
-        }
-      });
-    return () => {
-      current = false;
-    };
-  }, [bridge]);
-
   useEffect(() => {
     let current = true;
     void bridge
