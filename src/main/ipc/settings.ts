@@ -1,11 +1,10 @@
-import { ipcMain } from 'electron';
-
 import type { PreferencesWorkflow } from '@/application/workflows/preferences';
 import { type RestoredSettings, saveSettingsCommandSchema } from '@/shared/settings-contract';
 import type { WorkflowResult } from '@/shared/workflow-contract';
 
 import type { MainContext } from '../context';
-import { failed, ok, toFailure } from './result';
+import { handle, ignoredPayloadSchema } from './handle';
+import { ok } from './result';
 
 /**
  * Loading and saving renderer preferences. A legacy output folder is retained only as the next
@@ -21,8 +20,10 @@ export function registerSettingsHandlers(
   >,
   workflows: PreferencesWorkflow,
 ): void {
-  ipcMain.handle('settings:load', async (): Promise<WorkflowResult<RestoredSettings>> => {
-    try {
+  handle(
+    'settings:load',
+    ignoredPayloadSchema,
+    async (): Promise<WorkflowResult<RestoredSettings>> => {
       const restored = await workflows.restore();
       // An old output-folder preference is only a starting place for a native Save dialog.
       // Restoring it must never silently send new conversions to that folder.
@@ -37,29 +38,22 @@ export function registerSettingsHandlers(
           : { preferredNetworkInterface: restored.preferredNetworkInterface }),
         notices: restored.notices,
       });
-    } catch (error) {
-      return failed(toFailure(error));
-    }
-  });
-
-  ipcMain.handle(
+    },
+  );
+  handle(
     'settings:save',
-    async (_event, rawCommand: unknown): Promise<WorkflowResult<undefined>> => {
-      try {
-        const command = saveSettingsCommandSchema.parse(rawCommand);
-        const outputFolder = context.lastSaveFolder;
-        context.currentPreferences = command.preferences;
-        context.preferredNetworkInterface = command.preferredNetworkInterface;
-        await workflows.save(
-          command.preferences,
-          outputFolder,
-          context.lastPickerFolder,
-          context.preferredNetworkInterface,
-        );
-        return ok(undefined);
-      } catch (error) {
-        return failed(toFailure(error));
-      }
+    saveSettingsCommandSchema,
+    async (_event, command): Promise<WorkflowResult<undefined>> => {
+      const outputFolder = context.lastSaveFolder;
+      context.currentPreferences = command.preferences;
+      context.preferredNetworkInterface = command.preferredNetworkInterface;
+      await workflows.save(
+        command.preferences,
+        outputFolder,
+        context.lastPickerFolder,
+        context.preferredNetworkInterface,
+      );
+      return ok(undefined);
     },
   );
 }

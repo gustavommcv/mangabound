@@ -19,6 +19,47 @@ describe('packaged application shell', () => {
     assert.equal(await $('header').$(`span=v${version}`).isDisplayed(), true);
   });
 
+  it('returns safe command-specific failures for invalid IPC payloads without side effects', async () => {
+    const results = JSON.parse(
+      await browser.execute(async () => {
+        const bridge = window.mangabound;
+        if (bridge === undefined) throw new Error('The app bridge is unavailable.');
+        const before = await bridge.listPendingRuns();
+        const failures = await Promise.all([
+          bridge.convert({} as never),
+          bridge.convertLibrary({} as never),
+          bridge.saveSettings({} as never),
+          bridge.openArtifact(''),
+          bridge.saveArtifactAs(''),
+          bridge.discardPendingRun(''),
+        ]);
+        const after = await bridge.listPendingRuns();
+        return JSON.stringify({ before, failures, after });
+      }),
+    ) as {
+      before: unknown;
+      after: unknown;
+      failures: { ok: boolean; error: { code: string; message: string } }[];
+    };
+    assert.deepEqual(results.after, results.before);
+    assert.equal(results.failures.length, 6);
+    assert.ok(results.failures.every((result) => !result.ok));
+    assert.deepEqual(
+      results.failures.map((result) => result.error.code),
+      [
+        'invalid_request',
+        'invalid_request',
+        'invalid_request',
+        'invalid_request',
+        'save_failed',
+        'pending_delete_failed',
+      ],
+    );
+    for (const result of results.failures) {
+      assert.doesNotMatch(result.error.message, /ZodError|stack|TypeError/u);
+    }
+  });
+
   it('keeps the title bar in place while the page under it scrolls', async () => {
     // The page is made taller than the window, and the part under the bar is scrolled.
     const measured = JSON.parse(

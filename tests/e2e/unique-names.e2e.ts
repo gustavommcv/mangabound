@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { cp, mkdir, mkdtemp, readdir, rm } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -43,6 +43,7 @@ describe('packaged runs never let one book replace another', () => {
     const openDialog = await browser.electron.mock('dialog', 'showOpenDialog');
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [...folders] });
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [libraryPath] });
+    await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [libraryPath] });
 
     await resetQueue();
     await $('button=Folder').click();
@@ -58,6 +59,29 @@ describe('packaged runs never let one book replace another', () => {
       'Mangabound E2E (2).epub',
       'Mangabound E2E.epub',
     ]);
+    // Export the same pending books again into a populated destination: exclusive publication
+    // must select new names, not replace either of the previous copies.
+    const firstCopy = await readFile(path.join(libraryPath, 'Mangabound E2E.epub'));
+    const secondCopy = await readFile(path.join(libraryPath, 'Mangabound E2E (2).epub'));
+    await saveAllBooks();
+    await browser.waitUntil(async () => (await readdir(libraryPath)).length === 5, {
+      timeout: 30_000,
+      timeoutMsg: 'The repeated export did not produce two uniquely named copies.',
+    });
+    assert.deepEqual((await readdir(libraryPath)).sort(), [
+      '.mangabound',
+      'Mangabound E2E (2) (2).epub',
+      'Mangabound E2E (2).epub',
+      'Mangabound E2E (3).epub',
+      'Mangabound E2E.epub',
+    ]);
+    assert.deepEqual(await readFile(path.join(libraryPath, 'Mangabound E2E.epub')), firstCopy);
+    assert.deepEqual(await readFile(path.join(libraryPath, 'Mangabound E2E (2).epub')), secondCopy);
+    assert.deepEqual(await readFile(path.join(libraryPath, 'Mangabound E2E (3).epub')), firstCopy);
+    assert.deepEqual(
+      await readFile(path.join(libraryPath, 'Mangabound E2E (2) (2).epub')),
+      secondCopy,
+    );
   });
 
   it('keeps every joined volume when two folders would join to the same file names', async () => {

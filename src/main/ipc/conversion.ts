@@ -1,7 +1,5 @@
-import { ipcMain, type IpcMainInvokeEvent } from 'electron';
+import type { IpcMainInvokeEvent } from 'electron';
 
-import type { ConversionArtifact } from '@/domain/conversion';
-import { toLibraryRelativePath } from '@/library/paths';
 import {
   type ArtifactSummary,
   conversionCommandSchema,
@@ -20,8 +18,9 @@ import {
 
 import type { MainContext } from '../context';
 import { requireWorkflow } from '../context';
+import { handle, ignoredPayloadSchema } from './handle';
 import { failed, ok, toFailure } from './result';
-
+import { runJob } from './run-job';
 type ConversionContext = Pick<
   MainContext,
   | 'mangapressCli'
@@ -36,137 +35,43 @@ type ConversionContext = Pick<
 >;
 
 /**
- * Keeps the catalog in step with the books written to a library, as each one lands. A run that
- * fails part-way still leaves earlier books on disk, and they belong in the catalog too.
- */
-function trackArtifacts(
-  libraryPath: string,
-  context: Pick<ConversionContext, 'artifactPaths' | 'libraryPublisher' | 'pendingArtifacts'>,
-  runId: string,
-): {
-  readonly add: (artifact: ConversionArtifact) => void;
-  readonly settled: () => Promise<void>;
-} {
-  // Chained, not concurrent: FsLibraryStore.publish() reads, merges, and rewrites the whole
-  // manifest file, so overlapping calls for the same library would race and could silently
-  // drop an entry.
-  let chain: Promise<void> = Promise.resolve();
-  return {
-    add: (artifact) => {
-      context.artifactPaths.set(artifact.id, artifact.path);
-      context.pendingArtifacts.set(artifact.id, {
-        runId,
-        relativePath: toLibraryRelativePath(libraryPath, artifact.path),
-      });
-      chain = chain.then(async () => {
-        try {
-          await context.libraryPublisher.publish(libraryPath, artifact);
-        } catch (error) {
-          console.error('Failed to publish a saved book to the library catalog.', error);
-        }
-      });
-    },
-    settled: () => chain,
-  };
-}
-
-/**
  * Planning and running a job: the device list a plan is built against, validating a plan without
  * writing anything, converting a single input or a whole library, and cancelling either by the job
  * id `workflow:plan`/`workflow:convert`/`workflow:convert-library` handed back.
  */
 export function registerConversionHandlers(context: ConversionContext): void {
-  ipcMain.handle(
+  handle(
     'workflow:get-device-profiles',
+    ignoredPayloadSchema,
     async (): Promise<WorkflowResult<readonly DeviceProfileSummary[]>> => {
-      try {
-        if (context.mangapressCli === undefined) throw new Error('mangapress is unavailable.');
-        const list = await context.mangapressCli.listProfiles();
-        return ok(
-          list.profiles.map((profile) => ({
-            code: profile.code,
-            name: profile.name,
-            width: profile.width,
-            height: profile.height,
-            grayLevels: profile.gray_levels,
-            family: profile.family,
-          })),
-        );
-      } catch (error) {
-        return failed(toFailure(error));
-      }
+      if (context.mangapressCli === undefined) throw new Error('mangapress is unavailable.');
+      const list = await context.mangapressCli.listProfiles();
+      return ok(
+        list.profiles.map((profile) => ({
+          code: profile.code,
+          name: profile.name,
+          width: profile.width,
+          height: profile.height,
+          grayLevels: profile.gray_levels,
+          family: profile.family,
+        })),
+      );
     },
   );
-
-  ipcMain.handle(
+  handle(
     'workflow:plan',
-    async (
-      _event: IpcMainInvokeEvent,
-      rawCommand: unknown,
-    ): Promise<WorkflowResult<PlanSummary>> => {
-      try {
-        const command = planConversionCommandSchema.parse(rawCommand);
-        const libraryPath = await context.pendingRuns?.prepare();
-        if (libraryPath === undefined) throw new Error('Pending storage is unavailable.');
-        if (context.activeJobs.has(command.jobId)) {
-          return failed({ code: 'job_exists', message: 'That validation is already running.' });
-        }
-        const controller = new AbortController();
-        context.activeJobs.set(command.jobId, controller);
-        try {
-          return ok(
-            await requireWorkflow(context).plan(
-              {
-                sessionId: command.sessionId,
-                libraryPath,
-                settings: command.settings,
-                format: command.format,
-                ...(command.mapping === undefined ? {} : { mapping: command.mapping }),
-                ...(command.mode === undefined ? {} : { mode: command.mode }),
-                ...(command.singleBook === undefined ? {} : { singleBook: command.singleBook }),
-                ...(command.details === undefined ? {} : { details: command.details }),
-              },
-              { signal: controller.signal },
-            ),
-          );
-        } finally {
-          context.activeJobs.delete(command.jobId);
-        }
-      } catch (error) {
-        return failed(toFailure(error));
+    planConversionCommandSchema,
+    async (_event: IpcMainInvokeEvent, command): Promise<WorkflowResult<PlanSummary>> => {
+      const libraryPath = await context.pendingRuns?.prepare();
+      if (libraryPath === undefined) throw new Error('Pending storage is unavailable.');
+      if (context.activeJobs.has(command.jobId)) {
+        return failed({ code: 'job_exists', message: 'That validation is already running.' });
       }
-    },
-  );
-
-  ipcMain.handle(
-    'workflow:convert',
-    async (
-      event: IpcMainInvokeEvent,
-      rawCommand: unknown,
-    ): Promise<WorkflowResult<readonly ArtifactSummary[]>> => {
+      const controller = new AbortController();
+      context.activeJobs.set(command.jobId, controller);
       try {
-        const command = conversionCommandSchema.parse(rawCommand);
-        const libraryPath = context.selectedLibraries.get(command.libraryId);
-        if (libraryPath === undefined) {
-          return failed({
-            code: 'library_not_found',
-            message: 'The pending conversion is no longer available.',
-          });
-        }
-        if (context.pendingRunActivity.isDeleting(command.libraryId)) {
-          return failed({
-            code: 'pending_in_use',
-            message: 'The pending conversion is being deleted.',
-          });
-        }
-        if (context.activeJobs.has(command.jobId)) {
-          return failed({ code: 'job_exists', message: 'That conversion is already running.' });
-        }
-        const controller = new AbortController();
-        context.activeJobs.set(command.jobId, controller);
-        const tracked = trackArtifacts(libraryPath, context, command.libraryId);
-        try {
-          const artifacts = await requireWorkflow(context).convert(
+        return ok(
+          await requireWorkflow(context).plan(
             {
               sessionId: command.sessionId,
               libraryPath,
@@ -177,164 +82,126 @@ export function registerConversionHandlers(context: ConversionContext): void {
               ...(command.singleBook === undefined ? {} : { singleBook: command.singleBook }),
               ...(command.details === undefined ? {} : { details: command.details }),
             },
-            {
-              signal: controller.signal,
-              onArtifact: tracked.add,
-              onProgress: (progress) => {
-                event.sender.send('workflow:progress', { jobId: command.jobId, ...progress });
-              },
-            },
-          );
-          return ok(artifacts.map(({ bytes, format, id, name }) => ({ bytes, format, id, name })));
-        } finally {
-          // Even when the run failed: books it already wrote must not be missing from the catalog.
-          await tracked.settled();
-          context.activeJobs.delete(command.jobId);
-        }
-      } catch (error) {
-        return failed(toFailure(error));
-      }
-    },
-  );
-
-  ipcMain.handle(
-    'workflow:plan-library',
-    async (_event, rawCommand: unknown): Promise<WorkflowResult<LibraryPlanSummary>> => {
-      try {
-        const command = planLibraryCommandSchema.parse(rawCommand);
-        if (context.activeJobs.has(command.jobId)) {
-          return failed({ code: 'job_exists', message: 'That discovery is already running.' });
-        }
-        const controller = new AbortController();
-        context.activeJobs.set(command.jobId, controller);
-        try {
-          return ok(
-            await requireWorkflow(context).planLibrary(command.sessionId, controller.signal),
-          );
-        } finally {
-          context.activeJobs.delete(command.jobId);
-        }
-      } catch (error) {
-        return failed(toFailure(error));
-      }
-    },
-  );
-
-  ipcMain.handle(
-    'workflow:write-title-mapping',
-    async (_event, rawCommand: unknown): Promise<WorkflowResult<undefined>> => {
-      try {
-        const command = writeTitleMappingCommandSchema.parse(rawCommand);
-        await requireWorkflow(context).writeTitleMapping(
-          command.sessionId,
-          command.title,
-          command.mapping,
+            { signal: controller.signal },
+          ),
         );
-        return ok(undefined);
-      } catch (error) {
-        return failed(toFailure(error));
+      } finally {
+        context.activeJobs.delete(command.jobId);
       }
     },
   );
-
-  ipcMain.handle(
-    'workflow:save-book-details',
-    async (_event, rawCommand: unknown): Promise<WorkflowResult<undefined>> => {
-      try {
-        const command = saveBookDetailsCommandSchema.parse(rawCommand);
-        await requireWorkflow(context).saveDetails(
-          command.sessionId,
-          command.details,
-          command.title,
-        );
-        return ok(undefined);
-      } catch (error) {
-        return failed(toFailure(error));
-      }
-    },
-  );
-
-  ipcMain.handle(
-    'workflow:convert-library',
+  handle(
+    'workflow:convert',
+    conversionCommandSchema,
     async (
       event: IpcMainInvokeEvent,
-      rawCommand: unknown,
-    ): Promise<WorkflowResult<readonly LibraryTitleResult[]>> => {
+      command,
+    ): Promise<WorkflowResult<readonly ArtifactSummary[]>> => {
+      return runJob(command, context, async (libraryPath, options) => {
+        const artifacts = await requireWorkflow(context).convert(
+          {
+            sessionId: command.sessionId,
+            libraryPath,
+            settings: command.settings,
+            format: command.format,
+            ...(command.mapping === undefined ? {} : { mapping: command.mapping }),
+            ...(command.mode === undefined ? {} : { mode: command.mode }),
+            ...(command.singleBook === undefined ? {} : { singleBook: command.singleBook }),
+            ...(command.details === undefined ? {} : { details: command.details }),
+          },
+          {
+            ...options,
+            onProgress: (progress) => {
+              event.sender.send('workflow:progress', { jobId: command.jobId, ...progress });
+            },
+          },
+        );
+        return artifacts.map(({ bytes, format, id, name }) => ({ bytes, format, id, name }));
+      });
+    },
+  );
+  handle(
+    'workflow:plan-library',
+    planLibraryCommandSchema,
+    async (_event, command): Promise<WorkflowResult<LibraryPlanSummary>> => {
+      if (context.activeJobs.has(command.jobId)) {
+        return failed({ code: 'job_exists', message: 'That discovery is already running.' });
+      }
+      const controller = new AbortController();
+      context.activeJobs.set(command.jobId, controller);
       try {
-        const command = libraryConversionCommandSchema.parse(rawCommand);
-        const libraryPath = context.selectedLibraries.get(command.libraryId);
-        if (libraryPath === undefined) {
-          return failed({
-            code: 'library_not_found',
-            message: 'The pending conversion is no longer available.',
-          });
-        }
-        if (context.pendingRunActivity.isDeleting(command.libraryId)) {
-          return failed({
-            code: 'pending_in_use',
-            message: 'The pending conversion is being deleted.',
-          });
-        }
-        if (context.activeJobs.has(command.jobId)) {
-          return failed({ code: 'job_exists', message: 'That conversion is already running.' });
-        }
-        const controller = new AbortController();
-        context.activeJobs.set(command.jobId, controller);
-        const tracked = trackArtifacts(libraryPath, context, command.libraryId);
-        try {
-          const outcomes = await requireWorkflow(context).convertLibrary(
-            {
-              sessionId: command.sessionId,
-              libraryPath,
-              settings: command.settings,
-              format: command.format,
-              ...(command.titles === undefined ? {} : { titles: command.titles }),
-              ...(command.mode === undefined ? {} : { mode: command.mode }),
-              ...(command.singleBook === undefined ? {} : { singleBook: command.singleBook }),
-              ...(command.titleDetails === undefined ? {} : { titleDetails: command.titleDetails }),
-            },
-            {
-              signal: controller.signal,
-              onArtifact: tracked.add,
-              onProgress: (progress) => {
-                event.sender.send('workflow:progress', { jobId: command.jobId, ...progress });
-              },
-            },
-          );
-          return ok(
-            outcomes.map((outcome) => ({
-              title: outcome.title,
-              status: outcome.status,
-              artifacts: outcome.artifacts.map(({ bytes, format, id, name }) => ({
-                bytes,
-                format,
-                id,
-                name,
-              })),
-              ...(outcome.error === undefined ? {} : { failure: toFailure(outcome.error) }),
-            })),
-          );
-        } finally {
-          await tracked.settled();
-          context.activeJobs.delete(command.jobId);
-        }
-      } catch (error) {
-        return failed(toFailure(error));
+        return ok(await requireWorkflow(context).planLibrary(command.sessionId, controller.signal));
+      } finally {
+        context.activeJobs.delete(command.jobId);
       }
     },
   );
-
-  ipcMain.handle('workflow:cancel', (_event, rawJobId: unknown): WorkflowResult<undefined> => {
-    try {
-      const jobId = identifierSchema.parse(rawJobId);
-      const controller = context.activeJobs.get(jobId);
-      if (controller === undefined) {
-        return failed({ code: 'job_not_found', message: 'That conversion is no longer running.' });
-      }
-      controller.abort();
+  handle(
+    'workflow:write-title-mapping',
+    writeTitleMappingCommandSchema,
+    async (_event, command): Promise<WorkflowResult<undefined>> => {
+      await requireWorkflow(context).writeTitleMapping(
+        command.sessionId,
+        command.title,
+        command.mapping,
+      );
       return ok(undefined);
-    } catch (error) {
-      return failed(toFailure(error));
+    },
+  );
+  handle(
+    'workflow:save-book-details',
+    saveBookDetailsCommandSchema,
+    async (_event, command): Promise<WorkflowResult<undefined>> => {
+      await requireWorkflow(context).saveDetails(command.sessionId, command.details, command.title);
+      return ok(undefined);
+    },
+  );
+  handle(
+    'workflow:convert-library',
+    libraryConversionCommandSchema,
+    async (
+      event: IpcMainInvokeEvent,
+      command,
+    ): Promise<WorkflowResult<readonly LibraryTitleResult[]>> => {
+      return runJob(command, context, async (libraryPath, options) => {
+        const outcomes = await requireWorkflow(context).convertLibrary(
+          {
+            sessionId: command.sessionId,
+            libraryPath,
+            settings: command.settings,
+            format: command.format,
+            ...(command.titles === undefined ? {} : { titles: command.titles }),
+            ...(command.mode === undefined ? {} : { mode: command.mode }),
+            ...(command.singleBook === undefined ? {} : { singleBook: command.singleBook }),
+            ...(command.titleDetails === undefined ? {} : { titleDetails: command.titleDetails }),
+          },
+          {
+            ...options,
+            onProgress: (progress) => {
+              event.sender.send('workflow:progress', { jobId: command.jobId, ...progress });
+            },
+          },
+        );
+        return outcomes.map((outcome) => ({
+          title: outcome.title,
+          status: outcome.status,
+          artifacts: outcome.artifacts.map(({ bytes, format, id, name }) => ({
+            bytes,
+            format,
+            id,
+            name,
+          })),
+          ...(outcome.error === undefined ? {} : { failure: toFailure(outcome.error) }),
+        }));
+      });
+    },
+  );
+  handle('workflow:cancel', identifierSchema, (_event, jobId): WorkflowResult<undefined> => {
+    const controller = context.activeJobs.get(jobId);
+    if (controller === undefined) {
+      return failed({ code: 'job_not_found', message: 'That conversion is no longer running.' });
     }
+    controller.abort();
+    return ok(undefined);
   });
 }
