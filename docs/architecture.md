@@ -23,6 +23,8 @@ Two rules follow from this: **the renderer never touches Node** (it is sandboxed
 
 Only the desktop entry reads `window.mangabound`. `WorkflowApp` receives `MangaboundBridge` as a required prop and never looks up the global itself. If preload did not expose it, the entry shows a non-dismissible startup error with restart/reinstall instructions, without mounting workflow state or offering actions that cannot work. The title bar still names the app but no longer labels it "Desktop" or "Foundation". Another entry could supply the same interface; this is not a web implementation or a fallback conversion backend.
 
+Workflow navigation is one local discriminated union, not independent screen, row and title states. A library screen carries its queue row id. Mapping and details screens carry a target: an input row, or a library row and title together. Non-editing screens carry no editing selection. The renderer resolves these ids from the current queue rather than storing another copy of a row or draft; it still checks that the inspected data needed by a screen exists. Back and successful title confirmation explicitly return to that target's library, while input editing returns to the queue. This adds no router, history stack or state library; options, loading effects and conversion progress remain separate audit work.
+
 ## A conversion, step by step
 
 1. **Add.** A folder or file comes from a native dialog or from files dropped on the window. The preload reads a dropped file's path, and the main process checks every path against the disk (`classifyInputPaths`), then hands the page an opaque _selection id_. From here on the page names things by id, never by path.
