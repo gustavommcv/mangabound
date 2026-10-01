@@ -47,6 +47,7 @@ import { Notices } from '@/renderer/components/shared/notices';
 import { SendToKoreader } from '@/renderer/components/sharing/send-to-koreader';
 import { SharePanel } from '@/renderer/components/sharing/share-panel';
 import { ShareMenu } from '@/renderer/components/sharing/share-menu';
+import { usePendingRuns } from '@/renderer/hooks/use-pending-runs';
 import { useToolchain } from '@/renderer/hooks/use-toolchain';
 import { resolveNetworkInterface } from '@/renderer/lib/sharing';
 import { Titlebar } from '@/renderer/components/shell/titlebar';
@@ -73,7 +74,6 @@ import type {
   MetadataSearchResult,
   PlanSummary,
   PlanConversionCommand,
-  PendingRunSummary,
   RegisteredInputs,
   SelectedInput,
   SelectedLibrary,
@@ -165,7 +165,6 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
   const [rejected, setRejected] = useState<
     readonly { readonly name: string; readonly reason: string }[]
   >([]);
-  const [pendingRuns, setPendingRuns] = useState<readonly PendingRunSummary[]>([]);
   const [activeRunId, setActiveRunId] = useState<string>();
   const [savedIds, setSavedIds] = useState<ReadonlySet<string>>(new Set());
   const [settings, setSettings] = useState<MangapressSettings>(defaultMangapressSettings);
@@ -261,17 +260,11 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
     };
   }, [bridge, notify]);
 
-  useEffect(() => {
-    let current = true;
-    void bridge.listPendingRuns().then((result) => {
-      if (!current) return;
-      if (result.ok) setPendingRuns(result.value);
-      else setFailure(result.error);
-    });
-    return () => {
-      current = false;
-    };
-  }, [bridge]);
+  const {
+    pendingRuns,
+    refresh: refreshPendingRuns,
+    discard: discardPendingBooks,
+  } = usePendingRuns(bridge, setFailure);
 
   useEffect(() => {
     if (!restored) return;
@@ -590,9 +583,7 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
     }
     setOutcomes(report.outcomes);
     setResultSummary(describeRun(mode, deviceName, format));
-    const refreshed = await bridge.listPendingRuns();
-    if (refreshed.ok) setPendingRuns(refreshed.value);
-    else setFailure(refreshed.error);
+    await refreshPendingRuns();
     setNavigation({ screen: 'results' });
   };
 
@@ -756,29 +747,9 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
     setNavigation({ screen: 'results' });
   };
 
-  const refreshPendingRuns = async (): Promise<void> => {
-    const result = await bridge.listPendingRuns();
-    if (result.ok) setPendingRuns(result.value);
-    else setFailure(result.error);
-  };
-
   const discardPendingRun = async (libraryId: string): Promise<boolean> => {
     setFailure(undefined);
-    let result: Awaited<ReturnType<MangaboundBridge['discardPendingRun']>>;
-    try {
-      result = await bridge.discardPendingRun(libraryId);
-    } catch {
-      setFailure({
-        code: 'pending_delete_failed',
-        message: 'Mangabound could not delete these pending books. Please try again.',
-      });
-      return false;
-    }
-    if (!result.ok) {
-      setFailure(result.error);
-      return false;
-    }
-    setPendingRuns((current) => current.filter((run) => run.libraryId !== libraryId));
+    if (!(await discardPendingBooks(libraryId))) return false;
     if (sharedLibrary?.libraryId === libraryId) setSharedLibrary(undefined);
     if (activeRunId === libraryId) setActiveRunId(undefined);
     return true;
