@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -277,6 +277,71 @@ describe('NodeOpdsServer', () => {
     } finally {
       await rm(parent, { recursive: true, force: true });
     }
+  });
+
+  describe('a link inside the shared folder', () => {
+    function entryAt(relativePath: string): LibraryBookEntry {
+      return {
+        relativePath,
+        title: 'Linked',
+        author: 'Unknown',
+        format: 'epub',
+        bytes: 1,
+        convertedAt: '2026-09-16T10:00:00.000Z',
+      };
+    }
+
+    async function serve(library: string, entry: LibraryBookEntry): Promise<OpdsServerHandle> {
+      // A store that returns the entry as it is, so the server is what stands in the way.
+      const handle = await new NodeOpdsServer(memoryStore([entry])).start({
+        libraryPath: library,
+        libraryTitle: 'My Library',
+        interfaceAddress: '127.0.0.1',
+        port: 0,
+        auth: open,
+      });
+      activeHandles.push(handle);
+      return handle;
+    }
+
+    it('never leads to a file outside the library', async () => {
+      const parent = await mkdtemp(path.join(os.tmpdir(), 'mangabound-opds-link-out-'));
+      try {
+        const library = path.join(parent, 'library');
+        const outside = path.join(parent, 'outside');
+        await mkdir(library);
+        await mkdir(outside);
+        await writeFile(path.join(outside, 'secret.epub'), 'OUTSIDE THE LIBRARY');
+        // A directory link needs no privilege on Windows when it is a junction.
+        await symlink(outside, path.join(library, 'shelf'), 'junction');
+        const handle = await serve(library, entryAt('shelf/secret.epub'));
+
+        const response = await fetch(`${handle.url}/books/shelf/secret.epub`);
+
+        expect(response.status).toBe(404);
+        expect(await response.text()).not.toContain('OUTSIDE THE LIBRARY');
+      } finally {
+        await rm(parent, { recursive: true, force: true });
+      }
+    });
+
+    it('still serves a file it leads to inside the library', async () => {
+      const root = await mkdtemp(path.join(os.tmpdir(), 'mangabound-opds-link-in-'));
+      try {
+        const real = path.join(root, 'Real Shelf');
+        await mkdir(real);
+        await writeFile(path.join(real, 'book.epub'), 'INSIDE THE LIBRARY');
+        await symlink(real, path.join(root, 'shelf'), 'junction');
+        const handle = await serve(root, entryAt('shelf/book.epub'));
+
+        const response = await fetch(`${handle.url}/books/shelf/book.epub`);
+
+        expect(response.status).toBe(200);
+        expect(await response.text()).toBe('INSIDE THE LIBRARY');
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    });
   });
 
   it('serves a loose file in the "other" feed, and never lists it in "recent"', async () => {

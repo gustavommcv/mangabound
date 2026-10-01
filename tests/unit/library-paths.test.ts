@@ -2,7 +2,7 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { resolveLibraryFile, toLibraryRelativePath } from '@/library/paths';
+import { isInsideLibrary, resolveLibraryFile, toLibraryRelativePath } from '@/library/paths';
 
 describe('toLibraryRelativePath', () => {
   it('returns a forward-slash relative path for a nested subdirectory', () => {
@@ -31,12 +31,41 @@ describe('toLibraryRelativePath', () => {
     );
   });
 
+  it('keeps a book whose name merely starts with two dots', () => {
+    const root = path.resolve('/library');
+
+    expect(toLibraryRelativePath(root, path.join(root, '..Foo.epub'))).toBe('..Foo.epub');
+    expect(toLibraryRelativePath(root, path.join(root, '...And so on.epub'))).toBe(
+      '...And so on.epub',
+    );
+  });
+
+  it('throws path_outside_library for a sibling folder that shares the root as a prefix', () => {
+    const root = path.resolve('/library');
+
+    expect(() =>
+      toLibraryRelativePath(root, path.resolve('/library-other/book.epub')),
+    ).toThrowError(expect.objectContaining({ code: 'path_outside_library' }));
+  });
+
   it('throws path_outside_library when the artifact path is the library root itself', () => {
     const root = path.resolve('/library');
 
     expect(() => toLibraryRelativePath(root, root)).toThrowError(
       expect.objectContaining({ code: 'path_outside_library' }),
     );
+  });
+});
+
+describe('isInsideLibrary', () => {
+  const root = path.resolve('/library');
+
+  it('is true below the root and false for the root, its parent and its siblings', () => {
+    expect(isInsideLibrary(root, path.join(root, 'a', 'b.epub'))).toBe(true);
+    expect(isInsideLibrary(root, path.join(root, '..hidden.epub'))).toBe(true);
+    expect(isInsideLibrary(root, root)).toBe(false);
+    expect(isInsideLibrary(root, path.dirname(root))).toBe(false);
+    expect(isInsideLibrary(root, path.resolve('/library-other/b.epub'))).toBe(false);
   });
 });
 

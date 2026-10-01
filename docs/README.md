@@ -12,5 +12,6 @@ These documents explain how Mangabound is built, decided and released. They are 
 | [Release notes](releases/)                               | One file per published version; the release workflow publishes them as they are  |
 | [Audit, September 2026](audit-2026-09.md)                | The first architecture and code-quality audit, with what was done about it       |
 | [Audit, 30 September 2026](audit-2026-09-30.md)          | The second audit: findings with evidence, the plan, and what has been done since |
+| [Audit, 1 October 2026](audit-2026-10-01.md)             | A narrow audit of what the earlier ones did not read, before the release         |
 
 The contributor guide is [`../CONTRIBUTING.md`](../CONTRIBUTING.md) and the release steps are in [`../RELEASING.md`](../RELEASING.md).
