@@ -9,7 +9,7 @@ import type { NetworkInterfaceOption } from '@/application/ports/network-interfa
 import type { OpdsServerHandle } from '@/application/ports/opds-server';
 import { LibraryPublisher } from '@/application/workflows/library-publisher';
 import { type PreferencesWorkflow } from '@/application/workflows/preferences';
-import { type SingleInputWorkflow } from '@/application/workflows/single-input';
+import { type ConversionWorkflow } from '@/application/workflows/conversion-workflow';
 import type { InputSelection } from '@/domain/conversion';
 import { defaultPreferences, type Preferences } from '@/domain/preferences';
 
@@ -46,7 +46,7 @@ export interface MainContext {
   // renderer's own save of the very same pick, and the slower of the two could lose it.
   currentPreferences: Preferences;
   lastSaveFolder: string | undefined;
-  workflow: SingleInputWorkflow | undefined;
+  workflow: ConversionWorkflow | undefined;
   mangapressCli: MangapressCliAdapter | undefined;
 }
 
@@ -79,7 +79,7 @@ export function createMainContext(): MainContext {
   };
 }
 
-export function requireWorkflow(context: Pick<MainContext, 'workflow'>): SingleInputWorkflow {
+export function requireWorkflow(context: Pick<MainContext, 'workflow'>): ConversionWorkflow {
   if (context.workflow === undefined)
     throw new Error('The bundled conversion tools are not ready.');
   return context.workflow;

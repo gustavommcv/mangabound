@@ -12,7 +12,7 @@ import { MangapressConversionAdapter } from '@/adapters/mangapress/conversion-po
 import { createNodeProcessRunner } from '@/adapters/process/node-process-runner';
 import { verifyBundledToolchain } from '@/adapters/toolchain/verification';
 import { conversionConcurrency } from '@/application/workflows/conversion-concurrency';
-import { SingleInputWorkflow } from '@/application/workflows/single-input';
+import { ConversionWorkflow } from '@/application/workflows/conversion-workflow';
 import type { ToolchainStatus, ToolchainTarget } from '@/shared/toolchain-status';
 
 import type { MainContext } from './context';
@@ -63,7 +63,7 @@ export async function bootstrapToolchain(
       executablePath(toolchainRoot, toolchainStatus.target, 'mangapress'),
       runner,
     );
-    context.workflow = new SingleInputWorkflow(
+    context.workflow = new ConversionWorkflow(
       new MangabindBindingAdapter(mangabindCli),
       new MangapressConversionAdapter(context.mangapressCli),
       randomUUID,
