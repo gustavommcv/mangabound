@@ -1,7 +1,9 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from '@/renderer/app';
+import { WorkflowApp } from '@/renderer/workflow-app';
 
 import { inertBridge } from './support/bridge';
 
@@ -16,16 +18,61 @@ function installBridge(overrides: Parameters<typeof inertBridge>[0]): void {
   });
 }
 
-describe('application foundation', () => {
-  it('identifies the scaffold, saying nothing about tools that are still being checked', () => {
+describe('application startup', () => {
+  it('gives recovery instructions instead of the old scaffold when the desktop bridge is missing', () => {
     render(<App />);
 
+    const error = screen.getByRole('alert', { name: 'Startup error' });
     expect(
-      screen.getByRole('heading', { name: 'A deliberate foundation for the manga pipeline.' }),
+      within(error).getByRole('heading', { name: 'Mangabound could not start correctly.' }),
     ).toBeVisible();
-    expect(screen.getByRole('region', { name: 'Foundation boundaries' })).toBeVisible();
+    expect(
+      within(error).getByText('Restart the app. If the problem persists, reinstall Mangabound.'),
+    ).toBeVisible();
+    expect(screen.queryByRole('heading', { name: 'Queue' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Share' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Architecture checkpoint|Foundation/u)).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Bundled tool status' })).not.toBeInTheDocument();
   });
+
+  it.each(['absent', 'different'] as const)(
+    'uses the supplied bridge for actions and subscription cleanup when the window bridge is %s',
+    async (windowBridge) => {
+      const user = userEvent.setup();
+      const otherChooseInputs = vi.fn();
+      if (windowBridge === 'different') {
+        installBridge({
+          chooseInputs: otherChooseInputs,
+          runtime: { electron: '44.3.0', platform: 'win32', version: '99.99.99' },
+        });
+      }
+      const message = 'The selected files could not be opened.';
+      const chooseInputs = vi.fn().mockResolvedValue({
+        ok: false,
+        error: { code: 'file_access_denied', message },
+      });
+      const unsubscribe = vi.fn();
+      const supplied = inertBridge({
+        chooseInputs,
+        onConversionProgress: () => unsubscribe,
+      });
+
+      const { unmount } = render(<WorkflowApp bridge={supplied} />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Files' })).toBeEnabled();
+      });
+      expect(screen.getByText(`v${supplied.runtime.version}`)).toBeVisible();
+      expect(screen.queryByText('v99.99.99')).not.toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Files' }));
+      expect(await screen.findByText(message)).toBeVisible();
+      expect(chooseInputs).toHaveBeenCalledExactlyOnceWith('files');
+      expect(otherChooseInputs).not.toHaveBeenCalled();
+
+      unmount();
+      expect(unsubscribe).toHaveBeenCalledOnce();
+    },
+  );
 
   it('says nothing once the bridge reports the tools are ready: they are mandatory, not a status', async () => {
     installBridge({
