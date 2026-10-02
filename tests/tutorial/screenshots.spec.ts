@@ -63,6 +63,9 @@ test('manual mapping starts offline and shows actual chapter assignment', async 
     'true',
   );
   await expect(page.getByRole('button', { name: 'Create first volume' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Create first volume' })).toHaveText(
+    'Create volume 1',
+  );
   await capture(page, 'manual-mapping-start', story);
   await page.getByRole('button', { name: 'Create first volume' }).click();
   await page
