@@ -44,8 +44,10 @@ export interface MangapressRunArguments {
 }
 
 export function buildMangapressArguments(request: MangapressRunArguments): readonly string[] {
+  // A value is attached to its flag (`--title=-Hidden`) and never sent as an argument of its own:
+  // mangapress reads a separate argument that starts with a hyphen as an option and refuses the run.
   const optionalValue = (flag: string, value: string | number | undefined): readonly string[] =>
-    value === undefined ? [] : [flag, String(value)];
+    value === undefined ? [] : [`${flag}=${String(value)}`];
   const enabled = (flag: string, value: boolean | undefined): readonly string[] =>
     value === true ? [flag] : [];
   return [

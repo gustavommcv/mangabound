@@ -131,50 +131,52 @@ describe('CLI argument builders', () => {
       '--dry-run',
       '--quiet',
       '--manga-style',
-      '--cropping',
-      'margins',
-      '--croppingpower',
-      '1.25',
-      '--croppingminimum',
-      '70',
-      '--preservemargin',
-      '3',
-      '--splitter',
-      'both',
+      '--cropping=margins',
+      '--croppingpower=1.25',
+      '--croppingminimum=70',
+      '--preservemargin=3',
+      '--splitter=both',
       '--upscale',
       '--stretch',
       '--wallpaper',
       '--whiteborders',
       '--forcepng',
-      '--jpeg-quality',
-      '92',
+      '--jpeg-quality=92',
       '--rotateright',
-      '--gamma',
-      '0.8',
+      '--gamma=0.8',
       '--autolevel',
       '--noautocontrast',
-      '--ipc',
-      'horizontal',
+      '--ipc=horizontal',
       '--eraserainbow',
       '--format',
       'cbz',
       '--output',
       '/library',
-      '--title',
-      'A title',
-      '--author',
-      'An author',
-      '--metadatatitle',
-      'combine',
+      '--title=A title',
+      '--author=An author',
+      '--metadatatitle=combine',
       '--keepcomicinfo',
-      '--language',
-      'pt-BR',
-      '--customwidth',
-      '1404',
-      '--customheight',
-      '1872',
+      '--language=pt-BR',
+      '--customwidth=1404',
+      '--customheight=1872',
       '--json-events',
     ]);
+  });
+
+  it('keeps a title or an author that starts with a hyphen attached to its flag', () => {
+    const args = buildMangapressArguments({
+      inputPath: '/tmp/source.cbz',
+      outputPath: '/library',
+      profile: 'KPW6',
+      format: 'epub',
+      dryRun: false,
+      title: '-Hidden Title',
+      author: '--help',
+    });
+
+    expect(args).toEqual(expect.arrayContaining(['--title=-Hidden Title', '--author=--help']));
+    expect(args).not.toContain('-Hidden Title');
+    expect(args).not.toContain('--help');
   });
 
   it('keeps the settings that are not on by default aligned with mangapress defaults', () => {
@@ -207,6 +209,6 @@ describe('CLI argument builders', () => {
     });
 
     expect(args).toEqual(expect.arrayContaining(['--manga-style', '--upscale']));
-    expect(args.join(' ')).toContain('--splitter both');
+    expect(args).toContain('--splitter=both');
   });
 });
