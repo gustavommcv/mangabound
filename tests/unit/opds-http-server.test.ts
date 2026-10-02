@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { FsLibraryStore } from '@/adapters/library/fs-library-store';
 import { formatHost, NodeOpdsServer } from '@/adapters/opds/http-server';
@@ -315,11 +315,15 @@ describe('NodeOpdsServer', () => {
         // A directory link needs no privilege on Windows when it is a junction.
         await symlink(outside, path.join(library, 'shelf'), 'junction');
         const handle = await serve(library, entryAt('shelf/secret.epub'));
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
         const response = await fetch(`${handle.url}/books/shelf/secret.epub`);
 
         expect(response.status).toBe(404);
         expect(await response.text()).not.toContain('OUTSIDE THE LIBRARY');
+        // The reader is told nothing, so the app's log says why the book was left out.
+        expect(warn).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('shelf/secret.epub'));
+        warn.mockRestore();
       } finally {
         await rm(parent, { recursive: true, force: true });
       }

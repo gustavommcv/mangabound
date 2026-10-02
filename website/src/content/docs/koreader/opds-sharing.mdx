@@ -26,6 +26,10 @@ Sharing uses HTTP. Optional Basic authentication restricts access but does not e
 
 Continue with [connecting KOReader](../connecting/). Use **Stop sharing** when finished.
 
+## If a book does not show up
+
+Mangabound serves only files that are inside the shared folder. A subfolder that is a link (a symlink or a junction) to a place outside it is not followed, so its books are not shared, and the app's log says which book was left out. Share the folder the books really live in instead.
+
 ## If your reader cannot connect
 
 Check that both devices can reach the same local network, the chosen interface is correct, sharing is still active, and your firewall allows the app on that trusted network. Guest Wi-Fi/client isolation and VPNs can block access even when both devices have internet. If the selected computer IP changes, update the catalog address in KOReader.
