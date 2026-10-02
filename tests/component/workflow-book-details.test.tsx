@@ -53,7 +53,8 @@ describe('the title, author and language typed for an item', () => {
     expect(convert.mock.calls[0]?.[0].details).toEqual({
       title: 'Chainsaw Man',
       author: 'Fujimoto Tatsuki',
-      language: 'pt-br',
+      // Typed pt-br, sent the way BCP 47 recommends.
+      language: 'pt-BR',
     });
     // The options no longer carry a title or an author of their own.
     expect(convert.mock.calls[0]?.[0].settings).not.toHaveProperty('title');
@@ -90,7 +91,7 @@ describe('the title, author and language typed for an item', () => {
 
     expect(screen.getByLabelText('Series title')).toHaveValue('Two Words');
     expect(screen.getByLabelText('Language')).toBeInvalid();
-    expect(screen.getByText(/Use a language tag such as en-US or pt-br/u)).toBeVisible();
+    expect(screen.getByText(/Use a language tag such as en-US or pt-BR/u)).toBeVisible();
   });
 
   it('are for one book, not a series, when the item makes a single book', async () => {
@@ -346,7 +347,7 @@ describe('keeping the author and language with the folder', () => {
 
     expect(save).toHaveBeenCalledExactlyOnceWith({
       sessionId: 'session',
-      details: { author: 'Fujimoto Tatsuki', language: 'pt-br' },
+      details: { author: 'Fujimoto Tatsuki', language: 'pt-BR' },
     });
   });
 

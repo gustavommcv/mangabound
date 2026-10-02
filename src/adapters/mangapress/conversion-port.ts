@@ -6,7 +6,7 @@ import type { MangapressCliAdapter } from './cli';
 import { isMangapressPageEvent, type MangapressErrorEvent, type MangapressEvent } from './protocol';
 
 import type { ConversionPort } from '@/application/ports/conversion-tools';
-import type { BookDetails } from '@/domain/book-details';
+import { type BookDetails, canonicalLanguageTag } from '@/domain/book-details';
 import {
   type BookFormat,
   type ConversionArtifact,
@@ -208,6 +208,7 @@ function bookArguments(
   return {
     ...(book?.title === undefined ? {} : { title: book.title }),
     ...(book?.author === undefined ? {} : { author: book.author }),
-    language: book?.language ?? defaultLanguage,
+    // However it was typed or kept, the book is written with the casing BCP 47 recommends.
+    language: canonicalLanguageTag(book?.language ?? defaultLanguage),
   };
 }

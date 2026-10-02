@@ -144,7 +144,9 @@ describe('the book details screen', () => {
     await user.clear(screen.getByLabelText('Language'));
     await user.type(screen.getByLabelText('Language'), 'pt-br');
     expect(screen.getByLabelText('Language')).toBeValid();
-    expect(lastChange(onChange)).toEqual({ language: 'pt-br' });
+    // What is typed stays as it was typed; what goes up is written the way BCP 47 recommends.
+    expect(screen.getByLabelText('Language')).toHaveValue('pt-br');
+    expect(lastChange(onChange)).toEqual({ language: 'pt-BR' });
   });
 
   it('keeps no language at all while a first attempt is not a tag', async () => {
@@ -171,11 +173,12 @@ describe('the book details screen', () => {
     const onChange = vi.fn();
     render(<Harness declaredLanguage="pt-br" onChange={onChange} />);
 
-    await user.click(screen.getByRole('button', { name: 'Use pt-br' }));
+    // The folder says pt-br; it is offered, and written, the way BCP 47 recommends.
+    await user.click(screen.getByRole('button', { name: 'Use pt-BR' }));
 
-    expect(screen.getByLabelText('Language')).toHaveValue('pt-br');
+    expect(screen.getByLabelText('Language')).toHaveValue('pt-BR');
     expect(screen.getByLabelText('Language')).toHaveFocus();
-    expect(lastChange(onChange)).toEqual({ language: 'pt-br' });
+    expect(lastChange(onChange)).toEqual({ language: 'pt-BR' });
     // Taken, so there is nothing left to offer and nothing left to say about the folder.
     expect(screen.queryByRole('button', { name: /^Use / })).not.toBeInTheDocument();
     expect(screen.queryByText(/The folder names say/u)).not.toBeInTheDocument();
@@ -187,10 +190,10 @@ describe('the book details screen', () => {
     const onChange = vi.fn();
     render(<Harness declaredLanguage="pt-br" details={{ language: 'ja' }} onChange={onChange} />);
 
-    await user.click(screen.getByRole('button', { name: 'Use pt-br' }));
+    await user.click(screen.getByRole('button', { name: 'Use pt-BR' }));
 
-    expect(screen.getByLabelText('Language')).toHaveValue('pt-br');
-    expect(lastChange(onChange)).toEqual({ language: 'pt-br' });
+    expect(screen.getByLabelText('Language')).toHaveValue('pt-BR');
+    expect(lastChange(onChange)).toEqual({ language: 'pt-BR' });
   });
 
   it('offers nothing when the folder names agree, say nothing useful, or the format has no language', () => {

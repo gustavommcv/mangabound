@@ -7,7 +7,7 @@
 export interface BookDetails {
   readonly title?: string;
   readonly author?: string;
-  /** A language tag such as "en-US" or "pt-br". */
+  /** A language tag such as "en-US" or "pt-BR". */
   readonly language?: string;
 }
 
@@ -16,7 +16,7 @@ export const noBookDetails: BookDetails = Object.freeze({});
 /** The most a title or an author may hold; the same limit the command contract enforces. */
 export const maxDetailLength = 300;
 
-/** A language tag such as "en" or "pt-br": letters and digits in short groups joined by dashes. */
+/** A language tag such as "en" or "pt-BR": letters and digits in short groups joined by dashes. */
 export const languageTagPattern = /^[a-z]{2,3}(-[a-z0-9]{2,8})*$/iu;
 export const maxLanguageLength = 20;
 
@@ -24,12 +24,36 @@ export function isLanguageTag(value: string): boolean {
   return value.length <= maxLanguageLength && languageTagPattern.test(value);
 }
 
+/**
+ * A language tag in the casing BCP 47 recommends: the language in lowercase, a four-letter script
+ * in title case, a two-letter or three-digit region in uppercase, and anything else in lowercase
+ * (`pt-br` is written `pt-BR`). Tags do not tell capitals from small letters, so this changes how a
+ * tag is written and not what it means. Whatever is not a tag is returned as it is.
+ */
+export function canonicalLanguageTag(value: string): string {
+  if (!isLanguageTag(value)) return value;
+  return value
+    .split('-')
+    .map((subtag, index) => {
+      if (index === 0) return subtag.toLowerCase();
+      if (/^[a-z]{4}$/iu.test(subtag)) {
+        return subtag.charAt(0).toUpperCase() + subtag.slice(1).toLowerCase();
+      }
+      if (/^[a-z]{2}$/iu.test(subtag) || /^\d{3}$/u.test(subtag)) return subtag.toUpperCase();
+      return subtag.toLowerCase();
+    })
+    .join('-');
+}
+
 const trimmed = (value: string | undefined): string | undefined => {
   const text = value?.trim();
   return text === undefined || text === '' ? undefined : text;
 };
 
-/** The details as they are kept: text trimmed, and a field left blank taken as not set. */
+/**
+ * The details as they are kept: text trimmed, a field left blank taken as not set, and a language
+ * written the way BCP 47 recommends.
+ */
 export function normalizeBookDetails(details: BookDetails): BookDetails {
   const title = trimmed(details.title);
   const author = trimmed(details.author);
@@ -37,7 +61,7 @@ export function normalizeBookDetails(details: BookDetails): BookDetails {
   return {
     ...(title === undefined ? {} : { title }),
     ...(author === undefined ? {} : { author }),
-    ...(language === undefined ? {} : { language }),
+    ...(language === undefined ? {} : { language: canonicalLanguageTag(language) }),
   };
 }
 

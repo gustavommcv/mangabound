@@ -77,7 +77,8 @@ describe('packaged title, author and language of a book', () => {
       const opf = await packageDocument(path.join(libraryPath, `My Series - Vol.${volume}.epub`));
       assert.match(opf, new RegExp(`<dc:title[^>]*>My Series - Vol\\.${volume}</dc:title>`, 'u'));
       assert.match(opf, /<dc:creator[^>]*>An Author<\/dc:creator>/u);
-      assert.match(opf, /<dc:language[^>]*>pt-br<\/dc:language>/u);
+      // Typed pt-br, written the way BCP 47 recommends.
+      assert.match(opf, /<dc:language[^>]*>pt-BR<\/dc:language>/u);
     }
   });
 });
@@ -150,7 +151,7 @@ describe('packaged author and language kept with a folder', () => {
       manga: Record<string, string>;
       volumes: unknown[];
     };
-    assert.deepEqual(kept.manga, { author: 'An Author', language: 'pt-br' });
+    assert.deepEqual(kept.manga, { author: 'An Author', language: 'pt-BR' });
     assert.deepEqual(kept.volumes, []);
 
     // Added again, the folder comes with them, and the tools still read the folder as before.
@@ -161,7 +162,7 @@ describe('packaged author and language kept with a folder', () => {
     await $('button[aria-label="Edit details of Named Volumes"]').click();
     await $('#details-author').waitForDisplayed({ timeout: 10_000 });
     assert.equal(await $('#details-author').getValue(), 'An Author');
-    assert.equal(await $('#details-language').getValue(), 'pt-br');
+    assert.equal(await $('#details-language').getValue(), 'pt-BR');
     assert.equal(await $('#details-title').getValue(), '');
     await $('button=Queue').click();
     await $('h1=Queue').waitForDisplayed();

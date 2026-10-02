@@ -1040,12 +1040,12 @@ describe('the author and language kept with a folder', () => {
       await adapter.writeDetails(folder, { author: 'Someone', language: 'pt-br' });
       expect(JSON.parse(fs.readFileSync(file, 'utf8'))).toEqual({
         schema_version: 1,
-        manga: { author: 'Someone', language: 'pt-br' },
+        manga: { author: 'Someone', language: 'pt-BR' },
         volumes: [],
       });
       await expect(adapter.readDetails(folder)).resolves.toEqual({
         author: 'Someone',
-        language: 'pt-br',
+        language: 'pt-BR',
       });
 
       await adapter.writeDetails(folder, {});
