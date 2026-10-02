@@ -29,25 +29,30 @@ These are existing application components with deterministic Storybook sample da
 
 ## Manual KOReader captures
 
-The project maintainer supplied and authorized cropping/publication of these screenshots on 2026-10-02, identifying **Kindle 2024 / KOReader 2026.07.2-198**. UI text is in English and existing red outlines identify the controls. The open book format was not supplied; do not claim that these images verify EPUB- or CBZ-specific reading behavior.
+The project maintainer supplied and authorized cropping/publication of these screenshots on 2026-10-02, identifying **Kindle 2024 / KOReader 2026.07.2-198**. UI text is in English and existing red outlines identify the controls. The reading-settings captures do not identify the open book's format; do not claim that they verify EPUB- or CBZ-specific reading behavior. The OPDS download example shows an EPUB acquisition button, not a reading-format comparison.
 
-Original files remain untouched outside Git. Only conventional lossless PNG crops are committed: no generative processing, no redrawing, no rewritten labels. Retained decoded pixels were checked against the original crop. Manga artwork below the menus and the editor's personal-path header are excluded. The remaining example directory in the Lua editor is part of the tutorial and is explained as an example, not a required Mangabound location.
+Original files remain untouched outside Git. Only conventional lossless PNG crops are committed: no generative processing, no redrawing, no rewritten labels. Retained decoded pixels were checked against the original crop. Manga artwork below the menus and the editor's personal-path header are excluded. The catalog-form crop excludes the real LAN address; the download crop excludes the reader's directory and filename. Instructions explain which address to enter, and captions/alt text identify form excerpts rather than claiming a complete dialog. The remaining example directory in the Lua editor is part of the tutorial and is explained as an example, not a required Mangabound location.
 
-Sources below are relative to the supplied screenshot folder. All crops have `left = 0`; dimensions are pixels.
+Sources below are relative to the supplied screenshot folder. Coordinates and dimensions are pixels.
 
-| Asset under `src/assets/tutorial/koreader/` | Source                        | Top | Width × height |
-| ------------------------------------------- | ----------------------------- | --: | -------------- |
-| `status-menu.png`                           | Status/1.png                  |   0 | 1072 × 1018    |
-| `status-overlap.png`                        | Status/2.png                  |   0 | 1072 × 745     |
-| `refresh-screen.png`                        | Refresh/1.png                 |   0 | 1072 × 465     |
-| `refresh-eink.png`                          | Refresh/2.png                 |   0 | 1072 × 465     |
-| `refresh-rate.png`                          | Refresh/3.png                 |   0 | 1072 × 188     |
-| `refresh-every-page.png`                    | Refresh/4.png                 |   0 | 1072 × 286     |
-| `tweak-tools.png`                           | Tweak document settings/1.png |   0 | 1072 × 828     |
-| `tweak-menu.png`                            | Tweak document settings/2.png |   0 | 1072 × 551     |
-| `tweak-editor.png`                          | Tweak document settings/3.png |  70 | 1342 × 569     |
+| Asset under `src/assets/tutorial/koreader/` | Source                        | Left | Top | Width × height |
+| ------------------------------------------- | ----------------------------- | ---: | --: | -------------- |
+| `status-menu.png`                           | Status/1.png                  |    0 |   0 | 1072 × 1018    |
+| `status-overlap.png`                        | Status/2.png                  |    0 |   0 | 1072 × 745     |
+| `refresh-screen.png`                        | Refresh/1.png                 |    0 |   0 | 1072 × 465     |
+| `refresh-eink.png`                          | Refresh/2.png                 |    0 |   0 | 1072 × 465     |
+| `refresh-rate.png`                          | Refresh/3.png                 |    0 |   0 | 1072 × 188     |
+| `refresh-every-page.png`                    | Refresh/4.png                 |    0 |   0 | 1072 × 286     |
+| `tweak-tools.png`                           | Tweak document settings/1.png |    0 |   0 | 1072 × 828     |
+| `tweak-menu.png`                            | Tweak document settings/2.png |    0 |   0 | 1072 × 551     |
+| `tweak-editor.png`                          | Tweak document settings/3.png |    0 |  70 | 1342 × 569     |
+| `opds-menu.png`                             | OPDS/1.png                    |    0 |   0 | 1072 × 926     |
+| `opds-add-catalog.png`                      | OPDS/2.png                    |    0 |   0 | 1072 × 603     |
+| `opds-credentials.png`                      | OPDS/3.png                    |  104 | 344 | 864 × 477      |
+| `opds-catalog.png`                          | OPDS/4.png                    |    0 |   0 | 1072 × 320     |
+| `opds-download.png`                         | OPDS/5.png                    |   54 | 734 | 964 × 340      |
 
-The recommended-settings page shows one useful main image per task and native `<details>` steps for the preceding menus. Written steps identify the final option without repeating the main image. No GIF, custom gallery, or new client-side interaction dependency is needed. Browser tests verify initially collapsed steps, keyboard expansion, loaded images, responsive layout, and axe accessibility in both languages/themes/viewports. They cannot verify the physical reader.
+The recommended-settings page shows one useful main image per task and native `<details>` steps for the preceding menus. The connecting page uses the same presentation: Recently converted as the main image, with catalog setup and download controls in expandable steps. Written steps identify the final option without repeating the main image. No GIF, custom gallery, or new client-side interaction dependency is needed. Browser tests verify initially collapsed steps, keyboard expansion, loaded images, responsive layout, and axe accessibility in both languages/themes/viewports. They cannot verify the physical reader. Catalog fields, Save, Choose folder, and the format button's download action were checked against [KOReader's OPDS browser source](https://github.com/koreader/koreader/blob/master/plugins/opds.koplugin/opdsbrowser.lua).
 
 The Lua example uses `inverse_reading_order` for right-to-left tap/swipe behavior only. Readers preserve the existing configuration structure, replace the example directory, and back up the file. Review the [official plugin instructions](https://github.com/koreader/koreader/wiki/Tweak-document-settings-by-directory) and current KOReader source when changing this guidance.
 
@@ -55,10 +60,9 @@ The Lua example uses `inverse_reading_order` for right-to-left tap/swipe behavio
 
 Run the local development guide to see the **Planned image / GIF** callouts (**Imagem / GIF planejado** in Portuguese). Starlight's existing Aside component displays each remaining capture description and stable ID. Production omits author notes entirely.
 
-| Placement ID     | Page                | Still needed                                 |
-| ---------------- | ------------------- | -------------------------------------------- |
-| `intro-logo`     | Introduction        | Finished original logo                       |
-| `reader-catalog` | Connecting KOReader | Catalog and Recently converted on the device |
+| Placement ID | Page         | Still needed           |
+| ------------ | ------------ | ---------------------- |
+| `intro-logo` | Introduction | Finished original logo |
 
 Placement IDs/routes/localized descriptions live in [media-plan.mjs](media-plan.mjs), with markers beside the instructions in both MDX locales. [MediaSlot.astro](src/components/MediaSlot.astro) is development-only. Remove a plan entry when both markers are replaced by the real asset. Keep its capture/provenance record here; never publish empty boxes or fake e-reader captures.
 

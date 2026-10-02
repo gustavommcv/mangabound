@@ -6,10 +6,4 @@ export const mediaPlacements = [
     en: 'Logo beside the introduction. Keep a compact version beside the site name in the header.',
     pt: 'Logo em destaque na introdução. Uma versão compacta também ficará ao lado do nome no cabeçalho.',
   },
-  {
-    id: 'reader-catalog',
-    route: 'koreader/connecting/',
-    en: 'KOReader screenshot: the OPDS catalog and Recently converted.',
-    pt: 'Imagem do KOReader: catálogo OPDS e Recently converted.',
-  },
 ];

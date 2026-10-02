@@ -97,5 +97,40 @@ for (const locale of ['', 'pt-br/']) {
       await steps.nth(1).scrollIntoViewIfNeeded();
       await page.screenshot({ path: testInfo.outputPath('koreader-steps.png') });
     });
+
+    test(`KOReader OPDS instructions show readable, keyboard-accessible steps: ${locale || 'en'} ${colorScheme}`, async ({
+      page,
+    }, testInfo) => {
+      await page.emulateMedia({ colorScheme });
+      await page.goto(`${root}${locale}koreader/connecting/`);
+      await expectReadableImage(page, 'koreader/opds-catalog');
+      await expect(page.getByText('Kindle 2024', { exact: false })).toBeVisible();
+      await expect(page.getByText('2026.07.2-198', { exact: false })).toBeVisible();
+      await expect(page.locator('[data-media-slot]')).toHaveCount(0);
+      const details = page.locator('.sl-markdown-content details');
+      await expect(details).toHaveCount(1);
+      await expect(details).not.toHaveAttribute('open');
+      const names = ['opds-menu', 'opds-add-catalog', 'opds-credentials', 'opds-download'];
+      for (const name of names) {
+        await expect(details.locator(`[data-tutorial-image="koreader/${name}"]`)).not.toBeVisible();
+      }
+      await page.screenshot({ path: testInfo.outputPath('opds-main.png') });
+      const summary = details.locator('summary');
+      await summary.focus();
+      await summary.press('Enter');
+      await expect(details).toHaveAttribute('open');
+      for (const name of names) await expectReadableImage(page, `koreader/${name}`);
+      const scan = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(scan.violations).toEqual([]);
+      await details.scrollIntoViewIfNeeded();
+      await page.screenshot({ path: testInfo.outputPath('opds-steps.png') });
+      await summary.press('Space');
+      await expect(details).not.toHaveAttribute('open');
+      for (const name of names) {
+        await expect(details.locator(`[data-tutorial-image="koreader/${name}"]`)).not.toBeVisible();
+      }
+    });
   }
 }

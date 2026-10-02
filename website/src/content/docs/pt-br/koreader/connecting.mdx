@@ -3,16 +3,48 @@ title: 'Conectando o KOReader'
 description: 'Adicione o catálogo, baixe um livro e abra no leitor.'
 ---
 
-import MediaSlot from '../../../../components/MediaSlot.astro';
+import TutorialImage from '../../../../components/TutorialImage.astro';
 
 Primeiro [ative o compartilhamento no Mangabound](../opds-sharing/) e conecte o leitor à mesma rede local acessível.
 
-1. No navegador de arquivos do KOReader, abra **OPDS catalog** pelo menu de pesquisa. Os nomes podem variar com a versão e o idioma do KOReader.
-2. Adicione um catálogo chamado **Mangabound**. Cole o endereço exato exibido pelo aplicativo. Preencha usuário/senha apenas se os configurou no Mangabound.
-3. Abra o catálogo e escolha **Recently converted** para encontrar os livros recém-processados, mais recentes primeiro. **Other files** lista livros não registrados na biblioteca compartilhada.
-4. Escolha o livro e baixe para uma pasta do leitor. Abra o arquivo baixado com o KOReader.
+Adicione o Mangabound como um catálogo OPDS no KOReader. **Recently converted** lista os livros recém-processados, mais recentes primeiro; **Other files** lista livros não registrados na biblioteca compartilhada.
 
-<MediaSlot id="reader-catalog" />
+<TutorialImage
+  name="koreader/opds-catalog"
+  alt="Catálogo do Mangabound no KOReader com Recently converted destacado acima de Other files."
+  caption="Kindle 2024 · KOReader 2026.07.2-198. Os nomes dos menus podem variar com a versão e o idioma."
+/>
+
+<details>
+<summary>Ver passo a passo</summary>
+
+1. No navegador de arquivos do KOReader, abra o menu de pesquisa (lupa) e toque em **OPDS catalog**.
+
+<TutorialImage name="koreader/opds-menu" alt="Menu de pesquisa com OPDS catalog destacado." />
+
+2. Abra o menu do catálogo (três linhas horizontais) e toque em **Add catalog**.
+
+<TutorialImage
+  name="koreader/opds-add-catalog"
+  alt="Menu do catálogo OPDS com Add catalog destacado."
+/>
+
+3. Dê o nome **Mangabound** ao catálogo e insira o endereço exato exibido pelo aplicativo. Deixe **Username (optional)** e **Password (optional)** em branco, a menos que tenha configurado usuário e senha no Mangabound, e toque em **Save**. A imagem mostra a parte inferior do formulário.
+
+<TutorialImage
+  name="koreader/opds-credentials"
+  alt="Parte inferior do formulário do catálogo com os campos opcionais de usuário e senha e o botão Save."
+/>
+
+4. Abra **Mangabound** na lista de catálogos e depois **Recently converted**, como na imagem principal.
+5. Escolha um livro. Para mudar onde ele será salvo, toque em **Choose folder** antes de baixar. Toque no botão do formato para baixar (**EPUB** neste exemplo) e abra o arquivo baixado com o KOReader.
+
+<TutorialImage
+  name="koreader/opds-download"
+  alt="Controles de download do livro com o botão EPUB destacado acima de Choose folder e Change filename."
+/>
+
+</details>
 
 Após baixar, o livro é local ao leitor. O Mangabound não precisa continuar aberto para a leitura, apenas para novos downloads. Se o endereço do computador não mudar, reutilize o catálogo quando ativar o compartilhamento novamente.
 
