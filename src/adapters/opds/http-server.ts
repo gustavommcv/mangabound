@@ -1,6 +1,6 @@
 import { timingSafeEqual } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { stat } from 'node:fs/promises';
+import { realpath, stat } from 'node:fs/promises';
 import http, { type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
@@ -12,7 +12,7 @@ import type {
   OpdsServerStartOptions,
 } from '@/application/ports/opds-server';
 import type { LibraryBookEntry, LibraryManifest } from '@/library/manifest';
-import { resolveLibraryFile } from '@/library/paths';
+import { isInsideLibrary, resolveLibraryFile } from '@/library/paths';
 import {
   acquisitionFeedType,
   buildAcquisitionFeed,
@@ -67,6 +67,16 @@ function respondUnauthorized(res: ServerResponse): void {
     'Content-Type': 'text/plain; charset=utf-8',
   });
   res.end('Unauthorized.');
+}
+
+/**
+ * Whether the file is still inside the library once every link on the way is followed. A catalog
+ * entry only names a path, and the folder can hold a link (an archive can carry one) that leads
+ * anywhere the person running the app can read.
+ */
+async function staysInsideLibrary(libraryPath: string, filePath: string): Promise<boolean> {
+  const [root, file] = await Promise.all([realpath(libraryPath), realpath(filePath)]);
+  return isInsideLibrary(root, file);
 }
 
 function respondNotFound(res: ServerResponse): void {
@@ -190,7 +200,7 @@ export class NodeOpdsServer implements OpdsServerPort {
     }
 
     const filePath = resolveLibraryFile(libraryPath, entry.relativePath);
-    if (filePath === undefined) {
+    if (filePath === undefined || !(await staysInsideLibrary(libraryPath, filePath))) {
       respondNotFound(res);
       return;
     }
