@@ -132,6 +132,7 @@ export const FolderDeclaresAnotherLanguage: Story = {
   args: { declaredLanguage: 'pt-br' },
   play: async ({ canvasElement }) => {
     await expect(within(canvasElement).getByText('The folder names say pt-br.')).toBeVisible();
+    await expect(within(canvasElement).getByRole('button', { name: 'Use pt-br' })).toBeVisible();
   },
 };
 

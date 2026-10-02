@@ -166,6 +166,46 @@ describe('the book details screen', () => {
     expect(screen.getByText('Used for EPUB output.')).toBeVisible();
   });
 
+  it('offers the language the folder names declare, and uses it when it is chosen', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<Harness declaredLanguage="pt-br" onChange={onChange} />);
+
+    await user.click(screen.getByRole('button', { name: 'Use pt-br' }));
+
+    expect(screen.getByLabelText('Language')).toHaveValue('pt-br');
+    expect(screen.getByLabelText('Language')).toHaveFocus();
+    expect(lastChange(onChange)).toEqual({ language: 'pt-br' });
+    // Taken, so there is nothing left to offer and nothing left to say about the folder.
+    expect(screen.queryByRole('button', { name: /^Use / })).not.toBeInTheDocument();
+    expect(screen.queryByText(/The folder names say/u)).not.toBeInTheDocument();
+    expect(screen.getByText('Used for EPUB output.')).toBeVisible();
+  });
+
+  it('replaces another language that was typed when the offer is taken', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<Harness declaredLanguage="pt-br" details={{ language: 'ja' }} onChange={onChange} />);
+
+    await user.click(screen.getByRole('button', { name: 'Use pt-br' }));
+
+    expect(screen.getByLabelText('Language')).toHaveValue('pt-br');
+    expect(lastChange(onChange)).toEqual({ language: 'pt-br' });
+  });
+
+  it('offers nothing when the folder names agree, say nothing useful, or the format has no language', () => {
+    const { rerender } = render(<BookDetailsScreen {...base} declaredLanguage="EN-us" />);
+    expect(screen.queryByRole('button', { name: /^Use / })).not.toBeInTheDocument();
+
+    rerender(<BookDetailsScreen {...base} declaredLanguage="not a tag" />);
+    expect(screen.queryByRole('button', { name: /^Use / })).not.toBeInTheDocument();
+
+    rerender(<BookDetailsScreen {...base} declaredLanguage="pt-br" format="cbz" />);
+    expect(screen.queryByRole('button', { name: /^Use / })).not.toBeInTheDocument();
+    // The folder is still said to declare it: it is true, and it drives the online lookup.
+    expect(screen.getByText('The folder names say pt-br.')).toBeVisible();
+  });
+
   it('says a CBZ file has no author and only EPUB has a language', () => {
     render(<BookDetailsScreen {...base} format="cbz" />);
 
