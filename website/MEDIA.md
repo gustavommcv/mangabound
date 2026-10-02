@@ -1,54 +1,84 @@
-# Tutorial media plan
+# Tutorial media
 
-Screenshots and short GIFs are planned parts of the guide. They illustrate the interaction; the written instructions must remain complete without them.
+Images illustrate the interaction; the written instructions remain sufficient without them. Mangabound captures are generated from the guide's source commit. KOReader stills are maintained manually. See [ADR 0034](../docs/adr/0034-tutorial-images-from-the-site-source-commit.md).
 
-## See the planned positions
+## Automatic Mangabound captures
 
-Run `npm run dev` in this directory and open the guide. Each planned position has a visible **Planned image / GIF** callout (**Imagem / GIF planejado** in Portuguese), describing the capture and showing its stable ID. These callouts use Starlight's existing Aside component, not a new visual system.
+From the repository root, run `npm run site:media`. Playwright serves the static Storybook build on localhost, verifies the required UI states and interactions, and captures the relevant screen or region. It waits for fonts and removes incidental focus/caret/animation; it never edits labels into images or approves visual baselines. Capture behavior lives in [screenshots.spec.ts](../tests/tutorial/screenshots.spec.ts).
 
-The positions live beside the corresponding instructions in the MDX pages. Their shared IDs, routes, and localized descriptions live in [media-plan.mjs](media-plan.mjs). The component [MediaSlot.astro](src/components/MediaSlot.astro) displays them only in Astro development mode. `npm run build` and `npm run preview` do not publish them; browser tests check both behaviors. Do not add empty image boxes or broken asset URLs to production pages.
+Documentation CI generates these images for every PR and `main` update, then passes the same run's `tutorial-images` artifact to both site verification jobs and production. The artifact's `capture.json` records the source commit and story IDs. Publication occurs only from `main`; no generated-image commit, bot, or release tag is needed.
 
-| Placement ID                | Page                   | Position and capture                                                  |
-| --------------------------- | ---------------------- | --------------------------------------------------------------------- |
-| `intro-logo`                | Introduction           | After the opening sentence: the finished logo                         |
-| `quickstart-add`            | Quick start            | After adding input: a folder entering the queue                       |
-| `quickstart-save`           | Quick start            | After the final step: results with save/share actions                 |
-| `queue-inputs`              | Adding manga           | After input types: folder, library, and CBZ queue examples            |
-| `manual-mapping`            | Chapter mapping        | After manual instructions: creating a volume and assigning chapters   |
-| `online-mapping`            | Chapter mapping        | After online instructions: choosing a search result and reviewing it  |
-| `device-settings`           | Conversion settings    | After device/format guidance: device choice and custom dimensions     |
-| `single-book`               | Conversion settings    | After single-book instructions: enabled mode and locked controls      |
-| `processing-details`        | Processing             | After progress guidance: overall progress and individual volume bars  |
-| `save-results`              | Saving and ready books | After saving instructions: individual save and Save all to folder     |
-| `ready-books`               | Saving and ready books | After pending-book guidance: Ready books, View books, and Delete      |
-| `share-panel`               | Local sharing          | After starting the server: selected interface and catalog address     |
-| `reader-catalog`            | Connecting KOReader    | After downloading instructions: catalog and Recently converted        |
-| `reader-statusbar`          | KOReader settings      | After status-bar instructions: Overlap status bar on the device       |
-| `reader-refresh`            | KOReader settings      | After refresh instructions: Every page on an e-ink device             |
-| `reader-directory-defaults` | KOReader settings      | After directory defaults: Tweak document settings with version/format |
+Generated PNGs live in ignored `src/assets/tutorial/generated/`. Both locales share them. Root `site:dev`, `site:build`, and `site:check` prepare them automatically. Rerun generation after UI changes during a dev session. The guide follows `main`, so images may show changes not yet in the latest downloadable release.
 
-Prioritize the mapping recovery and save/share tasks. Not every page needs media, and repeated screenshots should be replaced with a link to the original explanation.
+| Capture                     | State illustrated                                  | Guide                            |
+| --------------------------- | -------------------------------------------------- | -------------------------------- |
+| `queue-inputs.png`          | Chapter folder, manga library, and complete CBZ    | Quick start; adding manga        |
+| `manual-mapping-start.png`  | Offline editor before creating the first volume    | Chapter mapping, expandable step |
+| `manual-mapping.png`        | Two selected chapters assigned to a created volume | Chapter mapping                  |
+| `online-mapping-search.png` | Search results from the selected source            | Chapter mapping, expandable step |
+| `online-mapping.png`        | Proposed volume mapping before confirmation        | Chapter mapping                  |
+| `device-settings.png`       | Device profile with custom width and height        | Conversion settings              |
+| `single-book.png`           | Single-book mode and locked steps/format           | Conversion settings              |
+| `processing-details.png`    | Completed, converting, and saving volumes          | Processing                       |
+| `save-results.png`          | Individual save, repeatable Save All, and sharing  | Quick start; saving              |
+| `ready-books.png`           | Reopen and delete a pending run                    | Saving and ready books           |
+| `share-setup.png`           | Library, interface, and optional credentials       | Local sharing, expandable step   |
+| `share-panel.png`           | Active server with an example catalog address      | Local sharing                    |
+
+These are existing application components with deterministic Storybook sample data, not screenshots of live filesystem operations. Manga titles illustrate filenames; no manga pages are included. The LAN address is synthetic. The normal application unit/component/story/accessibility/visual/e2e gates remain independent.
+
+## Manual KOReader captures
+
+The project maintainer supplied and authorized cropping/publication of these screenshots on 2026-10-02, identifying **Kindle 2024 / KOReader 2026.07.2-198**. UI text is in English and existing red outlines identify the controls. The open book format was not supplied; do not claim that these images verify EPUB- or CBZ-specific reading behavior.
+
+Original files remain untouched outside Git. Only conventional lossless PNG crops are committed: no generative processing, no redrawing, no rewritten labels. Retained decoded pixels were checked against the original crop. Manga artwork below the menus and the editor's personal-path header are excluded. The remaining example directory in the Lua editor is part of the tutorial and is explained as an example, not a required Mangabound location.
+
+Sources below are relative to the supplied screenshot folder. All crops have `left = 0`; dimensions are pixels.
+
+| Asset under `src/assets/tutorial/koreader/` | Source                        | Top | Width × height |
+| ------------------------------------------- | ----------------------------- | --: | -------------- |
+| `status-menu.png`                           | Status/1.png                  |   0 | 1072 × 1018    |
+| `status-overlap.png`                        | Status/2.png                  |   0 | 1072 × 745     |
+| `refresh-screen.png`                        | Refresh/1.png                 |   0 | 1072 × 465     |
+| `refresh-eink.png`                          | Refresh/2.png                 |   0 | 1072 × 465     |
+| `refresh-rate.png`                          | Refresh/3.png                 |   0 | 1072 × 188     |
+| `refresh-every-page.png`                    | Refresh/4.png                 |   0 | 1072 × 286     |
+| `tweak-tools.png`                           | Tweak document settings/1.png |   0 | 1072 × 828     |
+| `tweak-menu.png`                            | Tweak document settings/2.png |   0 | 1072 × 551     |
+| `tweak-editor.png`                          | Tweak document settings/3.png |  70 | 1342 × 569     |
+
+The recommended-settings page shows one useful main image per task and native `<details>` steps for the preceding menus. Written steps identify the final option without repeating the main image. No GIF, custom gallery, or new client-side interaction dependency is needed. Browser tests verify initially collapsed steps, keyboard expansion, loaded images, responsive layout, and axe accessibility in both languages/themes/viewports. They cannot verify the physical reader.
+
+The Lua example uses `inverse_reading_order` for right-to-left tap/swipe behavior only. Readers preserve the existing configuration structure, replace the example directory, and back up the file. Review the [official plugin instructions](https://github.com/koreader/koreader/wiki/Tweak-document-settings-by-directory) and current KOReader source when changing this guidance.
+
+## Remaining planned positions
+
+Run the local development guide to see the **Planned image / GIF** callouts (**Imagem / GIF planejado** in Portuguese). Starlight's existing Aside component displays each remaining capture description and stable ID. Production omits author notes entirely.
+
+| Placement ID     | Page                | Still needed                                 |
+| ---------------- | ------------------- | -------------------------------------------- |
+| `intro-logo`     | Introduction        | Finished original logo                       |
+| `reader-catalog` | Connecting KOReader | Catalog and Recently converted on the device |
+
+Placement IDs/routes/localized descriptions live in [media-plan.mjs](media-plan.mjs), with markers beside the instructions in both MDX locales. [MediaSlot.astro](src/components/MediaSlot.astro) is development-only. Remove a plan entry when both markers are replaced by the real asset. Keep its capture/provenance record here; never publish empty boxes or fake e-reader captures.
 
 ## Logo placement
 
 When the final asset arrives:
 
 - Use Starlight's [built-in logo configuration](https://starlight.astro.build/reference/configuration/#logo) for a compact mark beside **Mangabound** in the header. Keep the title visible (`replacesTitle: false`). Check light and dark themes; use theme-specific assets if needed.
-- Give the larger illustration one place on the introduction page, at `intro-logo`. Keep it out of the tutorial pages' content so navigation and instructions remain the focus. Use empty alt text if it only repeats the adjacent name; use meaningful alt text if it conveys additional information.
-- Replace the favicon with a simple, legible crop of the mark. An intricate illustration may need a simplified version at that size.
-- Add the logo near the opening of the repository README, where the source comment marks the intended position.
+- Give the larger illustration one place on the introduction page, at `intro-logo`. Keep it out of tutorial instructions. Use empty alt text if it only repeats the adjacent name; otherwise describe what it adds.
+- Replace the favicon with a simple, legible crop of the mark; an intricate illustration may need a simplified small version.
+- Add the logo near the repository README opening at its source comment.
 
-No temporary logo or blank branding panel is shipped while the asset is pending. Confirm the artwork's license, original source, and permission to distribute before adding it.
+No temporary logo or blank branding panel is shipped. Confirm artwork source, license, and permission to distribute before adding it.
 
 ## Asset and authoring conventions
 
-1. Capture the latest released Mangabound and record its tag. For KOReader, also record the version, device, and open book format. Do not use a CBZ-only menu to illustrate EPUB settings. Verify the actions on the captured release.
-2. Use a small sample you have permission to distribute. Remove personal paths, usernames, actual LAN addresses, authentication secrets, and copyrighted manga pages that cannot be redistributed. A schematic/demo book is sufficient to show the interface.
-3. Prefer a cropped PNG/WebP for a still. A short GIF is acceptable for an interaction; prefer a user-controlled video when motion is long or essential. Do not make looping animation the only way to learn a task. Check reduced-motion behavior and provide an accessible still/text alternative before shipping animated media.
-4. Put optimized screenshot sources in `src/assets/tutorial/` and use Astro's image support from MDX. Use `public/tutorial/` only for assets that need a public URL, such as a GIF/video; prefix those URLs with `import.meta.env.BASE_URL`, not a hardcoded deployment path. The built-link check verifies local image/video targets.
-5. Reuse the same English-UI asset from both locale pages. Translate the adjacent explanation, caption, and meaningful alt text; do not duplicate a binary merely because the page is translated. If a real localized capture differs, use a clearly named separate file.
-6. Include only useful detail at a readable resolution. Declare dimensions, avoid layout shifts, and lazy-load nonessential below-the-fold images. Alt text describes the task/state, not “screenshot”; decorative images have empty alt text. Provide captions where a device/version distinction matters.
-7. Replace the corresponding `<MediaSlot id="..." />` at the same location in both locale pages. Remove its entry from `media-plan.mjs` when the real asset replaces both markers; keep the completed capture record here. Remove the component import from a page if it has no markers left. This keeps the author-preview tests tied to genuinely pending work.
-8. Test both locales, light/dark themes, and a narrow viewport with `npm run check`. Manually inspect crops, legibility, motion, focus, and captions. The current page-presence/link tests cannot judge the accuracy or accessibility of a new animation; add a focused regression test if new playback behavior is introduced.
-
-When adding media, update this file with the asset path, source release/device, permission or license, and task verified. Avoid screenshotting a feature before its release merely to fill a planned slot.
+1. Automatic app captures follow the source commit. Manually supplied reader media must record version/device, format when known, source, permission, and the task it actually verifies. Review menus after reader-version changes.
+2. Use sample data you have permission to distribute. Exclude personal paths, usernames, real LAN addresses, credentials, and manga artwork without redistribution permission.
+3. Prefer still PNG/WebP with optional native collapsible steps. Add motion only when it materially teaches the task; provide user controls, reduced-motion behavior, and an accessible still/text alternative.
+4. Keep sources in `src/assets/tutorial/` and reuse [TutorialImage.astro](src/components/TutorialImage.astro), which supplies Astro optimization, intrinsic dimensions, lazy loading, shared presentation, and a normal link to the full-size source for small-text inspection. Generated files stay ignored; manual reader sources stay tracked. Missing referenced captures fail the build.
+5. Share identical English-UI assets across translations. Translate meaningful alt text and adjacent instructions, not labels the reader must find in the app.
+6. Use `public/tutorial/` only when a public URL is needed (for example video). Prefix URLs with `import.meta.env.BASE_URL`; never hardcode the deployment path.
+7. Check legibility, framing, focus, privacy, and accurate instructions visually. Run `npm run site:check` from the root. File existence or page parity alone does not establish meaningful test coverage.

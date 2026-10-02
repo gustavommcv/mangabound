@@ -1,0 +1,46 @@
+---
+import type { ImageMetadata } from 'astro';
+import { Image } from 'astro:assets';
+
+interface Props {
+  name: string;
+  alt: string;
+  caption?: string;
+}
+
+const { name, alt, caption } = Astro.props;
+const fullSizeLabel =
+  Astro.currentLocale === 'pt-br' ? 'Abrir imagem em tamanho original' : 'Open full-size image';
+const images = import.meta.glob<ImageMetadata>('../assets/tutorial/**/*.png', {
+  eager: true,
+  import: 'default',
+});
+const source = images[`../assets/tutorial/${name}.png`];
+if (!source)
+  throw new Error(
+    `Missing tutorial image: ${name}. Run npm run site:media at the repository root.`,
+  );
+---
+
+<figure data-tutorial-image={name}>
+  <a href={source.src} title={fullSizeLabel}>
+    <Image src={source} alt={alt} format="webp" loading="lazy" />
+  </a>
+  {caption && <figcaption>{caption}</figcaption>}
+</figure>
+
+<style>
+  figure {
+    margin-block: 1.5rem;
+  }
+  img {
+    width: 100%;
+    height: auto;
+    border-radius: var(--sl-border-radius, 0.5rem);
+  }
+  figcaption {
+    margin-block-start: 0.5rem;
+    color: var(--sl-color-gray-2);
+    font-size: var(--sl-text-sm);
+  }
+</style>

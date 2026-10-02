@@ -6,6 +6,7 @@ const browserExecutable = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
 
 export default defineConfig({
   testDir: './tests/browser',
+  outputDir: './test-results/browser',
   fullyParallel: true,
   forbidOnly: process.env.CI === 'true',
   reporter: process.env.CI === 'true' ? 'github' : 'list',

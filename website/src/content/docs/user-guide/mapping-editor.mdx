@@ -3,7 +3,7 @@ title: 'Volume mapping'
 description: 'Group chapters manually or review an optional online suggestion.'
 ---
 
-import MediaSlot from '../../../components/MediaSlot.astro';
+import TutorialImage from '../../../components/TutorialImage.astro';
 
 The mapping editor decides which local chapters belong to each volume. All three **Chapters from** tabs work on the same mapping; you can edit a suggestion just as you can build volumes from scratch.
 
@@ -16,14 +16,27 @@ Use **Edit chapter mapping** to open manual controls when a summary needs correc
 ## Manual: no online lookup needed
 
 1. Select **Manual**. If no volumes were found in names, this tab opens automatically.
-2. Use **Create volume** to add the first volume.
+2. Use **Create first volume** to add the first volume.
 3. Select chapters in the chapter list, choose the destination volume, and use **Assign selected**. For consecutive numbered chapters, use **Assign range**.
 4. Repeat for the other volumes. Assigning an already placed chapter moves it rather than duplicating it.
 5. Resolve the listed issues, then use **Confirm mapping**.
 
 Use the editor's controls to change volume numbers or merge volumes. The undo/redo buttons let you reverse changes.
 
-<MediaSlot id="manual-mapping" />
+<TutorialImage
+  name="generated/manual-mapping"
+  alt="The first two chapters assigned to Volume 1 in the manual editor."
+/>
+
+<details>
+<summary>Show the first step</summary>
+
+<TutorialImage
+  name="generated/manual-mapping-start"
+  alt="The manual editor starts without volumes and offers Create first volume."
+/>
+
+</details>
 
 ## Online source: optional suggestions
 
@@ -31,7 +44,20 @@ Choose **Online source**, select MangaDex, enter the title, and press **Search**
 
 Select the matching work with **Use these volumes**, review the summary, then confirm it or use **Edit chapter mapping**. An online mapping may be incomplete or differ from your edition; verify special and decimal chapters. If the work is absent, use **Manual**.
 
-<MediaSlot id="online-mapping" />
+<TutorialImage
+  name="generated/online-mapping"
+  alt="Two suggested volumes ready to review and confirm."
+/>
+
+<details>
+<summary>Show the online search</summary>
+
+<TutorialImage
+  name="generated/online-mapping-search"
+  alt="A demonstration search with two results and Use these volumes actions."
+/>
+
+</details>
 
 ## Skipping grouping
 

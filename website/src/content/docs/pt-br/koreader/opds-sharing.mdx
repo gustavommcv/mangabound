@@ -3,7 +3,7 @@ title: 'Compartilhamento local'
 description: 'Compartilhe livros pendentes ou uma biblioteca pela rede local.'
 ---
 
-import MediaSlot from '../../../../components/MediaSlot.astro';
+import TutorialImage from '../../../../components/TutorialImage.astro';
 
 Compartilhe livros com o KOReader pela rede local. Abra o **catálogo OPDS** do Mangabound no leitor e escolha quais livros baixar.
 
@@ -18,7 +18,20 @@ O endereço tem o formato `http://192.168.1.150:48123/`. Use o que aparece no se
 
 Abra **Recently converted** para encontrar os livros mais recentes primeiro. **Other files** lista outros livros da biblioteca compartilhada.
 
-<MediaSlot id="share-panel" />
+<TutorialImage
+  name="generated/share-panel"
+  alt="Compartilhamento ativo com o endereço do catálogo e as ações Copy e Stop sharing."
+/>
+
+<details>
+<summary>Ver a configuração antes de compartilhar</summary>
+
+<TutorialImage
+  name="generated/share-setup"
+  alt="Seleção de Network interface, credenciais opcionais e Start sharing."
+/>
+
+</details>
 
 :::caution[Apenas redes locais confiáveis]
 O compartilhamento usa HTTP. A autenticação Basic opcional restringe acesso, mas não criptografa credenciais nem livros. Não exponha a porta na internet nem utilize uma rede não confiável.

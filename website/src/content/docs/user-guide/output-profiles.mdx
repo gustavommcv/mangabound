@@ -3,7 +3,7 @@ title: 'Conversion settings'
 description: 'Choose the device, format, and image settings.'
 ---
 
-import MediaSlot from '../../../components/MediaSlot.astro';
+import TutorialImage from '../../../components/TutorialImage.astro';
 
 ## Device and format
 
@@ -17,7 +17,12 @@ Choose your model under **Device**. To set the page size yourself, open **Advanc
 
 Compatibility depends on the reader application as well as the device. Kindle's native reader does not directly open EPUB: use a compatible transfer/conversion service or an installed reader such as KOReader. KOReader treats EPUB differently from CBZ/PDF; see [reader settings](../../koreader/recommended-settings/).
 
-<MediaSlot id="device-settings" />
+<TutorialImage
+  name="generated/device-settings"
+  alt="Device profile and book format, with custom width 1440 and height 1920."
+/>
+
+These dimensions are an example; use the size appropriate for your screen.
 
 ## Advanced conversion options
 
@@ -36,6 +41,9 @@ Enable **Create one book for the series** in the queue to combine its chapters a
 
 This mode uses EPUB and keeps both process steps enabled. Turn it off to change the format or steps. Larger combined books can take longer to open on an e-reader.
 
-<MediaSlot id="single-book" />
+<TutorialImage
+  name="generated/single-book"
+  alt="Create one book for the series enabled, with the process steps and EPUB format locked."
+/>
 
 The standalone CLI has its own defaults; do not assume they match the GUI. For terminal use, see [mangapress](../../cli/mangapress/).

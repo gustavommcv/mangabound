@@ -3,7 +3,7 @@ title: 'KOReader settings'
 description: 'Choose reader settings for the actual book format and device.'
 ---
 
-import MediaSlot from '../../../components/MediaSlot.astro';
+import TutorialImage from '../../../components/TutorialImage.astro';
 
 ## Choose settings for your book
 
@@ -11,21 +11,62 @@ KOReader handles EPUB differently from CBZ and PDF, so the available page contro
 
 Start with a few pages and adjust the settings below to suit your screen. Menu names and locations can vary with the KOReader version, language, and device. The [official KOReader guide](https://koreader.rocks/user_guide/) explains each format's controls and how to search the menus.
 
+The captures below were supplied from a **Kindle 2024 running KOReader 2026.07.2-198**. The menus are in English; the red outlines identify each option.
+
 ## Overlap status bar
 
 With a book open, find **Status bar → Overlap status bar**. This lets the page use the area reserved for the status bar. Check that the bar does not cover artwork you want to see.
 
 See [KOReader's status-bar settings](https://github.com/koreader/koreader/blob/master/frontend/apps/reader/modules/readerfooter.lua).
 
-<MediaSlot id="reader-statusbar" />
+<TutorialImage
+  name="koreader/status-overlap"
+  alt="Overlap status bar checked in the KOReader Status bar menu."
+/>
+
+<details>
+<summary>Show the steps</summary>
+
+1. Open the top menu, select the gear icon and tap **Status bar**.
+
+<TutorialImage name="koreader/status-menu" alt="Settings menu with Status bar highlighted." />
+
+2. Enable **Overlap status bar**, as shown in the main image.
+
+</details>
 
 ## Full refresh rate
 
-On an e-ink reader, try **Screen → eInk settings → Full refresh rate → Every page** if you see traces of the previous page.
+On an e-ink reader, try **Screen → E-ink settings → Full refresh rate → Every page** if you see traces of the previous page.
 
 A full refresh can reduce these traces, but may add a visible flash or slow page turns. Compare it with the default on your device. This setting applies to supported e-ink screens, not LCD displays. See the [KOReader guide](https://koreader.rocks/user_guide/) for refresh options.
 
-<MediaSlot id="reader-refresh" />
+<TutorialImage
+  name="koreader/refresh-every-page"
+  alt="Every page checked in the KOReader Full refresh rate menu."
+/>
+
+<details>
+<summary>Show the steps</summary>
+
+1. In the top menu, select the gear icon and open **Screen**.
+
+<TutorialImage name="koreader/refresh-screen" alt="Settings menu with Screen highlighted." />
+
+2. Open **E-ink settings**.
+
+<TutorialImage name="koreader/refresh-eink" alt="Screen menu with E-ink settings highlighted." />
+
+3. Open **Full refresh rate**.
+
+<TutorialImage
+  name="koreader/refresh-rate"
+  alt="E-ink settings menu with Full refresh rate highlighted."
+/>
+
+4. Select **Every page**, as shown in the main image. You do not need to copy the other settings on your device.
+
+</details>
 
 ## CBZ/PDF page controls
 
@@ -39,7 +80,40 @@ To give a manga folder different defaults from your text books, use KOReader's a
 
 The plugin uses a Lua configuration file rather than EPUB style tweaks. Follow the [official setup instructions](https://github.com/koreader/koreader/wiki/Tweak-document-settings-by-directory) and back up your configuration before editing it. Books you have already opened can keep their individual settings.
 
-<MediaSlot id="reader-directory-defaults" />
+If the plugin is missing, enable **Tweak document settings** under **Tools → Plugin management**. Then open **Tools → More tools → Tweak document settings**.
+
+<TutorialImage
+  name="koreader/tweak-menu"
+  alt="More tools menu with Tweak document settings highlighted."
+/>
+
+<details>
+<summary>Show the steps</summary>
+
+1. Select the tools icon in the top menu and open **More tools**.
+
+<TutorialImage name="koreader/tweak-tools" alt="Tools menu with More tools highlighted." />
+
+2. Tap **Tweak document settings**, as shown in the main image, to open **directory_defaults.lua**.
+
+<TutorialImage
+  name="koreader/tweak-editor"
+  alt="The directory_defaults.lua editor showing a right-to-left reading configuration."
+/>
+
+3. Inside the existing table, add an entry like this. Replace the path with the manga folder on your reader; preserve the other entries and the file structure.
+
+```lua
+["/mnt/us/library/mangas"] = {
+    ["inverse_reading_order"] = true,
+},
+```
+
+This example swaps tap zones and swipe directions for right-to-left reading; it does not configure screen refresh or the status bar. The path is an example Kindle folder, not a folder created by Mangabound.
+
+4. Use **Save** to save. The defaults apply to books in that folder that have not been opened before; previously opened books may keep their settings.
+
+</details>
 
 ## Saving a default
 

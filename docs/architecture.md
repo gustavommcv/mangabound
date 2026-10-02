@@ -85,3 +85,7 @@ The four text-file writers below share `src/adapters/fs/write-file-atomically.ts
 | `tests/e2e`                         | WebdriverIO against the packaged app | The real window with the real tools: reading, converting, sharing, saving options, the title bar.                                                                  |
 
 The component tests of the whole `App` are split by topic (`tests/component/workflow-*.test.tsx`: the queue, the options, process control, sharing, libraries, and the details of a book). They share a fake bridge and fixtures from `tests/component/support`, and each file installs its own bridge, so one can be run alone.
+
+## Documentation media
+
+The independent Astro/Starlight package under `website/` does not import application modules. Documentation CI first builds Storybook from the same checkout and captures selected real UI states with Playwright (`tests/tutorial`). It supplies those PNGs as an artifact to both site verification jobs and the production build; Astro optimizes them for publication. The guide and automatic app images track `main`, not release tags (ADR 0034). KOReader captures are manually supplied and versioned separately. These illustrations never update the visual-regression baselines or enter the application installer. See [the website guide](../website/README.md) and [media records](../website/MEDIA.md).

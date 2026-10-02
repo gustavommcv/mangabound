@@ -17,3 +17,4 @@ Thumbs.db
 website/.astro/
 website/dist/
 website/playwright-report/
+website/src/assets/tutorial/generated/
