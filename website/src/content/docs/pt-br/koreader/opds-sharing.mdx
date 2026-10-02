@@ -26,6 +26,10 @@ O compartilhamento usa HTTP. A autenticação Basic opcional restringe acesso, m
 
 Continue em [conectando o KOReader](../connecting/). Use **Stop sharing** ao terminar.
 
+## Se um livro não aparecer
+
+O Mangabound serve apenas arquivos que estão dentro da pasta compartilhada. Uma subpasta que seja um link (symlink ou junction) para um lugar fora dela não é seguida, então os livros dela não são compartilhados, e o registro do aplicativo diz qual livro ficou de fora. Compartilhe a pasta onde os livros realmente estão.
+
 ## Se o leitor não conectar
 
 Confira se ambos alcançam a mesma rede local, a interface escolhida está correta, o compartilhamento está ativo e o firewall permite o aplicativo nessa rede confiável. Wi-Fi de convidados, isolamento de clientes e VPNs podem bloquear acesso mesmo com internet nos dois aparelhos. Se o IP do computador mudar, atualize o endereço no KOReader.

@@ -200,7 +200,16 @@ export class NodeOpdsServer implements OpdsServerPort {
     }
 
     const filePath = resolveLibraryFile(libraryPath, entry.relativePath);
-    if (filePath === undefined || !(await staysInsideLibrary(libraryPath, filePath))) {
+    if (filePath === undefined) {
+      respondNotFound(res);
+      return;
+    }
+    if (!(await staysInsideLibrary(libraryPath, filePath))) {
+      // The reader only sees "not found", so the reason stays in the app's own log, where a person
+      // whose library is laid out with links can find out why a book is not shared.
+      console.warn(
+        `A book was not shared because a link leads outside the shared folder: ${entry.relativePath}`,
+      );
       respondNotFound(res);
       return;
     }
