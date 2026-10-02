@@ -96,7 +96,7 @@ Exit: a folder whose names carry volumes converts without opening the mapping ed
 
 ## M8 — Release hardening
 
-Paused partway through to ship the first public alpha instead of finishing every item below first: `v0.1.0-alpha.1` through `v0.1.0-alpha.9` are out (see `docs/releases/`), with work on what M8 originally listed resuming in between.
+Paused partway through to ship the first public alpha instead of finishing every item below first: `v0.1.0-alpha.1` through `v0.1.0-alpha.10` are out (see `docs/releases/`), with work on what M8 originally listed resuming in between.
 
 **Done:**
 
