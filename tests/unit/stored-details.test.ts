@@ -94,7 +94,7 @@ describe('keeping the details with a folder', () => {
 
     expect(JSON.parse(text ?? '')).toEqual({
       schema_version: 1,
-      manga: { author: 'Fujimoto Tatsuki', language: 'pt-br' },
+      manga: { author: 'Fujimoto Tatsuki', language: 'pt-BR' },
       volumes: [],
     });
     expect(text?.endsWith('\n')).toBe(true);
@@ -113,7 +113,7 @@ describe('keeping the details with a folder', () => {
 
     expect(JSON.parse(text ?? '')).toEqual({
       schema_version: 1,
-      manga: { title: 'Chainsaw Man', author: 'New', language: 'pt-br' },
+      manga: { title: 'Chainsaw Man', author: 'New', language: 'pt-BR' },
       volumes: [{ number: '1', chapters: ['1-7'] }],
       source: { provider: 'mangadex', id: 'abc' },
       note: 'a key nothing here knows',

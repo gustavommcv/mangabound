@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import {
   type BookDetails,
+  canonicalLanguageTag,
   isLanguageTag,
   maxDetailLength,
   maxLanguageLength,
@@ -77,7 +78,7 @@ export function BookDetailsScreen({
   const languageError =
     languageText === '' || isLanguageTag(languageText)
       ? undefined
-      : 'Use a language tag such as en-US or pt-br. It is not used until it is valid.';
+      : 'Use a language tag such as en-US or pt-BR. It is not used until it is valid.';
 
   const update = (field: keyof typeof text, value: string): void => {
     const next = { ...text, [field]: value };
@@ -110,7 +111,7 @@ export function BookDetailsScreen({
   // Only an EPUB carries a language, and a language that is not a tag would be refused at the run.
   const languageToOffer =
     declaredElsewhere && format === 'epub' && isLanguageTag(declaredLanguage)
-      ? declaredLanguage
+      ? canonicalLanguageTag(declaredLanguage)
       : undefined;
 
   return (

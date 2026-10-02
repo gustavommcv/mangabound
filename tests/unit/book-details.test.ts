@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  canonicalLanguageTag,
   detailsForBook,
   hasBookDetails,
   isLanguageTag,
@@ -16,10 +17,17 @@ describe('normalizeBookDetails', () => {
     expect(normalizeBookDetails({ title: '  Chainsaw Man ', author: '', language: '   ' })).toEqual(
       { title: 'Chainsaw Man' },
     );
-    expect(normalizeBookDetails({ author: ' Fujimoto Tatsuki', language: 'pt-br ' })).toEqual({
+    expect(normalizeBookDetails({ author: ' Fujimoto Tatsuki', language: 'pt-BR ' })).toEqual({
       author: 'Fujimoto Tatsuki',
-      language: 'pt-br',
+      language: 'pt-BR',
     });
+  });
+
+  it('writes the language the way BCP 47 recommends, however it was typed', () => {
+    expect(normalizeBookDetails({ language: ' pt-br ' })).toEqual({ language: 'pt-BR' });
+    expect(normalizeBookDetails({ language: 'EN-us' })).toEqual({ language: 'en-US' });
+    // What is not a tag is not guessed at: it is kept as it was, and refused where it is typed.
+    expect(normalizeBookDetails({ language: 'Not A Tag' })).toEqual({ language: 'Not A Tag' });
   });
 
   it('leaves nothing for no details', () => {
@@ -29,6 +37,38 @@ describe('normalizeBookDetails', () => {
 
   it('cannot be changed by whoever holds the empty details', () => {
     expect(Object.isFrozen(noBookDetails)).toBe(true);
+  });
+});
+
+describe('canonicalLanguageTag', () => {
+  it.each([
+    ['pt-br', 'pt-BR'],
+    ['PT-BR', 'pt-BR'],
+    ['pt-BR', 'pt-BR'],
+    ['en-us', 'en-US'],
+    ['EN', 'en'],
+    ['ja', 'ja'],
+    ['jpn', 'jpn'],
+    ['zh-hant-tw', 'zh-Hant-TW'],
+    ['ZH-HANS', 'zh-Hans'],
+    ['sr-latn-rs', 'sr-Latn-RS'],
+    ['es-419', 'es-419'],
+    ['de-1996', 'de-1996'],
+    ['de-ch-1901', 'de-CH-1901'],
+    ['en-oxendict', 'en-oxendict'],
+  ])('writes %s as %s', (tag, written) => {
+    expect(canonicalLanguageTag(tag)).toBe(written);
+  });
+
+  it.each(['', 'portuguese-language-tag', 'pt_br', 'not a tag', 'pt-', 'x'])(
+    'returns %j as it is, since it is not a tag',
+    (value) => {
+      expect(canonicalLanguageTag(value)).toBe(value);
+    },
+  );
+
+  it('does nothing to a tag already written that way', () => {
+    expect(canonicalLanguageTag(canonicalLanguageTag('zh-hant-tw'))).toBe('zh-Hant-TW');
   });
 });
 
@@ -63,13 +103,13 @@ describe('volumeBookTitle', () => {
 });
 
 describe('detailsForBook', () => {
-  const typed = { title: ' Chainsaw Man ', author: 'Fujimoto Tatsuki', language: 'pt-br' };
+  const typed = { title: ' Chainsaw Man ', author: 'Fujimoto Tatsuki', language: 'pt-BR' };
 
   it('makes a series title the title of one volume of it', () => {
     expect(detailsForBook(typed, 2)).toEqual({
       title: 'Chainsaw Man - Vol.02',
       author: 'Fujimoto Tatsuki',
-      language: 'pt-br',
+      language: 'pt-BR',
     });
   });
 
@@ -77,7 +117,7 @@ describe('detailsForBook', () => {
     expect(detailsForBook(typed)).toEqual({
       title: 'Chainsaw Man',
       author: 'Fujimoto Tatsuki',
-      language: 'pt-br',
+      language: 'pt-BR',
     });
   });
 
@@ -104,7 +144,7 @@ describe('persistableDetails', () => {
   it('keeps the author and the language, cleaned up, and never the title', () => {
     expect(
       persistableDetails({ title: 'A run title', author: ' Fujimoto Tatsuki ', language: 'pt-br' }),
-    ).toEqual({ author: 'Fujimoto Tatsuki', language: 'pt-br' });
+    ).toEqual({ author: 'Fujimoto Tatsuki', language: 'pt-BR' });
   });
 
   it('leaves out what is blank, and is empty for a title alone', () => {

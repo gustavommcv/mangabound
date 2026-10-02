@@ -318,7 +318,7 @@ describe('mangapress conversion port', () => {
 
       await adapter.convert({ ...request, book }, { onProgress: vi.fn() });
 
-      expect(argumentsOf(run)).toMatchObject(book);
+      expect(argumentsOf(run)).toMatchObject({ ...book, language: 'pt-BR' });
     });
 
     it('are sent when planning too, so the plan names the book that would be made', async () => {
@@ -330,7 +330,7 @@ describe('mangapress conversion port', () => {
 
       await adapter.plan({ ...request, book });
 
-      expect(argumentsOf(run)).toMatchObject({ ...book, dryRun: true });
+      expect(argumentsOf(run)).toMatchObject({ ...book, language: 'pt-BR', dryRun: true });
     });
 
     it('leave the title and the author out when none was typed, and use the language of the options', async () => {
@@ -349,6 +349,25 @@ describe('mangapress conversion port', () => {
       }
       expect(run.mock.calls[0]?.[0]).toMatchObject({ language: 'ja' });
       expect(run.mock.calls[1]?.[0]).toMatchObject({ language: 'en-US' });
+    });
+
+    it('are written with the casing BCP 47 recommends, from the book or from the options', async () => {
+      const run = vi.fn<MangapressCliAdapter['run']>(() => Promise.resolve(runResult()));
+      const adapter = new MangapressConversionAdapter({ run });
+      const withOptionsLanguage = (language: string) => ({
+        ...request,
+        settings: { ...defaultMangapressSettings, language },
+        book: {},
+      });
+
+      await adapter.convert({ ...request, book: { language: 'pt-br' } }, { onProgress: vi.fn() });
+      await adapter.convert(withOptionsLanguage('en-us'), { onProgress: vi.fn() });
+      await adapter.convert(withOptionsLanguage('Portuguese'), { onProgress: vi.fn() });
+
+      expect(run.mock.calls[0]?.[0]).toMatchObject({ language: 'pt-BR' });
+      expect(run.mock.calls[1]?.[0]).toMatchObject({ language: 'en-US' });
+      // A value that is not a tag is not guessed at.
+      expect(run.mock.calls[2]?.[0]).toMatchObject({ language: 'Portuguese' });
     });
   });
 });

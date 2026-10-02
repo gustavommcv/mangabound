@@ -636,7 +636,7 @@ describe('what was typed for an item', () => {
 
     expect((rows[0] as InspectedRow).details).toEqual({
       title: 'Chainsaw Man',
-      language: 'pt-br',
+      language: 'pt-BR',
     });
   });
 
@@ -747,7 +747,7 @@ describe('the author and language read with a folder', () => {
 
     expect((rows[0] as InspectedRow).details).toEqual({
       author: 'Fujimoto Tatsuki',
-      language: 'pt-br',
+      language: 'pt-BR',
     });
   });
 

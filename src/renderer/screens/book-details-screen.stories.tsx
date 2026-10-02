@@ -132,7 +132,7 @@ export const FolderDeclaresAnotherLanguage: Story = {
   args: { declaredLanguage: 'pt-br' },
   play: async ({ canvasElement }) => {
     await expect(within(canvasElement).getByText('The folder names say pt-br.')).toBeVisible();
-    await expect(within(canvasElement).getByRole('button', { name: 'Use pt-br' })).toBeVisible();
+    await expect(within(canvasElement).getByRole('button', { name: 'Use pt-BR' })).toBeVisible();
   },
 };
 
@@ -142,7 +142,7 @@ export const InvalidLanguage: Story = {
     const canvas = within(canvasElement);
     await userEvent.type(canvas.getByLabelText('Language'), 'portuguese please');
     await expect(canvas.getByLabelText('Language')).toBeInvalid();
-    await expect(canvas.getByText(/Use a language tag such as en-US or pt-br/u)).toBeVisible();
+    await expect(canvas.getByText(/Use a language tag such as en-US or pt-BR/u)).toBeVisible();
   },
 };
 

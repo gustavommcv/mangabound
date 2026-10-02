@@ -22,7 +22,7 @@ describe('the title, author and language typed for a book', () => {
     );
   }
 
-  const typed = { title: 'Chainsaw Man', author: 'Fujimoto Tatsuki', language: 'pt-br' };
+  const typed = { title: 'Chainsaw Man', author: 'Fujimoto Tatsuki', language: 'pt-BR' };
   const booksOf = (ports: ReturnType<typeof dependencies>) =>
     ports.convert.mock.calls.map(([request]) => request.book);
 
