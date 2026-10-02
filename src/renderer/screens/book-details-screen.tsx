@@ -63,6 +63,7 @@ export function BookDetailsScreen({
 }: BookDetailsScreenProps): React.JSX.Element {
   const titleRef = useRef<HTMLHeadingElement>(null);
   const authorRef = useRef<HTMLInputElement>(null);
+  const languageRef = useRef<HTMLInputElement>(null);
   const [lookupOpen, setLookupOpen] = useState(false);
   useEffect(() => {
     titleRef.current?.focus();
@@ -106,6 +107,11 @@ export function BookDetailsScreen({
   const declaredElsewhere =
     declaredLanguage !== undefined &&
     declaredLanguage.toLowerCase() !== effectiveLanguage.toLowerCase();
+  // Only an EPUB carries a language, and a language that is not a tag would be refused at the run.
+  const languageToOffer =
+    declaredElsewhere && format === 'epub' && isLanguageTag(declaredLanguage)
+      ? declaredLanguage
+      : undefined;
 
   return (
     <section aria-labelledby="book-details-title" className="mx-auto max-w-3xl space-y-5">
@@ -209,17 +215,33 @@ export function BookDetailsScreen({
           <Label className="text-sm font-medium" htmlFor="details-language">
             Language
           </Label>
-          <Input
-            aria-describedby="details-language-message"
-            aria-invalid={languageError === undefined ? undefined : true}
-            id="details-language"
-            maxLength={maxLanguageLength}
-            onChange={(event) => {
-              update('language', event.target.value);
-            }}
-            placeholder={defaultLanguage}
-            value={text.language}
-          />
+          <div className="flex gap-2">
+            <Input
+              aria-describedby="details-language-message"
+              aria-invalid={languageError === undefined ? undefined : true}
+              className="min-w-0 flex-1"
+              id="details-language"
+              maxLength={maxLanguageLength}
+              onChange={(event) => {
+                update('language', event.target.value);
+              }}
+              placeholder={defaultLanguage}
+              ref={languageRef}
+              value={text.language}
+            />
+            {languageToOffer !== undefined && (
+              <Button
+                onClick={() => {
+                  update('language', languageToOffer);
+                  // The offer goes away once it is taken, so focus stays on the field.
+                  languageRef.current?.focus();
+                }}
+                variant="outline"
+              >
+                Use {languageToOffer}
+              </Button>
+            )}
+          </div>
           <FieldMessage
             {...(languageError === undefined
               ? {
