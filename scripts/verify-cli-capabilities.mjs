@@ -36,7 +36,17 @@ for (const toolName of ['mangabind', 'mangapress']) {
   });
   const actual = advertisedFlags(`${stdout}\n${stderr}`);
   const groups = manifest.tools[toolName];
-  const represented = sorted(new Set([...groups.workflow, ...groups.user, ...groups.internal]));
+  // A deferred flag is one the pinned tool has and the app does not offer yet (ADR 0035). It is
+  // listed so that it is a decision somebody wrote down, never a flag nobody noticed.
+  const deferred = sorted(groups.deferred ?? []);
+  const offered = [...groups.workflow, ...groups.user, ...groups.internal];
+  const twice = deferred.filter((flag) => offered.includes(flag));
+  if (twice.length > 0) {
+    throw new Error(
+      `${toolName} lists these flags as both offered and deferred: ${twice.join(', ')}.`,
+    );
+  }
+  const represented = sorted(new Set([...offered, ...deferred]));
   if (JSON.stringify(actual) !== JSON.stringify(represented)) {
     const missing = actual.filter((flag) => !represented.includes(flag));
     const stale = represented.filter((flag) => !actual.includes(flag));
@@ -45,4 +55,9 @@ for (const toolName of ['mangabind', 'mangapress']) {
     );
   }
   console.log(`${toolName}: all ${String(actual.length)} advertised flags are represented.`);
+  if (deferred.length > 0) {
+    console.log(
+      `${toolName}: ${String(deferred.length)} of them are deferred, not offered yet: ${deferred.join(', ')}.`,
+    );
+  }
 }

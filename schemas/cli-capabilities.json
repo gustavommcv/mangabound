@@ -59,6 +59,28 @@
         "--version",
         "-V",
         "-h"
+      ],
+      "deferred": [
+        "--blackborders",
+        "--colorautocontrast",
+        "--cover",
+        "--coverfill",
+        "--force-png-rgb",
+        "--forcecolor",
+        "--invertdirection",
+        "--maximizestrips",
+        "--nokepub",
+        "--noprocessing",
+        "--noquantize",
+        "--norotate",
+        "--onepagelandscape",
+        "--pnglegacy",
+        "--rotatefirst",
+        "--smartcovercrop",
+        "--spreads",
+        "--spreadshift",
+        "--webtoon",
+        "-w"
       ]
     }
   }

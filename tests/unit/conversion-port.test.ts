@@ -94,6 +94,31 @@ describe('mangapress conversion port', () => {
     );
   });
 
+  it("takes a Kobo profile's .kepub.epub as the EPUB it is", async () => {
+    const outputPath = path.resolve('/library', 'Book.kepub.epub');
+    const converted = resultEvent({ profile: 'KoC', output_path: outputPath });
+    const adapter = new MangapressConversionAdapter(
+      { run: () => Promise.resolve(runResult({ result: converted })) },
+      () => 'artifact-1',
+    );
+
+    await expect(adapter.convert(request, { onProgress: () => undefined })).resolves.toEqual({
+      id: 'artifact-1',
+      name: 'Book.kepub.epub',
+      path: outputPath,
+      bytes: 512,
+      format: 'epub',
+      title: 'Book',
+      author: 'Unknown',
+    });
+  });
+
+  it('refuses a format that is not one of the three, as mangapress 0.7.0 and 0.7.1 sent', () => {
+    expect(() => resultEvent({ format: 'kepub.epub' })).toThrow(
+      'mangapress returned an invalid result event.',
+    );
+  });
+
   it.each([
     { operation: 'list_profiles' },
     { dry_run: false },
