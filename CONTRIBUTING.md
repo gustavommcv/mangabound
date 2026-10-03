@@ -140,6 +140,10 @@ A decision that changes how the app is built or what it does gets a short record
 - The description of a user-visible change says what a person will notice.
 - Delete merged feature/fix branches after the resulting commit's CI succeeds. `main` is the only long-lived branch.
 
+## Documentation dependency audit exceptions
+
+The documentation package audits all of its dependencies in `npm --prefix website run check`, using lockfile-pinned `audit-ci`. A temporary exception requires the repository owner's explicit approval, an exposure assessment in [website/SECURITY.md](website/SECURITY.md), exact advisory/path records with an enforced UTC expiry, and regression tests proving unaccepted findings and audit failures still block. Do not add package-wide or wildcard exclusions, raise the severity threshold, omit development dependencies, or automatically renew an exception. The application's production-dependency audit is unchanged. An accepted exception is not a vulnerability fix and does not relax the exact-commit remote-CI gate below.
+
 ## Remote CI is the completion gate
 
 After pushing any commit that is intended to complete a milestone or serve as a checkpoint, verify the GitHub Actions run for that exact commit SHA. Every required job must finish successfully; a queued or in-progress run, a green run for an earlier commit, and a complete set of passing local checks do not satisfy this gate.

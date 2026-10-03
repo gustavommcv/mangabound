@@ -12,11 +12,12 @@
     "format:check": "prettier --check .",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "astro check",
-    "test:unit": "node --experimental-test-coverage --test-coverage-include=scripts/verification.mjs --test-coverage-lines=100 --test-coverage-branches=100 --test-coverage-functions=100 --test tests/unit/*.test.mjs",
+    "test:unit": "node --experimental-test-coverage --test-coverage-include=scripts/verification.mjs --test-coverage-include=scripts/audit-scope.mjs --test-coverage-lines=100 --test-coverage-branches=100 --test-coverage-functions=100 --test tests/unit/*.test.mjs",
     "test:browser": "playwright test",
     "test:media": "playwright test --config playwright.media.config.mjs",
     "test": "npm run test:unit && node scripts/check-i18n.mjs && node scripts/verify-links.mjs",
-    "check": "npm run format:check && npm run lint && npm run typecheck && npm run build && npm test && npm run test:browser && npm run test:media",
+    "audit": "node scripts/check-audit-scope.mjs && audit-ci --config audit-ci.json",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm run audit && npm run build && npm test && npm run test:browser && npm run test:media",
     "astro": "astro"
   },
   "dependencies": {
@@ -32,6 +33,7 @@
     "@axe-core/playwright": "4.13.0",
     "@eslint/js": "10.0.1",
     "@playwright/test": "1.63.0",
+    "audit-ci": "7.1.0",
     "cheerio": "1.2.0",
     "eslint": "10.11.0",
     "globals": "^17.12.0",

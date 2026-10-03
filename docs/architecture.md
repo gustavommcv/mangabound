@@ -85,3 +85,5 @@ The four text-file writers below share `src/adapters/fs/write-file-atomically.ts
 | `tests/e2e`                         | WebdriverIO against the packaged app | The real window with the real tools: reading, converting, sharing, saving options, the title bar.                                                                  |
 
 The component tests of the whole `App` are split by topic (`tests/component/workflow-*.test.tsx`: the queue, the options, process control, sharing, libraries, and the details of a book). They share a fake bridge and fixtures from `tests/component/support`, and each file installs its own bridge, so one can be run alone.
+
+The independent website's checks include an all-dependency, all-severity npm audit through lockfile-pinned `audit-ci`. Any temporary owner-approved exception is explicitly scoped and expires; its evidence, guards and removal procedure live in [website/SECURITY.md](../website/SECURITY.md). This does not change the desktop application's production-dependency audit or include website tooling in the installer.
