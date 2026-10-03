@@ -20,7 +20,7 @@ Open <http://localhost:4321/mangabound/>. The root `site:media` command generate
 
 `npm run site:build` generates `website/dist/`; `npm run site:preview` serves that production output, including the Pagefind search index. Search must be tested against a production build, not only the development server.
 
-Tutorial app captures render at 3× pixel density, separately from visual-regression baselines, and Astro publishes lossless WebP. Do not upscale old captures to make them appear higher resolution. Native expandable steps repeat the main image at the relevant step, using the same asset. See [the media conventions](MEDIA.md) for capture checks and supplied-reader image provenance.
+Tutorial app captures render natively at several pixel densities, separately from visual-regression baselines. Their full-size originals are at least 2880 pixels wide, covering the guide's 720 CSS-pixel column at up to 4× display density; larger existing capture regions retain at least their previous 3× density. Astro publishes lossless WebP alternatives and the browser selects one with native `srcset`/`sizes`, without client-side image-selection code. Do not resize old captures to manufacture higher resolution. Native expandable steps repeat the main image at the relevant step, using the same assets. See [the media conventions](MEDIA.md) for capture checks and supplied-reader image provenance.
 
 On Linux, Playwright may need `npx playwright install --with-deps chromium`. If a local browser download is unavailable, `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` can point to an existing Chromium executable. CI always installs Playwright's matching browser.
 

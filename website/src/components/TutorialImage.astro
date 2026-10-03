@@ -1,6 +1,8 @@
 ---
 import type { ImageMetadata } from 'astro';
-import { Image } from 'astro:assets';
+import { getImage, Image } from 'astro:assets';
+
+import captureManifest from '../assets/tutorial/generated/capture.json';
 
 interface Props {
   name: string;
@@ -20,11 +22,44 @@ if (!source)
   throw new Error(
     `Missing tutorial image: ${name}. Run npm run site:media at the repository root.`,
   );
+const capture = name.startsWith('generated/')
+  ? captureManifest.captures.find((entry) => entry.name === name.slice('generated/'.length))
+  : undefined;
+if (name.startsWith('generated/') && !capture)
+  throw new Error(`Missing tutorial capture record: ${name}`);
+const sources = capture
+  ? capture.variants
+      .map(({ file }) => {
+        const variant = images[`../assets/tutorial/generated/${file}`];
+        if (!variant) throw new Error(`Missing tutorial capture variant: ${file}`);
+        return variant;
+      })
+      .sort((a, b) => a.width - b.width)
+  : [source];
+const optimized = await Promise.all(
+  sources.map(async (variant) => ({
+    width: variant.width,
+    ...(await getImage({ src: variant, format: 'webp', quality: 'max' })),
+  })),
+);
+const fullSize = optimized.find((variant) => variant.width === source.width);
+if (!fullSize) throw new Error(`Missing full-size tutorial image: ${name}`);
+const srcset = capture
+  ? optimized.map((variant) => `${variant.src} ${variant.width}w`).join(', ')
+  : undefined;
 ---
 
 <figure data-tutorial-image={name}>
-  <a href={source.src} title={fullSizeLabel}>
-    <Image src={source} alt={alt} format="webp" quality="max" loading="lazy" />
+  <a href={fullSize.src} title={fullSizeLabel}>
+    <Image
+      src={source}
+      alt={alt}
+      format="webp"
+      quality="max"
+      loading="lazy"
+      srcset={srcset}
+      sizes={capture ? 'auto, (min-width: 50rem) 45rem, calc(100vw - 2rem)' : undefined}
+    />
   </a>
   {caption && <figcaption>{caption}</figcaption>}
 </figure>

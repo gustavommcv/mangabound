@@ -4,14 +4,43 @@ import path from 'node:path';
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
+import { tutorialPresentation } from '../../playwright.tutorial.config';
+
 const directory = path.resolve('website/src/assets/tutorial/generated');
-const captures: {
-  name: string;
-  story: string;
-  width: number;
-  height: number;
-  pixelRatio: number;
-}[] = [];
+// Starlight's guide column is at most 45rem (720 CSS pixels at the default font size).
+const displayedWidth = 720;
+const displayDensities = [1, 2, 3, 4];
+type CaptureVariant = { file: string; width: number; height: number; pixelRatio: number };
+const captures = new Map<
+  string,
+  {
+    name: string;
+    story: string;
+    masterRatio: number;
+    variants: CaptureVariant[];
+  }
+>();
+type Capture = (page: Page, name: string, story: string, region?: Locator) => Promise<void>;
+
+function tutorial(title: string, scenario: (page: Page, capture: Capture) => Promise<void>): void {
+  test(title, async ({ browser }) => {
+    // The 1× pass discovers each region's required densities. Only those contexts are rendered.
+    const ratios = new Set([1]);
+    for (const pixelRatio of ratios) {
+      const context = await browser.newContext({
+        ...tutorialPresentation,
+        deviceScaleFactor: pixelRatio,
+      });
+      try {
+        await scenario(await context.newPage(), (page, name, story, region) =>
+          capture(page, name, story, ratios, region),
+        );
+      } finally {
+        await context.close();
+      }
+    }
+  });
+}
 
 test.beforeAll(async () => {
   await mkdir(directory, { recursive: true });
@@ -24,7 +53,18 @@ test.afterAll(async () => {
       {
         commit:
           process.env.GITHUB_SHA ?? execFileSync('git', ['rev-parse', 'HEAD']).toString().trim(),
-        captures,
+        captures: [...captures.values()].map(({ name, story, masterRatio, variants }) => {
+          const master = variants.find((variant) => variant.pixelRatio === masterRatio);
+          if (!master) throw new Error(`Missing full-size tutorial capture: ${name}`);
+          return {
+            name,
+            story,
+            width: master.width,
+            height: master.height,
+            pixelRatio: masterRatio,
+            variants,
+          };
+        }),
       },
       null,
       2,
@@ -37,7 +77,13 @@ async function openStory(page: Page, story: string): Promise<void> {
   await expect(page.locator('#storybook-root')).toBeVisible();
 }
 
-async function capture(page: Page, name: string, story: string, region?: Locator): Promise<void> {
+async function capture(
+  page: Page,
+  name: string,
+  story: string,
+  requestedRatios: Set<number>,
+  region?: Locator,
+): Promise<void> {
   await page.evaluate(async () => {
     await document.fonts.ready;
     // Documentation illustrates mouse use; keyboard-focus behavior stays tested separately.
@@ -47,11 +93,19 @@ async function capture(page: Page, name: string, story: string, region?: Locator
   const bounds = await target.boundingBox();
   if (bounds === null) throw new Error(`Tutorial region is not visible: ${name}`);
   const pixelRatio = await page.evaluate(() => window.devicePixelRatio);
-  expect(pixelRatio).toBeGreaterThanOrEqual(2);
+  const ratios = [
+    ...new Set(
+      displayDensities.map((density) => Math.ceil((displayedWidth * density) / bounds.width)),
+    ),
+  ];
+  const masterRatio = Math.max(3, ...ratios);
+  for (const ratio of [...ratios, masterRatio]) requestedRatios.add(ratio);
+  if (!ratios.includes(pixelRatio) && pixelRatio !== masterRatio) return;
+  const file = pixelRatio === masterRatio ? `${name}.png` : `${name}@${pixelRatio}x.png`;
   const screenshot = await target.screenshot({
     animations: 'disabled',
     caret: 'hide',
-    path: path.join(directory, `${name}.png`),
+    path: path.join(directory, file),
     scale: 'device',
   });
   const { width, height } = await page.evaluate(async (base64) => {
@@ -64,49 +118,60 @@ async function capture(page: Page, name: string, story: string, region?: Locator
   const edgeRounding = 2 * pixelRatio;
   expect(Math.abs(width - bounds.width * pixelRatio)).toBeLessThanOrEqual(edgeRounding);
   expect(Math.abs(height - bounds.height * pixelRatio)).toBeLessThanOrEqual(edgeRounding);
-  captures.push({ name, story, width, height, pixelRatio });
+  if (pixelRatio === masterRatio) {
+    expect(width).toBeGreaterThanOrEqual(displayedWidth * Math.max(...displayDensities));
+  }
+  const record = captures.get(name) ?? { name, story, masterRatio, variants: [] };
+  record.variants.push({ file, width, height, pixelRatio });
+  captures.set(name, record);
 }
 
-test('the queue illustrates a chapter folder, a library and a complete CBZ', async ({ page }) => {
-  const story = 'workflows-queue--tutorial-inputs';
-  await openStory(page, story);
-  await expect(page.getByRole('list', { name: 'Queued items' }).getByRole('listitem')).toHaveCount(
-    3,
-  );
-  await expect(page.getByRole('button', { name: 'Folder', exact: true })).toBeVisible();
-  await capture(page, 'queue-inputs', story, page.locator('#storybook-root section').first());
-});
+tutorial(
+  'the queue illustrates a chapter folder, a library and a complete CBZ',
+  async (page, capture) => {
+    const story = 'workflows-queue--tutorial-inputs';
+    await openStory(page, story);
+    await expect(
+      page.getByRole('list', { name: 'Queued items' }).getByRole('listitem'),
+    ).toHaveCount(3);
+    await expect(page.getByRole('button', { name: 'Folder', exact: true })).toBeVisible();
+    await capture(page, 'queue-inputs', story, page.locator('#storybook-root section').first());
+  },
+);
 
-test('manual mapping starts offline and shows actual chapter assignment', async ({ page }) => {
-  const story = 'workflows-mapping-editor--manual-with-online-option';
-  await openStory(page, story);
-  await expect(page.getByRole('tab', { name: 'Manual', exact: true })).toHaveAttribute(
-    'aria-selected',
-    'true',
-  );
-  await expect(page.getByRole('button', { name: 'Create first volume' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Create first volume' })).toHaveText(
-    'Create volume 1',
-  );
-  await capture(page, 'manual-mapping-start', story);
-  await page.getByRole('button', { name: 'Create first volume' }).click();
-  await page
-    .getByRole('checkbox', { name: 'Select Chapter 1 — The Long Way Home', exact: true })
-    .check();
-  await page
-    .getByRole('checkbox', { name: 'Select Chapter 2 — A Door Left Open', exact: true })
-    .check();
-  await page.getByRole('button', { name: 'Assign selected', exact: true }).click();
-  await expect(
-    page
-      .getByRole('region', { name: 'Chapters', exact: true })
-      .locator('span')
-      .filter({ hasText: /^Volume 1$/u }),
-  ).toHaveCount(2);
-  await capture(page, 'manual-mapping', story);
-});
+tutorial(
+  'manual mapping starts offline and shows actual chapter assignment',
+  async (page, capture) => {
+    const story = 'workflows-mapping-editor--manual-with-online-option';
+    await openStory(page, story);
+    await expect(page.getByRole('tab', { name: 'Manual', exact: true })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    await expect(page.getByRole('button', { name: 'Create first volume' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Create first volume' })).toHaveText(
+      'Create volume 1',
+    );
+    await capture(page, 'manual-mapping-start', story);
+    await page.getByRole('button', { name: 'Create first volume' }).click();
+    await page
+      .getByRole('checkbox', { name: 'Select Chapter 1 — The Long Way Home', exact: true })
+      .check();
+    await page
+      .getByRole('checkbox', { name: 'Select Chapter 2 — A Door Left Open', exact: true })
+      .check();
+    await page.getByRole('button', { name: 'Assign selected', exact: true }).click();
+    await expect(
+      page
+        .getByRole('region', { name: 'Chapters', exact: true })
+        .locator('span')
+        .filter({ hasText: /^Volume 1$/u }),
+    ).toHaveCount(2);
+    await capture(page, 'manual-mapping', story);
+  },
+);
 
-test('online mapping shows a search and the reviewed suggestion', async ({ page }) => {
+tutorial('online mapping shows a search and the reviewed suggestion', async (page, capture) => {
   const story = 'workflows-mapping-editor--with-metadata-suggestions';
   await openStory(page, story);
   await expect(page.getByRole('button', { name: 'Use these volumes', exact: true })).toHaveCount(2);
@@ -116,25 +181,28 @@ test('online mapping shows a search and the reviewed suggestion', async ({ page 
   await capture(page, 'online-mapping', story);
 });
 
-test('custom dimensions are real controlled fields, not an edited image', async ({ page }) => {
-  const story = 'workflows-conversion-options--normal';
-  await openStory(page, story);
-  await expect(
-    page.getByRole('heading', { name: 'Conversion options', exact: true }),
-  ).toBeFocused();
-  await page.getByLabel(/^Custom width/u).fill('1440');
-  await page.getByLabel(/^Custom height/u).fill('1920');
-  await expect(page.getByLabel(/^Custom width/u)).toHaveValue('1440');
-  await expect(page.getByLabel(/^Custom height/u)).toHaveValue('1920');
-  await capture(
-    page,
-    'device-settings',
-    story,
-    page.getByLabel('Device profile').locator('xpath=ancestor::section[1]'),
-  );
-});
+tutorial(
+  'custom dimensions are real controlled fields, not an edited image',
+  async (page, capture) => {
+    const story = 'workflows-conversion-options--normal';
+    await openStory(page, story);
+    await expect(
+      page.getByRole('heading', { name: 'Conversion options', exact: true }),
+    ).toBeFocused();
+    await page.getByLabel(/^Custom width/u).fill('1440');
+    await page.getByLabel(/^Custom height/u).fill('1920');
+    await expect(page.getByLabel(/^Custom width/u)).toHaveValue('1440');
+    await expect(page.getByLabel(/^Custom height/u)).toHaveValue('1920');
+    await capture(
+      page,
+      'device-settings',
+      story,
+      page.getByLabel('Device profile').locator('xpath=ancestor::section[1]'),
+    );
+  },
+);
 
-test('single-book mode visibly locks the coupled process choices', async ({ page }) => {
+tutorial('single-book mode visibly locks the coupled process choices', async (page, capture) => {
   const story = 'workflows-queue--single-book-active';
   await openStory(page, story);
   await expect(
@@ -151,27 +219,40 @@ test('single-book mode visibly locks the coupled process choices', async ({ page
   );
 });
 
-test('progress details show completed, converting and saving volumes', async ({ page }) => {
-  const story = 'workflows-running--multiple-volumes';
-  await openStory(page, story);
-  await expect(page.getByRole('region', { name: 'Volume details' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Hide details' })).toBeVisible();
-  await capture(page, 'processing-details', story, page.locator('#storybook-root section').first());
-});
+tutorial(
+  'progress details show completed, converting and saving volumes',
+  async (page, capture) => {
+    const story = 'workflows-running--multiple-volumes';
+    await openStory(page, story);
+    await expect(page.getByRole('region', { name: 'Volume details' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Hide details' })).toBeVisible();
+    await capture(
+      page,
+      'processing-details',
+      story,
+      page.locator('#storybook-root section').first(),
+    );
+  },
+);
 
-test('results show repeatable saving and sharing without a focus outline', async ({ page }) => {
-  const story = 'workflows-results--saved';
-  await openStory(page, story);
-  await expect(page.getByRole('heading', { name: '3 books ready' })).toBeVisible();
-  await expect(
-    page.getByRole('button', { name: 'Save all to folder…', exact: true }),
-  ).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Share these books', exact: true })).toBeVisible();
-  await capture(page, 'save-results', story, page.locator('#storybook-root section').first());
-  await expect(page.getByRole('heading', { name: '3 books ready' })).not.toBeFocused();
-});
+tutorial(
+  'results show repeatable saving and sharing without a focus outline',
+  async (page, capture) => {
+    const story = 'workflows-results--saved';
+    await openStory(page, story);
+    await expect(page.getByRole('heading', { name: '3 books ready' })).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Save all to folder…', exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Share these books', exact: true }),
+    ).toBeVisible();
+    await capture(page, 'save-results', story, page.locator('#storybook-root section').first());
+    await expect(page.getByRole('heading', { name: '3 books ready' })).not.toBeFocused();
+  },
+);
 
-test('ready books expose reopening and safe deletion', async ({ page }) => {
+tutorial('ready books expose reopening and safe deletion', async (page, capture) => {
   const story = 'workflows-queue--ready-books';
   await openStory(page, story);
   await expect(page.getByRole('button', { name: 'View books from Vol.01.epub' })).toBeVisible();
@@ -181,7 +262,7 @@ test('ready books expose reopening and safe deletion', async ({ page }) => {
   await capture(page, 'ready-books', story, page.getByRole('region', { name: 'Earlier books' }));
 });
 
-test('sharing explains the interface and then the catalog address', async ({ page }) => {
+tutorial('sharing explains the interface and then the catalog address', async (page, capture) => {
   const setup = 'workflows-share-panel--ready-to-start';
   await openStory(page, setup);
   await expect(page.getByRole('combobox', { name: 'Network interface' })).toBeVisible();

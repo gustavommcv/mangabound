@@ -1,6 +1,14 @@
-import { defineConfig } from '@playwright/test';
+import { defineConfig, type BrowserContextOptions } from '@playwright/test';
 
 import visual from './playwright.visual.config';
+
+export const tutorialPresentation = {
+  baseURL: 'http://127.0.0.1:6007',
+  colorScheme: visual.use?.colorScheme,
+  locale: visual.use?.locale,
+  reducedMotion: visual.use?.reducedMotion,
+  viewport: { width: 1360, height: 960 },
+} satisfies BrowserContextOptions;
 
 // Reuse the browser's presentation settings, never its screenshot baselines or retries.
 export default defineConfig({
@@ -12,10 +20,9 @@ export default defineConfig({
   testDir: './tests/tutorial',
   use: {
     ...visual.use,
-    baseURL: 'http://127.0.0.1:6007',
+    ...tutorialPresentation,
     deviceScaleFactor: 3,
     trace: 'retain-on-failure',
-    viewport: { width: 1360, height: 960 },
   },
   webServer: {
     command: 'http-server storybook-static -a 127.0.0.1 -p 6007 -c-1',

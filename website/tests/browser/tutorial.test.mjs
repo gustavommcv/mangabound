@@ -1,8 +1,11 @@
+import { readFile } from 'node:fs/promises';
+
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import sharp from 'sharp';
 
 import { base } from '../../site.config.mjs';
+import { openFullSizeImage } from '../support/tutorial-images.mjs';
 
 const root = base.replace(/\/?$/, '/');
 test.use({ deviceScaleFactor: 2 });
@@ -30,18 +33,33 @@ async function expectReadableImage(page, name, scope = page) {
   await expect(image).toHaveJSProperty('complete', true);
   await expect.poll(() => image.evaluate((element) => element.naturalWidth)).toBeGreaterThan(0);
   if (name.startsWith('generated/')) {
-    const { sourceWidth, displayedWidth } = await image.evaluate((element) => ({
-      sourceWidth: element.naturalWidth,
-      displayedWidth: element.getBoundingClientRect().width,
-    }));
-    expect(sourceWidth).toBeGreaterThanOrEqual(Math.ceil(displayedWidth * 2));
+    const { sourceWidth, displayedWidth, density } = await image.evaluate(async (element) => {
+      // naturalWidth on a srcset image is density-corrected; decode the selected resource itself.
+      const resource = new Image();
+      resource.src = element.currentSrc;
+      await resource.decode();
+      return {
+        sourceWidth: resource.naturalWidth,
+        displayedWidth: element.getBoundingClientRect().width,
+        density: window.devicePixelRatio,
+      };
+    });
+    expect(sourceWidth).toBeGreaterThanOrEqual(Math.ceil(displayedWidth * density));
   }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
 }
 
-test('published tutorial images retain the source pixels', async ({ page }) => {
+test('published tutorial images and their full-size links retain the source pixels', async ({
+  page,
+}) => {
+  const manifest = JSON.parse(
+    await readFile(
+      new URL('../../src/assets/tutorial/generated/capture.json', import.meta.url),
+      'utf8',
+    ),
+  );
   for (const [route, name] of [
     ['user-guide/processing/', 'generated/processing-details'],
     ['koreader/connecting/', 'koreader/opds-setup'],
@@ -56,20 +74,38 @@ test('published tutorial images retain the source pixels', async ({ page }) => {
     const optimized = await page.request.get(
       await figure.locator('img').evaluate((element) => element.currentSrc),
     );
-    const source = await page.request.get(
+    const fullSize = await page.request.get(
       await figure.locator('a').evaluate((element) => element.href),
     );
     expect(optimized.ok()).toBe(true);
-    expect(source.ok()).toBe(true);
-    const publishedPixels = await sharp(await optimized.body())
-      .ensureAlpha()
-      .raw()
-      .toBuffer();
-    const sourcePixels = await sharp(await source.body())
+    expect(fullSize.ok()).toBe(true);
+    const published = await optimized.body();
+    const { width } = await sharp(published).metadata();
+    const variant = name.startsWith('generated/')
+      ? manifest.captures
+          .find((capture) => `generated/${capture.name}` === name)
+          .variants.find((capture) => capture.width === width)
+      : undefined;
+    const sourceName = variant ? `generated/${variant.file}` : `${name}.png`;
+    const publishedPixels = await sharp(published).ensureAlpha().raw().toBuffer();
+    const sourcePixels = await sharp(
+      await readFile(new URL(`../../src/assets/tutorial/${sourceName}`, import.meta.url)),
+    )
       .ensureAlpha()
       .raw()
       .toBuffer();
     expect(publishedPixels.equals(sourcePixels)).toBe(true);
+    const fullPixels = await sharp(await fullSize.body())
+      .ensureAlpha()
+      .raw()
+      .toBuffer();
+    const masterPixels = await sharp(
+      await readFile(new URL(`../../src/assets/tutorial/${name}.png`, import.meta.url)),
+    )
+      .ensureAlpha()
+      .raw()
+      .toBuffer();
+    expect(fullPixels.equals(masterPixels)).toBe(true);
   }
 });
 
@@ -112,13 +148,8 @@ for (const locale of ['', 'pt-br/']) {
     }, testInfo) => {
       await page.emulateMedia({ colorScheme });
       await page.goto(`${root}${locale}koreader/recommended-settings/`);
-      const fullSize = page.locator('[data-tutorial-image="koreader/status-overlap"] a').first();
-      await fullSize.click();
-      await expect(page).toHaveURL(/status-overlap\.[^/]+\.png$/);
-      await expect(page.locator('img')).toHaveJSProperty('complete', true);
-      await expect
-        .poll(() => page.locator('img').evaluate((element) => element.naturalWidth))
-        .toBe(1072);
+      const fullSize = await openFullSizeImage(page, 'koreader/status-overlap');
+      await expect.poll(() => fullSize.evaluate((element) => element.naturalWidth)).toBe(1072);
       await page.goBack();
       await expect(page.getByText('Kindle 2024', { exact: false })).toBeVisible();
       await expect(page.getByText('2026.07.2-198', { exact: false })).toBeVisible();
@@ -202,4 +233,60 @@ for (const locale of ['', 'pt-br/']) {
       }
     });
   }
+}
+
+for (const density of [1, 2, 3, 4]) {
+  test.describe(`native tutorial alternatives at ${density}×`, () => {
+    test.use({ deviceScaleFactor: density });
+    test('the browser selects readable native sources without always loading the master', async ({
+      page,
+    }, testInfo) => {
+      if (testInfo.project.name === 'desktop')
+        await page.setViewportSize({ width: 1920, height: 1080 });
+      const seen = new Set();
+      const browserImages = new Set();
+      const unneededMasters = new Set();
+      page.on('request', (request) => {
+        if (request.resourceType() === 'image') browserImages.add(request.url());
+      });
+      let selectedBytes = 0;
+      let fullSizeBytes = 0;
+      for (const [route] of applicationPages) {
+        await page.goto(`${root}${route}`);
+        for (const summary of await page.locator('.sl-markdown-content details summary').all())
+          await summary.click();
+        for (const figure of await page.locator('[data-tutorial-image]').all()) {
+          const name = await figure.getAttribute('data-tutorial-image');
+          if (seen.has(name)) continue;
+          seen.add(name);
+          await expectReadableImage(page, name);
+          const image = figure.locator('img');
+          await expect(image).toHaveAttribute('srcset', /\d+w/u);
+          await expect(image).toHaveAttribute('sizes', /^auto,/u);
+          const selectedUrl = await image.evaluate((element) => element.currentSrc);
+          const masterUrl = await figure.locator('a').evaluate((element) => element.href);
+          const selected = await page.request.get(selectedUrl);
+          const master = await page.request.get(masterUrl);
+          if (selectedUrl !== masterUrl) unneededMasters.add(masterUrl);
+          expect(selected.ok()).toBe(true);
+          expect(master.ok()).toBe(true);
+          const selectedData = await selected.body();
+          const masterData = await master.body();
+          selectedBytes += selectedData.length;
+          fullSizeBytes += masterData.length;
+          expect((await sharp(masterData).metadata()).width).toBeGreaterThanOrEqual(2880);
+        }
+      }
+      expect(seen.size).toBe(12);
+      if (density <= 2) {
+        expect(selectedBytes).toBeLessThan(fullSizeBytes);
+        // Native lazy selection must not silently preload the heavyweight fallback as well.
+        for (const url of unneededMasters) expect(browserImages.has(url)).toBe(false);
+      }
+      await testInfo.attach('image-transfer.json', {
+        body: JSON.stringify({ density, selectedBytes, fullSizeBytes }),
+        contentType: 'application/json',
+      });
+    });
+  });
 }
