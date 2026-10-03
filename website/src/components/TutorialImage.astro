@@ -68,10 +68,18 @@ const srcset = capture
   figure {
     margin-block: 1.5rem;
   }
+  a {
+    display: block;
+    overflow: hidden;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: var(--sl-border-radius, 0.5rem);
+    box-shadow: var(--sl-shadow-sm);
+  }
   img {
+    display: block;
     width: 100%;
     height: auto;
-    border-radius: var(--sl-border-radius, 0.5rem);
+    margin: 0;
   }
   figcaption {
     margin-block-start: 0.5rem;

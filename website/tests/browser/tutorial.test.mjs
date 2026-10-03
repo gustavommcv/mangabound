@@ -51,6 +51,84 @@ async function expectReadableImage(page, name, scope = page) {
   );
 }
 
+test('screen captures retain background space around their content', async () => {
+  const manifest = JSON.parse(
+    await readFile(
+      new URL('../../src/assets/tutorial/generated/capture.json', import.meta.url),
+      'utf8',
+    ),
+  );
+  for (const name of ['queue-inputs', 'save-results', 'processing-details']) {
+    const capture = manifest.captures.find((entry) => entry.name === name);
+    for (const variant of capture.variants) {
+      const image = sharp(
+        await readFile(
+          new URL(`../../src/assets/tutorial/generated/${variant.file}`, import.meta.url),
+        ),
+      );
+      // Inspect real PNG pixels, not the declared inset or the capture implementation.
+      const inset = 12 * variant.pixelRatio;
+      for (const strip of [
+        { left: 0, top: 0, width: variant.width, height: inset },
+        { left: 0, top: variant.height - inset, width: variant.width, height: inset },
+        { left: 0, top: 0, width: inset, height: variant.height },
+        { left: variant.width - inset, top: 0, width: inset, height: variant.height },
+      ]) {
+        // Sharp's stats() reads its input, so materialize the extraction first.
+        const edge = await image.clone().extract(strip).toBuffer();
+        const { channels } = await sharp(edge).stats();
+        for (const channel of channels) expect(channel.min).toBe(channel.max);
+      }
+    }
+  }
+});
+
+for (const colorScheme of ['light', 'dark']) {
+  test(`tutorial frames separate images from the page: ${colorScheme}`, async ({
+    page,
+  }, testInfo) => {
+    await page.emulateMedia({ colorScheme });
+    for (const [route, names] of [
+      ['getting-started/quickstart/', ['generated/queue-inputs', 'generated/save-results']],
+      ['koreader/recommended-settings/', ['koreader/status-overlap']],
+    ]) {
+      await page.goto(`${root}${route}`);
+      for (const name of names) {
+        await expectReadableImage(page, name);
+        const link = page.locator(`[data-tutorial-image="${name}"] a`).first();
+        const frame = await link.evaluate((element) => {
+          const style = getComputedStyle(element);
+          return {
+            borders: ['Top', 'Right', 'Bottom', 'Left'].map((side) => ({
+              width: Number.parseFloat(style[`border${side}Width`]),
+              style: style[`border${side}Style`],
+              color: style[`border${side}Color`],
+            })),
+            pageBackground: getComputedStyle(document.documentElement).backgroundColor,
+            shadow: style.boxShadow,
+          };
+        });
+        for (const border of frame.borders) {
+          expect(border.width).toBeGreaterThanOrEqual(1);
+          expect(border.style).toBe('solid');
+          expect(border.color).not.toBe('rgba(0, 0, 0, 0)');
+          expect(border.color).not.toBe(frame.pageBackground);
+        }
+        expect(frame.shadow).not.toBe('none');
+        await link.focus();
+        await expect(link).toBeFocused();
+        await link.evaluate((element) => element.blur());
+        await page
+          .locator(`[data-tutorial-image="${name}"]`)
+          .first()
+          .screenshot({
+            path: testInfo.outputPath(`${name.replaceAll('/', '-')}-${colorScheme}.png`),
+          });
+      }
+    }
+  });
+}
+
 test('published tutorial images and their full-size links retain the source pixels', async ({
   page,
 }) => {

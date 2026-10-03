@@ -10,6 +10,8 @@ const directory = path.resolve('website/src/assets/tutorial/generated');
 // Starlight's guide column is at most 45rem (720 CSS pixels at the default font size).
 const displayedWidth = 720;
 const displayDensities = [1, 2, 3, 4];
+// Screens without their own panel padding include some existing Storybook background.
+const screenInset = 24;
 type CaptureVariant = { file: string; width: number; height: number; pixelRatio: number };
 const captures = new Map<
   string,
@@ -20,7 +22,13 @@ const captures = new Map<
     variants: CaptureVariant[];
   }
 >();
-type Capture = (page: Page, name: string, story: string, region?: Locator) => Promise<void>;
+type Capture = (
+  page: Page,
+  name: string,
+  story: string,
+  region?: Locator,
+  includeContext?: boolean,
+) => Promise<void>;
 
 function tutorial(title: string, scenario: (page: Page, capture: Capture) => Promise<void>): void {
   test(title, async ({ browser }) => {
@@ -32,8 +40,8 @@ function tutorial(title: string, scenario: (page: Page, capture: Capture) => Pro
         deviceScaleFactor: pixelRatio,
       });
       try {
-        await scenario(await context.newPage(), (page, name, story, region) =>
-          capture(page, name, story, ratios, region),
+        await scenario(await context.newPage(), (page, name, story, region, includeContext) =>
+          capture(page, name, story, ratios, region, includeContext),
         );
       } finally {
         await context.close();
@@ -83,6 +91,7 @@ async function capture(
   story: string,
   requestedRatios: Set<number>,
   region?: Locator,
+  includeContext = false,
 ): Promise<void> {
   await page.evaluate(async () => {
     await document.fonts.ready;
@@ -90,24 +99,49 @@ async function capture(
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
   });
   const target = region ?? page.locator('#storybook-root');
+  await target.scrollIntoViewIfNeeded();
   const bounds = await target.boundingBox();
   if (bounds === null) throw new Error(`Tutorial region is not visible: ${name}`);
+  const inset = includeContext ? screenInset : 0;
+  const area = { width: bounds.width + inset * 2, height: bounds.height + inset * 2 };
   const pixelRatio = await page.evaluate(() => window.devicePixelRatio);
   const ratios = [
     ...new Set(
-      displayDensities.map((density) => Math.ceil((displayedWidth * density) / bounds.width)),
+      displayDensities.map((density) => Math.ceil((displayedWidth * density) / area.width)),
     ),
   ];
   const masterRatio = Math.max(3, ...ratios);
   for (const ratio of [...ratios, masterRatio]) requestedRatios.add(ratio);
   if (!ratios.includes(pixelRatio) && pixelRatio !== masterRatio) return;
   const file = pixelRatio === masterRatio ? `${name}.png` : `${name}@${pixelRatio}x.png`;
-  const screenshot = await target.screenshot({
-    animations: 'disabled',
-    caret: 'hide',
+  const options = {
+    animations: 'disabled' as const,
+    caret: 'hide' as const,
     path: path.join(directory, file),
-    scale: 'device',
-  });
+    scale: 'device' as const,
+  };
+  let screenshot: Buffer;
+  if (includeContext) {
+    const pageBounds = await page.evaluate(() => ({
+      scrollX: window.scrollX,
+      scrollY: window.scrollY,
+      width: document.documentElement.scrollWidth,
+      height: document.documentElement.scrollHeight,
+    }));
+    const clip = {
+      x: bounds.x + pageBounds.scrollX - inset,
+      y: bounds.y + pageBounds.scrollY - inset,
+      ...area,
+    };
+    // Fail if the story no longer has this space; never synthesize a border in the bitmap.
+    expect(clip.x).toBeGreaterThanOrEqual(0);
+    expect(clip.y).toBeGreaterThanOrEqual(0);
+    expect(clip.x + clip.width).toBeLessThanOrEqual(pageBounds.width);
+    expect(clip.y + clip.height).toBeLessThanOrEqual(pageBounds.height);
+    screenshot = await page.screenshot({ ...options, clip, fullPage: true });
+  } else {
+    screenshot = await target.screenshot(options);
+  }
   const { width, height } = await page.evaluate(async (base64) => {
     const image = new Image();
     image.src = `data:image/png;base64,${base64}`;
@@ -116,8 +150,8 @@ async function capture(
   }, screenshot.toString('base64'));
   // Element screenshots round both CSS edges before applying device pixel density.
   const edgeRounding = 2 * pixelRatio;
-  expect(Math.abs(width - bounds.width * pixelRatio)).toBeLessThanOrEqual(edgeRounding);
-  expect(Math.abs(height - bounds.height * pixelRatio)).toBeLessThanOrEqual(edgeRounding);
+  expect(Math.abs(width - area.width * pixelRatio)).toBeLessThanOrEqual(edgeRounding);
+  expect(Math.abs(height - area.height * pixelRatio)).toBeLessThanOrEqual(edgeRounding);
   if (pixelRatio === masterRatio) {
     expect(width).toBeGreaterThanOrEqual(displayedWidth * Math.max(...displayDensities));
   }
@@ -135,7 +169,13 @@ tutorial(
       page.getByRole('list', { name: 'Queued items' }).getByRole('listitem'),
     ).toHaveCount(3);
     await expect(page.getByRole('button', { name: 'Folder', exact: true })).toBeVisible();
-    await capture(page, 'queue-inputs', story, page.locator('#storybook-root section').first());
+    await capture(
+      page,
+      'queue-inputs',
+      story,
+      page.locator('#storybook-root section').first(),
+      true,
+    );
   },
 );
 
@@ -231,6 +271,7 @@ tutorial(
       'processing-details',
       story,
       page.locator('#storybook-root section').first(),
+      true,
     );
   },
 );
@@ -247,7 +288,13 @@ tutorial(
     await expect(
       page.getByRole('button', { name: 'Share these books', exact: true }),
     ).toBeVisible();
-    await capture(page, 'save-results', story, page.locator('#storybook-root section').first());
+    await capture(
+      page,
+      'save-results',
+      story,
+      page.locator('#storybook-root section').first(),
+      true,
+    );
     await expect(page.getByRole('heading', { name: '3 books ready' })).not.toBeFocused();
   },
 );
