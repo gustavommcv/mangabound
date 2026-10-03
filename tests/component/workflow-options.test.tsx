@@ -580,19 +580,17 @@ describe('the options kept between sessions', () => {
       render(<App />);
       await user.click(await screen.findByRole('button', { name: /Advanced conversion options/u }));
 
-      await user.click(screen.getByLabelText('Dithered grayscale PNG'));
+      await user.selectOptions(screen.getByLabelText('Page format'), 'png');
       await user.clear(screen.getByLabelText('EPUB language'));
       await user.type(screen.getByLabelText('EPUB language'), 'pt-br');
       expect(
         screen.getByRole('button', { name: 'Restore default for EPUB language' }),
       ).toBeVisible();
-      expect(
-        screen.getByRole('button', { name: 'Restore default for Dithered grayscale PNG' }),
-      ).toBeVisible();
+      expect(screen.getByRole('button', { name: 'Restore default for Page format' })).toBeVisible();
 
       await user.click(screen.getByRole('button', { name: 'Restore default for EPUB language' }));
       expect(screen.getByLabelText('EPUB language')).toHaveValue('en-US');
-      expect(screen.getByLabelText('Dithered grayscale PNG')).toBeChecked();
+      expect(screen.getByLabelText('Page format')).toHaveValue('png');
       expect(screen.getByRole('button', { name: 'Reset to defaults' })).toHaveAttribute(
         'aria-disabled',
         'false',

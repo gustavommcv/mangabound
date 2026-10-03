@@ -37,8 +37,14 @@ describe('parseStoredSettings', () => {
   });
 
   it('reads a file written before an option existed, with that option off', () => {
-    // What a release before the page-layout options kept: none of their keys.
+    // What a release before the page-layout and image options kept: none of their keys.
     const {
+      noProcessing,
+      forceColor,
+      colorAutoContrast,
+      noQuantize,
+      pngLegacy,
+      forcePngRgb,
       webtoon,
       noRotate,
       rotateFirst,
@@ -51,6 +57,7 @@ describe('parseStoredSettings', () => {
     } = { ...defaultMangapressSettings, deviceProfile: 'KS', upscale: false, stretch: true };
     void [webtoon, noRotate, rotateFirst, maximizeStrips, blackBorders];
     void [spreadShift, onePageLandscape, invertDirection];
+    void [noProcessing, forceColor, colorAutoContrast, noQuantize, pngLegacy, forcePngRgb];
 
     const parsed = parseStoredSettings(file({ settings: older }));
 

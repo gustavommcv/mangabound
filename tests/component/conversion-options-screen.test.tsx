@@ -143,7 +143,7 @@ describe('the conversion options screen', () => {
     expect(screen.getByLabelText('Book format')).toHaveValue('epub');
     await user.selectOptions(screen.getByLabelText('Book format'), 'pdf');
     expect(onFormat).not.toHaveBeenCalled();
-    await user.click(screen.getByLabelText('Dithered grayscale PNG'));
+    await user.selectOptions(screen.getByLabelText('Page format'), 'png');
     expect(onSettings).toHaveBeenCalledExactlyOnceWith({
       ...defaultMangapressSettings,
       forcePng: true,

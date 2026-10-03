@@ -9,9 +9,15 @@ export type MetadataTitleMode = 'series-only' | 'combine' | 'title-only';
 export type PageSizeMode = 'fit' | 'enlarge' | 'stretch' | 'fill';
 /** What surrounds a page: the color of its own background, or one that is forced. */
 export type BorderMode = 'automatic' | 'white' | 'black';
+/** Which pages have their tones stretched to full black and white. */
+export type AutoContrastMode = 'monochrome' | 'off' | 'all';
+/** What the JPEG quality still applies to: mangapress saves a JPEG in fewer places as PNG is chosen. */
+export type JpegUse = 'pages' | 'color-pages' | 'cover' | 'nothing';
 
 export interface MangapressSettings {
   readonly deviceProfile: string;
+  /** Every image is packaged exactly as it is: nothing is cropped, resized or saved again. */
+  readonly noProcessing: boolean;
   readonly quiet: boolean;
   /** The images are long strips to cut into pages between panels, not pages. */
   readonly webtoon: boolean;
@@ -38,12 +44,22 @@ export interface MangapressSettings {
   readonly onePageLandscape: boolean;
   /** Pages turn against the reading order. */
   readonly invertDirection: boolean;
+  /** Pages with real color stay in color instead of becoming grayscale. */
+  readonly forceColor: boolean;
   readonly forcePng: boolean;
+  /** A PNG page keeps all 256 grays instead of being reduced to the ones the screen shows. */
+  readonly noQuantize: boolean;
+  /** A PNG page is stored with a whole byte per pixel, for readers that open no smaller kind. */
+  readonly pngLegacy: boolean;
+  /** Pages kept in color are saved as PNG as well, instead of staying JPEG. */
+  readonly forcePngRgb: boolean;
   readonly jpegQuality?: number;
   readonly rotateRight: boolean;
   readonly gamma?: number;
   readonly autoLevel: boolean;
   readonly noAutoContrast: boolean;
+  /** Color pages are autocontrasted too; without it only black-and-white pages are. */
+  readonly colorAutoContrast: boolean;
   readonly interPanelCrop: InterPanelCropMode;
   readonly eraseRainbow: boolean;
   readonly metadataTitle: MetadataTitleMode;
@@ -85,6 +101,7 @@ export interface MangapressSettingIssue {
  */
 export const defaultMangapressSettings: MangapressSettings = Object.freeze({
   deviceProfile: 'KPW6',
+  noProcessing: false,
   quiet: false,
   webtoon: false,
   mangaStyle: true,
@@ -104,10 +121,15 @@ export const defaultMangapressSettings: MangapressSettings = Object.freeze({
   spreadShift: false,
   onePageLandscape: false,
   invertDirection: false,
+  forceColor: false,
   forcePng: false,
+  noQuantize: false,
+  pngLegacy: false,
+  forcePngRgb: false,
   rotateRight: false,
   autoLevel: false,
   noAutoContrast: false,
+  colorAutoContrast: false,
   interPanelCrop: 'disabled',
   eraseRainbow: false,
   metadataTitle: 'series-only',
@@ -148,29 +170,55 @@ export function defaultUpscaleFor(deviceProfile: string): boolean {
 }
 
 /**
+ * The device profiles Kindle Comic Converter starts with color output on for: the readers with a
+ * color screen. Every other profile, including one this list has never heard of, starts in
+ * grayscale.
+ */
+const profilesWithColorByDefault: ReadonlySet<string> = new Set([
+  'KCS',
+  'KSCS',
+  'KoCC',
+  'KoLC',
+  'RmkPP',
+  'RmkPPMove',
+]);
+
+export function defaultForceColorFor(deviceProfile: string): boolean {
+  return profilesWithColorByDefault.has(deviceProfile);
+}
+
+/**
  * The settings after choosing another device. As in Kindle Comic Converter, the choice also puts
- * upscaling back to what that device starts with, so it is the one setting a device change resets.
+ * upscaling and color back to what that device starts with; they are the two settings a device
+ * change resets.
  */
 export function withDeviceProfile(
   settings: MangapressSettings,
   deviceProfile: string,
 ): MangapressSettings {
-  return { ...settings, deviceProfile, upscale: defaultUpscaleFor(deviceProfile) };
+  return {
+    ...settings,
+    deviceProfile,
+    upscale: defaultUpscaleFor(deviceProfile),
+    forceColor: defaultForceColorFor(deviceProfile),
+  };
 }
 
-/** The current device owns the starting upscale value; all other fields use the app defaults. */
+/** The current device owns where upscaling and color start; all other fields use the app defaults. */
 export function defaultValueForSetting<K extends keyof MangapressSettings>(
   settings: MangapressSettings,
   field: K,
 ): MangapressSettings[K] {
-  return (
-    field === 'upscale'
-      ? defaultUpscaleFor(settings.deviceProfile)
-      : defaultMangapressSettings[field]
-  ) as MangapressSettings[K];
+  if (field === 'upscale') {
+    return defaultUpscaleFor(settings.deviceProfile) as MangapressSettings[K];
+  }
+  if (field === 'forceColor') {
+    return defaultForceColorFor(settings.deviceProfile) as MangapressSettings[K];
+  }
+  return defaultMangapressSettings[field];
 }
 
-/** Restoring a device follows the same coupled upscale rule as choosing that device normally. */
+/** Restoring a device follows the same coupled rule as choosing that device normally. */
 export function restoreSettingDefault<K extends keyof MangapressSettings>(
   settings: MangapressSettings,
   field: K,
@@ -220,6 +268,36 @@ export function withBorderMode(settings: MangapressSettings, mode: BorderMode): 
   return { ...settings, whiteBorders: mode === 'white', blackBorders: mode === 'black' };
 }
 
+/** Off wins when both flags are set, as it does in mangapress. */
+export function autoContrastOf(
+  settings: Pick<MangapressSettings, 'noAutoContrast' | 'colorAutoContrast'>,
+): AutoContrastMode {
+  if (settings.noAutoContrast) return 'off';
+  return settings.colorAutoContrast ? 'all' : 'monochrome';
+}
+
+export function withAutoContrast(
+  settings: MangapressSettings,
+  mode: AutoContrastMode,
+): MangapressSettings {
+  return { ...settings, noAutoContrast: mode === 'off', colorAutoContrast: mode === 'all' };
+}
+
+/**
+ * What mangapress still saves as JPEG. The cover of an EPUB is always one, made from the first
+ * image whatever is done to the pages; pages kept in color stay JPEG among PNG pages unless they
+ * are asked for as PNG too.
+ */
+export function jpegUseOf(
+  settings: Pick<MangapressSettings, 'noProcessing' | 'forcePng' | 'forceColor' | 'forcePngRgb'>,
+  format: BookFormat,
+): JpegUse {
+  const coverOnly = format === 'epub' ? 'cover' : 'nothing';
+  if (settings.noProcessing) return coverOnly;
+  if (!settings.forcePng) return 'pages';
+  return settings.forceColor && !settings.forcePngRgb ? 'color-pages' : coverOnly;
+}
+
 /** The page-layout controls another choice can leave without effect. */
 export type PageLayoutControl =
   | 'mangaStyle'
@@ -228,13 +306,28 @@ export type PageLayoutControl =
   | 'noRotate'
   | 'rotateRight'
   | 'maximizeStrips'
+  | 'pageSize'
   | 'borders'
   | 'marginCropping'
+  | 'interPanelCropping'
   | 'autoContrast'
   | 'twoPageView';
 
+/** The image controls another choice can leave without effect. */
+export type ImageControl =
+  | 'colorPages'
+  | 'gamma'
+  | 'eraseRainbow'
+  | 'pageFormat'
+  | 'jpegQuality'
+  | 'noQuantize'
+  | 'pngLegacy'
+  | 'forcePngRgb';
+
 export const webtoonLockReason = 'Not used for webtoon strips.';
 export const stripsLockReason = 'Replaced by restacking strips.';
+export const untouchedLockReason = 'Not used while the images are left as they are.';
+export const pngOnlyLockReason = 'Only for PNG pages.';
 
 /**
  * Why each page-layout control has no effect with the current choices; a control that is not
@@ -245,6 +338,9 @@ export const stripsLockReason = 'Replaced by restacking strips.';
  * the margins or autocontrasted. Restacking strips replaces the handling of wide pages. What is
  * left follows the choice for wide pages: there is a whole copy to place and turn only when one
  * is kept. The three options of a two-page view are written into an EPUB and nowhere else.
+ *
+ * Images left as they are go through none of it. The reading order and the two-page view are
+ * still written into the book, and webtoon strips are still cut into pages.
  */
 export function pageLayoutLocks(
   settings: MangapressSettings,
@@ -252,6 +348,24 @@ export function pageLayoutLocks(
 ): Partial<Record<PageLayoutControl, string>> {
   const locks: Partial<Record<PageLayoutControl, string>> = {};
   if (format !== 'epub') locks.twoPageView = 'Only an EPUB carries these.';
+  if (settings.noProcessing) {
+    for (const control of [
+      'splitter',
+      'rotateFirst',
+      'noRotate',
+      'rotateRight',
+      'maximizeStrips',
+      'pageSize',
+      'borders',
+      'marginCropping',
+      'interPanelCropping',
+      'autoContrast',
+    ] as const) {
+      locks[control] = untouchedLockReason;
+    }
+    if (settings.webtoon) locks.mangaStyle = webtoonLockReason;
+    return locks;
+  }
   if (settings.webtoon) {
     for (const control of [
       'mangaStyle',
@@ -281,6 +395,57 @@ export function pageLayoutLocks(
   } else if (settings.noRotate) {
     locks.rotateRight = 'Nothing is rotated while the whole spread stays upright.';
   }
+  return locks;
+}
+
+/**
+ * Why each image control has no effect with the current choices, on the same terms as
+ * {@link pageLayoutLocks}.
+ *
+ * The three PNG variants need PNG pages; a page that keeps all 256 grays, or one in a PDF, is
+ * already stored with a whole byte per pixel; only pages kept in color can be saved as color PNG.
+ * The JPEG quality is locked when nothing is saved as JPEG (see {@link jpegUseOf}).
+ *
+ * Images left as they are take none of this, with one exception: an EPUB's cover is still made
+ * from the first image, so whether color is kept and the JPEG quality still decide the cover.
+ */
+export function imageLocks(
+  settings: MangapressSettings,
+  format: BookFormat,
+): Partial<Record<ImageControl, string>> {
+  const locks: Partial<Record<ImageControl, string>> = {};
+  if (settings.noProcessing) {
+    for (const control of [
+      'gamma',
+      'eraseRainbow',
+      'pageFormat',
+      'noQuantize',
+      'pngLegacy',
+      'forcePngRgb',
+    ] as const) {
+      locks[control] = untouchedLockReason;
+    }
+    if (format !== 'epub') {
+      locks.colorPages = untouchedLockReason;
+      locks.jpegQuality = untouchedLockReason;
+    }
+    return locks;
+  }
+  if (jpegUseOf(settings, format) === 'nothing') {
+    locks.jpegQuality = 'Nothing is saved as JPEG.';
+  }
+  if (!settings.forcePng) {
+    for (const control of ['noQuantize', 'pngLegacy', 'forcePngRgb'] as const) {
+      locks[control] = pngOnlyLockReason;
+    }
+    return locks;
+  }
+  if (settings.noQuantize) {
+    locks.pngLegacy = 'Already 8-bit while all 256 grays are kept.';
+  } else if (format === 'pdf') {
+    locks.pngLegacy = 'Always 8-bit in a PDF.';
+  }
+  if (!settings.forceColor) locks.forcePngRgb = 'Only when color pages are kept in color.';
   return locks;
 }
 

@@ -33,6 +33,14 @@ const profiles = [
     family: 'kindle',
   },
   {
+    code: 'KCS',
+    name: 'Kindle Colorsoft',
+    width: 1272,
+    height: 1696,
+    grayLevels: 16,
+    family: 'kindle',
+  },
+  {
     code: 'OTHER',
     name: 'Custom',
     width: 0,
@@ -117,7 +125,8 @@ describe('mangapress settings editor', () => {
       'Size and borders',
       'Cropping',
       'Two-page view',
-      'Image processing',
+      'Color and tone',
+      'Page images',
       'Book metadata',
       'Tool behavior',
     ]) {
@@ -128,6 +137,7 @@ describe('mangapress settings editor', () => {
       'Book format',
       'Custom width (optional)',
       'Custom height (optional)',
+      'Use the images as they are',
       'Content',
       'Manga reading order',
       'Wide pages',
@@ -145,12 +155,16 @@ describe('mangapress settings editor', () => {
       'Start on the other side',
       'One page in landscape',
       'Invert page turns',
-      'Dithered grayscale PNG',
-      'JPEG quality (optional)',
-      'Gamma (optional)',
-      'Disable auto contrast',
-      'Auto-level black point',
+      'Color pages',
+      'Autocontrast',
       'Reduce rainbow effect',
+      'Auto-level black point',
+      'Gamma (optional)',
+      'Page format',
+      'JPEG quality (optional)',
+      'Keep all 256 grays',
+      '8-bit PNG',
+      'Color pages as PNG too',
       'ComicInfo title',
       'EPUB language',
       'Keep ComicInfo.xml',
@@ -190,7 +204,7 @@ describe('mangapress settings editor', () => {
     await user.click(screen.getByLabelText('Rotate clockwise'));
     await user.selectOptions(screen.getByLabelText('Book format'), 'cbz');
     await user.click(screen.getByLabelText('Keep ComicInfo.xml'));
-    await user.click(screen.getByLabelText('Dithered grayscale PNG'));
+    await user.selectOptions(screen.getByLabelText('Page format'), 'png');
 
     expect(screen.getByLabelText('Rotate clockwise')).toBeChecked();
     expect(screen.getByLabelText('Keep ComicInfo.xml')).toBeChecked();
@@ -264,7 +278,7 @@ describe('mangapress settings editor', () => {
       'Cropping power',
       'Minimum retained area (%)',
       'Preserved margin (%)',
-      'Disable auto contrast',
+      'Autocontrast',
       'Auto-level black point',
     ]) {
       expect(screen.getByLabelText(label)).toBeDisabled();
@@ -350,7 +364,11 @@ describe('mangapress settings editor', () => {
     expect(screen.getByLabelText('Page size')).toHaveValue('enlarge');
     expect(screen.getByLabelText('Borders')).toHaveValue('automatic');
     expect(screen.getByLabelText('Page cropping')).toHaveValue('margins-and-page-numbers');
+    expect(screen.getByLabelText('Color pages')).toHaveValue('grayscale');
+    expect(screen.getByLabelText('Autocontrast')).toHaveValue('monochrome');
+    expect(screen.getByLabelText('Page format')).toHaveValue('jpeg');
     for (const label of [
+      'Use the images as they are',
       'Whole spread first',
       'Keep the whole spread upright',
       'Rotate clockwise',
@@ -358,10 +376,11 @@ describe('mangapress settings editor', () => {
       'Start on the other side',
       'One page in landscape',
       'Invert page turns',
-      'Dithered grayscale PNG',
-      'Disable auto contrast',
-      'Auto-level black point',
       'Reduce rainbow effect',
+      'Auto-level black point',
+      'Keep all 256 grays',
+      '8-bit PNG',
+      'Color pages as PNG too',
       'Quiet mode',
     ]) {
       expect(screen.getByLabelText(label)).not.toBeChecked();
@@ -484,16 +503,193 @@ describe('mangapress settings editor', () => {
     await user.click(screen.getByRole('button', { name: 'Restore default for Page size' }));
     expect(screen.getByLabelText('Page size')).toHaveValue('fit');
 
+    // PNG pages in a CBZ leave nothing to save as JPEG.
     await user.type(screen.getByLabelText('JPEG quality (optional)'), '80');
-    await user.click(screen.getByLabelText('Dithered grayscale PNG'));
+    await user.selectOptions(screen.getByLabelText('Book format'), 'cbz');
+    await user.selectOptions(screen.getByLabelText('Page format'), 'png');
     expect(screen.getByLabelText('JPEG quality (optional)')).toBeDisabled();
     await user.click(screen.getByRole('button', { name: 'Restore default for JPEG quality' }));
     expect(screen.getByLabelText('JPEG quality (optional)')).toHaveDisplayValue('');
-    expect(screen.getByLabelText('Dithered grayscale PNG')).toBeChecked();
+    expect(screen.getByLabelText('Page format')).toHaveValue('png');
 
     await user.click(screen.getByRole('button', { name: 'Restore default for Device profile' }));
     expect(screen.getByLabelText('Device profile')).toHaveValue('KPW6');
     expect(screen.getByLabelText('Page size')).toHaveValue('enlarge');
-    expect(screen.getByLabelText('Dithered grayscale PNG')).toBeChecked();
+    expect(screen.getByLabelText('Page format')).toHaveValue('png');
+  });
+
+  it('keeps color for a color reader, and puts it back when the device changes', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<StatefulEditor onChange={onChange} />);
+    expect(screen.getByText('Every page becomes grayscale.')).toBeVisible();
+
+    await user.selectOptions(screen.getByLabelText('Device profile'), 'KCS');
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ deviceProfile: 'KCS', forceColor: true }),
+    );
+    expect(screen.getByLabelText('Color pages')).toHaveValue('color');
+    expect(
+      screen.getByText('Pages with real color stay in color; the others still become grayscale.'),
+    ).toBeVisible();
+    // Color is where this device starts, so there is nothing to restore.
+    expect(
+      screen.queryByRole('button', { name: 'Restore default for Color pages' }),
+    ).not.toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText('Color pages'), 'grayscale');
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ forceColor: false }));
+    await user.click(screen.getByRole('button', { name: 'Restore default for Color pages' }));
+    expect(screen.getByLabelText('Color pages')).toHaveValue('color');
+
+    await user.selectOptions(screen.getByLabelText('Device profile'), 'KV');
+    expect(screen.getByLabelText('Color pages')).toHaveValue('grayscale');
+    // Chosen by hand for a grayscale reader, it lasts until the device changes again.
+    await user.selectOptions(screen.getByLabelText('Color pages'), 'color');
+    expect(screen.getByRole('button', { name: 'Restore default for Color pages' })).toBeVisible();
+    await user.selectOptions(screen.getByLabelText('Device profile'), 'KPW6');
+    expect(screen.getByLabelText('Color pages')).toHaveValue('grayscale');
+  });
+
+  it('offers one autocontrast choice, sent as the flag it stands for', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<StatefulEditor onChange={onChange} />);
+    expect(
+      screen.getByText('Tones are stretched to full black and white; color pages are left alone.'),
+    ).toBeVisible();
+
+    await user.selectOptions(screen.getByLabelText('Autocontrast'), 'all');
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ colorAutoContrast: true, noAutoContrast: false }),
+    );
+    expect(screen.getByText('Color pages have their tones stretched as well.')).toBeVisible();
+    expect(screen.getByLabelText('Auto-level black point')).toBeEnabled();
+
+    await user.selectOptions(screen.getByLabelText('Autocontrast'), 'off');
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ colorAutoContrast: false, noAutoContrast: true }),
+    );
+    expect(screen.getByText('Tones are left as they are.')).toBeVisible();
+    expect(screen.getByLabelText('Auto-level black point')).toBeDisabled();
+    expect(screen.getByText('Turn autocontrast on to use black-point leveling.')).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Restore default for Autocontrast' }));
+    expect(screen.getByLabelText('Autocontrast')).toHaveValue('monochrome');
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ colorAutoContrast: false, noAutoContrast: false }),
+    );
+  });
+
+  it('offers the PNG variants for PNG pages, and says what the JPEG quality is still for', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<StatefulEditor onChange={onChange} />);
+    const variants = ['Keep all 256 grays', '8-bit PNG', 'Color pages as PNG too'];
+    const qualityDefault = 'Leave empty for the device profile default (85%).';
+
+    for (const label of variants) expect(screen.getByLabelText(label)).toBeDisabled();
+    expect(screen.getAllByText('Only for PNG pages.')).toHaveLength(3);
+    expect(screen.getByText('Smooth tones in small files. The usual choice.')).toBeVisible();
+    expect(screen.getByText(qualityDefault)).toBeVisible();
+
+    await user.selectOptions(screen.getByLabelText('Page format'), 'png');
+    expect(
+      screen.getByText('Dithered to the grays the screen can show, saved without loss.'),
+    ).toBeVisible();
+    // An EPUB's cover is a JPEG whatever the pages are.
+    expect(screen.getByLabelText('JPEG quality (optional)')).toBeEnabled();
+    expect(screen.getByText(`Only the cover is a JPEG now. ${qualityDefault}`)).toBeVisible();
+    expect(screen.getByLabelText('8-bit PNG')).toBeEnabled();
+    expect(screen.getByLabelText('Color pages as PNG too')).toBeDisabled();
+    expect(screen.getByText('Only when color pages are kept in color.')).toBeVisible();
+
+    await user.click(screen.getByLabelText('8-bit PNG'));
+    await user.click(screen.getByLabelText('Keep all 256 grays'));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ forcePng: true, noQuantize: true, pngLegacy: true }),
+    );
+    expect(screen.getByText('All 256 grays, saved without loss.')).toBeVisible();
+    expect(screen.getByLabelText('8-bit PNG')).toBeDisabled();
+    expect(screen.getByText('Already 8-bit while all 256 grays are kept.')).toBeVisible();
+
+    await user.selectOptions(screen.getByLabelText('Color pages'), 'color');
+    expect(
+      screen.getByText(`For the color pages, which stay JPEG. ${qualityDefault}`),
+    ).toBeVisible();
+    await user.click(screen.getByLabelText('Color pages as PNG too'));
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ forcePngRgb: true }));
+    expect(screen.getByText(`Only the cover is a JPEG now. ${qualityDefault}`)).toBeVisible();
+
+    await user.selectOptions(screen.getByLabelText('Book format'), 'cbz');
+    expect(screen.getByLabelText('JPEG quality (optional)')).toBeDisabled();
+    expect(screen.getByText('Nothing is saved as JPEG.')).toBeVisible();
+  });
+
+  it('leaves the images as they are, locking what would change them', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<StatefulEditor onChange={onChange} />);
+    const changesAnImage = [
+      'Wide pages',
+      'Whole spread first',
+      'Keep the whole spread upright',
+      'Rotate clockwise',
+      'Restack 4-panel strips as 2×2',
+      'Page size',
+      'Borders',
+      'Page cropping',
+      'Cropping power',
+      'Minimum retained area (%)',
+      'Preserved margin (%)',
+      'Inter-panel cropping',
+      'Autocontrast',
+      'Reduce rainbow effect',
+      'Auto-level black point',
+      'Gamma (optional)',
+      'Page format',
+      'Keep all 256 grays',
+      '8-bit PNG',
+      'Color pages as PNG too',
+    ];
+    // Written into the book, or made from the first image, whatever is done to the pages.
+    const stillUsed = [
+      'Device profile',
+      'Content',
+      'Manga reading order',
+      'Start on the other side',
+      'One page in landscape',
+      'Invert page turns',
+      'Color pages',
+      'JPEG quality (optional)',
+    ];
+
+    await user.click(screen.getByLabelText('Use the images as they are'));
+
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ noProcessing: true }));
+    for (const label of changesAnImage) expect(screen.getByLabelText(label)).toBeDisabled();
+    expect(screen.getAllByText('Not used while the images are left as they are.')).toHaveLength(
+      changesAnImage.length,
+    );
+    for (const label of stillUsed) expect(screen.getByLabelText(label)).toBeEnabled();
+    expect(
+      screen.getByText('The pages stay as they are; only the cover follows this.'),
+    ).toBeVisible();
+    // What was chosen is kept for when the images are processed again.
+    expect(screen.getByLabelText('Wide pages')).toHaveValue('both');
+    expect(screen.getByLabelText('Page size')).toHaveValue('enlarge');
+
+    // Only an EPUB has a cover to make.
+    await user.selectOptions(screen.getByLabelText('Book format'), 'cbz');
+    expect(screen.getByLabelText('Color pages')).toBeDisabled();
+    expect(screen.getByLabelText('JPEG quality (optional)')).toBeDisabled();
+
+    await user.click(
+      screen.getByRole('button', { name: 'Restore default for Use the images as they are' }),
+    );
+    expect(screen.getByLabelText('Use the images as they are')).not.toBeChecked();
+    for (const label of ['Wide pages', 'Page size', 'Page format', 'Color pages']) {
+      expect(screen.getByLabelText(label)).toBeEnabled();
+    }
   });
 });

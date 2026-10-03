@@ -30,6 +30,14 @@ const profiles = [
     grayLevels: 16,
     family: 'kindle',
   },
+  {
+    code: 'KCS',
+    name: 'Kindle Colorsoft',
+    width: 1272,
+    height: 1696,
+    grayLevels: 16,
+    family: 'kindle',
+  },
 ] as const;
 
 const meta = {
@@ -123,6 +131,47 @@ export const SpreadsAndBorders: Story = {
     await expect(canvas.getByRole('combobox', { name: 'Borders' })).toHaveValue('black');
     await expect(canvas.getByRole('checkbox', { name: 'Whole spread first' })).toBeDisabled();
     await expect(canvas.getByRole('checkbox', { name: 'Rotate clockwise' })).toBeDisabled();
+  },
+};
+
+/** A color reader with PNG pages: color is kept, and the PNG variants are there to choose. */
+export const ColorAndPng: Story = {
+  args: {
+    settings: {
+      ...defaultMangapressSettings,
+      deviceProfile: 'KCS',
+      forceColor: true,
+      colorAutoContrast: true,
+      forcePng: true,
+      noQuantize: true,
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole('combobox', { name: 'Color pages' })).toHaveValue('color');
+    await expect(canvas.getByRole('combobox', { name: 'Autocontrast' })).toHaveValue('all');
+    await expect(canvas.getByRole('combobox', { name: 'Page format' })).toHaveValue('png');
+    await expect(canvas.getByRole('spinbutton', { name: /^JPEG quality/u })).toBeEnabled();
+    await expect(canvas.getByRole('checkbox', { name: '8-bit PNG' })).toBeDisabled();
+    await expect(canvas.getByRole('checkbox', { name: 'Color pages as PNG too' })).toBeEnabled();
+  },
+};
+
+/** Images left as they are: what would change them is locked, what the book still takes is not. */
+export const UntouchedImages: Story = {
+  args: {
+    settings: { ...defaultMangapressSettings, noProcessing: true },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole('checkbox', { name: 'Use the images as they are' }),
+    ).toBeChecked();
+    await expect(canvas.getByRole('combobox', { name: 'Wide pages' })).toBeDisabled();
+    await expect(canvas.getByRole('combobox', { name: 'Page size' })).toBeDisabled();
+    await expect(canvas.getByRole('combobox', { name: 'Page format' })).toBeDisabled();
+    await expect(canvas.getByRole('checkbox', { name: 'Manga reading order' })).toBeEnabled();
+    await expect(canvas.getByRole('combobox', { name: 'Color pages' })).toBeEnabled();
   },
 };
 

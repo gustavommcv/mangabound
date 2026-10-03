@@ -52,9 +52,10 @@ export const identifierSchema = z.string().min(1).max(200);
 /** The mangapress options a person keeps between sessions (ADR 0014). */
 const mangapressSettingFields = {
   deviceProfile: z.string().trim().min(1).max(40),
-  quiet: z.boolean(),
   // An option added after a release starts with a default: the settings file of someone who
   // updates has no such key, and must still be read (ADR 0014).
+  noProcessing: z.boolean().default(false),
+  quiet: z.boolean(),
   webtoon: z.boolean().default(false),
   mangaStyle: z.boolean(),
   cropping: z.enum(['disabled', 'margins', 'margins-and-page-numbers']),
@@ -73,12 +74,17 @@ const mangapressSettingFields = {
   spreadShift: z.boolean().default(false),
   onePageLandscape: z.boolean().default(false),
   invertDirection: z.boolean().default(false),
+  forceColor: z.boolean().default(false),
   forcePng: z.boolean(),
+  noQuantize: z.boolean().default(false),
+  pngLegacy: z.boolean().default(false),
+  forcePngRgb: z.boolean().default(false),
   jpegQuality: z.number().int().min(1).max(100).optional(),
   rotateRight: z.boolean(),
   gamma: z.number().finite().optional(),
   autoLevel: z.boolean(),
   noAutoContrast: z.boolean(),
+  colorAutoContrast: z.boolean().default(false),
   interPanelCrop: z.enum(['disabled', 'horizontal', 'both']),
   eraseRainbow: z.boolean(),
   metadataTitle: z.enum(['series-only', 'combine', 'title-only']),
