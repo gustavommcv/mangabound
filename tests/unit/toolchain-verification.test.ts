@@ -1,10 +1,16 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
+import { MangapressCliAdapter } from '@/adapters/mangapress/cli';
+import { MangapressConversionAdapter } from '@/adapters/mangapress/conversion-port';
+import { createNodeProcessRunner } from '@/adapters/process/node-process-runner';
 import { loadToolchainManifest } from '@/adapters/toolchain/manifest';
 import { resolveToolchainTarget, verifyBundledToolchain } from '@/adapters/toolchain/verification';
+import { defaultMangapressSettings } from '@/domain/output-profile';
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const manifest = loadToolchainManifest();
@@ -274,5 +280,44 @@ describe('bundled toolchain verification', () => {
     });
 
     expect(status.state).toBe('ready');
+  });
+
+  // The profiles the other tests convert for are Kindles. mangapress names a Kobo's EPUB
+  // `.kepub.epub`, and 0.7.0 and 0.7.1 also reported that as the book's format, which the adapter
+  // refuses: it only showed when the real tool was run for a Kobo (ADR 0035).
+  it('converts for a Kobo profile with the real pinned mangapress', async () => {
+    const target = resolveToolchainTarget(process.platform, process.arch)!;
+    const executableName = target.startsWith('win32-') ? 'mangapress.exe' : 'mangapress';
+    const conversion = new MangapressConversionAdapter(
+      new MangapressCliAdapter(
+        path.join(repositoryRoot, 'vendor', 'toolchain', target, executableName),
+        createNodeProcessRunner(),
+      ),
+    );
+    const outputDirectory = await mkdtemp(path.join(tmpdir(), 'mangabound-kobo-'));
+    try {
+      const book = await conversion.convert(
+        {
+          inputPath: path.join(
+            repositoryRoot,
+            'tests',
+            'fixtures',
+            'e2e',
+            'cbz',
+            'Mangabound Direct.cbz',
+          ),
+          outputDirectory,
+          settings: { ...defaultMangapressSettings, deviceProfile: 'KoC' },
+          format: 'epub',
+        },
+        { onProgress: () => undefined },
+      );
+
+      expect(book.name).toBe('Mangabound Direct.kepub.epub');
+      expect(book.format).toBe('epub');
+      expect(book.bytes).toBeGreaterThan(0);
+    } finally {
+      await rm(outputDirectory, { recursive: true, force: true });
+    }
   });
 });

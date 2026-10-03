@@ -30,6 +30,17 @@ describe('uniqueFileName', () => {
     expect(uniqueFileName('.epub', takenAmong(['.epub']))).toBe('.epub (2)');
   });
 
+  it("keeps a Kobo book's .kepub.epub whole", () => {
+    expect(uniqueFileName('Volume 1.kepub.epub', takenAmong(['Volume 1.kepub.epub']))).toBe(
+      'Volume 1 (2).kepub.epub',
+    );
+    expect(uniqueFileName('Volume 1.KEPUB.EPUB', takenAmong(['Volume 1.KEPUB.EPUB']))).toBe(
+      'Volume 1 (2).KEPUB.EPUB',
+    );
+    // A name that is only that ending has nothing to number before it.
+    expect(uniqueFileName('.kepub.epub', takenAmong(['.kepub.epub']))).toBe('.kepub (2).epub');
+  });
+
   it('lets the caller decide what counts as taken', () => {
     const caseInsensitive = (candidate: string) => candidate.toLowerCase() === 'volume 1.epub';
     expect(uniqueFileName('Volume 1.EPUB', caseInsensitive)).toBe('Volume 1 (2).EPUB');
