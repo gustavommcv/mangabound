@@ -86,6 +86,8 @@ The four text-file writers below share `src/adapters/fs/write-file-atomically.ts
 
 The component tests of the whole `App` are split by topic (`tests/component/workflow-*.test.tsx`: the queue, the options, process control, sharing, libraries, and the details of a book). They share a fake bridge and fixtures from `tests/component/support`, and each file installs its own bridge, so one can be run alone.
 
-## Documentation media
+## Documentation website
 
 The independent Astro/Starlight package under `website/` does not import application modules. Documentation CI first builds Storybook from the same checkout and captures selected real UI states with Playwright (`tests/tutorial`). It supplies native PNG variants and their manifest as an artifact to both site verification jobs and the production build; Astro optimizes them losslessly for publication. Native browser `srcset`/lazy auto sizing selects the appropriate variant; full-size links use Astro's image-service URL in development and production. This needs no image-selection script, external image service or bitmap upscaling. The guide and automatic app images track `main`, not release tags (ADR 0034). KOReader captures are manually supplied and versioned separately. These illustrations never update the visual-regression baselines or enter the application installer. See [the website guide](../website/README.md) and [media records](../website/MEDIA.md).
+
+The website's checks include an all-dependency, all-severity npm audit through lockfile-pinned `audit-ci`. Any temporary owner-approved exception is explicitly scoped and expires; its evidence, guards and removal procedure live in [website/SECURITY.md](../website/SECURITY.md). This does not change the desktop application's production-dependency audit or include website tooling in the installer.

@@ -30,6 +30,10 @@ The website package's `npm run check` runs formatting, linting, Astro/TypeScript
 
 Link verification resolves the URLs the browser will use, using the shared `site.config.mjs` deployment base. Unit tests deliberately include broken routes, anchors, media, and Windows paths; a green check must prove those failures are detectable. The pure verification helpers have a 100% line/branch/function coverage gate using Node's built-in test coverage. External links are counted but not fetched in CI: review primary sources when changing technical guidance, without depending on third-party uptime for every build.
 
+## Dependency audit
+
+Before publishing, `npm run check` also runs `npm run audit`: npm's full dependency report checked by lockfile-pinned `audit-ci`, with every severity blocking by default. [SECURITY.md](SECURITY.md) records the owner-approved, expiring exception and its exposure analysis, scope guards, regression tests, and removal procedure. Do not replace this gate with a higher severity threshold or omit development dependencies. The desktop application's audit is separate and unchanged.
+
 ## Write or translate a page
 
 - Add the English page and the same relative path under `src/content/docs/pt-br/` together. Parity checks page presence, not translation quality; review both texts.
