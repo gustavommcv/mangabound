@@ -20,6 +20,8 @@ Open <http://localhost:4321/mangabound/>. The root `site:media` command generate
 
 `npm run site:build` generates `website/dist/`; `npm run site:preview` serves that production output, including the Pagefind search index. Search must be tested against a production build, not only the development server.
 
+Tutorial app captures render at 3× pixel density, separately from visual-regression baselines, and Astro publishes lossless WebP. Do not upscale old captures to make them appear higher resolution. Native expandable steps repeat the main image at the relevant step, using the same asset. See [the media conventions](MEDIA.md) for capture checks and supplied-reader image provenance.
+
 On Linux, Playwright may need `npx playwright install --with-deps chromium`. If a local browser download is unavailable, `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` can point to an existing Chromium executable. CI always installs Playwright's matching browser.
 
 Stop any manual development or preview server before running browser checks: Astro's server locks apply per project, even on different ports. Use `npm exec -- astro dev stop` or `npm exec -- astro preview stop` for a server you started. The tests start their own fresh servers and deliberately do not reuse an existing one.

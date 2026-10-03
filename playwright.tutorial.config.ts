@@ -13,6 +13,7 @@ export default defineConfig({
   use: {
     ...visual.use,
     baseURL: 'http://127.0.0.1:6007',
+    deviceScaleFactor: 3,
     trace: 'retain-on-failure',
     viewport: { width: 1360, height: 960 },
   },

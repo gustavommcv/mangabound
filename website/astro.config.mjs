@@ -9,6 +9,12 @@ export default defineConfig({
   site,
   base,
   trailingSlash: 'always',
+  image: {
+    service: {
+      entrypoint: 'astro/assets/services/sharp',
+      config: { webp: { lossless: true } },
+    },
+  },
   // This package must not load the Electron application's parent PostCSS configuration.
   vite: { css: { postcss: { plugins: [] } } },
   devToolbar: {

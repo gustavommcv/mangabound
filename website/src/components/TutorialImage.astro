@@ -24,7 +24,7 @@ if (!source)
 
 <figure data-tutorial-image={name}>
   <a href={source.src} title={fullSizeLabel}>
-    <Image src={source} alt={alt} format="webp" loading="lazy" />
+    <Image src={source} alt={alt} format="webp" quality="max" loading="lazy" />
   </a>
   {caption && <figcaption>{caption}</figcaption>}
 </figure>

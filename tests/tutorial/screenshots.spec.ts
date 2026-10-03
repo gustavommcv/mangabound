@@ -5,7 +5,13 @@ import path from 'node:path';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 const directory = path.resolve('website/src/assets/tutorial/generated');
-const captures: { name: string; story: string }[] = [];
+const captures: {
+  name: string;
+  story: string;
+  width: number;
+  height: number;
+  pixelRatio: number;
+}[] = [];
 
 test.beforeAll(async () => {
   await mkdir(directory, { recursive: true });
@@ -37,12 +43,28 @@ async function capture(page: Page, name: string, story: string, region?: Locator
     // Documentation illustrates mouse use; keyboard-focus behavior stays tested separately.
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
   });
-  await (region ?? page.locator('#storybook-root')).screenshot({
+  const target = region ?? page.locator('#storybook-root');
+  const bounds = await target.boundingBox();
+  if (bounds === null) throw new Error(`Tutorial region is not visible: ${name}`);
+  const pixelRatio = await page.evaluate(() => window.devicePixelRatio);
+  expect(pixelRatio).toBeGreaterThanOrEqual(2);
+  const screenshot = await target.screenshot({
     animations: 'disabled',
     caret: 'hide',
     path: path.join(directory, `${name}.png`),
+    scale: 'device',
   });
-  captures.push({ name, story });
+  const { width, height } = await page.evaluate(async (base64) => {
+    const image = new Image();
+    image.src = `data:image/png;base64,${base64}`;
+    await image.decode();
+    return { width: image.naturalWidth, height: image.naturalHeight };
+  }, screenshot.toString('base64'));
+  // Element screenshots round both CSS edges before applying device pixel density.
+  const edgeRounding = 2 * pixelRatio;
+  expect(Math.abs(width - bounds.width * pixelRatio)).toBeLessThanOrEqual(edgeRounding);
+  expect(Math.abs(height - bounds.height * pixelRatio)).toBeLessThanOrEqual(edgeRounding);
+  captures.push({ name, story, width, height, pixelRatio });
 }
 
 test('the queue illustrates a chapter folder, a library and a complete CBZ', async ({ page }) => {
