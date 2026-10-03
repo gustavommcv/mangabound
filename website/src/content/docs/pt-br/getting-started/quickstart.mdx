@@ -3,7 +3,7 @@ title: 'Guia rápido'
 description: 'Adicione, organize, processe e salve seu primeiro mangá.'
 ---
 
-import MediaSlot from '../../../../components/MediaSlot.astro';
+import TutorialImage from '../../../../components/TutorialImage.astro';
 
 ## 1. Adicione seu mangá
 
@@ -11,7 +11,10 @@ Arraste uma pasta de mangá ou CBZ para a fila ou use **Files** ou **Folder**. V
 
 Uma pasta contém capítulos separados. Um CBZ avulso é tratado como volume completo; para CBZs de capítulos individuais, adicione a pasta que os contém.
 
-<MediaSlot id="quickstart-add" />
+<TutorialImage
+  name="generated/queue-inputs"
+  alt="Uma pasta de capítulos, uma biblioteca e um CBZ na fila."
+/>
 
 ## 2. Confira os volumes
 
@@ -39,7 +42,10 @@ Use **Save as…** ao lado de um livro ou **Save all to folder…** para vários
 
 **Share these books** permite que o KOReader os baixe pela rede local, mesmo antes de exportar uma cópia. Siga o [guia de compartilhamento](../../koreader/opds-sharing/).
 
-<MediaSlot id="quickstart-save" />
+<TutorialImage
+  name="generated/save-results"
+  alt="Três livros prontos com Save as, Save all to folder e Share these books."
+/>
 
 :::note[Não descarte sua única cópia]
 Livros prontos ainda não salvos continuam em **Ready books** após reiniciar o app. **Delete** remove os livros pendentes de uma conversão, não apenas sua linha. Salve primeiro o que quiser preservar. [Como salvar e excluir](../../user-guide/exporting/).

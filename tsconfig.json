@@ -29,6 +29,7 @@
     ".storybook/**/*.tsx",
     "forge.config.ts",
     "playwright.visual.config.ts",
+    "playwright.tutorial.config.ts",
     "src/**/*.ts",
     "src/**/*.tsx",
     "tests/**/*.ts",

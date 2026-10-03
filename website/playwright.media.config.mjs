@@ -6,6 +6,7 @@ import { base } from './site.config.mjs';
 export default defineConfig({
   ...production,
   testDir: './tests/media',
+  outputDir: './test-results/media',
   use: { ...production.use, baseURL: 'http://127.0.0.1:4331' },
   webServer: {
     command: 'npm run dev -- --host 127.0.0.1 --port 4331',

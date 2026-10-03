@@ -74,3 +74,16 @@ export const NoInterfacesDetected: Story = {
     onStop: () => undefined,
   },
 };
+
+/** A fictional address with the application's fixed port, not an actual network service. */
+export const TutorialSharing: Story = {
+  args: {
+    ...Sharing.args,
+    status: {
+      active: true,
+      url: 'http://192.168.1.20:48123',
+      interfaceAddress: '192.168.1.20',
+      port: 48123,
+    },
+  },
+};

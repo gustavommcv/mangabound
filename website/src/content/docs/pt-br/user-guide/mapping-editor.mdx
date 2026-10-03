@@ -3,7 +3,7 @@ title: 'Organização de volumes'
 description: 'Agrupe capítulos manualmente ou confira uma sugestão online.'
 ---
 
-import MediaSlot from '../../../../components/MediaSlot.astro';
+import TutorialImage from '../../../../components/TutorialImage.astro';
 
 O editor define a quais volumes pertencem os capítulos locais. As três abas de **Chapters from** trabalham na mesma organização: você pode corrigir uma sugestão ou criar volumes do zero.
 
@@ -16,14 +16,36 @@ Use **Edit chapter mapping** para abrir os controles manuais quando precisar cor
 ## Manual: sem consulta online
 
 1. Selecione **Manual**. A aba abre automaticamente quando nenhum volume é encontrado nos nomes.
-2. Use **Create volume** para adicionar o primeiro volume.
+2. Use **Create volume 1** para adicionar o primeiro volume.
 3. Selecione capítulos na lista, escolha o volume de destino e use **Assign selected**. Para capítulos numerados consecutivos, use **Assign range**.
 4. Repita para os outros volumes. Atribuir um capítulo já colocado o move, sem duplicá-lo.
 5. Resolva os problemas listados e use **Confirm mapping**.
 
 Use os controles do editor para alterar números de volume ou mesclar volumes. Os botões de desfazer/refazer permitem reverter alterações.
 
-<MediaSlot id="manual-mapping" />
+<TutorialImage
+  name="generated/manual-mapping"
+  alt="Os dois primeiros capítulos atribuídos ao Volume 1 no editor manual."
+/>
+
+<details>
+<summary>Ver passo a passo</summary>
+
+Comece em **Manual** e use **Create volume 1**.
+
+<TutorialImage
+  name="generated/manual-mapping-start"
+  alt="O editor manual sem volumes, oferecendo Create volume 1."
+/>
+
+Selecione capítulos, escolha o volume e use **Assign selected**.
+
+<TutorialImage
+  name="generated/manual-mapping"
+  alt="Os dois primeiros capítulos atribuídos ao Volume 1 no editor manual."
+/>
+
+</details>
 
 ## Online source: sugestões opcionais
 
@@ -31,7 +53,29 @@ Escolha **Online source**, selecione MangaDex, informe o título e pressione **S
 
 Escolha a obra com **Use these volumes**, confira o resumo e confirme ou use **Edit chapter mapping**. Uma sugestão pode estar incompleta ou diferir da sua edição; confira capítulos especiais e decimais. Se a obra não existir na fonte, use **Manual**.
 
-<MediaSlot id="online-mapping" />
+<TutorialImage
+  name="generated/online-mapping"
+  alt="Dois volumes sugeridos prontos para revisar e confirmar."
+/>
+
+<details>
+<summary>Ver passo a passo</summary>
+
+Busque o título e escolha o resultado correspondente com **Use these volumes**.
+
+<TutorialImage
+  name="generated/online-mapping-search"
+  alt="Busca demonstrativa com dois resultados e a ação Use these volumes."
+/>
+
+Confira os volumes sugeridos antes de confirmar ou editar a organização.
+
+<TutorialImage
+  name="generated/online-mapping"
+  alt="Dois volumes sugeridos prontos para revisar e confirmar."
+/>
+
+</details>
 
 ## Pulando o agrupamento
 

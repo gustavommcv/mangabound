@@ -3,7 +3,7 @@ title: 'Saving and ready books'
 description: 'Save, reopen, share, or safely discard pending conversions.'
 ---
 
-import MediaSlot from '../../../components/MediaSlot.astro';
+import TutorialImage from '../../../components/TutorialImage.astro';
 
 ## Save a copy
 
@@ -13,7 +13,10 @@ You can save again while the pending books remain available. Batch saving does n
 
 If saving fails or shows a warning, read the message and retry. A book may have been copied even if recording it in the destination catalog failed; check that folder before making another copy. The pending copy remains available for recovery.
 
-<MediaSlot id="save-results" />
+<TutorialImage
+  name="generated/save-results"
+  alt="Finished books with individual saving, Save all to folder and sharing."
+/>
 
 ## Open or share
 
@@ -27,7 +30,10 @@ Pending books are stored in Mangabound's persistent local app data, not the OS t
 
 When every book in a completed conversion has been successfully saved and recorded, its pending copies can be cleaned up on app exit. The exported copies remain where you saved them. Keep your own backups; pending app data is not a permanent library.
 
-<MediaSlot id="ready-books" />
+<TutorialImage
+  name="generated/ready-books"
+  alt="Ready books with actions to reopen or delete the pending conversion."
+/>
 
 ## Delete pending books
 

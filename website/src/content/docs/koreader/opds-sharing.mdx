@@ -3,7 +3,7 @@ title: 'Local sharing'
 description: 'Share pending books or a library over your local network.'
 ---
 
-import MediaSlot from '../../../components/MediaSlot.astro';
+import TutorialImage from '../../../components/TutorialImage.astro';
 
 Share books with KOReader over your local network. Open Mangabound's **OPDS catalog** on the reader and choose which books to download.
 
@@ -18,7 +18,29 @@ The address looks like `http://192.168.1.150:48123/`. Use the one shown in your 
 
 Open **Recently converted** to find your latest books first. **Other files** lists additional books from the shared library.
 
-<MediaSlot id="share-panel" />
+<TutorialImage
+  name="generated/share-panel"
+  alt="Sharing is active with a catalog address and Copy and Stop sharing actions."
+/>
+
+<details>
+<summary>Show the steps</summary>
+
+Choose the network interface your reader can reach and use **Start sharing**.
+
+<TutorialImage
+  name="generated/share-setup"
+  alt="Network interface selection, optional credentials and Start sharing."
+/>
+
+Use the catalog address shown after sharing starts. Keep Mangabound open during downloads.
+
+<TutorialImage
+  name="generated/share-panel"
+  alt="Sharing is active with a catalog address and Copy and Stop sharing actions."
+/>
+
+</details>
 
 :::caution[Trusted local networks only]
 Sharing uses HTTP. Optional Basic authentication restricts access but does not encrypt credentials or books. Do not expose the port to the internet or use it on an untrusted network.

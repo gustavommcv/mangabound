@@ -3,7 +3,7 @@ title: 'Quickstart'
 description: 'Add, organize, process, and save your first manga.'
 ---
 
-import MediaSlot from '../../../components/MediaSlot.astro';
+import TutorialImage from '../../../components/TutorialImage.astro';
 
 ## 1. Add your manga
 
@@ -11,7 +11,10 @@ Drag a manga folder or CBZ into the queue, or use **Files** or **Folder**. Click
 
 A folder holds separate chapters. A single CBZ is treated as one complete volume; for separate chapter CBZs, add their containing folder instead.
 
-<MediaSlot id="quickstart-add" />
+<TutorialImage
+  name="generated/queue-inputs"
+  alt="A chapter folder, a library and a CBZ in the queue."
+/>
 
 ## 2. Check the volumes
 
@@ -39,7 +42,10 @@ Use **Save as…** beside a book, or **Save all to folder…** for several books
 
 **Share these books** lets KOReader download them over your local network, even before you export a copy. Follow the [sharing guide](../../koreader/opds-sharing/).
 
-<MediaSlot id="quickstart-save" />
+<TutorialImage
+  name="generated/save-results"
+  alt="Three finished books with Save as, Save all to folder and Share these books."
+/>
 
 :::note[Do not discard your only copy]
 Unsaved finished books remain under **Ready books** after restarting the app. **Delete** removes a conversion's pending books, not just its row. Save anything you want to keep first. [How saving and deletion work](../../user-guide/exporting/).

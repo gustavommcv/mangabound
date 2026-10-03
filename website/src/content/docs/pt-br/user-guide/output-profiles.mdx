@@ -3,7 +3,7 @@ title: 'Configurações de conversão'
 description: 'Escolha dispositivo, formato e ajustes de imagem.'
 ---
 
-import MediaSlot from '../../../../components/MediaSlot.astro';
+import TutorialImage from '../../../../components/TutorialImage.astro';
 
 ## Dispositivo e formato
 
@@ -17,7 +17,12 @@ Escolha seu modelo em **Device**. Para definir o tamanho das páginas, abra **Ad
 
 A compatibilidade depende do aplicativo de leitura, não apenas do dispositivo. O leitor nativo do Kindle não abre EPUB diretamente: use um serviço de transferência/conversão compatível ou um leitor instalado, como KOReader. O KOReader trata EPUB de forma diferente de CBZ/PDF; veja [configurações do leitor](../../koreader/recommended-settings/).
 
-<MediaSlot id="device-settings" />
+<TutorialImage
+  name="generated/device-settings"
+  alt="Perfil do dispositivo e formato do livro, com largura 1440 e altura 1920 personalizadas."
+/>
+
+Essas dimensões são apenas um exemplo; use o tamanho adequado à sua tela.
 
 ## Advanced conversion options
 
@@ -36,6 +41,9 @@ Ative **Create one book for the series** na fila para reunir seus capítulos e v
 
 Esse modo usa EPUB e mantém as duas etapas ativadas. Desative-o para mudar o formato ou as etapas. Livros combinados maiores podem demorar mais para abrir no e-reader.
 
-<MediaSlot id="single-book" />
+<TutorialImage
+  name="generated/single-book"
+  alt="Create one book for the series ativado, com as etapas e o formato EPUB bloqueados."
+/>
 
 A CLI independente tem padrões próprios; não presuma que sejam iguais aos da interface. Para uso no terminal, veja [mangapress](../../cli/mangapress/).

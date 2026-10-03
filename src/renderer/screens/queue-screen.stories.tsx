@@ -193,6 +193,11 @@ export const WithLibrary: Story = {
   args: { rows: [libraryRow, ...rows.slice(2, 3)] },
 };
 
+/** The guide illustrates the three supported inputs without pending or failed rows. */
+export const TutorialInputs: Story = {
+  args: { rows: [...rows.slice(0, 1), libraryRow, ...rows.slice(2, 3)] },
+};
+
 export const ReadyBooks: Story = {
   args: {
     pendingRuns: [

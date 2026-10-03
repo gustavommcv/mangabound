@@ -3,7 +3,7 @@ title: 'Processing'
 description: 'Understand stages, volume progress, cancellation, and failures.'
 ---
 
-import MediaSlot from '../../../components/MediaSlot.astro';
+import TutorialImage from '../../../components/TutorialImage.astro';
 
 After **Process**, Mangabound performs the selected steps:
 
@@ -12,7 +12,10 @@ After **Process**, Mangabound performs the selected steps:
 
 The overall bar tracks the run. Under **Show details**, **Saving** means a book is being packaged or written. Its bar stays below 100% until that finishes, even after all pages have been processed.
 
-<MediaSlot id="processing-details" />
+<TutorialImage
+  name="generated/processing-details"
+  alt="Overall progress with individual volumes completed, converting, saving and waiting."
+/>
 
 ## Cancel or handle a failure
 

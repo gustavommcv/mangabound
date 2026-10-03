@@ -21,9 +21,9 @@ Use Conventional Commit-style subjects where practical. Architecture changes req
 
 ### Documentation website
 
-The Astro/Starlight website is a separate package under `website/`, with its own lockfile and gates; `docs/` holds only the contributor documents (architecture, ADRs, releases) that GitHub renders. For website changes, also run `npm --prefix website ci`, install its Playwright browser, and run `npm --prefix website run check` (from the root, `npm run site:dev` starts it). This checks the built site, both language trees, links and media, keyboard navigation, search, mobile layout, accessibility, and development-only media markers on Windows and Linux CI. The application's checks do not replace these gates, and website checks do not replace the application's CI.
+The Astro/Starlight website is a separate package under `website/`, with its own lockfile and gates; `docs/` holds only the contributor documents (architecture, ADRs, releases) that GitHub renders. For website changes, also run `npm --prefix website ci`, install Playwright's Chromium, and run `npm run site:check`. The root command generates tutorial images from the static Storybook build before running the website's checks. `npm run site:dev` does the same before starting a local guide. This checks the built site, both language trees, links and media, keyboard navigation, search, mobile layout, accessibility, collapsible tutorial steps, and development-only media markers on Windows and Linux CI. The application's checks do not replace these gates, and website checks do not replace the application's CI.
 
-Read [the website contributor guide](website/README.md) and [the tutorial media plan](website/MEDIA.md). Keep English and Portuguese pages together, preserve the actual English application labels, and link to canonical architecture/protocol/provider documents instead of copying them into a second reference. Screenshots and GIFs must match released behavior and never be the only instructions for a task.
+Read [the website contributor guide](website/README.md) and [the tutorial media plan](website/MEDIA.md). Keep English and Portuguese pages together, preserve the actual English application labels, and link to canonical architecture/protocol/provider documents instead of copying them into a second reference. The guide and automatic app captures track `main`, which may contain changes not yet released (ADR 0034). KOReader images identify the supplied device/version. Media must never be the only instructions for a task.
 
 ## The gates, and what each is for
 
@@ -72,12 +72,13 @@ npm run storybook
 
 then open `http://localhost:6006`. The sidebar lists everything under `Workflows/`, `Shell/` and so on; each story is one state, such as "Queue / With items" or "Reset options / Asking to confirm".
 
-We use it for four things:
+We use it for five things:
 
 1. **A reference for how every state looks,** including the ones that are hard to reach in the real app, such as an error, a failed step, or a library where one title needs volumes.
 2. **An accessibility check on every state.** Each story is scanned with axe against WCAG A and AA, and a violation fails `npm run test:stories`.
 3. **Interaction tests.** A story can have a `play` function that clicks and types as a person would, and asserts what happens (for example, opening the Share panel).
 4. **Visual regression.** `npm run test:visual` takes a screenshot of each story and compares it with the baseline in `tests/visual/__screenshots__`. A change that alters how something looks fails until the baseline is deliberately updated.
+5. **Tutorial images.** `npm run site:media` builds Storybook and uses Playwright to capture selected states and interactions into the ignored `website/src/assets/tutorial/generated/` directory. Documentation CI shares one artifact with both site verification jobs and publication. These images do not change or approve visual baselines.
 
 **Writing a story.** Put `<component>.stories.tsx` next to the component. Give it a `title`, default `args` (the props), and one exported story per state:
 
