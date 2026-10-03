@@ -32,6 +32,7 @@ async function expectReadableImage(page, name, scope = page) {
   await expect(image).toHaveAttribute('height', /^[1-9]\d*$/);
   await expect(image).toHaveJSProperty('complete', true);
   await expect.poll(() => image.evaluate((element) => element.naturalWidth)).toBeGreaterThan(0);
+  await image.evaluate((element) => element.decode());
   if (name.startsWith('generated/')) {
     const { sourceWidth, displayedWidth, density } = await image.evaluate(async (element) => {
       // naturalWidth on a srcset image is density-corrected; decode the selected resource itself.
@@ -90,6 +91,8 @@ for (const colorScheme of ['light', 'dark']) {
     await page.emulateMedia({ colorScheme });
     for (const [route, names] of [
       ['getting-started/quickstart/', ['generated/queue-inputs', 'generated/save-results']],
+      ['user-guide/exporting/', ['generated/ready-books']],
+      ['user-guide/output-profiles/', ['generated/single-book']],
       ['koreader/recommended-settings/', ['koreader/status-overlap']],
     ]) {
       await page.goto(`${root}${route}`);
@@ -98,6 +101,8 @@ for (const colorScheme of ['light', 'dark']) {
         const link = page.locator(`[data-tutorial-image="${name}"] a`).first();
         const frame = await link.evaluate((element) => {
           const style = getComputedStyle(element);
+          const bounds = element.getBoundingClientRect();
+          const image = element.querySelector('img').getBoundingClientRect();
           return {
             borders: ['Top', 'Right', 'Bottom', 'Left'].map((side) => ({
               width: Number.parseFloat(style[`border${side}Width`]),
@@ -105,6 +110,13 @@ for (const colorScheme of ['light', 'dark']) {
               color: style[`border${side}Color`],
             })),
             pageBackground: getComputedStyle(document.documentElement).backgroundColor,
+            // The two outlines need visible space, even when the screenshot has rounded corners.
+            gaps: [
+              image.top - bounds.top - Number.parseFloat(style.borderTopWidth),
+              bounds.right - image.right - Number.parseFloat(style.borderRightWidth),
+              bounds.bottom - image.bottom - Number.parseFloat(style.borderBottomWidth),
+              image.left - bounds.left - Number.parseFloat(style.borderLeftWidth),
+            ],
             shadow: style.boxShadow,
           };
         });
@@ -115,6 +127,8 @@ for (const colorScheme of ['light', 'dark']) {
           expect(border.color).not.toBe(frame.pageBackground);
         }
         expect(frame.shadow).not.toBe('none');
+        for (const gap of frame.gaps) expect(gap).toBeGreaterThanOrEqual(6);
+        expect(Math.max(...frame.gaps) - Math.min(...frame.gaps)).toBeLessThanOrEqual(0.5);
         await link.focus();
         await expect(link).toBeFocused();
         await link.evaluate((element) => element.blur());
@@ -123,6 +137,8 @@ for (const colorScheme of ['light', 'dark']) {
           .first()
           .screenshot({
             path: testInfo.outputPath(`${name.replaceAll('/', '-')}-${colorScheme}.png`),
+            // Sticky site navigation must not cover an isolated image diagnostic.
+            style: 'header { visibility: hidden !important; }',
           });
       }
     }
