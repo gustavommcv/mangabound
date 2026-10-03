@@ -17,11 +17,14 @@ const lock = JSON.parse(await readFile(new URL('package-lock.json', root), 'utf8
 const fixture = JSON.parse(
   await readFile(new URL('tests/fixtures/cache-advisory.json', root), 'utf8'),
 );
+const ciReport = JSON.parse(
+  await readFile(new URL('tests/fixtures/cache-audit-ci-report.json', root), 'utf8'),
+);
 
 /** Exercise the real audit-ci CLI and npm, without depending on the public registry's uptime. */
 async function audit(
   t,
-  { config = policy, advisories = fixture, packages = lock, status = 200 } = {},
+  { config = policy, advisories = fixture, packages = lock, status = 200, report } = {},
 ) {
   const directory = await mkdtemp(path.join(tmpdir(), 'mangabound-audit-test-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
@@ -29,6 +32,27 @@ async function audit(
   await writeFile(path.join(directory, 'package-lock.json'), JSON.stringify(packages));
   const configPath = path.join(directory, 'audit-ci.json');
   await writeFile(configPath, JSON.stringify(config));
+  const env = {
+    ...process.env,
+    npm_config_cache: path.join(directory, 'cache'),
+    npm_config_fetch_retries: '0',
+    npm_config_update_notifier: 'false',
+  };
+  if (report !== undefined) {
+    // Replay the real CI report at the npm CLI boundary, not audit-ci's internals.
+    const script = path.join(directory, 'npm.cjs');
+    await writeFile(
+      script,
+      `#!/usr/bin/env node\nif (process.argv[2] !== 'audit' || !process.argv.includes('--json')) process.exit(2);\nconsole.log(${JSON.stringify(JSON.stringify(report))});\nprocess.exit(1);\n`,
+    );
+    if (process.platform === 'win32') {
+      await writeFile(path.join(directory, 'npm.cmd'), `@"${process.execPath}" "${script}" %*\r\n`);
+    } else {
+      await writeFile(path.join(directory, 'npm'), await readFile(script), { mode: 0o755 });
+    }
+    const pathKey = Object.keys(env).find((key) => key.toLowerCase() === 'path') || 'PATH';
+    env[pathKey] = `${directory}${path.delimiter}${env[pathKey] || ''}`;
+  }
   let bulkRequests = 0;
   let requests = 0;
   const server = createServer((req, res) => {
@@ -77,12 +101,7 @@ async function audit(
       '0',
     ],
     {
-      env: {
-        ...process.env,
-        npm_config_cache: path.join(directory, 'cache'),
-        npm_config_fetch_retries: '0',
-        npm_config_update_notifier: 'false',
-      },
+      env,
       maxBuffer: 1024 * 1024,
     },
   ).then(
@@ -99,6 +118,25 @@ test('the recorded advisory is accepted only on its reviewed paths and remains v
   assert.match(result.output, /http-cache-semantics max-stale handling/);
   assert.match(result.output, /GHSA-ch52-4w7c-c8xp/);
   assert.match(result.output, /"high": 5/);
+});
+
+test('the real cold-cache CI report needs its explicit paths and remains visible', async (t) => {
+  const accepted = await audit(t, { report: ciReport });
+  assert.equal(accepted.code, 0, accepted.output);
+  assert.equal(accepted.requests, 0);
+  assert.match(accepted.output, /"high": 5/);
+  const paths = [
+    'GHSA-ch52-4w7c-c8xp|@astrojs/starlight>@astrojs/mdx>astro>http-cache-semantics',
+    'GHSA-ch52-4w7c-c8xp|astro>http-cache-semantics>',
+  ];
+  const config = {
+    ...policy,
+    allowlist: policy.allowlist.filter((record) => !paths.includes(Object.keys(record)[0])),
+  };
+  const result = await audit(t, { config, report: ciReport });
+  assert.notEqual(result.code, 0, result.output);
+  for (const dependencyPath of paths)
+    assert.ok(result.output.includes(dependencyPath), result.output);
 });
 
 test('the same recorded advisory fails without the exception', async (t) => {
