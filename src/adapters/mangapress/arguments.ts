@@ -13,6 +13,7 @@ export interface MangapressRunArguments {
   readonly profile: string;
   readonly format: MangapressFormat;
   readonly dryRun: boolean;
+  readonly noProcessing?: boolean;
   readonly quiet?: boolean;
   readonly webtoon?: boolean;
   readonly mangaStyle?: boolean;
@@ -32,12 +33,17 @@ export interface MangapressRunArguments {
   readonly spreadShift?: boolean;
   readonly onePageLandscape?: boolean;
   readonly invertDirection?: boolean;
+  readonly forceColor?: boolean;
   readonly forcePng?: boolean;
+  readonly noQuantize?: boolean;
+  readonly pngLegacy?: boolean;
+  readonly forcePngRgb?: boolean;
   readonly jpegQuality?: number;
   readonly rotateRight?: boolean;
   readonly gamma?: number;
   readonly autoLevel?: boolean;
   readonly noAutoContrast?: boolean;
+  readonly colorAutoContrast?: boolean;
   readonly interPanelCrop?: InterPanelCropMode;
   readonly eraseRainbow?: boolean;
   readonly title?: string;
@@ -63,6 +69,7 @@ export function buildMangapressArguments(request: MangapressRunArguments): reado
     '--profile',
     request.profile,
     ...(request.dryRun ? ['--dry-run'] : []),
+    ...enabled('--noprocessing', request.noProcessing),
     ...enabled('--quiet', request.quiet),
     ...enabled('--webtoon', request.webtoon),
     ...enabled('--manga-style', request.mangaStyle),
@@ -82,12 +89,17 @@ export function buildMangapressArguments(request: MangapressRunArguments): reado
     ...enabled('--spreadshift', request.spreadShift),
     ...enabled('--onepagelandscape', request.onePageLandscape),
     ...enabled('--invertdirection', request.invertDirection),
+    ...enabled('--forcecolor', request.forceColor),
     ...enabled('--forcepng', request.forcePng),
+    ...enabled('--noquantize', request.noQuantize),
+    ...enabled('--pnglegacy', request.pngLegacy),
+    ...enabled('--force-png-rgb', request.forcePngRgb),
     ...optionalValue('--jpeg-quality', request.jpegQuality),
     ...enabled('--rotateright', request.rotateRight),
     ...optionalValue('--gamma', request.gamma),
     ...enabled('--autolevel', request.autoLevel),
     ...enabled('--noautocontrast', request.noAutoContrast),
+    ...enabled('--colorautocontrast', request.colorAutoContrast),
     ...optionalValue('--ipc', request.interPanelCrop),
     ...enabled('--eraserainbow', request.eraseRainbow),
     '--format',

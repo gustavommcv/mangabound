@@ -221,6 +221,24 @@ test('webtoon strips lock the page-layout controls they never use', async ({ pag
   await expect(page.locator('#storybook-root')).toHaveScreenshot('output-settings-webtoon.png');
 });
 
+test('color and PNG pages show the variants each choice allows', async ({ page }) => {
+  await page.goto('/iframe.html?id=workflows-output-settings--color-and-png&viewMode=story');
+  await expect(page.getByLabel('Color pages', { exact: true })).toHaveValue('color');
+  await expect(page.getByRole('checkbox', { name: '8-bit PNG', exact: true })).toBeDisabled();
+  await page.evaluate(async () => document.fonts.ready);
+  await expect(page.locator('#storybook-root')).toHaveScreenshot('output-settings-color-png.png');
+});
+
+test('images left as they are lock every control that would change them', async ({ page }) => {
+  await page.goto('/iframe.html?id=workflows-output-settings--untouched-images&viewMode=story');
+  await expect(
+    page.getByRole('checkbox', { name: 'Use the images as they are', exact: true }),
+  ).toBeChecked();
+  await expect(page.getByLabel('Page format', { exact: true })).toBeDisabled();
+  await page.evaluate(async () => document.fonts.ready);
+  await expect(page.locator('#storybook-root')).toHaveScreenshot('output-settings-untouched.png');
+});
+
 test('changed output settings show aligned labels and individual resets', async ({ page }) => {
   await page.goto('/iframe.html?id=workflows-output-settings--modified-options&viewMode=story');
   await expect(page.getByRole('button', { name: 'Restore default for Gamma' })).toBeVisible();

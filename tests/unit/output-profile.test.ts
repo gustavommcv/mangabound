@@ -1,20 +1,27 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  autoContrastOf,
   borderModeOf,
+  defaultForceColorFor,
   defaultJpegQualityFor,
   defaultMangapressSettings,
   defaultPageSizeFor,
   defaultUpscaleFor,
   defaultValueForSetting,
   FORMATS_SUPPORTING_COMBINED_VOLUME,
+  imageLocks,
+  jpegUseOf,
   pageLayoutLocks,
   pageSizeOf,
+  pngOnlyLockReason,
   resolveDeviceProfileFallback,
   restoreSettingDefault,
   stripsLockReason,
+  untouchedLockReason,
   validateMangapressSettings,
   webtoonLockReason,
+  withAutoContrast,
   withBorderMode,
   withDeviceProfile,
   withPageSize,
@@ -112,7 +119,45 @@ describe('mangapress default settings', () => {
     expect(defaultUpscaleFor('A-FUTURE-READER')).toBe(true);
   });
 
-  it('resets upscaling, and only upscaling, when another device is chosen', () => {
+  it.each(['KCS', 'KSCS', 'KoCC', 'KoLC', 'RmkPP', 'RmkPPMove'])(
+    'starts %s, a color reader, with color kept, as Kindle Comic Converter does',
+    (code) => {
+      expect(defaultForceColorFor(code)).toBe(true);
+    },
+  );
+
+  it('starts every other device in grayscale, one it has never heard of included', () => {
+    for (const code of ['KPW6', 'KS', 'KoAO', 'OTHER', 'A-FUTURE-READER']) {
+      expect(defaultForceColorFor(code)).toBe(false);
+    }
+    expect(defaultMangapressSettings.forceColor).toBe(
+      defaultForceColorFor(defaultMangapressSettings.deviceProfile),
+    );
+  });
+
+  it('puts color where the new device starts it, whatever was chosen by hand', () => {
+    const colorsoft = withDeviceProfile(defaultMangapressSettings, 'KCS');
+    expect(colorsoft).toEqual({
+      ...defaultMangapressSettings,
+      deviceProfile: 'KCS',
+      forceColor: true,
+    });
+    expect(withDeviceProfile({ ...colorsoft, forceColor: false }, 'KoLC').forceColor).toBe(true);
+    expect(withDeviceProfile(colorsoft, 'KPW6').forceColor).toBe(false);
+    expect(
+      withDeviceProfile({ ...defaultMangapressSettings, forceColor: true }, 'KV').forceColor,
+    ).toBe(false);
+
+    expect(defaultValueForSetting(colorsoft, 'forceColor')).toBe(true);
+    expect(defaultValueForSetting(defaultMangapressSettings, 'forceColor')).toBe(false);
+    expect(restoreSettingDefault({ ...colorsoft, forceColor: false }, 'forceColor')).toEqual(
+      colorsoft,
+    );
+    // Going back to the default device takes color with it, as choosing that device would.
+    expect(restoreSettingDefault(colorsoft, 'deviceProfile')).toEqual(defaultMangapressSettings);
+  });
+
+  it('resets upscaling and color, and nothing else, when another device is chosen', () => {
     const edited = {
       ...defaultMangapressSettings,
       mangaStyle: false,
@@ -142,7 +187,7 @@ describe('mangapress default settings', () => {
     expect(defaultValueForSetting(scribe, 'mangaStyle')).toBe(true);
   });
 
-  it('restores one field without changing its neighbors, except the device-upscale pair', () => {
+  it('restores one field without changing its neighbors, except what follows the device', () => {
     const edited = {
       ...withDeviceProfile(defaultMangapressSettings, 'KS'),
       gamma: 1.2,
@@ -298,6 +343,151 @@ describe('the page-layout controls another choice leaves without effect', () => 
       marginCropping: webtoonLockReason,
       autoContrast: webtoonLockReason,
       borders: 'Always white for webtoon strips.',
+    });
+  });
+});
+
+describe('images left as they are', () => {
+  const untouched = { ...defaultMangapressSettings, noProcessing: true };
+
+  it('locks every page-layout control that would change an image', () => {
+    expect(pageLayoutLocks(untouched, 'epub')).toEqual({
+      splitter: untouchedLockReason,
+      rotateFirst: untouchedLockReason,
+      noRotate: untouchedLockReason,
+      rotateRight: untouchedLockReason,
+      maximizeStrips: untouchedLockReason,
+      pageSize: untouchedLockReason,
+      borders: untouchedLockReason,
+      marginCropping: untouchedLockReason,
+      interPanelCropping: untouchedLockReason,
+      autoContrast: untouchedLockReason,
+    });
+  });
+
+  it('still takes the reading order and the two-page view, which are written into the book', () => {
+    const locks = pageLayoutLocks(untouched, 'epub');
+    expect(locks.mangaStyle).toBeUndefined();
+    expect(locks.twoPageView).toBeUndefined();
+    expect(pageLayoutLocks(untouched, 'cbz').twoPageView).toBe('Only an EPUB carries these.');
+  });
+
+  it('still cuts webtoon strips, which are never read right to left', () => {
+    const locks = pageLayoutLocks({ ...untouched, webtoon: true }, 'epub');
+    expect(locks.mangaStyle).toBe(webtoonLockReason);
+    expect(locks.borders).toBe(untouchedLockReason);
+    expect(locks.splitter).toBe(untouchedLockReason);
+  });
+
+  it('locks the image controls, except the two an EPUB’s cover still follows', () => {
+    expect(imageLocks(untouched, 'epub')).toEqual({
+      gamma: untouchedLockReason,
+      eraseRainbow: untouchedLockReason,
+      pageFormat: untouchedLockReason,
+      noQuantize: untouchedLockReason,
+      pngLegacy: untouchedLockReason,
+      forcePngRgb: untouchedLockReason,
+    });
+  });
+
+  it.each(['cbz', 'pdf'] as const)(
+    'locks color and JPEG quality too in a %s, which has no cover',
+    (format) => {
+      const locks = imageLocks({ ...untouched, forcePng: true, forceColor: true }, format);
+      expect(locks.colorPages).toBe(untouchedLockReason);
+      expect(locks.jpegQuality).toBe(untouchedLockReason);
+      expect(locks.pageFormat).toBe(untouchedLockReason);
+    },
+  );
+});
+
+describe('the image controls another choice leaves without effect', () => {
+  const settings = defaultMangapressSettings;
+  const png = { ...settings, forcePng: true };
+
+  it('offers the PNG variants only for PNG pages', () => {
+    expect(imageLocks(settings, 'epub')).toEqual({
+      noQuantize: pngOnlyLockReason,
+      pngLegacy: pngOnlyLockReason,
+      forcePngRgb: pngOnlyLockReason,
+    });
+    expect(imageLocks(settings, 'pdf')).toEqual(imageLocks(settings, 'epub'));
+  });
+
+  it('saves color PNG only for pages kept in color', () => {
+    expect(imageLocks(png, 'epub')).toEqual({
+      forcePngRgb: 'Only when color pages are kept in color.',
+    });
+    expect(imageLocks({ ...png, forceColor: true }, 'epub')).toEqual({});
+  });
+
+  it('has nothing to make 8-bit when the page already is', () => {
+    expect(imageLocks({ ...png, forceColor: true, noQuantize: true }, 'epub')).toEqual({
+      pngLegacy: 'Already 8-bit while all 256 grays are kept.',
+    });
+    expect(imageLocks({ ...png, forceColor: true }, 'pdf').pngLegacy).toBe(
+      'Always 8-bit in a PDF.',
+    );
+    expect(imageLocks({ ...png, forceColor: true, noQuantize: true }, 'pdf').pngLegacy).toBe(
+      'Already 8-bit while all 256 grays are kept.',
+    );
+    expect(imageLocks({ ...png, forceColor: true }, 'cbz').pngLegacy).toBeUndefined();
+  });
+
+  it('locks the JPEG quality only when nothing at all is saved as JPEG', () => {
+    expect(imageLocks(png, 'epub').jpegQuality).toBeUndefined();
+    expect(imageLocks(png, 'cbz').jpegQuality).toBe('Nothing is saved as JPEG.');
+    expect(imageLocks({ ...png, forceColor: true }, 'cbz').jpegQuality).toBeUndefined();
+    expect(imageLocks({ ...png, forceColor: true, forcePngRgb: true }, 'pdf').jpegQuality).toBe(
+      'Nothing is saved as JPEG.',
+    );
+  });
+});
+
+describe('what is still saved as JPEG', () => {
+  const settings = defaultMangapressSettings;
+
+  it('is every page until PNG is chosen', () => {
+    expect(jpegUseOf(settings, 'epub')).toBe('pages');
+    expect(jpegUseOf({ ...settings, forceColor: true, forcePngRgb: true }, 'cbz')).toBe('pages');
+  });
+
+  it('is the color pages among PNG ones, unless they are asked for as PNG too', () => {
+    const png = { ...settings, forcePng: true, forceColor: true };
+    expect(jpegUseOf(png, 'cbz')).toBe('color-pages');
+    expect(jpegUseOf({ ...png, forcePngRgb: true }, 'epub')).toBe('cover');
+    expect(jpegUseOf({ ...png, forcePngRgb: true }, 'cbz')).toBe('nothing');
+  });
+
+  it('is the cover alone, and only an EPUB has one, once no page is', () => {
+    expect(jpegUseOf({ ...settings, forcePng: true }, 'epub')).toBe('cover');
+    expect(jpegUseOf({ ...settings, forcePng: true }, 'pdf')).toBe('nothing');
+    expect(jpegUseOf({ ...settings, noProcessing: true }, 'epub')).toBe('cover');
+    expect(jpegUseOf({ ...settings, noProcessing: true }, 'cbz')).toBe('nothing');
+  });
+});
+
+describe('one autocontrast choice in the place of two flags', () => {
+  it('reads the flags as mangapress resolves them: off wins', () => {
+    expect(autoContrastOf(defaultMangapressSettings)).toBe('monochrome');
+    expect(autoContrastOf({ noAutoContrast: false, colorAutoContrast: true })).toBe('all');
+    expect(autoContrastOf({ noAutoContrast: true, colorAutoContrast: false })).toBe('off');
+    expect(autoContrastOf({ noAutoContrast: true, colorAutoContrast: true })).toBe('off');
+  });
+
+  it('sets exactly the flag a choice needs, so the two never disagree', () => {
+    const both = { ...defaultMangapressSettings, noAutoContrast: true, colorAutoContrast: true };
+    expect(withAutoContrast(both, 'monochrome')).toMatchObject({
+      noAutoContrast: false,
+      colorAutoContrast: false,
+    });
+    expect(withAutoContrast(both, 'off')).toMatchObject({
+      noAutoContrast: true,
+      colorAutoContrast: false,
+    });
+    expect(withAutoContrast(both, 'all')).toMatchObject({
+      noAutoContrast: false,
+      colorAutoContrast: true,
     });
   });
 });

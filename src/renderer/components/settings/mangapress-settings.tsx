@@ -2,11 +2,16 @@ import type { ReactNode } from 'react';
 
 import type { BookFormat } from '@/domain/conversion';
 import {
+  type AutoContrastMode,
+  autoContrastOf,
   type BorderMode,
   borderModeOf,
   defaultJpegQualityFor,
   defaultPageSizeFor,
   defaultValueForSetting,
+  imageLocks,
+  type JpegUse,
+  jpegUseOf,
   type MangapressSettingField,
   type MangapressSettings,
   pageLayoutLocks,
@@ -14,6 +19,7 @@ import {
   pageSizeOf,
   restoreSettingDefault,
   validateMangapressSettings,
+  withAutoContrast,
   withBorderMode,
   withDeviceProfile,
   withPageSize,
@@ -55,6 +61,18 @@ const borderDescriptions: Readonly<
     white: 'Pages are not padded with their background color.',
     black: 'Pages are padded to the screen with black.',
   },
+};
+
+const autoContrastDescriptions: Readonly<Record<AutoContrastMode, string>> = {
+  monochrome: 'Tones are stretched to full black and white; color pages are left alone.',
+  off: 'Tones are left as they are.',
+  all: 'Color pages have their tones stretched as well.',
+};
+
+/** What the JPEG quality is for, where it is not for every page. */
+const jpegUseDescriptions: Readonly<Record<Exclude<JpegUse, 'pages' | 'nothing'>, string>> = {
+  'color-pages': 'For the color pages, which stay JPEG.',
+  cover: 'Only the cover is a JPEG now.',
 };
 
 interface MangapressSettingsProps {
@@ -100,8 +118,11 @@ export function MangapressSettingsEditor({
     },
   });
   const locks = pageLayoutLocks(settings, format);
+  const imageLock = imageLocks(settings, format);
   const pageSize = pageSizeOf(settings);
   const borders = borderModeOf(settings);
+  const autoContrast = autoContrastOf(settings);
+  const jpegUse = jpegUseOf(settings, format);
   // The three numbers tune margin cropping, so they follow it: off by choice, or off for webtoons.
   const croppingReason =
     locks.marginCropping ??
@@ -109,7 +130,18 @@ export function MangapressSettingsEditor({
   const croppingDisabled = croppingReason !== undefined;
   const autolevelReason =
     locks.autoContrast ??
-    (settings.noAutoContrast ? 'Enable auto contrast to use black-point leveling.' : undefined);
+    (autoContrast === 'off' ? 'Turn autocontrast on to use black-point leveling.' : undefined);
+  const colorDescription = settings.noProcessing
+    ? 'The pages stay as they are; only the cover follows this.'
+    : settings.forceColor
+      ? 'Pages with real color stay in color; the others still become grayscale.'
+      : 'Every page becomes grayscale.';
+  const pageFormatDescription = !settings.forcePng
+    ? 'Smooth tones in small files. The usual choice.'
+    : settings.noQuantize
+      ? 'All 256 grays, saved without loss.'
+      : 'Dithered to the grays the screen can show, saved without loss.';
+  const jpegQualityHint = `Leave empty for the device profile default (${String(jpegQualityDefault)}%).`;
 
   return (
     <div className="space-y-5">
@@ -217,6 +249,16 @@ export function MangapressSettingsEditor({
           }}
           optional
           value={settings.customHeight}
+        />
+        <ToggleField
+          {...resetProps('noProcessing')}
+          checked={settings.noProcessing}
+          description="Package the pages untouched: no cropping, resizing, grayscale or recoding."
+          id="no-processing"
+          label="Use the images as they are"
+          onChecked={(checked) => {
+            update('noProcessing', checked);
+          }}
         />
       </SettingsSection>
 
@@ -347,10 +389,12 @@ export function MangapressSettingsEditor({
         <SelectField
           changed={pageSize !== defaultPageSizeFor(settings.deviceProfile)}
           description={
-            settings.webtoon && pageSize === 'enlarge'
+            locks.pageSize ??
+            (settings.webtoon && pageSize === 'enlarge'
               ? 'Webtoon strips are never enlarged.'
-              : pageSizeDescriptions[pageSize]
+              : pageSizeDescriptions[pageSize])
           }
+          disabled={locks.pageSize !== undefined}
           id="page-size"
           label="Page size"
           onReset={() => {
@@ -359,6 +403,7 @@ export function MangapressSettingsEditor({
         >
           <NativeSelect
             aria-describedby="page-size-message"
+            disabled={locks.pageSize !== undefined}
             id="page-size"
             onChange={(event) => {
               onSettings(withPageSize(settings, event.target.value as PageSizeMode));
@@ -470,12 +515,16 @@ export function MangapressSettingsEditor({
         />
         <SelectField
           {...resetProps('interPanelCrop')}
-          description="Removes empty gutters inside webtoon-style pages."
+          description={
+            locks.interPanelCropping ?? 'Removes empty gutters inside webtoon-style pages.'
+          }
+          disabled={locks.interPanelCropping !== undefined}
           id="inter-panel-crop"
           label="Inter-panel cropping"
         >
           <NativeSelect
             aria-describedby="inter-panel-crop-message"
+            disabled={locks.interPanelCropping !== undefined}
             id="inter-panel-crop"
             onChange={(event) => {
               update('interPanelCrop', event.target.value as MangapressSettings['interPanelCrop']);
@@ -532,63 +581,65 @@ export function MangapressSettingsEditor({
       </SettingsSection>
 
       <SettingsSection
-        description="Tune encoding, tone correction, and color e-ink processing."
+        description="Whether color is kept, and how the tones of a page are corrected."
         eyebrow="Advanced"
-        title="Image processing"
+        title="Color and tone"
       >
-        <ToggleField
-          {...resetProps('forcePng')}
-          checked={settings.forcePng}
-          description="Quantize to the device grayscale palette and save PNG pages."
-          id="force-png"
-          label="Dithered grayscale PNG"
-          onChecked={(checked) => {
-            update('forcePng', checked);
-          }}
-        />
-        <NumberField
-          {...resetProps('jpegQuality')}
-          description={
-            settings.forcePng
-              ? 'Not used while grayscale PNG output is enabled.'
-              : `Leave empty for the device profile default (${String(jpegQualityDefault)}%).`
-          }
-          disabled={settings.forcePng}
-          error={errorFor('jpegQuality')}
-          id="jpeg-quality"
-          label="JPEG quality"
-          max={100}
-          min={1}
-          placeholder={`${String(jpegQualityDefault)}%`}
-          onValue={(value) => {
-            update('jpegQuality', value);
-          }}
-          optional
-          value={settings.jpegQuality}
-        />
-        <NumberField
-          {...resetProps('gamma')}
-          description="Leave empty for profile gamma; 1.0 leaves tones unchanged."
-          error={errorFor('gamma')}
-          id="gamma"
-          label="Gamma"
-          placeholder="1.0"
-          onValue={(value) => {
-            update('gamma', value);
-          }}
-          optional
-          step={0.1}
-          value={settings.gamma}
-        />
-        <ToggleField
-          {...resetProps('noAutoContrast')}
-          checked={settings.noAutoContrast}
-          description={locks.autoContrast ?? 'Skip automatic contrast adjustment.'}
+        <SelectField
+          {...resetProps('forceColor')}
+          description={imageLock.colorPages ?? colorDescription}
+          disabled={imageLock.colorPages !== undefined}
+          id="color-pages"
+          label="Color pages"
+        >
+          <NativeSelect
+            aria-describedby="color-pages-message"
+            disabled={imageLock.colorPages !== undefined}
+            id="color-pages"
+            onChange={(event) => {
+              update('forceColor', event.target.value === 'color');
+            }}
+            value={settings.forceColor ? 'color' : 'grayscale'}
+          >
+            <option value="grayscale">Convert to grayscale</option>
+            <option value="color">Keep in color</option>
+          </NativeSelect>
+        </SelectField>
+        <SelectField
+          changed={autoContrast !== 'monochrome'}
+          description={locks.autoContrast ?? autoContrastDescriptions[autoContrast]}
           disabled={locks.autoContrast !== undefined}
-          id="no-auto-contrast"
-          label="Disable auto contrast"
+          id="auto-contrast"
+          label="Autocontrast"
+          onReset={() => {
+            onSettings(withAutoContrast(settings, 'monochrome'));
+          }}
+        >
+          <NativeSelect
+            aria-describedby="auto-contrast-message"
+            disabled={locks.autoContrast !== undefined}
+            id="auto-contrast"
+            onChange={(event) => {
+              onSettings(withAutoContrast(settings, event.target.value as AutoContrastMode));
+            }}
+            value={autoContrast}
+          >
+            <option value="monochrome">Black-and-white pages only</option>
+            <option value="off">Off</option>
+            <option value="all">Color pages too</option>
+          </NativeSelect>
+        </SelectField>
+        <ToggleField
+          {...resetProps('eraseRainbow')}
+          checked={settings.eraseRainbow}
+          description={
+            imageLock.eraseRainbow ?? 'Attenuate rainbow interference on color e-ink displays.'
+          }
+          disabled={imageLock.eraseRainbow !== undefined}
+          id="erase-rainbow"
+          label="Reduce rainbow effect"
           onChecked={(checked) => {
-            update('noAutoContrast', checked);
+            update('eraseRainbow', checked);
           }}
         />
         <ToggleField
@@ -604,14 +655,110 @@ export function MangapressSettingsEditor({
             update('autoLevel', checked);
           }}
         />
+        <NumberField
+          {...resetProps('gamma')}
+          description={
+            imageLock.gamma ?? 'Leave empty for profile gamma; 1.0 leaves tones unchanged.'
+          }
+          disabled={imageLock.gamma !== undefined}
+          error={errorFor('gamma')}
+          id="gamma"
+          label="Gamma"
+          placeholder="1.0"
+          onValue={(value) => {
+            update('gamma', value);
+          }}
+          optional
+          step={0.1}
+          value={settings.gamma}
+        />
+      </SettingsSection>
+
+      <SettingsSection
+        description="The kind of file each page is saved as."
+        eyebrow="Advanced"
+        title="Page images"
+      >
+        <SelectField
+          {...resetProps('forcePng')}
+          description={imageLock.pageFormat ?? pageFormatDescription}
+          disabled={imageLock.pageFormat !== undefined}
+          id="page-format"
+          label="Page format"
+        >
+          <NativeSelect
+            aria-describedby="page-format-message"
+            disabled={imageLock.pageFormat !== undefined}
+            id="page-format"
+            onChange={(event) => {
+              update('forcePng', event.target.value === 'png');
+            }}
+            value={settings.forcePng ? 'png' : 'jpeg'}
+          >
+            <option value="jpeg">JPEG, full tone</option>
+            <option value="png">PNG, reduced to the screen’s grays</option>
+          </NativeSelect>
+        </SelectField>
+        <NumberField
+          {...resetProps('jpegQuality')}
+          description={
+            imageLock.jpegQuality ??
+            (jpegUse === 'color-pages' || jpegUse === 'cover'
+              ? `${jpegUseDescriptions[jpegUse]} ${jpegQualityHint}`
+              : jpegQualityHint)
+          }
+          disabled={imageLock.jpegQuality !== undefined}
+          error={errorFor('jpegQuality')}
+          id="jpeg-quality"
+          label="JPEG quality"
+          max={100}
+          min={1}
+          placeholder={`${String(jpegQualityDefault)}%`}
+          onValue={(value) => {
+            update('jpegQuality', value);
+          }}
+          optional
+          value={settings.jpegQuality}
+        />
         <ToggleField
-          {...resetProps('eraseRainbow')}
-          checked={settings.eraseRainbow}
-          description="Attenuate rainbow interference on color e-ink displays."
-          id="erase-rainbow"
-          label="Reduce rainbow effect"
+          {...resetProps('noQuantize')}
+          checked={settings.noQuantize}
+          description={
+            imageLock.noQuantize ?? 'Skip the reduction to the screen’s grays. Larger files.'
+          }
+          disabled={imageLock.noQuantize !== undefined}
+          id="no-quantize"
+          label="Keep all 256 grays"
           onChecked={(checked) => {
-            update('eraseRainbow', checked);
+            update('noQuantize', checked);
+          }}
+        />
+        <ToggleField
+          {...resetProps('pngLegacy')}
+          checked={settings.pngLegacy}
+          description={
+            imageLock.pngLegacy ??
+            'For readers that cannot open the more compact kind of PNG. Larger files.'
+          }
+          disabled={imageLock.pngLegacy !== undefined}
+          id="png-legacy"
+          label="8-bit PNG"
+          onChecked={(checked) => {
+            update('pngLegacy', checked);
+          }}
+        />
+        <ToggleField
+          {...resetProps('forcePngRgb')}
+          checked={settings.forcePngRgb}
+          description={
+            imageLock.forcePngRgb ??
+            'Pages kept in color are saved without loss as well. Much larger files.'
+          }
+          disabled={imageLock.forcePngRgb !== undefined}
+          id="force-png-rgb"
+          label="Color pages as PNG too"
+          onChecked={(checked) => {
+            update('forcePngRgb', checked);
           }}
         />
       </SettingsSection>

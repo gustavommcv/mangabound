@@ -320,4 +320,50 @@ describe('bundled toolchain verification', () => {
       await rm(outputDirectory, { recursive: true, force: true });
     }
   });
+
+  // The capability check knows the pinned tool has these flags; only a run shows it takes them
+  // together, and that it still makes a book when told to leave the images alone.
+  it('converts with every image option, and with none applied, with the real pinned mangapress', async () => {
+    const target = resolveToolchainTarget(process.platform, process.arch)!;
+    const executableName = target.startsWith('win32-') ? 'mangapress.exe' : 'mangapress';
+    const conversion = new MangapressConversionAdapter(
+      new MangapressCliAdapter(
+        path.join(repositoryRoot, 'vendor', 'toolchain', target, executableName),
+        createNodeProcessRunner(),
+      ),
+    );
+    const inputPath = path.join(
+      repositoryRoot,
+      'tests',
+      'fixtures',
+      'e2e',
+      'cbz',
+      'Mangabound Direct.cbz',
+    );
+    const outputDirectory = await mkdtemp(path.join(tmpdir(), 'mangabound-images-'));
+    try {
+      for (const settings of [
+        {
+          ...defaultMangapressSettings,
+          deviceProfile: 'KCS',
+          forceColor: true,
+          colorAutoContrast: true,
+          forcePng: true,
+          noQuantize: true,
+          pngLegacy: true,
+          forcePngRgb: true,
+        },
+        { ...defaultMangapressSettings, noProcessing: true },
+      ]) {
+        const book = await conversion.convert(
+          { inputPath, outputDirectory, settings, format: 'epub' },
+          { onProgress: () => undefined },
+        );
+        expect(book.format).toBe('epub');
+        expect(book.bytes).toBeGreaterThan(0);
+      }
+    } finally {
+      await rm(outputDirectory, { recursive: true, force: true });
+    }
+  });
 });
