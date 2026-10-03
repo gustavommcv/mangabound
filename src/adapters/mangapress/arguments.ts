@@ -14,16 +14,24 @@ export interface MangapressRunArguments {
   readonly format: MangapressFormat;
   readonly dryRun: boolean;
   readonly quiet?: boolean;
+  readonly webtoon?: boolean;
   readonly mangaStyle?: boolean;
   readonly cropping?: CroppingMode;
   readonly croppingPower?: number;
   readonly croppingMinimum?: number;
   readonly preserveMargin?: number;
   readonly splitter?: SplitterMode;
+  readonly noRotate?: boolean;
+  readonly rotateFirst?: boolean;
+  readonly maximizeStrips?: boolean;
   readonly upscale?: boolean;
   readonly stretch?: boolean;
   readonly wallpaper?: boolean;
   readonly whiteBorders?: boolean;
+  readonly blackBorders?: boolean;
+  readonly spreadShift?: boolean;
+  readonly onePageLandscape?: boolean;
+  readonly invertDirection?: boolean;
   readonly forcePng?: boolean;
   readonly jpegQuality?: number;
   readonly rotateRight?: boolean;
@@ -56,16 +64,24 @@ export function buildMangapressArguments(request: MangapressRunArguments): reado
     request.profile,
     ...(request.dryRun ? ['--dry-run'] : []),
     ...enabled('--quiet', request.quiet),
+    ...enabled('--webtoon', request.webtoon),
     ...enabled('--manga-style', request.mangaStyle),
     ...optionalValue('--cropping', request.cropping),
     ...optionalValue('--croppingpower', request.croppingPower),
     ...optionalValue('--croppingminimum', request.croppingMinimum),
     ...optionalValue('--preservemargin', request.preserveMargin),
     ...optionalValue('--splitter', request.splitter),
+    ...enabled('--norotate', request.noRotate),
+    ...enabled('--rotatefirst', request.rotateFirst),
+    ...enabled('--maximizestrips', request.maximizeStrips),
     ...enabled('--upscale', request.upscale),
     ...enabled('--stretch', request.stretch),
     ...enabled('--wallpaper', request.wallpaper),
     ...enabled('--whiteborders', request.whiteBorders),
+    ...enabled('--blackborders', request.blackBorders),
+    ...enabled('--spreadshift', request.spreadShift),
+    ...enabled('--onepagelandscape', request.onePageLandscape),
+    ...enabled('--invertdirection', request.invertDirection),
     ...enabled('--forcepng', request.forcePng),
     ...optionalValue('--jpeg-quality', request.jpegQuality),
     ...enabled('--rotateright', request.rotateRight),

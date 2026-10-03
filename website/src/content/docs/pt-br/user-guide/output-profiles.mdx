@@ -28,10 +28,14 @@ Essas dimensões são apenas um exemplo; use o tamanho adequado à sua tela.
 
 **Advanced conversion options** disponibiliza os ajustes do mangapress, agrupados por finalidade. Comece pelos padrões do dispositivo, altere um ajuste de cada vez e confira o livro gerado.
 
-- **Cropping** remove margens, com detecção opcional de números de página. Se cortar a arte, reduza ou desative o recorte.
-- **Splitter** escolhe divisão, rotação ou ambas para páginas duplas. A ordem de leitura de mangá coloca a metade direita primeiro ao dividir.
-- **Resize e codificação de imagem** controlam dimensões, escala, cor e qualidade JPEG. Um campo opcional vazio utiliza o padrão indicado do dispositivo/ferramenta, não zero.
-- **Erase rainbow** reduz certos artefatos de moiré. É opcional; compare o resultado nas suas páginas.
+- **Reading** diz o que as imagens são. **Content** é **Manga or comic pages**, em que cada imagem é uma página, ou **Webtoon strips**, em que cada capítulo é unido numa tira longa e cortado em páginas entre os quadros. **Manga reading order** lê da direita para a esquerda e coloca a metade direita de uma página dupla primeiro ao dividir.
+- **Double-page spreads** decide o que acontece com uma página da largura de duas. **Wide pages** divide em duas, mantém inteira como uma página ou faz as duas coisas. Quando a página dupla inteira é mantida, você pode colocá-la antes das metades (**Whole spread first**), deixá-la em pé em vez de girada (**Keep the whole spread upright**, para ler com o aparelho em paisagem) ou girá-la para o outro lado (**Rotate clockwise**). **Restack 4-panel strips as 2×2** serve para páginas formadas por duas tiras altas e substitui o tratamento das páginas largas.
+- **Size and borders**: **Page size** ajusta cada página à tela, ampliando ou não as pequenas, estica ou recorta até preencher a tela. **Borders** são automáticas (o fundo de cada página), brancas ou pretas.
+- **Cropping** remove margens, com detecção opcional de números de página, e o espaço vazio entre os quadros. Se cortar a arte, reduza ou desative o recorte.
+- **Two-page view** é para leitores que mostram duas páginas lado a lado, como os nativos da Kobo e do Kindle: de que lado o livro começa, uma única página centralizada e a direção em que as páginas viram. Vale só para EPUB, e **o KOReader ignora essas opções**.
+- **Image processing** controla páginas em PNG ou JPEG, qualidade JPEG, gama e contraste. Um campo opcional vazio utiliza o padrão indicado do dispositivo/ferramenta, não zero. **Reduce rainbow effect** reduz certos artefatos de moiré em telas e-ink coloridas; compare o resultado nas suas páginas.
+
+Uma opção que outra escolha deixa sem efeito continua visível, esmaecida, e diz o motivo. Com **Webtoon strips**, por exemplo, a ordem de leitura, as páginas largas, as bordas e o recorte de margens ficam travados, porque tiras de webtoon nunca os usam; o que você tinha escolhido volta quando você retorna às páginas.
 
 Campos modificados podem ser restaurados individualmente ou em conjunto com **Reset to defaults**. As opções são lembradas entre sessões.
 

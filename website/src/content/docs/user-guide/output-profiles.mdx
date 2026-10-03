@@ -28,10 +28,14 @@ These dimensions are an example; use the size appropriate for your screen.
 
 **Advanced conversion options** exposes mangapress's settings, grouped by purpose. Start with the device defaults; change one setting at a time and check the resulting book.
 
-- **Cropping** removes margins, with optional page-number detection. If artwork is cut off, reduce or disable cropping.
-- **Splitter** chooses split, rotate, or both for double-page spreads. Manga-style reading order puts the right half first when splitting.
-- **Resize and image encoding** control dimensions, scaling, color, and JPEG quality. An empty optional field uses its documented device/tool default, not zero.
-- **Erase rainbow** reduces certain moiré artifacts. It is optional; compare results on your own pages.
+- **Reading** says what the images are. **Content** is **Manga or comic pages**, where each image is a page, or **Webtoon strips**, where each chapter is joined into one long strip and cut into pages between panels. **Manga reading order** reads right to left and puts the right half of a split spread first.
+- **Double-page spreads** decides what becomes of a page that is two pages wide. **Wide pages** splits it in two, keeps it whole as one page, or does both. When the whole spread is kept you can put it before its halves (**Whole spread first**), leave it upright instead of turned on its side (**Keep the whole spread upright**, to read with the device in landscape), or turn it the other way (**Rotate clockwise**). **Restack 4-panel strips as 2×2** is for pages made of two tall strips, and replaces the handling of wide pages.
+- **Size and borders**: **Page size** fits each page to the screen, with or without enlarging small ones, stretches it, or crops it to fill the screen. **Borders** are automatic (each page's own background), white, or black.
+- **Cropping** removes margins, with optional page-number detection, and the empty space between panels. If artwork is cut off, reduce or disable cropping.
+- **Two-page view** is for readers that show two pages side by side, such as Kobo's and Kindle's own: which side the book starts on, a single centered page, and the direction pages turn. It applies to EPUB only, and **KOReader ignores these**.
+- **Image processing** controls PNG or JPEG pages, JPEG quality, gamma and contrast. An empty optional field uses its documented device/tool default, not zero. **Reduce rainbow effect** reduces certain moiré artifacts on color e-ink screens; compare results on your own pages.
+
+An option that another choice leaves without effect stays visible, dimmed, and says why. With **Webtoon strips**, for example, reading order, wide pages, borders and margin cropping are locked, because webtoon strips never use them; what you had chosen comes back when you return to pages.
 
 Modified fields can be reset individually, or together with **Reset to defaults**. Settings are kept between launches.
 

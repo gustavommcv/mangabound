@@ -1,15 +1,23 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  borderModeOf,
   defaultJpegQualityFor,
   defaultMangapressSettings,
+  defaultPageSizeFor,
   defaultUpscaleFor,
   defaultValueForSetting,
   FORMATS_SUPPORTING_COMBINED_VOLUME,
+  pageLayoutLocks,
+  pageSizeOf,
   resolveDeviceProfileFallback,
   restoreSettingDefault,
+  stripsLockReason,
   validateMangapressSettings,
+  webtoonLockReason,
+  withBorderMode,
   withDeviceProfile,
+  withPageSize,
 } from '@/domain/output-profile';
 
 describe('mangapress default settings', () => {
@@ -34,11 +42,19 @@ describe('mangapress default settings', () => {
       croppingPower: 1,
       // Off, or automatic, by default.
       quiet: false,
+      webtoon: false,
       croppingMinimum: 0,
       preserveMargin: 0,
+      noRotate: false,
+      rotateFirst: false,
+      maximizeStrips: false,
       stretch: false,
       wallpaper: false,
       whiteBorders: false,
+      blackBorders: false,
+      spreadShift: false,
+      onePageLandscape: false,
+      invertDirection: false,
       forcePng: false,
       rotateRight: false,
       autoLevel: false,
@@ -139,6 +155,149 @@ describe('mangapress default settings', () => {
       ...edited,
       deviceProfile: 'KPW6',
       upscale: true,
+    });
+  });
+});
+
+describe('the page size, one choice for three flags', () => {
+  it('reads the flag that wins: cropping to fill, then stretching, then enlarging', () => {
+    const flags = (upscale: boolean, stretch: boolean, wallpaper: boolean) => ({
+      upscale,
+      stretch,
+      wallpaper,
+    });
+    expect(pageSizeOf(flags(false, false, false))).toBe('fit');
+    expect(pageSizeOf(flags(true, false, false))).toBe('enlarge');
+    expect(pageSizeOf(flags(true, true, false))).toBe('stretch');
+    expect(pageSizeOf(flags(false, true, false))).toBe('stretch');
+    expect(pageSizeOf(flags(true, true, true))).toBe('fill');
+    expect(pageSizeOf(flags(false, false, true))).toBe('fill');
+  });
+
+  it('sets exactly the flag a choice needs, whatever was set before', () => {
+    const everything = {
+      ...defaultMangapressSettings,
+      upscale: true,
+      stretch: true,
+      wallpaper: true,
+    };
+    for (const mode of ['fit', 'enlarge', 'stretch', 'fill'] as const) {
+      const chosen = withPageSize(everything, mode);
+      expect(pageSizeOf(chosen)).toBe(mode);
+      expect([chosen.upscale, chosen.stretch, chosen.wallpaper].filter(Boolean)).toHaveLength(
+        mode === 'fit' ? 0 : 1,
+      );
+      // Nothing else is touched.
+      expect({ ...chosen, upscale: true, stretch: true, wallpaper: true }).toEqual(everything);
+    }
+  });
+
+  it('starts where the device starts enlarging', () => {
+    expect(defaultPageSizeFor('KPW6')).toBe('enlarge');
+    expect(defaultPageSizeFor('KS')).toBe('fit');
+    expect(defaultPageSizeFor('OTHER')).toBe('fit');
+    expect(pageSizeOf(defaultMangapressSettings)).toBe(
+      defaultPageSizeFor(defaultMangapressSettings.deviceProfile),
+    );
+  });
+
+  it('keeps stretching or cropping to fill when the device changes', () => {
+    const stretched = withPageSize(defaultMangapressSettings, 'stretch');
+    expect(pageSizeOf(withDeviceProfile(stretched, 'KV'))).toBe('stretch');
+    const filled = withPageSize(defaultMangapressSettings, 'fill');
+    expect(pageSizeOf(withDeviceProfile(filled, 'OTHER'))).toBe('fill');
+  });
+});
+
+describe('the borders, one choice for two flags', () => {
+  it('reads black over white, as mangapress does, and automatic when neither is set', () => {
+    expect(borderModeOf({ whiteBorders: false, blackBorders: false })).toBe('automatic');
+    expect(borderModeOf({ whiteBorders: true, blackBorders: false })).toBe('white');
+    expect(borderModeOf({ whiteBorders: false, blackBorders: true })).toBe('black');
+    expect(borderModeOf({ whiteBorders: true, blackBorders: true })).toBe('black');
+  });
+
+  it('sets the two flags so that they never disagree', () => {
+    const both = { ...defaultMangapressSettings, whiteBorders: true, blackBorders: true };
+    expect(withBorderMode(both, 'automatic')).toMatchObject({
+      whiteBorders: false,
+      blackBorders: false,
+    });
+    expect(withBorderMode(both, 'white')).toMatchObject({
+      whiteBorders: true,
+      blackBorders: false,
+    });
+    expect(withBorderMode(both, 'black')).toMatchObject({
+      whiteBorders: false,
+      blackBorders: true,
+    });
+    expect(borderModeOf(defaultMangapressSettings)).toBe('automatic');
+  });
+});
+
+describe('the page-layout controls another choice leaves without effect', () => {
+  const settings = defaultMangapressSettings;
+
+  it('locks nothing for an EPUB with both spread versions, which is where the options start', () => {
+    expect(pageLayoutLocks(settings, 'epub')).toEqual({});
+  });
+
+  it('offers the two-page view only where it is written: an EPUB', () => {
+    expect(pageLayoutLocks(settings, 'cbz')).toEqual({
+      twoPageView: 'Only an EPUB carries these.',
+    });
+    expect(pageLayoutLocks(settings, 'pdf').twoPageView).toBe('Only an EPUB carries these.');
+  });
+
+  it('has a whole spread to place and turn only when one is kept', () => {
+    expect(pageLayoutLocks({ ...settings, splitter: 'split' }, 'epub')).toEqual({
+      rotateFirst: 'Only when both versions are made.',
+      noRotate: 'Only when the whole spread is kept.',
+      rotateRight: 'Only when the whole spread is kept.',
+    });
+    expect(pageLayoutLocks({ ...settings, splitter: 'rotate' }, 'epub')).toEqual({
+      rotateFirst: 'Only when both versions are made.',
+    });
+  });
+
+  it('has nothing to rotate once the whole spread stays upright', () => {
+    expect(pageLayoutLocks({ ...settings, noRotate: true }, 'epub')).toEqual({
+      rotateRight: 'Nothing is rotated while the whole spread stays upright.',
+    });
+    expect(pageLayoutLocks({ ...settings, splitter: 'rotate', noRotate: true }, 'epub')).toEqual({
+      rotateFirst: 'Only when both versions are made.',
+      rotateRight: 'Nothing is rotated while the whole spread stays upright.',
+    });
+    // Splitting keeps no whole spread, so staying upright is itself without effect.
+    expect(
+      pageLayoutLocks({ ...settings, splitter: 'split', noRotate: true }, 'epub').rotateRight,
+    ).toBe('Only when the whole spread is kept.');
+  });
+
+  it('replaces everything about wide pages when strips are restacked', () => {
+    expect(
+      pageLayoutLocks({ ...settings, maximizeStrips: true, splitter: 'split' }, 'epub'),
+    ).toEqual({
+      splitter: stripsLockReason,
+      rotateFirst: stripsLockReason,
+      noRotate: stripsLockReason,
+      rotateRight: stripsLockReason,
+    });
+  });
+
+  it('locks for webtoon strips all that mangapress never does to them, strips restacking included', () => {
+    const locks = pageLayoutLocks({ ...settings, webtoon: true, maximizeStrips: true }, 'cbz');
+    expect(locks).toEqual({
+      twoPageView: 'Only an EPUB carries these.',
+      mangaStyle: webtoonLockReason,
+      splitter: webtoonLockReason,
+      rotateFirst: webtoonLockReason,
+      noRotate: webtoonLockReason,
+      rotateRight: webtoonLockReason,
+      maximizeStrips: webtoonLockReason,
+      marginCropping: webtoonLockReason,
+      autoContrast: webtoonLockReason,
+      borders: 'Always white for webtoon strips.',
     });
   });
 });

@@ -11,6 +11,7 @@
       "user": [
         "--author",
         "--autolevel",
+        "--blackborders",
         "--cropping",
         "--croppingminimum",
         "--croppingpower",
@@ -21,22 +22,29 @@
         "--forcepng",
         "--format",
         "--gamma",
+        "--invertdirection",
         "--ipc",
         "--jpeg-quality",
         "--keepcomicinfo",
         "--language",
         "--manga-style",
+        "--maximizestrips",
         "--metadatatitle",
         "--noautocontrast",
+        "--norotate",
+        "--onepagelandscape",
         "--preservemargin",
         "--profile",
         "--quiet",
+        "--rotatefirst",
         "--rotateright",
         "--splitter",
+        "--spreadshift",
         "--stretch",
         "--title",
         "--upscale",
         "--wallpaper",
+        "--webtoon",
         "--whiteborders",
         "-a",
         "-c",
@@ -49,7 +57,8 @@
         "-r",
         "-s",
         "-t",
-        "-u"
+        "-u",
+        "-w"
       ],
       "internal": [
         "--help",
@@ -61,26 +70,17 @@
         "-h"
       ],
       "deferred": [
-        "--blackborders",
         "--colorautocontrast",
         "--cover",
         "--coverfill",
         "--force-png-rgb",
         "--forcecolor",
-        "--invertdirection",
-        "--maximizestrips",
         "--nokepub",
         "--noprocessing",
         "--noquantize",
-        "--norotate",
-        "--onepagelandscape",
         "--pnglegacy",
-        "--rotatefirst",
         "--smartcovercrop",
-        "--spreads",
-        "--spreadshift",
-        "--webtoon",
-        "-w"
+        "--spreads"
       ]
     }
   }

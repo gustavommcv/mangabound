@@ -36,6 +36,32 @@ describe('parseStoredSettings', () => {
     });
   });
 
+  it('reads a file written before an option existed, with that option off', () => {
+    // What a release before the page-layout options kept: none of their keys.
+    const {
+      webtoon,
+      noRotate,
+      rotateFirst,
+      maximizeStrips,
+      blackBorders,
+      spreadShift,
+      onePageLandscape,
+      invertDirection,
+      ...older
+    } = { ...defaultMangapressSettings, deviceProfile: 'KS', upscale: false, stretch: true };
+    void [webtoon, noRotate, rotateFirst, maximizeStrips, blackBorders];
+    void [spreadShift, onePageLandscape, invertDirection];
+
+    const parsed = parseStoredSettings(file({ settings: older }));
+
+    expect(parsed?.settings).toEqual({
+      ...defaultMangapressSettings,
+      deviceProfile: 'KS',
+      upscale: false,
+      stretch: true,
+    });
+  });
+
   it('leaves out the source and the folders when the file has none', () => {
     const parsed = parseStoredSettings(
       file({
