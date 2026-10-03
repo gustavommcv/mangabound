@@ -214,6 +214,13 @@ test('full output settings remain visually consistent', async ({ page }) => {
   await expect(page.locator('#storybook-root')).toHaveScreenshot('output-settings.png');
 });
 
+test('webtoon strips lock the page-layout controls they never use', async ({ page }) => {
+  await page.goto('/iframe.html?id=workflows-output-settings--webtoon-strips&viewMode=story');
+  await expect(page.getByLabel('Wide pages')).toBeDisabled();
+  await page.evaluate(async () => document.fonts.ready);
+  await expect(page.locator('#storybook-root')).toHaveScreenshot('output-settings-webtoon.png');
+});
+
 test('changed output settings show aligned labels and individual resets', async ({ page }) => {
   await page.goto('/iframe.html?id=workflows-output-settings--modified-options&viewMode=story');
   await expect(page.getByRole('button', { name: 'Restore default for Gamma' })).toBeVisible();

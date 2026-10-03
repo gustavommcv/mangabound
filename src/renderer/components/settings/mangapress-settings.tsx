@@ -2,13 +2,21 @@ import type { ReactNode } from 'react';
 
 import type { BookFormat } from '@/domain/conversion';
 import {
+  type BorderMode,
+  borderModeOf,
   defaultJpegQualityFor,
+  defaultPageSizeFor,
   defaultValueForSetting,
   type MangapressSettingField,
   type MangapressSettings,
+  pageLayoutLocks,
+  type PageSizeMode,
+  pageSizeOf,
   restoreSettingDefault,
   validateMangapressSettings,
+  withBorderMode,
   withDeviceProfile,
+  withPageSize,
 } from '@/domain/output-profile';
 import { defaultFormat } from '@/domain/preferences';
 import { singleBookLockReason } from '@/domain/process-mode';
@@ -19,6 +27,35 @@ import { Checkbox } from '@/renderer/components/ui/checkbox';
 import { Input } from '@/renderer/components/ui/input';
 import { NativeSelect } from '@/renderer/components/ui/native-select';
 import type { DeviceProfileSummary } from '@/shared/workflow-contract';
+
+const splitterDescriptions: Readonly<Record<MangapressSettings['splitter'], string>> = {
+  split: 'Each half becomes a page of its own.',
+  rotate: 'The spread is turned on its side to fill the screen.',
+  both: 'The two halves, then the whole spread again.',
+};
+
+const pageSizeDescriptions: Readonly<Record<PageSizeMode, string>> = {
+  fit: 'Larger pages are shrunk to fit; smaller ones are left as they are.',
+  enlarge: 'Every page is fitted to the screen, smaller ones enlarged.',
+  stretch: 'Pages fill the screen exactly, without keeping their proportions.',
+  fill: 'Pages are cropped until they fill the whole screen.',
+};
+
+/** What the border choice does depends on the format: an EPUB has a page background, the others padding. */
+const borderDescriptions: Readonly<
+  Record<'epub' | 'padded', Readonly<Record<BorderMode, string>>>
+> = {
+  epub: {
+    automatic: 'Each page gets the background its own edges have.',
+    white: 'A white background behind every page, dark ones included.',
+    black: 'A black background behind every page.',
+  },
+  padded: {
+    automatic: 'Pages are padded to the screen with their own background color.',
+    white: 'Pages are not padded with their background color.',
+    black: 'Pages are padded to the screen with black.',
+  },
+};
 
 interface MangapressSettingsProps {
   readonly format: BookFormat;
@@ -62,9 +99,17 @@ export function MangapressSettingsEditor({
       onSettings(restoreSettingDefault(settings, field));
     },
   });
-  const croppingDisabled = settings.cropping === 'disabled';
-  const rotationDisabled = settings.splitter === 'split';
-  const autolevelDisabled = settings.noAutoContrast;
+  const locks = pageLayoutLocks(settings, format);
+  const pageSize = pageSizeOf(settings);
+  const borders = borderModeOf(settings);
+  // The three numbers tune margin cropping, so they follow it: off by choice, or off for webtoons.
+  const croppingReason =
+    locks.marginCropping ??
+    (settings.cropping === 'disabled' ? 'Enable page cropping to adjust this.' : undefined);
+  const croppingDisabled = croppingReason !== undefined;
+  const autolevelReason =
+    locks.autoContrast ??
+    (settings.noAutoContrast ? 'Enable auto contrast to use black-point leveling.' : undefined);
 
   return (
     <div className="space-y-5">
@@ -176,22 +221,60 @@ export function MangapressSettingsEditor({
       </SettingsSection>
 
       <SettingsSection
-        description="Control reading order, spread handling, cropping, and fit behavior."
-        eyebrow="Advanced"
-        title="Page layout"
+        description="What the images are and which way they are read."
+        eyebrow="Basic"
+        title="Reading"
       >
+        <SelectField
+          {...resetProps('webtoon')}
+          description={
+            settings.webtoon
+              ? 'Each chapter is joined into one strip and cut into pages between panels.'
+              : 'Each image is one page.'
+          }
+          id="content"
+          label="Content"
+        >
+          <NativeSelect
+            aria-describedby="content-message"
+            id="content"
+            onChange={(event) => {
+              update('webtoon', event.target.value === 'webtoon');
+            }}
+            value={settings.webtoon ? 'webtoon' : 'pages'}
+          >
+            <option value="pages">Manga or comic pages</option>
+            <option value="webtoon">Webtoon strips</option>
+          </NativeSelect>
+        </SelectField>
         <ToggleField
           {...resetProps('mangaStyle')}
           checked={settings.mangaStyle}
-          description="Use right-to-left reading and spread-split order."
+          description={locks.mangaStyle ?? 'Use right-to-left reading and spread-split order.'}
+          disabled={locks.mangaStyle !== undefined}
           id="manga-style"
           label="Manga reading order"
           onChecked={(checked) => {
             update('mangaStyle', checked);
           }}
         />
-        <SelectField {...resetProps('splitter')} id="splitter" label="Double-page spreads">
+      </SettingsSection>
+
+      <SettingsSection
+        description="What becomes of a page that is two pages wide."
+        eyebrow="Advanced"
+        title="Double-page spreads"
+      >
+        <SelectField
+          {...resetProps('splitter')}
+          description={locks.splitter ?? splitterDescriptions[settings.splitter]}
+          disabled={locks.splitter !== undefined}
+          id="splitter"
+          label="Wide pages"
+        >
           <NativeSelect
+            aria-describedby="splitter-message"
+            disabled={locks.splitter !== undefined}
             id="splitter"
             onChange={(event) => {
               update('splitter', event.target.value as MangapressSettings['splitter']);
@@ -199,27 +282,138 @@ export function MangapressSettingsEditor({
             value={settings.splitter}
           >
             <option value="split">Split into two pages</option>
-            <option value="rotate">Rotate as one page</option>
-            <option value="both">Create both versions</option>
+            <option value="rotate">Keep whole, as one page</option>
+            <option value="both">Both: the halves, then the whole</option>
           </NativeSelect>
         </SelectField>
+        <ToggleField
+          {...resetProps('rotateFirst')}
+          checked={settings.rotateFirst}
+          description={locks.rotateFirst ?? 'Put the whole spread before its two halves.'}
+          disabled={locks.rotateFirst !== undefined}
+          id="rotate-first"
+          label="Whole spread first"
+          onChecked={(checked) => {
+            update('rotateFirst', checked);
+          }}
+        />
+        <ToggleField
+          {...resetProps('noRotate')}
+          checked={settings.noRotate}
+          description={
+            locks.noRotate ?? 'Not turned on its side: read it with the device in landscape.'
+          }
+          disabled={locks.noRotate !== undefined}
+          id="no-rotate"
+          label="Keep the whole spread upright"
+          onChecked={(checked) => {
+            update('noRotate', checked);
+          }}
+        />
         <ToggleField
           {...resetProps('rotateRight')}
           checked={settings.rotateRight}
           description={
-            rotationDisabled
-              ? 'Available when spreads are rotated.'
-              : 'Rotate spreads clockwise instead of counter-clockwise.'
+            locks.rotateRight ?? 'Rotate spreads clockwise instead of counter-clockwise.'
           }
-          disabled={rotationDisabled}
+          disabled={locks.rotateRight !== undefined}
           id="rotate-right"
           label="Rotate clockwise"
           onChecked={(checked) => {
             update('rotateRight', checked);
           }}
         />
-        <SelectField {...resetProps('cropping')} id="cropping" label="Page cropping">
+        <ToggleField
+          {...resetProps('maximizeStrips')}
+          checked={settings.maximizeStrips}
+          description={
+            locks.maximizeStrips ??
+            'Stack the two halves of every page, for pages made of two tall strips. Replaces the handling of wide pages.'
+          }
+          disabled={locks.maximizeStrips !== undefined}
+          id="maximize-strips"
+          label="Restack 4-panel strips as 2×2"
+          onChecked={(checked) => {
+            update('maximizeStrips', checked);
+          }}
+        />
+      </SettingsSection>
+
+      <SettingsSection
+        description="How a page fills the screen and what surrounds it."
+        eyebrow="Advanced"
+        title="Size and borders"
+      >
+        <SelectField
+          changed={pageSize !== defaultPageSizeFor(settings.deviceProfile)}
+          description={
+            settings.webtoon && pageSize === 'enlarge'
+              ? 'Webtoon strips are never enlarged.'
+              : pageSizeDescriptions[pageSize]
+          }
+          id="page-size"
+          label="Page size"
+          onReset={() => {
+            onSettings(withPageSize(settings, defaultPageSizeFor(settings.deviceProfile)));
+          }}
+        >
           <NativeSelect
+            aria-describedby="page-size-message"
+            id="page-size"
+            onChange={(event) => {
+              onSettings(withPageSize(settings, event.target.value as PageSizeMode));
+            }}
+            value={pageSize}
+          >
+            <option value="fit">Fit, never enlarge</option>
+            <option value="enlarge">Fit, enlarging small pages</option>
+            <option value="stretch">Stretch to the screen</option>
+            <option value="fill">Crop to fill the screen</option>
+          </NativeSelect>
+        </SelectField>
+        <SelectField
+          changed={borders !== 'automatic'}
+          description={
+            locks.borders ?? borderDescriptions[format === 'epub' ? 'epub' : 'padded'][borders]
+          }
+          disabled={locks.borders !== undefined}
+          id="borders"
+          label="Borders"
+          onReset={() => {
+            onSettings(withBorderMode(settings, 'automatic'));
+          }}
+        >
+          <NativeSelect
+            aria-describedby="borders-message"
+            disabled={locks.borders !== undefined}
+            id="borders"
+            onChange={(event) => {
+              onSettings(withBorderMode(settings, event.target.value as BorderMode));
+            }}
+            value={borders}
+          >
+            <option value="automatic">Automatic</option>
+            <option value="white">White</option>
+            <option value="black">Black</option>
+          </NativeSelect>
+        </SelectField>
+      </SettingsSection>
+
+      <SettingsSection
+        description="Remove the margins around a page and the empty space between its panels."
+        eyebrow="Advanced"
+        title="Cropping"
+      >
+        <SelectField
+          {...resetProps('cropping')}
+          description={locks.marginCropping}
+          disabled={locks.marginCropping !== undefined}
+          id="cropping"
+          label="Page cropping"
+        >
+          <NativeSelect
+            aria-describedby="cropping-message"
+            disabled={locks.marginCropping !== undefined}
             id="cropping"
             onChange={(event) => {
               update('cropping', event.target.value as MangapressSettings['cropping']);
@@ -233,11 +427,7 @@ export function MangapressSettingsEditor({
         </SelectField>
         <NumberField
           {...resetProps('croppingPower')}
-          description={
-            croppingDisabled
-              ? 'Enable page cropping to adjust this.'
-              : 'Higher values crop through more.'
-          }
+          description={croppingReason ?? 'Higher values crop through more.'}
           disabled={croppingDisabled}
           error={errorFor('croppingPower')}
           id="cropping-power"
@@ -250,11 +440,7 @@ export function MangapressSettingsEditor({
         />
         <NumberField
           {...resetProps('croppingMinimum')}
-          description={
-            croppingDisabled
-              ? 'Enable page cropping to adjust this.'
-              : 'Only crop when this percentage of the page remains.'
-          }
+          description={croppingReason ?? 'Only crop when this percentage of the page remains.'}
           disabled={croppingDisabled}
           error={errorFor('croppingMinimum')}
           id="cropping-minimum"
@@ -269,11 +455,7 @@ export function MangapressSettingsEditor({
         />
         <NumberField
           {...resetProps('preserveMargin')}
-          description={
-            croppingDisabled
-              ? 'Enable page cropping to adjust this.'
-              : 'Back off the computed crop to retain some margin.'
-          }
+          description={croppingReason ?? 'Back off the computed crop to retain some margin.'}
           disabled={croppingDisabled}
           error={errorFor('preserveMargin')}
           id="preserve-margin"
@@ -305,54 +487,46 @@ export function MangapressSettingsEditor({
             <option value="both">Horizontal and vertical gaps</option>
           </NativeSelect>
         </SelectField>
+      </SettingsSection>
+
+      <SettingsSection
+        description="For readers that show two pages side by side, such as Kobo's and Kindle's own. KOReader ignores these."
+        eyebrow="Advanced"
+        title="Two-page view"
+      >
         <ToggleField
-          {...resetProps('upscale')}
-          checked={settings.upscale}
+          {...resetProps('spreadShift')}
+          checked={settings.spreadShift}
           description={
-            settings.wallpaper
-              ? 'Crop-to-fill takes precedence over upscaling.'
-              : 'Enlarge pages smaller than the target resolution.'
+            locks.twoPageView ?? 'Start the book on the other side, to line double-page spreads up.'
           }
-          disabled={settings.wallpaper}
-          id="upscale"
-          label="Upscale small pages"
+          disabled={locks.twoPageView !== undefined}
+          id="spread-shift"
+          label="Start on the other side"
           onChecked={(checked) => {
-            update('upscale', checked);
+            update('spreadShift', checked);
           }}
         />
         <ToggleField
-          {...resetProps('stretch')}
-          checked={settings.stretch}
-          description="Fill the target resolution without preserving aspect ratio."
-          id="stretch"
-          label="Stretch to fit"
+          {...resetProps('onePageLandscape')}
+          checked={settings.onePageLandscape}
+          description={locks.twoPageView ?? 'Show a single centered page instead of two.'}
+          disabled={locks.twoPageView !== undefined}
+          id="one-page-landscape"
+          label="One page in landscape"
           onChecked={(checked) => {
-            update('stretch', checked);
+            update('onePageLandscape', checked);
           }}
         />
         <ToggleField
-          {...resetProps('wallpaper')}
-          checked={settings.wallpaper}
-          description="Crop pages to fill the entire screen."
-          id="wallpaper"
-          label="Crop to fill"
+          {...resetProps('invertDirection')}
+          checked={settings.invertDirection}
+          description={locks.twoPageView ?? 'Turn pages against the reading order.'}
+          disabled={locks.twoPageView !== undefined}
+          id="invert-direction"
+          label="Invert page turns"
           onChecked={(checked) => {
-            update('wallpaper', checked);
-          }}
-        />
-        <ToggleField
-          {...resetProps('whiteBorders')}
-          checked={settings.whiteBorders}
-          description={
-            format === 'epub'
-              ? 'Available for CBZ and PDF output.'
-              : 'Force white borders instead of detected-background padding.'
-          }
-          disabled={format === 'epub'}
-          id="white-borders"
-          label="Force white borders"
-          onChecked={(checked) => {
-            update('whiteBorders', checked);
+            update('invertDirection', checked);
           }}
         />
       </SettingsSection>
@@ -409,7 +583,8 @@ export function MangapressSettingsEditor({
         <ToggleField
           {...resetProps('noAutoContrast')}
           checked={settings.noAutoContrast}
-          description="Skip automatic contrast adjustment."
+          description={locks.autoContrast ?? 'Skip automatic contrast adjustment.'}
+          disabled={locks.autoContrast !== undefined}
           id="no-auto-contrast"
           label="Disable auto contrast"
           onChecked={(checked) => {
@@ -420,11 +595,9 @@ export function MangapressSettingsEditor({
           {...resetProps('autoLevel')}
           checked={settings.autoLevel}
           description={
-            autolevelDisabled
-              ? 'Enable auto contrast to use black-point leveling.'
-              : 'Set the most common dark pixel as the black point first.'
+            autolevelReason ?? 'Set the most common dark pixel as the black point first.'
           }
-          disabled={autolevelDisabled}
+          disabled={autolevelReason !== undefined}
           id="auto-level"
           label="Auto-level black point"
           onChecked={(checked) => {

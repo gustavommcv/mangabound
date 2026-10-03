@@ -88,6 +88,44 @@ export const ConditionalControls: Story = {
   },
 };
 
+/** Webtoon strips lock what mangapress never does to them; each locked control says so. */
+export const WebtoonStrips: Story = {
+  args: {
+    settings: { ...defaultMangapressSettings, webtoon: true },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole('combobox', { name: 'Content' })).toHaveValue('webtoon');
+    await expect(canvas.getByRole('checkbox', { name: 'Manga reading order' })).toBeDisabled();
+    await expect(canvas.getByRole('combobox', { name: 'Wide pages' })).toBeDisabled();
+    await expect(canvas.getByRole('combobox', { name: 'Borders' })).toBeDisabled();
+    await expect(canvas.getByRole('combobox', { name: 'Page cropping' })).toBeDisabled();
+    await expect(canvas.getByRole('combobox', { name: 'Inter-panel cropping' })).toBeEnabled();
+  },
+};
+
+/** The whole spread kept upright, black borders, and the two-page view of an EPUB set. */
+export const SpreadsAndBorders: Story = {
+  args: {
+    settings: {
+      ...defaultMangapressSettings,
+      splitter: 'rotate',
+      noRotate: true,
+      blackBorders: true,
+      wallpaper: true,
+      upscale: false,
+      spreadShift: true,
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole('combobox', { name: 'Page size' })).toHaveValue('fill');
+    await expect(canvas.getByRole('combobox', { name: 'Borders' })).toHaveValue('black');
+    await expect(canvas.getByRole('checkbox', { name: 'Whole spread first' })).toBeDisabled();
+    await expect(canvas.getByRole('checkbox', { name: 'Rotate clockwise' })).toBeDisabled();
+  },
+};
+
 export const ValidationError: Story = {
   args: {
     settings: { ...defaultMangapressSettings, deviceProfile: 'OTHER' },

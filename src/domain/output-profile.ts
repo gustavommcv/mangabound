@@ -5,19 +5,39 @@ export type SplitterMode = 'split' | 'rotate' | 'both';
 export type InterPanelCropMode = 'disabled' | 'horizontal' | 'both';
 export type MetadataTitleMode = 'series-only' | 'combine' | 'title-only';
 
+/** How a page fills the screen: one choice, where mangapress has three flags of which one wins. */
+export type PageSizeMode = 'fit' | 'enlarge' | 'stretch' | 'fill';
+/** What surrounds a page: the color of its own background, or one that is forced. */
+export type BorderMode = 'automatic' | 'white' | 'black';
+
 export interface MangapressSettings {
   readonly deviceProfile: string;
   readonly quiet: boolean;
+  /** The images are long strips to cut into pages between panels, not pages. */
+  readonly webtoon: boolean;
   readonly mangaStyle: boolean;
   readonly cropping: CroppingMode;
   readonly croppingPower: number;
   readonly croppingMinimum: number;
   readonly preserveMargin: number;
   readonly splitter: SplitterMode;
+  /** The whole copy of a spread stays upright instead of being turned on its side. */
+  readonly noRotate: boolean;
+  /** The whole copy of a spread comes before its two halves instead of after. */
+  readonly rotateFirst: boolean;
+  /** Every page's two halves are stacked (1x4 strips become 2x2); replaces spread handling. */
+  readonly maximizeStrips: boolean;
   readonly upscale: boolean;
   readonly stretch: boolean;
   readonly wallpaper: boolean;
   readonly whiteBorders: boolean;
+  readonly blackBorders: boolean;
+  /** The book starts on the other side of a two-page view. */
+  readonly spreadShift: boolean;
+  /** A two-page view shows one centered page. */
+  readonly onePageLandscape: boolean;
+  /** Pages turn against the reading order. */
+  readonly invertDirection: boolean;
   readonly forcePng: boolean;
   readonly jpegQuality?: number;
   readonly rotateRight: boolean;
@@ -66,16 +86,24 @@ export interface MangapressSettingIssue {
 export const defaultMangapressSettings: MangapressSettings = Object.freeze({
   deviceProfile: 'KPW6',
   quiet: false,
+  webtoon: false,
   mangaStyle: true,
   cropping: 'margins-and-page-numbers',
   croppingPower: 1,
   croppingMinimum: 0,
   preserveMargin: 0,
   splitter: 'both',
+  noRotate: false,
+  rotateFirst: false,
+  maximizeStrips: false,
   upscale: true,
   stretch: false,
   wallpaper: false,
   whiteBorders: false,
+  blackBorders: false,
+  spreadShift: false,
+  onePageLandscape: false,
+  invertDirection: false,
   forcePng: false,
   rotateRight: false,
   autoLevel: false,
@@ -151,6 +179,109 @@ export function restoreSettingDefault<K extends keyof MangapressSettings>(
     return withDeviceProfile(settings, defaultMangapressSettings.deviceProfile);
   }
   return { ...settings, [field]: defaultValueForSetting(settings, field) };
+}
+
+/**
+ * The one choice the three size flags amount to. mangapress lets all three be set and then lets
+ * one win: cropping to fill over stretching, stretching over enlarging.
+ */
+export function pageSizeOf(
+  settings: Pick<MangapressSettings, 'upscale' | 'stretch' | 'wallpaper'>,
+): PageSizeMode {
+  if (settings.wallpaper) return 'fill';
+  if (settings.stretch) return 'stretch';
+  return settings.upscale ? 'enlarge' : 'fit';
+}
+
+/** The settings with exactly the flag that choice needs, so the three never disagree. */
+export function withPageSize(settings: MangapressSettings, mode: PageSizeMode): MangapressSettings {
+  return {
+    ...settings,
+    upscale: mode === 'enlarge',
+    stretch: mode === 'stretch',
+    wallpaper: mode === 'fill',
+  };
+}
+
+/** Where the page size starts for a device: enlarging, or not, as that device starts (ADR 0011). */
+export function defaultPageSizeFor(deviceProfile: string): PageSizeMode {
+  return defaultUpscaleFor(deviceProfile) ? 'enlarge' : 'fit';
+}
+
+/** Black wins when both are set, as it does in mangapress. */
+export function borderModeOf(
+  settings: Pick<MangapressSettings, 'whiteBorders' | 'blackBorders'>,
+): BorderMode {
+  if (settings.blackBorders) return 'black';
+  return settings.whiteBorders ? 'white' : 'automatic';
+}
+
+export function withBorderMode(settings: MangapressSettings, mode: BorderMode): MangapressSettings {
+  return { ...settings, whiteBorders: mode === 'white', blackBorders: mode === 'black' };
+}
+
+/** The page-layout controls another choice can leave without effect. */
+export type PageLayoutControl =
+  | 'mangaStyle'
+  | 'splitter'
+  | 'rotateFirst'
+  | 'noRotate'
+  | 'rotateRight'
+  | 'maximizeStrips'
+  | 'borders'
+  | 'marginCropping'
+  | 'autoContrast'
+  | 'twoPageView';
+
+export const webtoonLockReason = 'Not used for webtoon strips.';
+export const stripsLockReason = 'Replaced by restacking strips.';
+
+/**
+ * Why each page-layout control has no effect with the current choices; a control that is not
+ * named can be used. A locked control keeps its value and stays visible (ADR 0005): mangapress
+ * ignores it, and it applies again as soon as the choice that locked it is undone.
+ *
+ * Webtoon strips are never read right to left, split, bordered in anything but white, cropped at
+ * the margins or autocontrasted. Restacking strips replaces the handling of wide pages. What is
+ * left follows the choice for wide pages: there is a whole copy to place and turn only when one
+ * is kept. The three options of a two-page view are written into an EPUB and nowhere else.
+ */
+export function pageLayoutLocks(
+  settings: MangapressSettings,
+  format: BookFormat,
+): Partial<Record<PageLayoutControl, string>> {
+  const locks: Partial<Record<PageLayoutControl, string>> = {};
+  if (format !== 'epub') locks.twoPageView = 'Only an EPUB carries these.';
+  if (settings.webtoon) {
+    for (const control of [
+      'mangaStyle',
+      'splitter',
+      'rotateFirst',
+      'noRotate',
+      'rotateRight',
+      'maximizeStrips',
+      'marginCropping',
+      'autoContrast',
+    ] as const) {
+      locks[control] = webtoonLockReason;
+    }
+    locks.borders = 'Always white for webtoon strips.';
+    return locks;
+  }
+  if (settings.maximizeStrips) {
+    for (const control of ['splitter', 'rotateFirst', 'noRotate', 'rotateRight'] as const) {
+      locks[control] = stripsLockReason;
+    }
+    return locks;
+  }
+  if (settings.splitter !== 'both') locks.rotateFirst = 'Only when both versions are made.';
+  if (settings.splitter === 'split') {
+    locks.noRotate = 'Only when the whole spread is kept.';
+    locks.rotateRight = 'Only when the whole spread is kept.';
+  } else if (settings.noRotate) {
+    locks.rotateRight = 'Nothing is rotated while the whole spread stays upright.';
+  }
+  return locks;
 }
 
 export interface DeviceProfileOption {
