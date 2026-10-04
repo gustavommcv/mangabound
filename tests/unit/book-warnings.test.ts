@@ -77,6 +77,19 @@ describe('the warnings of a run, as the results show them', () => {
     ]);
   });
 
+  it.each(['constructor', 'toString', 'hasOwnProperty', '__proto__', 'valueOf'])(
+    'does not take %s, a name every object has, for a code it knows',
+    (code) => {
+      const notices = warningNotices([
+        { name: 'One.epub', warnings: [{ code, message: 'The tool’s sentence.' }] },
+      ]);
+
+      expect(notices).toEqual([
+        { code, title: 'A note from mangapress', message: 'The tool’s sentence.' },
+      ]);
+    },
+  );
+
   it('shows the tool’s own sentence for a code it does not know', () => {
     const later = { code: 'added_in_a_later_release', message: 'Something new was noticed.' };
     const notices = warningNotices([
