@@ -1,4 +1,14 @@
-import { mkdtemp, mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
+import {
+  mkdtemp,
+  mkdir,
+  readFile,
+  readdir,
+  rename,
+  rm,
+  stat,
+  utimes,
+  writeFile,
+} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -316,5 +326,95 @@ describe('FsPendingRuns', () => {
     await store.markSaved(listed, first, path.join(run.path, 'export.epub'));
     await store.pruneCompleted();
     expect((await store.list())[0]?.books).toHaveLength(2);
+  });
+});
+
+describe('FsPendingRuns.pruneAbandoned', () => {
+  const day = 24 * 60 * 60 * 1000;
+  const now = Date.UTC(2026, 9, 4, 12, 0, 0);
+
+  /** A run the app was killed in the middle of its first book: only a half-made file in staging. */
+  async function interruptedRun(store: FsPendingRuns, agoMs: number): Promise<string> {
+    const run = await store.create();
+    const staging = path.join(run.path, '.mangabound', 'incoming', 'staged-1');
+    await mkdir(staging, { recursive: true });
+    await writeFile(path.join(staging, 'Half.epub'), 'half');
+    await ageTree(run.path, agoMs);
+    return run.id;
+  }
+
+  async function ageTree(target: string, agoMs: number): Promise<void> {
+    const when = new Date(now - agoMs);
+    for (const entry of await readdir(target, { withFileTypes: true })) {
+      const child = path.join(target, entry.name);
+      if (entry.isDirectory()) await ageTree(child, agoMs);
+      else await utimes(child, when, when);
+    }
+    await utimes(target, when, when);
+  }
+
+  it('removes a run with no finished book that nothing has touched for longer than the age', async () => {
+    const { store } = await fixture();
+    const id = await interruptedRun(store, 3 * day);
+
+    await store.pruneAbandoned(day, now);
+
+    expect(await readdir(store.root)).not.toContain(id);
+  });
+
+  it('leaves one that something in it changed recently, since a book may be in the making', async () => {
+    const { store } = await fixture();
+    const id = await interruptedRun(store, 3 * day);
+    const half = path.join(store.root, id, '.mangabound', 'incoming', 'staged-1', 'Half.epub');
+    const recent = new Date(now - 60 * 1000);
+    await utimes(half, recent, recent);
+
+    await store.pruneAbandoned(day, now);
+
+    expect(await readdir(store.root)).toContain(id);
+  });
+
+  it('leaves a run that is exactly as old as the age, and takes the next moment of it', async () => {
+    const { store } = await fixture();
+    const id = await interruptedRun(store, day);
+
+    await store.pruneAbandoned(day, now);
+    expect(await readdir(store.root)).toContain(id);
+
+    await store.pruneAbandoned(day, now + 1);
+    expect(await readdir(store.root)).not.toContain(id);
+  });
+
+  it('never removes a run that holds a finished book, however old', async () => {
+    const { store, run } = await bookFixture();
+    await ageTree(run.path, 30 * day);
+
+    await store.pruneAbandoned(day, now);
+
+    expect((await store.list()).map((listed) => listed.id)).toEqual([run.id]);
+  });
+
+  it('leaves what is not a run folder alone', async () => {
+    const { store } = await fixture();
+    await store.prepare();
+    await writeFile(path.join(store.root, 'notes.txt'), 'x');
+    await mkdir(path.join(store.root, 'not-a-run'));
+    await interruptedRun(store, 3 * day);
+
+    await store.pruneAbandoned(day, now);
+
+    expect((await readdir(store.root)).sort()).toEqual(['not-a-run', 'notes.txt']);
+  });
+
+  it('takes the time of the call when it is not given one', async () => {
+    const { store } = await fixture();
+    const run = await store.create();
+    await mkdir(path.join(run.path, '.mangabound', 'incoming'), { recursive: true });
+
+    await store.pruneAbandoned(day);
+    expect(await readdir(store.root)).toContain(run.id);
+
+    await store.pruneAbandoned(-1);
+    expect(await readdir(store.root)).not.toContain(run.id);
   });
 });
