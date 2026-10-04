@@ -40,6 +40,17 @@ describe('ResetOptions', () => {
     expect(confirm).toHaveTextContent(`Put ${scope} back to their defaults?`);
   });
 
+  it('takes keyboard focus when the question opens, so it is read out and its buttons are next', async () => {
+    const user = userEvent.setup();
+    render(<ResetOptions changed onReset={vi.fn()} scope={scope} />);
+
+    await user.click(screen.getByRole('button', { name: 'Reset to defaults' }));
+
+    expect(screen.getByRole('group', { name: 'Confirm reset' })).toHaveFocus();
+    await user.tab();
+    expect(screen.getByRole('button', { name: 'Reset' })).toHaveFocus();
+  });
+
   it('resets once on the second click, says so for screen readers, and keeps focus on the button', async () => {
     const user = userEvent.setup();
     const onReset = vi.fn();

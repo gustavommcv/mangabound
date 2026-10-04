@@ -155,7 +155,6 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
   // present its grouping/EPUB locks as active while the queue contains only CBZ files.
   const singleBookActive =
     singleBook && !(rows.length > 0 && rows.every((row) => row.kind === 'cbz'));
-  const [jobId, setJobId] = useState<string>();
   const [progress, setProgress] = useState<ConversionProgress>();
   const [runPosition, setRunPosition] = useState<{
     readonly name: string;
@@ -175,6 +174,9 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
   const rowsRef = useRef(rows);
   const attemptedInspection = useRef(new Set<string>());
   const cancelRequested = useRef(false);
+  // The job that is running, set as it starts: a button pressed in the instant between two items
+  // still holds the render of the item before, so what it cancels cannot come from state.
+  const runningJob = useRef<string>(undefined);
   const {
     pendingRuns,
     refresh: refreshPendingRuns,
@@ -183,9 +185,9 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
 
   useEffect(() => {
     return bridge.onConversionProgress((update) => {
-      if (update.jobId === jobId) setProgress(update);
+      if (update.jobId === runningJob.current) setProgress(update);
     });
-  }, [bridge, jobId]);
+  }, [bridge]);
 
   const sharing = useSharing(bridge, setFailure);
 
@@ -411,7 +413,7 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
       if (cancelRequested.current) break;
       attempted.add(row.id);
       const nextJobId = crypto.randomUUID();
-      setJobId(nextJobId);
+      runningJob.current = nextJobId;
       setRunPosition({ name: row.displayName, index: index + 1, total: items.length });
       setProgress({ stage: 'processing', message: 'Preparing…' });
       if (row.kind === 'library') {
@@ -446,7 +448,7 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
       settled.push(...report.outcomes);
       if (report.cancelled) cancelRequested.current = true;
     }
-    setJobId(undefined);
+    runningJob.current = undefined;
     setProgress(undefined);
     setRunPosition(undefined);
     const report = finishRunReport({ rows, mode, settled, attempted, completedTitles });
@@ -462,9 +464,10 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
   };
 
   const cancelConversion = async (): Promise<void> => {
-    if (jobId === undefined) return;
+    const job = runningJob.current;
+    if (job === undefined) return;
     cancelRequested.current = true;
-    const result = await bridge.cancelConversion(jobId);
+    const result = await bridge.cancelConversion(job);
     if (!result.ok) setFailure(result.error);
   };
 
