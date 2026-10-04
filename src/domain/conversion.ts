@@ -56,6 +56,14 @@ export interface PipelineIssue {
   readonly path?: string;
 }
 
+/** Something mangapress noticed about a book and went on from: the book was still made. */
+export interface BookWarning {
+  /** The tool's stable code; what is shown is chosen by it, never by the English text. */
+  readonly code: string;
+  /** The tool's own sentence, shown as it is for a code the app does not know. */
+  readonly message: string;
+}
+
 export interface ConversionArtifact {
   readonly id: string;
   readonly name: string;
@@ -64,6 +72,7 @@ export interface ConversionArtifact {
   readonly format: BookFormat;
   readonly title: string;
   readonly author: string;
+  readonly warnings?: readonly BookWarning[];
 }
 
 export interface PlannedBook {

@@ -90,6 +90,57 @@ export const SavedWithSomethingSkipped: Story = {
   args: { outcomes: [...saved, skipped] },
 };
 
+const smallPages = {
+  code: 'images_smaller_than_device',
+  message: 'Pages are smaller than the screen.',
+};
+
+/** Books made with something mangapress noticed: one notice per kind, naming the books. */
+export const WithWarnings: Story = {
+  args: {
+    outcomes: [
+      {
+        rowId: 'a',
+        name: 'Chainsaw Man',
+        status: 'done',
+        artifacts: [
+          {
+            id: 'one',
+            name: 'Chainsaw Man - Vol.01.epub',
+            bytes: 18_400_000,
+            format: 'epub',
+            warnings: [smallPages],
+          },
+          {
+            id: 'two',
+            name: 'Chainsaw Man - Vol.02.epub',
+            bytes: 17_900_000,
+            format: 'epub',
+            warnings: [smallPages],
+          },
+        ],
+      },
+      {
+        rowId: 'c',
+        name: 'Vagabond Vol.03.cbz',
+        status: 'done',
+        artifacts: [
+          {
+            id: 'three',
+            name: 'Vagabond Vol.03.epub',
+            bytes: 22_100_000,
+            format: 'epub',
+            warnings: [
+              smallPages,
+              { code: 'source_already_converted', message: 'These pages look converted.' },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+};
+
 export const NothingSaved: Story = {
   args: {
     outcomes: [

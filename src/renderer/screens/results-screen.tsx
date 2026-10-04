@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 
+import { warningNotices } from '@/domain/book-warnings';
 import type { RunOutcome as ReportOutcome } from '@/domain/run-report';
 import { Button } from '@/renderer/components/ui/button';
 import type { ArtifactSummary } from '@/shared/workflow-contract';
@@ -50,6 +51,7 @@ export function ResultsScreen({
 }: ResultsScreenProps): React.JSX.Element {
   const artifacts = outcomes.flatMap((outcome) => outcome.artifacts);
   const problems = outcomes.filter((outcome) => outcome.status !== 'done');
+  const notices = warningNotices(artifacts);
   const titleRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     titleRef.current?.focus();
@@ -198,6 +200,30 @@ export function ResultsScreen({
             )}
           </div>
         ))}
+
+        {notices.length > 0 && (
+          <ul aria-label="Warnings about the books" className="space-y-5">
+            {notices.map((notice) => (
+              <li
+                className="border-status-warning/40 bg-status-warning/10 flex items-start gap-3 rounded-xl border p-4"
+                key={`${notice.code}:${notice.message}`}
+              >
+                <TriangleAlert
+                  aria-hidden="true"
+                  className="text-status-warning mt-0.5 size-5 shrink-0"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium">{notice.title}</p>
+                  <p className="text-muted-foreground mt-0.5 text-sm">
+                    {notice.where === undefined
+                      ? notice.message
+                      : `${notice.where} ${notice.message}`}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
       {aside}
     </section>

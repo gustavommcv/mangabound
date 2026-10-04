@@ -18,6 +18,18 @@ If saving fails or shows a warning, read the message and retry. A book may have 
   alt="Finished books with individual saving, Save all to folder and sharing."
 />
 
+## Warnings about the books
+
+When mangapress notices something about a book it still made, the results say so below the books: once for each kind of warning, naming the books it is in. The books are ready all the same; a warning is advice, not a failure.
+
+- **Pages smaller than the screen**: more than a quarter of the pages are smaller than the screen and nothing enlarges them. Choose **Fit, enlarging small pages** under **Page size** in the [conversion options](../output-profiles/) and convert again.
+- **Pages already converted once**: the pages look like Kindle Comic Converter already converted them. Converting again lowers their quality; use the original files if you have them.
+- **Files that are not images were left out**: the input holds files that are not page images, and they are not in the book.
+- **A .json file beside the book was not used** and **Some labelled spreads were not joined**: mangapress reads a file of spread labels that sits beside a CBZ converted as it is; these say that the file was not such a list, or that a labelled position had no page to be joined with.
+- **Saved under another name**: the book would have replaced its own source.
+
+A warning of a kind this version does not know is shown in mangapress's own words. Warnings are shown with the results of the conversion that gave them; books reopened later from **Ready books** are listed without them.
+
 ## Open or share
 
 - The open action beside a book launches the operating system's default application. If none is associated with EPUB/CBZ/PDF, install a compatible reader or set the file association.

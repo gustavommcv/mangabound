@@ -348,6 +348,51 @@ describe('bundled toolchain verification', () => {
     }
   });
 
+  // The fixture's pages are 600x800, smaller than a Paperwhite's screen. With nothing enlarging
+  // them the real tool says so, and the book carries what it said (ADR 0039).
+  it('keeps the warning the real pinned mangapress gives for pages smaller than the screen', async () => {
+    const target = resolveToolchainTarget(process.platform, process.arch)!;
+    const executableName = target.startsWith('win32-') ? 'mangapress.exe' : 'mangapress';
+    const conversion = new MangapressConversionAdapter(
+      new MangapressCliAdapter(
+        path.join(repositoryRoot, 'vendor', 'toolchain', target, executableName),
+        createNodeProcessRunner(),
+      ),
+    );
+    const inputPath = path.join(
+      repositoryRoot,
+      'tests',
+      'fixtures',
+      'e2e',
+      'cbz',
+      'Mangabound Direct.cbz',
+    );
+    const outputDirectory = await mkdtemp(path.join(tmpdir(), 'mangabound-warnings-'));
+    try {
+      const fitted = await conversion.convert(
+        {
+          inputPath,
+          outputDirectory,
+          settings: { ...defaultMangapressSettings, upscale: false },
+          format: 'epub',
+        },
+        { onProgress: () => undefined },
+      );
+      expect(fitted.warnings?.map((warning) => warning.code)).toEqual([
+        'images_smaller_than_device',
+      ]);
+
+      // Enlarging is where the options start, and with it there is nothing to warn about.
+      const enlarged = await conversion.convert(
+        { inputPath, outputDirectory, settings: defaultMangapressSettings, format: 'cbz' },
+        { onProgress: () => undefined },
+      );
+      expect(enlarged).not.toHaveProperty('warnings');
+    } finally {
+      await rm(outputDirectory, { recursive: true, force: true });
+    }
+  });
+
   // The capability check knows the pinned tool has these flags; only a run shows it takes them
   // together, and that it still makes a book when told to leave the images alone.
   it('converts with every image option, and with none applied, with the real pinned mangapress', async () => {

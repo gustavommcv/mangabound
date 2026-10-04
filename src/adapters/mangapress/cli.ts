@@ -3,11 +3,13 @@ import {
   isMangapressErrorEvent,
   isMangapressProfileEvent,
   isMangapressResultEvent,
+  isMangapressWarningEvent,
   type MangapressErrorEvent,
   type MangapressEvent,
   MangapressEventDecoder,
   type MangapressProfileEvent,
   type MangapressResultEvent,
+  type MangapressWarningEvent,
 } from './protocol';
 
 import { CliProtocolError } from '@/adapters/cli-protocol-error';
@@ -16,6 +18,8 @@ import type { ProcessRunner } from '@/application/ports/process-runner';
 export interface MangapressRunResult {
   readonly events: readonly MangapressEvent[];
   readonly errors: readonly MangapressErrorEvent[];
+  /** What the tool noticed and went on from; a run that succeeds can still have some. */
+  readonly warnings: readonly MangapressWarningEvent[];
   readonly result?: MangapressResultEvent;
   readonly exitCode: number | null;
   readonly stderr: string;
@@ -107,6 +111,7 @@ export class MangapressCliAdapter {
     return {
       events,
       errors: events.filter(isMangapressErrorEvent),
+      warnings: events.filter(isMangapressWarningEvent),
       ...(result === undefined ? {} : { result }),
       exitCode: processResult.exitCode,
       stderr: processResult.stderr,

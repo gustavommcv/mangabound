@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import type {
   BookFormat,
+  BookWarning,
   ConversionProgress,
   InputKind,
   InspectedKind,
@@ -255,6 +256,8 @@ export interface ArtifactSummary {
   readonly name: string;
   readonly bytes: number;
   readonly format: BookFormat;
+  /** What mangapress noticed while making this book; absent when it noticed nothing. */
+  readonly warnings?: readonly BookWarning[];
 }
 
 export interface PendingArtifactSummary extends ArtifactSummary {

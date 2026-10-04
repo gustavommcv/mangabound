@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -135,7 +135,77 @@ describe('ResultsScreen', () => {
     expect(screen.getByText('Kindle Voyage · EPUB')).toBeVisible();
     expect(screen.getByText('1.5 KB · Not saved yet')).toBeVisible();
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('list', { name: 'Warnings about the books' }),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '1 book ready' })).toHaveFocus();
+  });
+
+  it('shows what mangapress noticed once per kind, saying which books it is in', () => {
+    const small = { code: 'images_smaller_than_device', message: 'Consider --upscale.' };
+    const later = { code: 'added_in_a_later_release', message: 'Something new was noticed.' };
+    render(
+      <ResultsScreen
+        {...handlers}
+        outcomes={[
+          {
+            ...saved,
+            artifacts: [
+              { id: 'one', name: 'Work 01.epub', bytes: 10, format: 'epub', warnings: [small] },
+              {
+                id: 'two',
+                name: 'Work 02.epub',
+                bytes: 10,
+                format: 'epub',
+                warnings: [small, later],
+              },
+            ],
+          },
+        ]}
+      />,
+    );
+
+    // The books are ready all the same: a warning is advice, not a failure.
+    expect(screen.getByRole('heading', { name: '2 books ready' })).toBeVisible();
+    const notices = within(
+      screen.getByRole('list', { name: 'Warnings about the books' }),
+    ).getAllByRole('listitem');
+    expect(notices).toHaveLength(2);
+    expect(notices[0]).toHaveTextContent('Pages smaller than the screen');
+    expect(notices[0]).toHaveTextContent(
+      'In all 2 books. More than a quarter of the pages are smaller than the screen',
+    );
+    expect(notices[0]).not.toHaveTextContent('--upscale');
+    expect(notices[1]).toHaveTextContent('A note from mangapress');
+    expect(notices[1]).toHaveTextContent('In Work 02.epub. Something new was noticed.');
+  });
+
+  it('says a single book’s warning without naming the book', () => {
+    render(
+      <ResultsScreen
+        {...handlers}
+        outcomes={[
+          {
+            ...saved,
+            artifacts: [
+              {
+                id: 'one',
+                name: 'Work.epub',
+                bytes: 10,
+                format: 'epub',
+                warnings: [{ code: 'source_already_converted', message: 'x' }],
+              },
+            ],
+          },
+        ]}
+      />,
+    );
+
+    const notice = within(screen.getByRole('list', { name: 'Warnings about the books' })).getByRole(
+      'listitem',
+    );
+    expect(notice).toHaveTextContent('Pages already converted once');
+    expect(notice).toHaveTextContent(/^Pages already converted onceThese pages look like/u);
   });
 
   it('uses the plural for several books and shows the side card beside the list', () => {

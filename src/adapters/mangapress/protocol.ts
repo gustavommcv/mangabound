@@ -93,9 +93,14 @@ export type MangapressErrorEvent = z.infer<(typeof knownEventSchemas)['error']>;
 export type MangapressPageEvent = z.infer<(typeof knownEventSchemas)['page']>;
 export type MangapressProfileEvent = z.infer<(typeof knownEventSchemas)['profile']>;
 export type MangapressResultEvent = z.infer<(typeof knownEventSchemas)['result']>;
+export type MangapressWarningEvent = z.infer<(typeof knownEventSchemas)['warning']>;
 
 export function isMangapressErrorEvent(event: MangapressEvent): event is MangapressErrorEvent {
   return knownEventSchemas.error.safeParse(event).success;
+}
+
+export function isMangapressWarningEvent(event: MangapressEvent): event is MangapressWarningEvent {
+  return knownEventSchemas.warning.safeParse(event).success;
 }
 
 export function isMangapressPageEvent(event: MangapressEvent): event is MangapressPageEvent {

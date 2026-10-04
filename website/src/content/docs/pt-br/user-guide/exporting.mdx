@@ -18,6 +18,18 @@ Se houver falha ou aviso, leia a mensagem e tente novamente. Um livro pode ter s
   alt="Livros prontos com salvamento individual, Save all to folder e compartilhamento."
 />
 
+## Avisos sobre os livros
+
+Quando o mangapress percebe algo sobre um livro que mesmo assim foi feito, os resultados mostram isso abaixo dos livros: uma vez para cada tipo de aviso, dizendo em quais livros ele vale. Os livros estão prontos do mesmo jeito; um aviso é um conselho, não uma falha.
+
+- **Pages smaller than the screen**: mais de um quarto das páginas é menor que a tela e nada as amplia. Escolha **Fit, enlarging small pages** em **Page size**, nas [opções de conversão](../output-profiles/), e converta de novo.
+- **Pages already converted once**: as páginas parecem já ter sido convertidas pelo Kindle Comic Converter. Converter de novo reduz a qualidade; use os arquivos originais, se tiver.
+- **Files that are not images were left out**: a entrada tem arquivos que não são imagens de página, e eles não estão no livro.
+- **A .json file beside the book was not used** e **Some labelled spreads were not joined**: o mangapress lê um arquivo de rótulos de página dupla que fica ao lado de um CBZ convertido como está; esses avisos dizem que o arquivo não era uma lista desse tipo, ou que uma posição rotulada não tinha página com que ser unida.
+- **Saved under another name**: o livro substituiria o próprio arquivo de origem.
+
+Um aviso de um tipo que esta versão não conhece é mostrado com as palavras do próprio mangapress. Os avisos aparecem com os resultados da conversão que os gerou; livros reabertos depois em **Ready books** são listados sem eles.
+
 ## Abra ou compartilhe
 
 - A ação de abrir ao lado do livro utiliza o aplicativo padrão do sistema operacional. Se nenhum estiver associado a EPUB/CBZ/PDF, instale um leitor compatível ou configure a associação.
