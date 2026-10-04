@@ -273,8 +273,8 @@ describe('mangabind binding port', () => {
       controller.signal,
     );
     expect(planned.volumes).toEqual([
-      { name: 'planned-v1.cbz', pageCount: 2 },
-      { name: 'planned-v2.cbz', pageCount: 1 },
+      { name: 'planned-v1.cbz', pageCount: 2, number: 1 },
+      { name: 'planned-v2.cbz', pageCount: 1, number: 2 },
     ]);
     expect(files.writeTextAtomically).not.toHaveBeenCalled();
     const onProgress = vi.fn();
@@ -556,7 +556,7 @@ describe('mangabind binding port', () => {
     await expect(adapter.bind('save-failure', completeMapping())).rejects.toMatchObject({
       code: 'mapping_save_failed',
       message:
-        "Couldn't save mangabind.json in the source folder. Check that the folder is writable and try again.",
+        "Couldn't save mangabind.json in the source folder. Check that the folder is writable and that its mangabind.json is valid JSON.",
     });
   });
 
@@ -888,7 +888,7 @@ describe('mangabind binding port', () => {
     ).rejects.toMatchObject({
       code: 'mapping_save_failed',
       message:
-        "Couldn't save mangabind.json in the source folder. Check that the folder is writable and try again.",
+        "Couldn't save mangabind.json in the source folder. Check that the folder is writable and that its mangabind.json is valid JSON.",
     });
   });
 });

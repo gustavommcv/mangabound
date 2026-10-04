@@ -18,7 +18,7 @@ import {
 } from '@/application/workflows/run-preconditions';
 import { presentBindingProgress } from '@/application/workflows/binding-progress';
 import { withBindingWarnings } from '@/application/workflows/binding-warnings';
-import { detailsForBook, noBookDetails } from '@/domain/book-details';
+import { detailsForBook, noBookDetails, normalizeBookDetails } from '@/domain/book-details';
 import {
   type ConversionArtifact,
   type ConversionProgress,
@@ -26,6 +26,7 @@ import {
   ConversionWorkflowError,
   type PipelineIssue,
   plannedSingleBook,
+  plannedVolumeBookName,
   type WorkflowPlan,
 } from '@/domain/conversion';
 import { type ProcessMode, unsupportedModeReason, usesMangapress } from '@/domain/process-mode';
@@ -186,7 +187,18 @@ export class SingleInputRun {
       tool: 'mangabind',
       title: plan.title,
       message: `mangabind validated ${String(plan.volumes.length)} volume${plan.volumes.length === 1 ? '' : 's'}${singleBook ? ' · single book for the series' : mode === 'bind-only' ? ' · saved as CBZ files, mangapress not run' : ''} · no library files written`,
-      books: singleBook ? [plannedSingleBook(plan.title, plan.volumes)] : plan.volumes,
+      books: singleBook
+        ? [plannedSingleBook(plan.title, plan.volumes)]
+        : usesMangapress(mode)
+          ? plan.volumes.map((volume) => ({
+              name: plannedVolumeBookName(
+                volume,
+                normalizeBookDetails(request.details ?? noBookDetails).title,
+                request.format,
+              ),
+              pageCount: volume.pageCount,
+            }))
+          : plan.volumes,
       issues: plan.issues,
     };
   }

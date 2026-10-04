@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { ProcessCancelledError } from '@/application/ports/process-runner';
 import { ConversionWorkflow } from '@/application/workflows/conversion-workflow';
 import { createMappingDraft } from '@/domain/mapping';
 import { defaultMangapressSettings } from '@/domain/output-profile';
@@ -528,10 +529,16 @@ describe('library conversion workflow', () => {
       { onProgress: vi.fn(), signal: controller.signal },
     );
 
-    // The interrupted title is reported as failed, and the loop stops before "Broken Manga".
+    // The interrupted title is reported as failed, and nothing is started for "Broken Manga"...
     expect(ports.convert).toHaveBeenCalledTimes(1);
-    expect(outcomes).toMatchObject([{ title: 'Good Manga', status: 'failed', artifacts: [] }]);
+    expect(outcomes.map(({ title, status }) => ({ title, status }))).toEqual([
+      { title: 'Good Manga', status: 'failed' },
+      { title: 'Broken Manga', status: 'failed' },
+    ]);
     expect(outcomes[0]!.error).toMatchObject({ message: 'aborted' });
+    // ...which is still told, as cancelled, so that the results can say the run was cancelled.
+    expect(outcomes[1]).toMatchObject({ artifacts: [] });
+    expect(outcomes[1]!.error).toBeInstanceOf(ProcessCancelledError);
     expect(ports.release).toHaveBeenCalledWith('batch-workspace');
   });
 
