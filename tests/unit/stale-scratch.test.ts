@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readdir, rm, symlink, utimes, writeFile } from 'node:fs/promises';
+import { lutimes, mkdir, mkdtemp, readdir, rm, symlink, utimes, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -103,11 +103,15 @@ describe('newestChange', () => {
     const outside = await scratch();
     await fileChanged(path.join(outside, 'recent.txt'), 0);
     await fileChanged(path.join(root, 'inside.txt'), 3 * day);
-    await folderChanged(root, 3 * day);
     await symlink(outside, path.join(root, 'link'));
+    // The link was made just now, and so was the folder it was made in: age both, the link itself
+    // (not what it leads to) first.
+    const then = new Date(now - 3 * day);
+    await lutimes(path.join(root, 'link'), then, then);
+    await folderChanged(root, 3 * day);
 
-    // The link's own time is what it is; the file it leads to is not counted.
-    expect(await newestChange(root)).toBeLessThan(now - day);
+    // The link's own time counts; the file it leads to, which is newer, is not looked at.
+    expect(await newestChange(root)).toBe(now - 3 * day);
   });
 });
 
