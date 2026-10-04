@@ -145,6 +145,8 @@ export interface ConversionPort {
       readonly settings: MangapressSettings;
       /** The title, author and language of this book, where they were set for it. */
       readonly book?: BookDetails;
+      /** An image of the person's own to make this book's cover from, in the place of its first. */
+      readonly cover?: string;
       readonly format: BookFormat;
       readonly nestedToc?: boolean;
     },

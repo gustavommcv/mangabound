@@ -8,6 +8,7 @@ import type {
   InspectedKind,
   PipelineIssue,
 } from '@/domain/conversion';
+import type { AttachedCover, CoverSlot } from '@/domain/book-covers';
 import {
   type BookDetails,
   languageTagPattern,
@@ -173,6 +174,54 @@ export interface SaveBookDetailsCommand {
   readonly sessionId: string;
   readonly title?: string;
   readonly details: BookDetails;
+}
+
+/** Which book of an item a cover is for: a volume by its number, or the item's one book. */
+export const coverSlotSchema = z.union([
+  // A volume's number is whatever its folder names say: 3, 3.5, sometimes 0.
+  z.number().finite().nonnegative().max(100_000),
+  z.literal('book'),
+]);
+
+/** The item whose covers are meant: a session's own, or one title of the library it read. */
+const coverTargetFields = {
+  sessionId: identifierSchema,
+  title: z.string().min(1).optional(),
+};
+/** The books the item makes, in order: what a folder of covers is handed out to. */
+const coverSlotsSchema = z.array(coverSlotSchema).min(1).max(2000);
+
+export const coverTargetSchema = z.object(coverTargetFields);
+export const coverOfBookCommandSchema = z.object({ ...coverTargetFields, slot: coverSlotSchema });
+export const coversFolderCommandSchema = z.object({
+  ...coverTargetFields,
+  slots: coverSlotsSchema,
+});
+export const dropCoversCommandSchema = z.object({
+  ...coverTargetFields,
+  slots: coverSlotsSchema,
+  /** The book the files were dropped on, when they were dropped on one. */
+  slot: coverSlotSchema.optional(),
+  paths: z.array(z.string()).min(1).max(2000),
+});
+
+export interface CoverTarget {
+  readonly sessionId: string;
+  readonly title?: string;
+}
+export interface CoverOfBookCommand extends CoverTarget {
+  readonly slot: CoverSlot;
+}
+export interface CoversFolderCommand extends CoverTarget {
+  readonly slots: readonly CoverSlot[];
+}
+export interface DropCoversCommand extends CoversFolderCommand {
+  readonly slot?: CoverSlot;
+}
+/** The covers of an item after a change, and anything there is to say about it. */
+export interface CoversChange {
+  readonly covers: readonly AttachedCover[];
+  readonly note?: string;
 }
 
 export const writeTitleMappingCommandSchema = z.object({

@@ -16,6 +16,9 @@ const appBinaryPath =
 const isWayland = process.env.MANGABOUND_WAYLAND === '1';
 const pendingTestRoot = path.join(os.tmpdir(), `mangabound-e2e-pending-${String(process.pid)}`);
 process.env.MANGABOUND_PENDING_ROOT = pendingTestRoot;
+// Covers a test attaches are kept apart from the ones of whoever runs the suite.
+const coversTestRoot = path.join(os.tmpdir(), `mangabound-e2e-covers-${String(process.pid)}`);
+process.env.MANGABOUND_COVERS_ROOT = coversTestRoot;
 
 export const config: WebdriverIO.Config = {
   autoXvfb: !isWayland,
@@ -69,5 +72,9 @@ export const config: WebdriverIO.Config = {
       );
     }
     await rm(pendingTestRoot, { recursive: true, force: true });
+    // The covers root is made the same way, by the same line of this file.
+    if (path.dirname(path.resolve(coversTestRoot)) === path.resolve(os.tmpdir())) {
+      await rm(coversTestRoot, { recursive: true, force: true });
+    }
   },
 };

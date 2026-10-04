@@ -1,5 +1,10 @@
 import type { BindingPort, ConversionPort } from '@/application/ports/conversion-tools';
-import type { BookInput, BookProduction } from '@/application/workflows/book-production';
+import type { CoverLookup } from '@/application/workflows/book-covers';
+import {
+  type BookInput,
+  type BookProduction,
+  withCovers,
+} from '@/application/workflows/book-production';
 import {
   type ActiveSession,
   type InputSessions,
@@ -30,6 +35,7 @@ export class SingleInputRun {
     private readonly conversion: ConversionPort,
     private readonly sessions: InputSessions,
     private readonly books: BookProduction,
+    private readonly covers: CoverLookup,
   ) {}
 
   async convert(
@@ -88,6 +94,11 @@ export class SingleInputRun {
         }
         inputs = bound.volumes.map((volume) => ({ path: volume.path, volume: volume.number }));
       }
+    }
+
+    // A cover is for mangapress to make; a run that stops at the joined volumes has no use for one.
+    if (usesMangapress(mode)) {
+      inputs = withCovers(inputs, await this.covers.pathsFor(session.selection.inputPath));
     }
 
     const result = await this.books.produceVolumes(

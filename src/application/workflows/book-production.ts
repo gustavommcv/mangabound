@@ -5,6 +5,7 @@ import {
   type VolumeProductionContext,
   type VolumeProductionResult,
 } from '@/application/workflows/volume-production';
+import type { CoverSlot } from '@/domain/book-covers';
 import { type BookDetails, detailsForBook } from '@/domain/book-details';
 import {
   type BookFormat,
@@ -20,6 +21,19 @@ export interface BookInput {
   readonly path: string;
   /** The volume's number in its series; absent for a book that is not one volume of it. */
   readonly volume?: number;
+  /** The image of the person's own this book's cover is made from, when there is one. */
+  readonly cover?: string;
+}
+
+/** The inputs of an item, each with the cover kept for it: a volume's, or the one book's. */
+export function withCovers(
+  inputs: readonly BookInput[],
+  covers: ReadonlyMap<CoverSlot, string>,
+): readonly BookInput[] {
+  return inputs.map((input) => {
+    const cover = covers.get(input.volume ?? 'book');
+    return cover === undefined ? input : { ...input, cover };
+  });
 }
 
 /** The shared book-producing step: convert or copy, then publish a complete, uniquely named file. */
@@ -57,6 +71,7 @@ export class BookProduction {
           inputPath: inputs[index]!.path,
           ...bookRequest,
           book: detailsForBook(details, inputs[index]!.volume),
+          ...(inputs[index]!.cover === undefined ? {} : { cover: inputs[index]!.cover }),
         },
         {
           ...(context.title === undefined ? {} : { title: context.title }),
@@ -85,6 +100,8 @@ export class BookProduction {
       readonly settings: MangapressSettings;
       /** The title, author and language this book is made with. */
       readonly book: BookDetails;
+      /** The image of the person's own its cover is made from, when there is one. */
+      readonly cover?: string;
       readonly format: BookFormat;
       readonly nestedToc?: boolean;
     },
@@ -123,6 +140,7 @@ export class BookProduction {
               outputDirectory: stagingPath,
               settings: request.settings,
               book: request.book,
+              ...(request.cover === undefined ? {} : { cover: request.cover }),
               format: request.format,
               nestedToc: request.nestedToc,
             },

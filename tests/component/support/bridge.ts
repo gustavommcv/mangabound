@@ -9,6 +9,11 @@ const nothing = Promise.resolve({ ok: true as const, value: undefined });
  */
 export function inertBridge(overrides: Partial<MangaboundBridge> = {}): MangaboundBridge {
   return {
+    listCovers: () => Promise.resolve({ ok: true, value: [] }),
+    chooseCover: () => Promise.resolve({ ok: true, value: null }),
+    chooseCoversFolder: () => Promise.resolve({ ok: true, value: null }),
+    dropCovers: () => Promise.resolve({ ok: true, value: { covers: [] } }),
+    removeCover: () => Promise.resolve({ ok: true, value: { covers: [] } }),
     runtime: { electron: '44.3.0', platform: 'win32', version: '0.1.0-alpha.1' },
     getToolchainStatus: () =>
       Promise.resolve({

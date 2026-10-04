@@ -14,6 +14,11 @@ import type {
   MetadataSearchResult,
   PlanSummary,
   PlanConversionCommand,
+  CoverOfBookCommand,
+  CoversChange,
+  CoversFolderCommand,
+  CoverTarget,
+  DropCoversCommand,
   SaveBookDetailsCommand,
   PendingRunSummary,
   SaveAllResult,
@@ -23,6 +28,7 @@ import type {
   WorkflowResult,
 } from './workflow-contract';
 
+import type { AttachedCover } from '@/domain/book-covers';
 import type { MappingDraft } from '@/domain/mapping';
 
 export interface RuntimeInfo {
@@ -71,6 +77,22 @@ export interface MangaboundBridge {
   ) => Promise<WorkflowResult<undefined>>;
   /** Keeps the author and language of a folder, or of a library's title, with that folder. */
   readonly saveBookDetails: (command: SaveBookDetailsCommand) => Promise<WorkflowResult<undefined>>;
+  /** The covers kept for the books of an item. */
+  readonly listCovers: (target: CoverTarget) => Promise<WorkflowResult<readonly AttachedCover[]>>;
+  /** Asks for one image and makes it that book's cover; `null` when nothing was picked. */
+  readonly chooseCover: (
+    command: CoverOfBookCommand,
+  ) => Promise<WorkflowResult<CoversChange | null>>;
+  /** Asks for a folder and gives its images to the books in order; `null` when none was picked. */
+  readonly chooseCoversFolder: (
+    command: CoversFolderCommand,
+  ) => Promise<WorkflowResult<CoversChange | null>>;
+  /** Takes what was dropped on the covers; the paths are read from the files, not typed in. */
+  readonly dropCovers: (
+    command: DropCoversCommand,
+    files: readonly File[],
+  ) => Promise<WorkflowResult<CoversChange>>;
+  readonly removeCover: (command: CoverOfBookCommand) => Promise<WorkflowResult<CoversChange>>;
   readonly convertLibrary: (
     command: LibraryConversionCommand,
   ) => Promise<WorkflowResult<readonly LibraryTitleResult[]>>;

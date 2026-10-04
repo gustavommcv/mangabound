@@ -120,6 +120,20 @@ describe('mangapress conversion port', () => {
     ]);
   });
 
+  it('hands mangapress the cover a book was given, and none when it has none', async () => {
+    const run = vi.fn<MangapressCliAdapter['run']>(() => Promise.resolve(runResult()));
+    const adapter = new MangapressConversionAdapter({ run }, () => 'artifact-1');
+
+    await adapter.convert(
+      { ...request, cover: path.resolve('/covers', '1-front.jpg') },
+      { onProgress: () => undefined },
+    );
+    await adapter.convert(request, { onProgress: () => undefined });
+
+    expect(run.mock.calls[0]?.[0]).toMatchObject({ cover: path.resolve('/covers', '1-front.jpg') });
+    expect(run.mock.calls[1]?.[0]).not.toHaveProperty('cover');
+  });
+
   it('adds no warnings to a book made without any', async () => {
     const adapter = new MangapressConversionAdapter(
       { run: () => Promise.resolve(runResult()) },

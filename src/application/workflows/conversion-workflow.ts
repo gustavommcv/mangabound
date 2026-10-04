@@ -1,5 +1,7 @@
 import type { BookFileStorePort } from '@/application/ports/book-file-store';
 import type { BindingPort, ConversionPort } from '@/application/ports/conversion-tools';
+import type { CoverSourcePort, CoverStorePort } from '@/application/ports/cover-store';
+import { BookCovers, keepsNoCovers } from '@/application/workflows/book-covers';
 import { BookProduction } from '@/application/workflows/book-production';
 import { InputSessions } from '@/application/workflows/input-sessions';
 import { LibraryRun } from '@/application/workflows/library-run';
@@ -13,6 +15,8 @@ export class ConversionWorkflow {
   private readonly sessions: InputSessions;
   private readonly singleRun: SingleInputRun;
   private readonly libraryRun: LibraryRun;
+  /** The covers a person attaches to the books of an item, and the ones a run then uses. */
+  readonly covers: BookCovers;
 
   constructor(
     binding: BindingPort,
@@ -20,11 +24,13 @@ export class ConversionWorkflow {
     createId: () => string,
     bookFiles: BookFileStorePort,
     maxParallelConversions = 1,
+    coverStore: CoverStorePort & CoverSourcePort = keepsNoCovers,
   ) {
     this.sessions = new InputSessions(binding, createId);
+    this.covers = new BookCovers(this.sessions, coverStore, coverStore);
     const books = new BookProduction(conversion, createId, bookFiles, maxParallelConversions);
-    this.singleRun = new SingleInputRun(binding, conversion, this.sessions, books);
-    this.libraryRun = new LibraryRun(binding, this.sessions, books);
+    this.singleRun = new SingleInputRun(binding, conversion, this.sessions, books, this.covers);
+    this.libraryRun = new LibraryRun(binding, this.sessions, books, this.covers);
   }
 
   inspect(selection: InputSelection, signal?: AbortSignal): Promise<InspectedInput> {

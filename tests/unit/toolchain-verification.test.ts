@@ -1,10 +1,11 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { copyFile, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
+import { FsCoverStore } from '@/adapters/covers/fs-cover-store';
 import { MangapressCliAdapter } from '@/adapters/mangapress/cli';
 import { MangapressConversionAdapter } from '@/adapters/mangapress/conversion-port';
 import { createNodeProcessRunner } from '@/adapters/process/node-process-runner';
@@ -390,6 +391,62 @@ describe('bundled toolchain verification', () => {
       expect(enlarged).not.toHaveProperty('warnings');
     } finally {
       await rm(outputDirectory, { recursive: true, force: true });
+    }
+  });
+
+  // A cover of the person's own is an image from anywhere, under any name, copied by the app and
+  // handed over with --cover (ADR 0040). The real tool has to take it and still make the book.
+  it('makes a book with a cover of the person’s own with the real pinned mangapress', async () => {
+    const target = resolveToolchainTarget(process.platform, process.arch)!;
+    const executableName = target.startsWith('win32-') ? 'mangapress.exe' : 'mangapress';
+    const conversion = new MangapressConversionAdapter(
+      new MangapressCliAdapter(
+        path.join(repositoryRoot, 'vendor', 'toolchain', target, executableName),
+        createNodeProcessRunner(),
+      ),
+    );
+    const inputPath = path.join(
+      repositoryRoot,
+      'tests',
+      'fixtures',
+      'e2e',
+      'cbz',
+      'Mangabound Direct.cbz',
+    );
+    const work = await mkdtemp(path.join(tmpdir(), 'mangabound-cover-'));
+    try {
+      const store = new FsCoverStore(path.join(work, 'covers'));
+      const picked = path.join(work, 'any name at all.png');
+      await copyFile(path.join(repositoryRoot, 'tests', 'fixtures', 'covers', 'front.png'), picked);
+      await store.attach(inputPath, { slot: 'book', origin: 'chosen', sourcePath: picked });
+      await rm(picked);
+      const [cover] = await store.list(inputPath);
+
+      const withCover = await conversion.convert(
+        {
+          inputPath,
+          outputDirectory: path.join(work, 'with'),
+          settings: defaultMangapressSettings,
+          cover: cover!.path,
+          format: 'epub',
+        },
+        { onProgress: () => undefined },
+      );
+      const without = await conversion.convert(
+        {
+          inputPath,
+          outputDirectory: path.join(work, 'without'),
+          settings: defaultMangapressSettings,
+          format: 'epub',
+        },
+        { onProgress: () => undefined },
+      );
+
+      expect(withCover.bytes).toBeGreaterThan(0);
+      // The cover is a different image, so the book is a different size.
+      expect(withCover.bytes).not.toBe(without.bytes);
+    } finally {
+      await rm(work, { recursive: true, force: true });
     }
   });
 
