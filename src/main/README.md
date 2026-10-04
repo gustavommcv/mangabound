@@ -2,7 +2,7 @@
 
 Electron's main process: the only place that builds the adapters, holds paths, and does anything privileged.
 
-`index.ts` is bootstrap only — it builds the shared `MainContext`, verifies the toolchain, registers every IPC handler group, opens the window, and cleans up (tools, sharing, pending settings writes) before quitting. The actual work is split by responsibility:
+`index.ts` is bootstrap only — it builds the shared `MainContext`, verifies the toolchain, clears what a run that was killed left behind (a half-made first book in the pending folder and old scratch folders in the temporary one, both only after a day), registers every IPC handler group, opens the window, and cleans up (tools, sharing, pending settings writes) before quitting. The actual work is split by responsibility:
 
 - **`context.ts`** — the `MainContext` type (everything the handlers share: selection maps, the active job/sharing state, the constructed workflow) and `createMainContext()`. A handler-registration function is typed to receive only the `Pick<MainContext, ...>` slice it actually touches, so its real dependencies are visible and checked at its call site.
 - **`constants.ts`** — fixed configuration values, such as the OPDS port.

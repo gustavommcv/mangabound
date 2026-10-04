@@ -1,3 +1,4 @@
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { app, BrowserWindow, ipcMain } from 'electron';
@@ -5,6 +6,7 @@ import started from 'electron-squirrel-startup';
 
 import { directoryExists } from '@/adapters/library/directory-exists';
 import { FsCoverStore } from '@/adapters/covers/fs-cover-store';
+import { removeStaleScratch } from '@/adapters/fs/stale-scratch';
 import { FsPendingRuns } from '@/adapters/library/fs-pending-runs';
 import { moveLegacyStorage } from '@/adapters/library/legacy-storage';
 import { coversRoot, legacyStorageMove, pendingRoot } from '@/adapters/library/pending-path';
@@ -30,6 +32,7 @@ if (started) app.quit();
 registerRendererScheme();
 
 const context = createMainContext();
+const oneDay = 24 * 60 * 60 * 1000;
 let cleanupStarted = false;
 
 void app.whenReady().then(async () => {
@@ -61,6 +64,15 @@ void app.whenReady().then(async () => {
   );
   await context.pendingRuns.pruneCompleted().catch((error: unknown) => {
     console.error('Could not clear previously exported pending books.', error);
+  });
+  // What a run that was killed left behind: a half-made first book in the pending folder, and the
+  // scratch copies of its volumes in the temporary folder. Anything newer than a day may belong to
+  // another copy of the app that is still working.
+  await context.pendingRuns.pruneAbandoned(oneDay).catch((error: unknown) => {
+    console.error('Could not clear a run that was interrupted before its first book.', error);
+  });
+  await removeStaleScratch(tmpdir(), oneDay).catch((error: unknown) => {
+    console.error('Could not clear scratch folders an earlier run left behind.', error);
   });
 
   registerSettingsHandlers(context, preferencesWorkflow);
