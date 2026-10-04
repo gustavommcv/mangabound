@@ -584,6 +584,33 @@ describe('mangapress output settings', () => {
     ).toEqual([]);
   });
 
+  it('refuses a gamma, a cropping power and a screen size a slip of a key made, naming the range', () => {
+    const issuesFor = (overrides: Partial<typeof defaultMangapressSettings>) =>
+      validateMangapressSettings({ ...defaultMangapressSettings, ...overrides }, 'epub');
+
+    expect(issuesFor({ gamma: 18 })).toEqual([
+      { field: 'gamma', message: 'Gamma must be a number from 0.1 to 4.' },
+    ]);
+    expect(issuesFor({ gamma: 0.05 })).toHaveLength(1);
+    expect(issuesFor({ gamma: 0.1 })).toEqual([]);
+    expect(issuesFor({ gamma: 4 })).toEqual([]);
+    expect(issuesFor({ croppingPower: 50 })).toEqual([
+      { field: 'croppingPower', message: 'Cropping power must be a number from 0 to 10.' },
+    ]);
+    expect(issuesFor({ croppingPower: -5 })).toHaveLength(1);
+    expect(issuesFor({ croppingPower: 0 })).toEqual([]);
+    expect(issuesFor({ croppingPower: 10 })).toEqual([]);
+    expect(
+      issuesFor({ deviceProfile: 'OTHER', customWidth: 1e21, customHeight: 20_001 }).map(
+        (issue) => issue.message,
+      ),
+    ).toEqual([
+      'Custom width must be a whole number from 1 to 20000.',
+      'Custom height must be a whole number from 1 to 20000.',
+    ]);
+    expect(issuesFor({ deviceProfile: 'OTHER', customWidth: 20_000, customHeight: 1 })).toEqual([]);
+  });
+
   it('reports empty, non-finite, and out-of-range values by field', () => {
     const issues = validateMangapressSettings(
       {

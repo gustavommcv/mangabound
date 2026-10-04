@@ -16,6 +16,8 @@ export interface SettingsLoad {
   readonly settings: StoredSettings;
   /** True when a file was there but could not be used, so `settings` are the defaults. */
   readonly unreadable: boolean;
+  /** Options in a file that could be used whose saved value could not, and so are the default. */
+  readonly reset?: readonly string[];
 }
 
 /** Saving failed; what was saved before is still there. */

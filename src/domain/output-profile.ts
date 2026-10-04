@@ -516,6 +516,19 @@ export function resolveDeviceProfileFallback(
   );
 }
 
+/**
+ * What a typed value may be for the options that a typo can ruin. mangapress takes any number for
+ * these, so a gamma of 18 for 1.8 made every page almost black and the run still ended as a success.
+ * The bounds are wide: they refuse a slip of a key, not a choice. Below 0.1 a gamma means "the
+ * device's own", which is leaving it empty.
+ */
+export const settingBounds = {
+  gamma: { minimum: 0.1, maximum: 4 },
+  croppingPower: { minimum: 0, maximum: 10 },
+  /** A screen, in pixels; larger than any there is. */
+  customSize: { minimum: 1, maximum: 20_000 },
+} as const;
+
 export function validateMangapressSettings(
   settings: MangapressSettings,
   format: BookFormat,
@@ -533,15 +546,41 @@ export function validateMangapressSettings(
       message: 'Binding the whole series as one volume is only available for EPUB right now.',
     });
   }
-  finite(issues, 'croppingPower', settings.croppingPower, 'Cropping power');
+  numberInRange(
+    issues,
+    'croppingPower',
+    settings.croppingPower,
+    settingBounds.croppingPower,
+    'Cropping power',
+  );
   percentage(issues, 'croppingMinimum', settings.croppingMinimum, 'Minimum retained area');
   percentage(issues, 'preserveMargin', settings.preserveMargin, 'Preserved margin');
   if (settings.jpegQuality !== undefined) {
     integerRange(issues, 'jpegQuality', settings.jpegQuality, 1, 100, 'JPEG quality');
   }
-  if (settings.gamma !== undefined) finite(issues, 'gamma', settings.gamma, 'Gamma');
-  positiveInteger(issues, 'customWidth', settings.customWidth, 'Custom width');
-  positiveInteger(issues, 'customHeight', settings.customHeight, 'Custom height');
+  if (settings.gamma !== undefined) {
+    numberInRange(issues, 'gamma', settings.gamma, settingBounds.gamma, 'Gamma');
+  }
+  if (settings.customWidth !== undefined) {
+    integerRange(
+      issues,
+      'customWidth',
+      settings.customWidth,
+      settingBounds.customSize.minimum,
+      settingBounds.customSize.maximum,
+      'Custom width',
+    );
+  }
+  if (settings.customHeight !== undefined) {
+    integerRange(
+      issues,
+      'customHeight',
+      settings.customHeight,
+      settingBounds.customSize.minimum,
+      settingBounds.customSize.maximum,
+      'Custom height',
+    );
+  }
   if (
     settings.deviceProfile === 'OTHER' &&
     (settings.customWidth === undefined || settings.customHeight === undefined)
@@ -557,13 +596,19 @@ export function validateMangapressSettings(
   return issues;
 }
 
-function finite(
+function numberInRange(
   issues: MangapressSettingIssue[],
   field: MangapressSettingField,
   value: number,
+  bounds: { readonly minimum: number; readonly maximum: number },
   label: string,
 ): void {
-  if (!Number.isFinite(value)) issues.push({ field, message: `${label} must be a number.` });
+  if (!Number.isFinite(value) || value < bounds.minimum || value > bounds.maximum) {
+    issues.push({
+      field,
+      message: `${label} must be a number from ${String(bounds.minimum)} to ${String(bounds.maximum)}.`,
+    });
+  }
 }
 
 function percentage(
@@ -590,16 +635,5 @@ function integerRange(
       field,
       message: `${label} must be a whole number from ${minimum} to ${maximum}.`,
     });
-  }
-}
-
-function positiveInteger(
-  issues: MangapressSettingIssue[],
-  field: MangapressSettingField,
-  value: number | undefined,
-  label: string,
-): void {
-  if (value !== undefined && (!Number.isInteger(value) || value < 1)) {
-    issues.push({ field, message: `${label} must be a positive whole number.` });
   }
 }

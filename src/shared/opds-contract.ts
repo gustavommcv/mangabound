@@ -13,7 +13,8 @@ export const opdsAuthConfigSchema = z.object({
 
 export const startSharingCommandSchema = z.object({
   libraryId: identifierSchema,
-  interfaceAddress: z.string().min(1),
+  // The longest an IPv6 address can be written is 45 characters; the handler checks the rest.
+  interfaceAddress: z.string().min(1).max(64),
   auth: opdsAuthConfigSchema,
 });
 
