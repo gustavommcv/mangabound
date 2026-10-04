@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { cp, mkdir, mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -280,5 +280,38 @@ describe('packaged cover of the person’s own', () => {
     // A cover is fitted to the screen and never enlarged, so the picked image keeps its size.
     assert.deepEqual(await coverOf(books[1]!), { width: 300, height: 400 });
     assert.notDeepEqual(await coverOf(books[0]!), { width: 300, height: 400 });
+  });
+  it('does not keep an image that cannot be read as a cover, and says so', async () => {
+    const testRoot = await mkdtemp(path.join(os.tmpdir(), 'mangabound-covers-damaged-e2e-'));
+    temporaryDirectories.push(testRoot);
+    const inputPath = path.join(testRoot, 'Named Volumes');
+    // It has the name of an image and holds none: it would stop the book it was the cover of.
+    const damaged = path.join(testRoot, 'damaged.png');
+    await cp(
+      path.resolve('tests', 'fixtures', 'e2e', 'manga-named-volumes', 'Named Volumes'),
+      inputPath,
+      { recursive: true },
+    );
+    await writeFile(damaged, 'this is not an image');
+    const coversRoot = process.env.MANGABOUND_COVERS_ROOT;
+    assert.ok(coversRoot);
+    const before = await readdir(coversRoot);
+
+    const openDialog = await browser.electron.mock('dialog', 'showOpenDialog');
+    await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [inputPath] });
+    await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [damaged] });
+
+    await resetQueue();
+    await $('button=Folder').click();
+    await $('span=2 volumes').waitForDisplayed({ timeout: 30_000 });
+    await setSteps({ group: true, convert: true });
+    await $('button[aria-label="Edit details of Named Volumes"]').click();
+    await $('h1=Named Volumes').waitForDisplayed({ timeout: 10_000 });
+    await $('button[aria-label="Choose a cover for Named Volumes - Vol.01"]').click();
+
+    await $('p*=could not be read as an image').waitForDisplayed({ timeout: 10_000 });
+    // The book still has none: the button still offers to choose one, and the app kept nothing.
+    await $('button[aria-label="Choose a cover for Named Volumes - Vol.01"]').waitForDisplayed();
+    assert.deepEqual(await readdir(coversRoot), before);
   });
 });

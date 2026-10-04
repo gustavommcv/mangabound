@@ -19,6 +19,34 @@ const coverExtensions: ReadonlySet<string> = new Set(['jpg', 'jpeg', 'png', 'gif
 
 export const coverTypesSentence = 'A cover has to be a JPEG, PNG, WebP, GIF or BMP image.';
 
+/** What a person is told when a file with an image's name is not one that can be read. */
+export const unreadableCoverSentence = `That file could not be read as an image, so it was not used. ${coverTypesSentence}`;
+
+/** How many bytes at the start of a file say which kind of image it is. */
+export const coverHeadLength = 12;
+
+const startsWith = (head: Uint8Array, bytes: readonly number[], offset = 0): boolean =>
+  bytes.every((byte, index) => head[offset + index] === byte);
+
+const text = (value: string): readonly number[] =>
+  [...value].map((character) => character.charCodeAt(0));
+
+/**
+ * Whether a file begins the way a JPEG, PNG, WebP, GIF or BMP image does. mangapress takes the
+ * type from what a file holds, not from its name, so this does too: a damaged or mislabelled file
+ * would otherwise stop the book it is the cover of, after every one of its pages was made.
+ */
+export function looksLikeCoverImage(head: Uint8Array): boolean {
+  return (
+    startsWith(head, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]) ||
+    startsWith(head, [0xff, 0xd8, 0xff]) ||
+    startsWith(head, text('GIF87a')) ||
+    startsWith(head, text('GIF89a')) ||
+    startsWith(head, text('BM')) ||
+    (startsWith(head, text('RIFF')) && startsWith(head, text('WEBP'), 8))
+  );
+}
+
 export function isCoverImage(fileName: string): boolean {
   const dot = fileName.lastIndexOf('.');
   return dot > 0 && coverExtensions.has(fileName.slice(dot + 1).toLowerCase());
@@ -32,6 +60,8 @@ export interface FolderImportPlan<Image> {
   readonly assignments: readonly { readonly slot: CoverSlot; readonly image: Image }[];
   /** The books that keep the cover chosen for them by hand. */
   readonly kept: readonly CoverSlot[];
+  /** The names of the images that fell on a book and could not be read: it keeps its first page. */
+  readonly unreadable: readonly string[];
   /** How many images there were, and how many of them lie beyond the last book. */
   readonly images: number;
   readonly unused: number;
@@ -45,8 +75,13 @@ export interface FolderImportPlan<Image> {
  * A cover chosen by hand is never replaced: the image that falls on that book is passed over, and
  * the ones after it still go to the books they line up with. A cover an earlier folder gave is
  * replaced, since a folder is the same kind of answer as the one before it.
+ *
+ * An image that cannot be read still takes its place in the order, so the images after it keep
+ * the books they line up with: its book keeps its first page, and it is said which image it was.
  */
-export function planFolderImport<Image extends { readonly name: string }>(
+export function planFolderImport<
+  Image extends { readonly name: string; readonly readable: boolean },
+>(
   slots: readonly CoverSlot[],
   attached: readonly AttachedCover[],
   images: readonly Image[],
@@ -57,15 +92,18 @@ export function planFolderImport<Image extends { readonly name: string }>(
   const ordered = [...images].sort((left, right) => byName.compare(left.name, right.name));
   const assignments: { slot: CoverSlot; image: Image }[] = [];
   const kept: CoverSlot[] = [];
+  const unreadable: string[] = [];
   slots.forEach((slot, index) => {
     const image = ordered[index];
     if (image === undefined) return;
     if (chosen.has(slot)) kept.push(slot);
-    else assignments.push({ slot, image });
+    else if (image.readable) assignments.push({ slot, image });
+    else unreadable.push(image.name);
   });
   return {
     assignments,
     kept,
+    unreadable,
     images: ordered.length,
     unused: Math.max(0, ordered.length - slots.length),
     books: slots.length,
@@ -82,6 +120,14 @@ export function describeFolderImport(plan: FolderImportPlan<unknown>): string | 
   if (plan.kept.length > 0) {
     parts.push(
       `${count(plan.kept.length, 'book')} ${plan.kept.length === 1 ? 'keeps' : 'keep'} the cover chosen for ${plan.kept.length === 1 ? 'it' : 'them'}.`,
+    );
+  }
+  if (plan.unreadable.length > 0) {
+    const [first, second, third, ...rest] = plan.unreadable;
+    const named = [first, second, third].filter((name) => name !== undefined);
+    const more = rest.length > 0 ? ` and ${String(rest.length)} more` : '';
+    parts.push(
+      `${count(plan.unreadable.length, 'image')} could not be read (${named.join(', ')}${more}), so ${plan.unreadable.length === 1 ? 'the book it falls on keeps its first page' : 'the books they fall on keep their first pages'}.`,
     );
   }
   if (plan.unused > 0) {

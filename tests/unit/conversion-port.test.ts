@@ -12,6 +12,7 @@ import {
   type MangapressEvent,
   type MangapressResultEvent,
 } from '@/adapters/mangapress/protocol';
+import type { ToolExecutionError } from '@/domain/conversion';
 import { defaultMangapressSettings } from '@/domain/output-profile';
 
 function event(fields: Record<string, unknown>): MangapressEvent {
@@ -132,6 +133,88 @@ describe('mangapress conversion port', () => {
 
     expect(run.mock.calls[0]?.[0]).toMatchObject({ cover: path.resolve('/covers', '1-front.jpg') });
     expect(run.mock.calls[1]?.[0]).not.toHaveProperty('cover');
+  });
+
+  describe('a cover that stops the book', () => {
+    const coverFailure = (code: string): MangapressErrorEvent =>
+      event({
+        type: 'error',
+        severity: 'error',
+        code,
+        stage: 'write',
+        recoverable: true,
+        message: "Couldn't make the cover from that image.",
+        diagnostic: 'decoder failed',
+      }) as MangapressErrorEvent;
+    const failing = (code: string) =>
+      new MangapressConversionAdapter({
+        run: () =>
+          Promise.resolve(
+            runResult({ exitCode: 1, errors: [coverFailure(code)], result: undefined }),
+          ),
+      });
+
+    it.each(['cover_build_failed', 'cover_read_failed'])(
+      'says which book the cover chosen for it could not be used for, after %s',
+      async (code) => {
+        const adapter = failing(code);
+
+        await expect(
+          adapter.convert(
+            {
+              ...request,
+              cover: path.resolve('/covers', '3-front.jpg'),
+              book: { title: 'Series - Vol.03' },
+            },
+            { onProgress: vi.fn() },
+          ),
+        ).rejects.toMatchObject({
+          issue: {
+            code,
+            message:
+              'The cover chosen for Series - Vol.03 could not be used. Remove it, or choose another image, on the book’s details page.',
+            diagnostic: "Couldn't make the cover from that image. decoder failed",
+          },
+        });
+      },
+    );
+
+    it('names the input when the book has no title of its own', async () => {
+      await expect(
+        failing('cover_build_failed').convert(
+          {
+            ...request,
+            inputPath: path.resolve('/input', 'Loose Book.cbz'),
+            cover: '/covers/book.png',
+          },
+          { onProgress: vi.fn() },
+        ),
+      ).rejects.toSatisfy((error: ToolExecutionError) =>
+        error.issue.message.startsWith('The cover chosen for Loose Book.cbz could not be used.'),
+      );
+    });
+
+    it('leaves the tool’s own words when the cover was not one the person chose', async () => {
+      await expect(
+        failing('cover_build_failed').convert(request, { onProgress: vi.fn() }),
+      ).rejects.toMatchObject({
+        issue: { message: "Couldn't make the cover from that image." },
+      });
+    });
+
+    it('does not touch what is not about the cover', async () => {
+      await expect(
+        failing('page_processing_failed').convert(
+          { ...request, cover: '/covers/a.png' },
+          { onProgress: vi.fn() },
+        ),
+      ).rejects.toMatchObject({
+        issue: {
+          code: 'page_processing_failed',
+          message: "Couldn't make the cover from that image.",
+        },
+      });
+    });
   });
 
   it('adds no warnings to a book made without any', async () => {

@@ -65,6 +65,43 @@ describe('the covers a person gives the books of an item', () => {
     expect(covers.kept.size).toBe(0);
   });
 
+  it('refuses an image that cannot be read, and keeps no cover from it', async () => {
+    const ports = dependencies();
+    const covers = memoryCovers();
+    const workflow = workflowWith(ports, covers);
+    const { sessionId } = await workflow.inspect(folder);
+
+    await expect(workflow.covers.choose({ sessionId }, 1, '/pictures/broken.png')).resolves.toEqual(
+      {
+        covers: [],
+        note: 'That file could not be read as an image, so it was not used. A cover has to be a JPEG, PNG, WebP, GIF or BMP image.',
+      },
+    );
+    // The same when it is dropped on a book.
+    const dropped = await workflow.covers.drop({ sessionId }, [1, 2], 1, ['/pictures/broken.png']);
+    expect(dropped.covers).toEqual([]);
+    expect(dropped.note).toContain('could not be read as an image');
+    expect(covers.kept.size).toBe(0);
+  });
+
+  it('passes over an image of a folder that cannot be read, so the others still line up', async () => {
+    const ports = dependencies();
+    const covers = memoryCovers({ '/folder': ['1.jpg', '2 broken.jpg', '3.jpg'] });
+    const workflow = workflowWith(ports, covers);
+    const { sessionId } = await workflow.inspect(folder);
+
+    // The broken one is the second in name order: the second book keeps its first page.
+    const change = await workflow.covers.takeInOrder({ sessionId }, [1, 2, 3], ['/folder']);
+
+    expect(change.covers).toEqual([
+      { slot: 1, name: '1.jpg', origin: 'folder' },
+      { slot: 3, name: '3.jpg', origin: 'folder' },
+    ]);
+    expect(change.note).toBe(
+      '1 image could not be read (2 broken.jpg), so the book it falls on keeps its first page.',
+    );
+  });
+
   it('takes a folder in order, keeping what was chosen by hand and replacing an earlier folder', async () => {
     const ports = dependencies();
     const covers = memoryCovers({

@@ -250,12 +250,20 @@ export function memoryCovers(folders: Readonly<Record<string, readonly string[]>
         paths.flatMap((candidate): CoverImage[] => {
           const inside = folders[candidate];
           if (inside !== undefined) {
-            return inside
-              .filter(isCoverImage)
-              .map((name) => ({ path: `${candidate}/${name}`, name }));
+            return inside.filter(isCoverImage).map((name) => ({
+              path: `${candidate}/${name}`,
+              name,
+              readable: !name.includes('broken'),
+            }));
           }
           return isCoverImage(nameOf(candidate))
-            ? [{ path: candidate, name: nameOf(candidate) }]
+            ? [
+                {
+                  path: candidate,
+                  name: nameOf(candidate),
+                  readable: !nameOf(candidate).includes('broken'),
+                },
+              ]
             : [];
         }),
       ),
