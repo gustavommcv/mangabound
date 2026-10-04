@@ -117,7 +117,7 @@ describe('workflow navigation targets', () => {
     await user.click(await screen.findByRole('button', { name: 'Edit details of Good Manga' }));
     expect(await screen.findByLabelText('Author')).toHaveValue('Changed Author');
     expect(screen.getByLabelText('Language')).toHaveValue('');
-  });
+  }, 20_000); // A long walk through five screens: close to the default five seconds on a busy machine.
 
   it('retries a title mapping in the selected library and refreshes only that library', async () => {
     const user = userEvent.setup();

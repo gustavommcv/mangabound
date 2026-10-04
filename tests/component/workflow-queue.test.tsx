@@ -340,6 +340,35 @@ describe('queue application workflow', () => {
     expect(releaseInput).toHaveBeenCalledWith('session');
   });
 
+  it('does not carry an error about a book it could not open to the queue it goes back to', async () => {
+    const user = userEvent.setup();
+    const convert = vi.fn<MangaboundBridge['convert']>(() =>
+      Promise.resolve({
+        ok: true,
+        value: [{ id: 'artifact', name: 'Offline Work.epub', bytes: 2048, format: 'epub' }],
+      }),
+    );
+    const openArtifact = vi.fn<MangaboundBridge['openArtifact']>(() =>
+      Promise.resolve({
+        ok: false,
+        error: { code: 'artifact_not_found', message: 'The saved book is no longer available.' },
+      }),
+    );
+    installBridge(bridge({ convert, openArtifact }));
+    render(<App />);
+    await addFolder(user);
+    await user.click(await runButton(1));
+    expect(await screen.findByRole('heading', { name: '1 book ready' })).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Open Offline Work.epub' }));
+    expect(await screen.findByText('The saved book is no longer available.')).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Convert more' }));
+
+    expect(await screen.findByRole('heading', { name: 'Queue' })).toBeVisible();
+    expect(screen.queryByText('The saved book is no longer available.')).not.toBeInTheDocument();
+  });
+
   it('focuses the Queue heading as soon as the app opens', async () => {
     installBridge(bridge());
     render(<App />);
