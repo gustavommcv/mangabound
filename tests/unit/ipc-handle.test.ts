@@ -2,7 +2,7 @@ import type { IpcMainInvokeEvent } from 'electron';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
-import { handle, ignoredPayloadSchema } from '@/main/ipc/handle';
+import { fromTheMainFrame, handle, ignoredPayloadSchema } from '@/main/ipc/handle';
 import { failed, ok } from '@/main/ipc/result';
 import type { WorkflowResult } from '@/shared/workflow-contract';
 
@@ -24,13 +24,40 @@ vi.mock('electron', () => ({
   },
 }));
 
-// The event is opaque to the helper; tests verify it is forwarded, not rebuilt.
-const event = {} as IpcMainInvokeEvent;
-const invoke = (payload: unknown) => listeners.get('test:request')!(event, payload);
+// Apart from where it came from, the event is opaque to the helper; tests verify it is forwarded,
+// not rebuilt. This one comes from the main frame of the window's page.
+const mainFrame = {};
+const event = { sender: { mainFrame }, senderFrame: mainFrame } as unknown as IpcMainInvokeEvent;
+const invoke = (payload: unknown, from: IpcMainInvokeEvent = event) =>
+  listeners.get('test:request')!(from, payload);
 
 afterEach(() => {
   listeners.clear();
   vi.restoreAllMocks();
+});
+
+describe('which frame a request may come from', () => {
+  it.each([
+    ['a frame inside the page', { sender: { mainFrame }, senderFrame: {} }],
+    ['a frame that is gone', { sender: { mainFrame }, senderFrame: null }],
+  ])('answers nothing to %s, and runs nothing', async (_name, from) => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const run = vi.fn(() => ok(undefined));
+    handle('test:request', ignoredPayloadSchema, run);
+
+    expect(await invoke(undefined, from as unknown as IpcMainInvokeEvent)).toEqual(
+      failed({
+        code: 'untrusted_sender',
+        message: 'Mangabound only takes requests from its own window.',
+      }),
+    );
+    expect(run).not.toHaveBeenCalled();
+    expect(logged).toHaveBeenCalledWith(expect.stringContaining('test:request'));
+  });
+
+  it('takes the main frame of the window', () => {
+    expect(fromTheMainFrame(event)).toBe(true);
+  });
 });
 
 describe('IPC handle', () => {
