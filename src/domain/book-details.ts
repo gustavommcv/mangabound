@@ -13,8 +13,42 @@ export interface BookDetails {
 
 export const noBookDetails: BookDetails = Object.freeze({});
 
-/** The most a title or an author may hold; the same limit the command contract enforces. */
+/** The most an author may hold; the same limit the command contract enforces. */
 export const maxDetailLength = 300;
+
+/**
+ * The most a title may hold, in bytes of UTF-8. The tools name the book's file after its title, and
+ * a file name is limited in bytes (255 on the usual systems), not in characters: a title of 90
+ * Japanese characters is 270 bytes and converted every page before failing to save the book. The
+ * limit leaves room for ` - Vol.01` and the extension.
+ */
+export const maxTitleBytes = 200;
+
+const utf8 = new TextEncoder();
+
+export function titleFits(title: string): boolean {
+  return utf8.encode(title).length <= maxTitleBytes;
+}
+
+/** The title cut to what fits, at a whole character, never in the middle of one. */
+export function clipTitle(title: string): string {
+  let bytes = 0;
+  let end = 0;
+  for (const character of title) {
+    bytes += utf8.encode(character).length;
+    if (bytes > maxTitleBytes) break;
+    end += character.length;
+  }
+  return title.slice(0, end);
+}
+
+/** Control characters: a NUL, a line break. Nobody types one into a title, and none can be in a file
+ * name or a command argument; they come from text that was pasted or looked up. */
+const controlCharacters = /\p{Cc}/gu;
+
+export function hasControlCharacters(text: string): boolean {
+  return /\p{Cc}/u.test(text);
+}
 
 /** A language tag such as "en" or "pt-BR": letters and digits in short groups joined by dashes. */
 export const languageTagPattern = /^[a-z]{2,3}(-[a-z0-9]{2,8})*$/iu;
@@ -46,16 +80,17 @@ export function canonicalLanguageTag(value: string): string {
 }
 
 const trimmed = (value: string | undefined): string | undefined => {
-  const text = value?.trim();
+  const text = value?.replace(controlCharacters, ' ').trim();
   return text === undefined || text === '' ? undefined : text;
 };
 
 /**
- * The details as they are kept: text trimmed, a field left blank taken as not set, and a language
- * written the way BCP 47 recommends.
+ * The details as they are kept: text trimmed, control characters turned into spaces, a title cut to
+ * what a file name can hold, a field left blank taken as not set, and a language written the way
+ * BCP 47 recommends.
  */
 export function normalizeBookDetails(details: BookDetails): BookDetails {
-  const title = trimmed(details.title);
+  const title = trimmed(clipTitle(details.title ?? ''));
   const author = trimmed(details.author);
   const language = trimmed(details.language);
   return {

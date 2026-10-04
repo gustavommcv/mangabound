@@ -56,10 +56,15 @@ export class FsSettingsStore implements SettingsStorePort {
       // No file is how a first launch looks; any other failure is a file that is there and unusable.
       return { settings: defaultStoredSettings, unreadable: !isEnoent(error) };
     }
-    const settings = parseStoredSettings(raw);
-    return settings === undefined
+    const parsed = parseStoredSettings(raw);
+    return parsed === undefined
       ? { settings: defaultStoredSettings, unreadable: true }
-      : { settings, unreadable: false };
+      : {
+          settings: parsed.settings,
+          unreadable: false,
+          // Said only when there is something to say, so a file with nothing wrong reads as it did.
+          ...(parsed.reset.length === 0 ? {} : { reset: parsed.reset }),
+        };
   }
 
   save(settings: StoredSettings): Promise<void> {

@@ -30,6 +30,29 @@ function store(load: SettingsLoad): {
 }
 
 describe('restoring the options', () => {
+  it('says which options could not be used and are back to their defaults, and keeps the rest', async () => {
+    const { port } = store({
+      settings: kept,
+      unreadable: false,
+      reset: ['cropping minimum', 'gamma'],
+    });
+
+    const restored = await new PreferencesWorkflow(port, () => Promise.resolve(true)).restore();
+
+    expect(restored.notices).toEqual([
+      'Some saved options could not be used and are back to their defaults: cropping minimum, gamma.',
+    ]);
+    expect(restored.preferences.format).toBe('pdf');
+  });
+
+  it('says nothing about options when none was reset', async () => {
+    const { port } = store({ settings: kept, unreadable: false, reset: [] });
+
+    const restored = await new PreferencesWorkflow(port, () => Promise.resolve(true)).restore();
+
+    expect(restored.notices).toEqual([]);
+  });
+
   it('gives back what was kept, with the folder when it is still there', async () => {
     const { port } = store({ settings: kept, unreadable: false });
     const directoryExists = vi.fn(() => Promise.resolve(true));

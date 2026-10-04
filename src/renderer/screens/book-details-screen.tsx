@@ -5,9 +5,12 @@ import {
   type BookDetails,
   canonicalLanguageTag,
   isLanguageTag,
+  clipTitle,
   maxDetailLength,
   maxLanguageLength,
+  maxTitleBytes,
   normalizeBookDetails,
+  titleFits,
   volumeBookTitle,
 } from '@/domain/book-details';
 import type { BookFormat } from '@/domain/conversion';
@@ -73,6 +76,7 @@ export function BookDetailsScreen({
   const authorRef = useRef<HTMLInputElement>(null);
   const languageRef = useRef<HTMLInputElement>(null);
   const [lookupOpen, setLookupOpen] = useState(false);
+  const [titleCutShort, setTitleCutShort] = useState(false);
   useEffect(() => {
     titleRef.current?.focus();
   }, []);
@@ -106,6 +110,8 @@ export function BookDetailsScreen({
   };
 
   const series = volumes !== undefined;
+  // Whatever was just typed was cut, or there is no room left for one more plain letter.
+  const titleIsFull = titleCutShort || !titleFits(`${text.title}x`);
   const title = text.title.trim() === '' ? defaultTitle : text.title.trim();
   const titles = series
     ? [...volumes].slice(0, previewedVolumes).map((volume) => volumeBookTitle(title, volume))
@@ -149,18 +155,24 @@ export function BookDetailsScreen({
           <Input
             aria-describedby="details-title-message"
             id="details-title"
-            maxLength={maxDetailLength}
+            maxLength={maxTitleBytes}
             onChange={(event) => {
-              update('title', event.target.value);
+              // A book's file is named after its title, and a file name holds a limited number of
+              // bytes, which is fewer Japanese characters than English ones.
+              const clipped = clipTitle(event.target.value);
+              setTitleCutShort(clipped !== event.target.value);
+              update('title', clipped);
             }}
             placeholder={defaultTitle}
             value={text.title}
           />
           <FieldMessage
             description={
-              series
-                ? 'Each volume is titled with this and its number.'
-                : 'The title the book has in your reader.'
+              titleIsFull
+                ? 'This is as long as the title of a book can be: its file is named after it.'
+                : series
+                  ? 'Each volume is titled with this and its number.'
+                  : 'The title the book has in your reader.'
             }
             id="details-title-message"
           />

@@ -24,10 +24,16 @@ export class PreferencesWorkflow {
   ) {}
 
   async restore(): Promise<RestoredPreferences> {
-    const { settings, unreadable } = await this.store.load();
+    const { settings, unreadable, reset = [] } = await this.store.load();
     const notices: string[] = [];
     if (unreadable) {
       notices.push('The saved settings could not be read, so the defaults are in use.');
+    }
+    if (reset.length > 0) {
+      // The rest of the file was kept: only these were of a kind or in a range the app cannot use.
+      notices.push(
+        `Some saved options could not be used and are back to their defaults: ${reset.join(', ')}.`,
+      );
     }
     const {
       mode,
