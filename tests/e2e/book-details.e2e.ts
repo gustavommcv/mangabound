@@ -247,7 +247,8 @@ describe('packaged cover of the person’s own', () => {
     await $('button[aria-label="Edit details of Named Volumes"]').click();
     await $('h1=Named Volumes').waitForDisplayed({ timeout: 10_000 });
     await $('button[aria-label="Choose a cover for Named Volumes - Vol.02"]').click();
-    await $('p=any name at all.png').waitForDisplayed({ timeout: 10_000 });
+    // Named without its extension: a selector that ends in one is taken for a picture to look for.
+    await $('p*=any name at all').waitForDisplayed({ timeout: 10_000 });
     // The first volume was given none, and keeps its first page.
     await $('button[aria-label="Choose a cover for Named Volumes - Vol.01"]').waitForDisplayed();
 
