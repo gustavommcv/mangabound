@@ -6,7 +6,8 @@ import started from 'electron-squirrel-startup';
 import { directoryExists } from '@/adapters/library/directory-exists';
 import { FsCoverStore } from '@/adapters/covers/fs-cover-store';
 import { FsPendingRuns } from '@/adapters/library/fs-pending-runs';
-import { coversRoot, pendingRoot } from '@/adapters/library/pending-path';
+import { moveLegacyStorage } from '@/adapters/library/legacy-storage';
+import { coversRoot, legacyStorageMove, pendingRoot } from '@/adapters/library/pending-path';
 import { FsSettingsStore } from '@/adapters/settings/fs-settings-store';
 import { PreferencesWorkflow } from '@/application/workflows/preferences';
 
@@ -32,6 +33,17 @@ const context = createMainContext();
 let cleanupStarted = false;
 
 void app.whenReady().then(async () => {
+  // Before anything reads them: an earlier version kept these in the installer's own folder on
+  // Windows, which uninstalling the app empties.
+  const legacyMove = legacyStorageMove(process.platform, process.env, app.getPath('home'));
+  if (legacyMove !== undefined) {
+    await moveLegacyStorage({
+      ...legacyMove,
+      onProblem: (message, cause) => {
+        console.error(message, cause);
+      },
+    });
+  }
   context.coverStore = new FsCoverStore(
     coversRoot(process.platform, process.env, app.getPath('home')),
   );
