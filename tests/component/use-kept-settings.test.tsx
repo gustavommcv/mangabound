@@ -82,6 +82,94 @@ describe('useKeptSettings', () => {
       expect(saveSettings).not.toHaveBeenCalled();
     });
 
+    it('puts a choice made before the kept ones arrive over them, and saves it', async () => {
+      const read = deferred<Awaited<ReturnType<MangaboundBridge['loadSettings']>>>();
+      const saveSettings = vi.fn<MangaboundBridge['saveSettings']>(() =>
+        Promise.resolve({ ok: true, value: undefined }),
+      );
+      const notify = vi.fn();
+      const bridge = inertBridge({ loadSettings: () => read.promise, saveSettings });
+      const { result } = renderHook(() => useKeptSettings(bridge, notify));
+
+      // The person clicks PDF while the settings are still being read.
+      act(() => {
+        result.current.setFormat('pdf');
+      });
+      await act(async () => {
+        read.resolve({ ok: true, value: { preferences: kept, notices: [] } });
+        await new Promise((done) => setTimeout(done, 0));
+      });
+
+      expect(result.current.format).toBe('pdf');
+      // Everything they did not touch is what was kept.
+      expect(result.current.mode).toBe('bind-only');
+      expect(result.current.settings).toEqual(kept.settings);
+      expect(result.current.selectedProviderId).toBe('anilist');
+      await waitFor(() => {
+        expect(saveSettings).toHaveBeenCalledOnce();
+      });
+      expect(saveSettings.mock.calls[0]?.[0].preferences).toMatchObject({
+        format: 'pdf',
+        mode: 'bind-only',
+        providerId: 'anilist',
+      });
+    });
+
+    it('applies an option changed before the kept ones arrive on top of the kept options', async () => {
+      const read = deferred<Awaited<ReturnType<MangaboundBridge['loadSettings']>>>();
+      const notify = vi.fn();
+      const bridge = inertBridge({ loadSettings: () => read.promise });
+      const { result } = renderHook(() => useKeptSettings(bridge, notify));
+
+      act(() => {
+        result.current.setSettings((current) => ({ ...current, upscale: true }));
+        result.current.setSettings((current) => ({ ...current, stretch: true }));
+      });
+      await act(async () => {
+        read.resolve({
+          ok: true,
+          value: { preferences: kept, notices: [] },
+        });
+        await new Promise((done) => setTimeout(done, 0));
+      });
+
+      expect(result.current.settings).toEqual({
+        ...kept.settings,
+        upscale: true,
+        stretch: true,
+      });
+    });
+
+    it('does not put a choice made after the kept ones arrived over anything a second time', async () => {
+      const { result } = await restoredFrom({ preferences: kept, notices: [] });
+
+      act(() => {
+        result.current.setFormat('pdf');
+      });
+      act(() => {
+        result.current.setFormat('epub');
+      });
+
+      expect(result.current.format).toBe('epub');
+    });
+
+    it('keeps a choice made before the kept ones could not be read, with the defaults', async () => {
+      const notify = vi.fn();
+      const bridge = inertBridge({
+        loadSettings: () => Promise.resolve({ ok: false, error: { code: 'x', message: 'no' } }),
+      });
+      const { result } = renderHook(() => useKeptSettings(bridge, notify));
+      act(() => {
+        result.current.setFormat('pdf');
+      });
+      await act(async () => {
+        await new Promise((done) => setTimeout(done, 0));
+      });
+
+      expect(result.current.format).toBe('pdf');
+      expect(result.current.mode).toBe(defaultPreferences.mode);
+    });
+
     it('is told about whatever could not be restored', async () => {
       const notify = vi.fn();
 

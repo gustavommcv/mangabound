@@ -400,8 +400,9 @@ describe('libraries in the queue', () => {
       });
       return {
         user,
-        finish: () =>
-          reread.resolve({ ok: true, value: { titles: [goodTitle, groupedTitle], issues: [] } }),
+        finish: () => {
+          reread.resolve({ ok: true, value: { titles: [goodTitle, groupedTitle], issues: [] } });
+        },
       };
     }
 

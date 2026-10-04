@@ -1053,10 +1053,13 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
                 ) : undefined
               }
               onBack={() => {
+                // An error about a book that was being opened is about this screen, not the queue.
+                setFailure(undefined);
                 setOutcomes([]);
                 setNavigation({ screen: 'queue' });
               }}
               onFix={(rowId) => {
+                setFailure(undefined);
                 setOutcomes([]);
                 openEditor(rowId);
               }}

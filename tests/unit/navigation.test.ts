@@ -28,13 +28,13 @@ const folder: QueueRow = {
   sessionId: 'session-folder',
   confirmed: false,
 };
-const reading: QueueRow = { ...folder, id: 'reading', state: 'inspecting' } as QueueRow;
+const reading: QueueRow = { ...folder, id: 'reading', state: 'inspecting' };
 const unreadable: QueueRow = {
   ...folder,
   id: 'broken',
   state: 'unreadable',
   message: 'No.',
-} as QueueRow;
+};
 const rows = [library, folder, reading, unreadable];
 
 const queue: WorkflowNavigation = { screen: 'queue' };
