@@ -50,6 +50,8 @@ export interface MappingEditorProps {
   readonly singleBook?: boolean;
   /** Folders of the manga whose names could not be read as chapters: they are not in the draft. */
   readonly unrecognized?: readonly string[];
+  /** The editor is of a title of a library, so a name is fixed by adding the library again. */
+  readonly inLibrary?: boolean;
   readonly onConfirm?: (metadata: string, draft: MappingDraft) => void;
   /** Offered when the folder can skip grouping and go straight to mangapress as one book. */
   readonly onSkipGrouping?: () => void;
@@ -109,6 +111,7 @@ export function MappingEditor({
   startedFrom,
   singleBook,
   unrecognized = [],
+  inLibrary = false,
   onConfirm,
   metadataProviders = [],
   onOpenProviderHomepage,
@@ -319,7 +322,10 @@ export function MappingEditor({
         </div>
       </header>
       {unrecognized.length > 0 && (
-        <InfoBanner message={unrecognizedChaptersNote(unrecognized)} title="Folders left out" />
+        <InfoBanner
+          message={unrecognizedChaptersNote(unrecognized, inLibrary ? 'library' : 'folder')}
+          title="Folders left out"
+        />
       )}
       {singleBook && (
         <InfoBanner

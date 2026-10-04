@@ -11,6 +11,8 @@ import {
   dependencies,
   folder,
   cbz,
+  library,
+  openLibrary,
 } from './support/conversion-workflow';
 
 describe('conversion workflow', () => {
@@ -960,5 +962,50 @@ describe('the folders of a manga that mangabind could not read as chapters', () 
 
   it('are not mentioned when there are none', async () => {
     expect(await inspected([])).not.toHaveProperty('unrecognized');
+  });
+
+  describe('of the titles of a library', () => {
+    /** A library of two titles, the second with folders mangabind could not read. */
+    async function openWith(issues: readonly ReturnType<typeof unparsed>[]) {
+      const ports = dependencies();
+      const titleOf = (title: string, titleIssues: readonly ReturnType<typeof unparsed>[]) => ({
+        title,
+        inputPath: `/library/${title}`,
+        status: 'completed' as const,
+        draft: trustedDraft,
+        volumes: [{ name: `${title} - Vol.01.cbz`, pageCount: 2 }],
+        issues: titleIssues,
+      });
+      ports.planBatch.mockResolvedValue({
+        titles: [titleOf('Good', []), titleOf('Beta', issues)],
+        issues: [],
+      });
+      const { workflow, sessionId } = await openLibrary(ports);
+      return { workflow, sessionId, inspected: await workflow.inspect(library) };
+    }
+
+    it('are told by name under the title they are in, and for no other', async () => {
+      const { inspected } = await openWith([unparsed('Omake'), unparsed('Extra')]);
+
+      expect(inspected.titles?.map((title) => title.unrecognized)).toEqual([
+        undefined,
+        ['Omake', 'Extra'],
+      ]);
+      expect(inspected.titles?.[0]).not.toHaveProperty('unrecognized');
+    });
+
+    it('are told again when the library is read again', async () => {
+      const { workflow, sessionId } = await openWith([unparsed('Omake')]);
+
+      const planned = await workflow.planLibrary(sessionId);
+
+      expect(planned.titles.map((title) => title.unrecognized)).toEqual([undefined, ['Omake']]);
+    });
+
+    it('are not mentioned when there are none', async () => {
+      const { inspected } = await openWith([]);
+
+      expect(inspected.titles?.some((title) => 'unrecognized' in title)).toBe(false);
+    });
   });
 });

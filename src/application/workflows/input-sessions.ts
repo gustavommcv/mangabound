@@ -234,11 +234,13 @@ export class InputSessions {
 
 /** What the renderer is told about a title: everything but where it lives. */
 function summarizeTitle(title: BindingBatchTitle): InspectedTitle {
+  const unrecognized = unrecognizedChapterNames(title.issues);
   return {
     title: title.title,
     draft: title.draft,
     volumes: title.volumes,
     issues: title.issues,
+    ...(unrecognized.length === 0 ? {} : { unrecognized }),
   };
 }
 

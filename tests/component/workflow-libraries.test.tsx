@@ -564,6 +564,36 @@ describe('libraries in the queue', () => {
     expect(screen.getByRole('button', { name: 'Confirm mapping' })).toBeVisible();
   });
 
+  it('says which folders of a title were left out, on the row and in the editor of that title', async () => {
+    const user = userEvent.setup();
+    const withOmake = { ...groupedTitle, unrecognized: ['Omake', 'Ch.004 [GroupA]'] };
+    installBridge(libraryBridge([goodTitle, withOmake]));
+    render(<App />);
+    await addFolder(user);
+
+    const list = screen.getByRole('list', { name: 'Queued items' });
+    expect(
+      within(list).getByText(
+        '2 folders have a name mangabind cannot read as a chapter, so they are left out of the books: Broken Manga (Omake, Ch.004 [GroupA]). Rename them to include a chapter number (Ch.005, for one), then add the library again.',
+      ),
+    ).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Edit titles of Manga Library' }));
+    await user.click(await screen.findByRole('button', { name: 'Edit volumes for Broken Manga' }));
+    expect(await screen.findByText('Folders left out')).toBeVisible();
+    expect(
+      screen.getByText(
+        '2 folders have a name mangabind cannot read as a chapter, so they are left out of the books: Omake, Ch.004 [GroupA]. Rename them to include a chapter number (Ch.005, for one), then add the library again.',
+      ),
+    ).toBeVisible();
+
+    // The title that has none says nothing of it.
+    await user.click(await screen.findByRole('button', { name: /Manga Library/u }));
+    await user.click(await screen.findByRole('button', { name: 'Edit volumes for Good Manga' }));
+    await screen.findByRole('button', { name: 'Confirm mapping' });
+    expect(screen.queryByText('Folders left out')).not.toBeInTheDocument();
+  });
+
   it('goes back to the queue, and from the title editor to the library', async () => {
     const user = userEvent.setup();
     installBridge(libraryBridge([goodTitle]));

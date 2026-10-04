@@ -970,6 +970,9 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
                     void confirmTitleMapping(editingRow, editingTitleEntry.title, draft);
                   }}
                   singleBook={singleBook}
+                  {...(editingTitleEntry.unrecognized === undefined
+                    ? {}
+                    : { unrecognized: editingTitleEntry.unrecognized, inLibrary: true })}
                   {...metadataProviderProps}
                   startedFrom={editingTitleEntry.draft.volumes.length > 0 ? 'mangabind' : undefined}
                 />

@@ -1,7 +1,7 @@
 import { type BookDetails, hasBookDetails, normalizeBookDetails } from './book-details';
 import { type MappingDraft, mappingSignature } from './mapping';
 import { libraryReason, type ProcessMode, resolveMode } from './process-mode';
-import { unrecognizedChaptersNote } from './unrecognized-chapters';
+import { unrecognizedChaptersNote, unrecognizedInLibraryNote } from './unrecognized-chapters';
 
 /** What can be added to the queue: a folder or one comic archive. */
 export type QueueInputKind = 'folder' | 'cbz';
@@ -24,6 +24,8 @@ export interface LibraryTitle {
   readonly outcome?: TitleOutcome;
   /** What was typed for this title's title, author and language (ADR 0030). */
   readonly details?: BookDetails;
+  /** Folders of the title that could not be read as chapters, and are in no book. */
+  readonly unrecognized?: readonly string[];
 }
 
 /**
@@ -234,6 +236,9 @@ function readTitle(title: ReadTitle): ReadTitle {
     ...(title.details === undefined || !hasBookDetails(title.details)
       ? {}
       : { details: normalizeBookDetails(title.details) }),
+    ...(title.unrecognized === undefined || title.unrecognized.length === 0
+      ? {}
+      : { unrecognized: title.unrecognized }),
   };
 }
 
@@ -289,15 +294,21 @@ const plural = (count: number, word: string): string =>
 export function describeRow(row: QueueRow, mode: ProcessMode): RowView {
   const view = describeRowBase(row, mode);
   // Folders the tool could not read as chapters are in no book, whatever else the row says.
-  if (
-    row.state !== 'inspected' ||
-    row.unrecognized === undefined ||
-    row.unrecognized.length === 0
-  ) {
-    return view;
-  }
-  const told = unrecognizedChaptersNote(row.unrecognized);
-  return { ...view, note: view.note === undefined ? told : `${view.note} ${told}` };
+  const told = row.state === 'inspected' ? leftOutNote(row) : '';
+  return told === ''
+    ? view
+    : { ...view, note: view.note === undefined ? told : `${view.note} ${told}` };
+}
+
+function leftOutNote(row: InspectedRow): string {
+  return row.kind === 'library'
+    ? unrecognizedInLibraryNote(
+        (row.titles ?? []).map((title) => ({
+          title: title.title,
+          names: title.unrecognized ?? [],
+        })),
+      )
+    : unrecognizedChaptersNote(row.unrecognized ?? []);
 }
 
 function describeRowBase(row: QueueRow, mode: ProcessMode): RowView {
