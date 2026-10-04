@@ -52,6 +52,7 @@ import { useBookCovers } from '@/renderer/hooks/use-book-covers';
 import { usePendingRuns } from '@/renderer/hooks/use-pending-runs';
 import { useSharing } from '@/renderer/hooks/use-sharing';
 import { useToolchain } from '@/renderer/hooks/use-toolchain';
+import { resolveNavigation, type WorkflowNavigation } from '@/renderer/lib/navigation';
 import { resolveNetworkInterface } from '@/renderer/lib/sharing';
 import { Titlebar } from '@/renderer/components/shell/titlebar';
 import { Button } from '@/renderer/components/ui/button';
@@ -76,16 +77,6 @@ import type {
   VolumeSuggestion,
   WorkflowFailure,
 } from '@/shared/workflow-contract';
-
-type EditingTarget =
-  | { readonly kind: 'input'; readonly rowId: string }
-  | { readonly kind: 'title'; readonly rowId: string; readonly title: string };
-
-/** A screen and its target travel together; non-editing screens keep no stale selection. */
-type WorkflowNavigation =
-  | { readonly screen: 'queue' | 'options' | 'running' | 'results' }
-  | { readonly screen: 'library'; readonly rowId: string }
-  | { readonly screen: 'mapping' | 'details'; readonly target: EditingTarget };
 
 /** The volumes of a mapping, numbered, in order: what a series of books is made of. */
 const volumeNumbers = (mapping: MappingDraft | undefined): readonly number[] =>
@@ -133,8 +124,10 @@ const toQueueInput = (input: SelectedInput): QueueInput => ({
 export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): React.JSX.Element {
   const [failure, setFailure] = useState<WorkflowFailure>();
   const { toolchain, profiles } = useToolchain(bridge, setFailure);
-  const [navigation, setNavigation] = useState<WorkflowNavigation>({ screen: 'queue' });
+  const [requestedNavigation, setNavigation] = useState<WorkflowNavigation>({ screen: 'queue' });
   const [rows, dispatch] = useReducer(queueReducer, emptyQueue);
+  // A screen about an item that is no longer in the queue is not shown (see resolveNavigation).
+  const navigation = resolveNavigation(requestedNavigation, rows);
   const [rejected, setRejected] = useState<
     readonly { readonly name: string; readonly reason: string }[]
   >([]);
@@ -530,7 +523,16 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
       return;
     }
     dispatch({ type: 'library-planned', id: row.id, titles: planned.value.titles });
-    setNavigation({ screen: 'library', rowId: row.id });
+    // Reading the library again takes as long as mangabind's dry run over all of it, and the person
+    // may have gone back to the queue, or cleared it, meanwhile: only bring them to the library if
+    // they are still where they asked for this.
+    setNavigation((current) =>
+      current.screen === 'mapping' &&
+      current.target.kind === 'title' &&
+      current.target.rowId === row.id
+        ? { screen: 'library', rowId: row.id }
+        : current,
+    );
   };
 
   const runArtifactAction = async (
