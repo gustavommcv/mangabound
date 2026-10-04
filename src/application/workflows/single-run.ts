@@ -17,12 +17,14 @@ import {
   validateRunOptions,
 } from '@/application/workflows/run-preconditions';
 import { presentBindingProgress } from '@/application/workflows/binding-progress';
+import { withBindingWarnings } from '@/application/workflows/binding-warnings';
 import { detailsForBook, noBookDetails } from '@/domain/book-details';
 import {
   type ConversionArtifact,
   type ConversionProgress,
   type ConversionRequest,
   ConversionWorkflowError,
+  type PipelineIssue,
   plannedSingleBook,
   type WorkflowPlan,
 } from '@/domain/conversion';
@@ -55,6 +57,7 @@ export class SingleInputRun {
 
     const details = usesMangapress(mode) ? (request.details ?? noBookDetails) : noBookDetails;
     let inputs: readonly BookInput[];
+    let bindingIssues: readonly PipelineIssue[] = [];
     if (session.selection.kind === 'cbz' || mode === 'convert-only') {
       // Already one book (or explicitly not grouped): straight to mangapress, no mapping needed.
       inputs = [{ path: session.selection.inputPath }];
@@ -83,6 +86,7 @@ export class SingleInputRun {
           onProgress(presentBindingProgress(p));
         },
       );
+      bindingIssues = bound.issues;
       if (singleBook) {
         if (bound.combinedOutputPath === undefined) {
           throw emptyBindingError('no_volumes');
@@ -114,7 +118,12 @@ export class SingleInputRun {
       { onArtifact, onProgress, signal },
     );
     if (result.status === 'failed') throw result.error;
-    const { artifacts } = result;
+    // What the joining step left out of the books is told with them, since the run went on.
+    const artifacts = withBindingWarnings(
+      result.artifacts,
+      inputs.map((input) => input.volume),
+      bindingIssues,
+    );
     onProgress({
       stage: 'saving',
       message: `${String(artifacts.length)} book${artifacts.length === 1 ? '' : 's'} saved.`,
