@@ -178,8 +178,9 @@ describe('removeStaleScratch', () => {
     const root = await scratch();
     await mkdir(path.join(root, 'mangabound-aB3dE9'));
 
-    // Made a moment ago, so a day is too long; nothing is a moment old for a zero age.
+    // Made a moment ago, so a day is too long. A negative age is older than anything made now: a
+    // minute of it, since a file system's clock can be a few milliseconds ahead of the program's.
     expect(await removeStaleScratch(root, day)).toEqual([]);
-    expect(await removeStaleScratch(root, -1)).toEqual(['mangabound-aB3dE9']);
+    expect(await removeStaleScratch(root, -60_000)).toEqual(['mangabound-aB3dE9']);
   });
 });

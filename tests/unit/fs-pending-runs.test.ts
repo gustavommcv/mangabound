@@ -479,7 +479,7 @@ describe('FsPendingRuns.pruneAbandoned', () => {
     await store.pruneAbandoned(day);
     expect(await readdir(store.root)).toContain(run.id);
 
-    await store.pruneAbandoned(-1);
+    await store.pruneAbandoned(-60_000);
     expect(await readdir(store.root)).not.toContain(run.id);
   });
 });
