@@ -374,6 +374,17 @@ describe('FsPendingRuns.pruneAbandoned', () => {
     expect(await readdir(store.root)).toContain(id);
   });
 
+  it('leaves a run that is exactly as old as the age, and takes the next moment of it', async () => {
+    const { store } = await fixture();
+    const id = await interruptedRun(store, day);
+
+    await store.pruneAbandoned(day, now);
+    expect(await readdir(store.root)).toContain(id);
+
+    await store.pruneAbandoned(day, now + 1);
+    expect(await readdir(store.root)).not.toContain(id);
+  });
+
   it('never removes a run that holds a finished book, however old', async () => {
     const { store, run } = await bookFixture();
     await ageTree(run.path, 30 * day);

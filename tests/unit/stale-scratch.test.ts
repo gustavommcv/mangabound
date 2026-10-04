@@ -136,6 +136,15 @@ describe('removeStaleScratch', () => {
     expect(await readdir(root)).toEqual(['mangabound-aB3dE9']);
   });
 
+  it('leaves one that is exactly as old as the age, and takes the next moment of it', async () => {
+    const root = await scratch();
+    await fileChanged(path.join(root, 'mangabound-aB3dE9', 'v1.cbz'), day);
+    await treeChanged(path.join(root, 'mangabound-aB3dE9'), day);
+
+    expect(await removeStaleScratch(root, day, now)).toEqual([]);
+    expect(await removeStaleScratch(root, day, now + 1)).toEqual(['mangabound-aB3dE9']);
+  });
+
   it('leaves what is not a scratch workspace of the app, however old', async () => {
     const root = await scratch();
     for (const name of [
