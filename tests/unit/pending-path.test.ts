@@ -24,6 +24,12 @@ describe('pendingRoot', () => {
     );
   });
 
+  it('ignores a root chosen by the environment that is not an absolute path', () => {
+    expect(pendingRoot('linux', { MANGABOUND_PENDING_ROOT: 'relative' }, '/home/person')).toBe(
+      path.join('/home/person', '.local', 'share', 'mangabound', 'pending'),
+    );
+  });
+
   it('uses application support on macOS', () => {
     expect(pendingRoot('darwin', {}, '/Users/person')).toBe(
       path.join('/Users/person', 'Library', 'Application Support', 'Mangabound', 'Pending'),

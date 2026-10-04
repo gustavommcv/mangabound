@@ -218,6 +218,30 @@ describe('CLI process adapters', () => {
     ]);
   });
 
+  it('takes the result only from the last event, so a result followed by anything is not a result', async () => {
+    const lines = mangapressFixture.trimEnd().split('\n');
+    const future = JSON.stringify({
+      protocol_version: 1,
+      tool: 'mangapress',
+      tool_version: 'candidate',
+      sequence: lines.length + 1,
+      type: 'future',
+    });
+
+    await expect(
+      new MangapressCliAdapter(
+        'tool',
+        runnerReturning(`${lines.join('\n')}\n${future}\n`).runner,
+      ).run({
+        inputPath: '/input.cbz',
+        outputPath: '/output.epub',
+        profile: 'KV',
+        format: 'epub',
+        dryRun: false,
+      }),
+    ).rejects.toMatchObject({ code: 'invalid_payload' });
+  });
+
   it('rejects empty, malformed, and successful partial streams', async () => {
     const request = {
       inputPath: '/input.cbz',

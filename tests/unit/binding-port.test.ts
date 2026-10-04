@@ -494,6 +494,20 @@ describe('mangabind binding port', () => {
     expect(files.removeDirectory).toHaveBeenCalledOnce();
   });
 
+  it('is no success when the report says it failed, even though the tool exited cleanly', async () => {
+    const files = fakeFiles(path.join(os.tmpdir(), 'mangabound-failed-report'));
+    const report = structuredClone(fixture);
+    report.status = 'failed';
+    const adapter = new MangabindBindingAdapter(
+      { run: () => Promise.resolve(result({ report, exitCode: 0 })) },
+      files,
+      os.tmpdir(),
+      () => 'failed-report',
+    );
+
+    await expect(adapter.inspect('/input')).rejects.toMatchObject({ exitCode: 0 });
+  });
+
   it('uses an actionable fallback when a failed report has no structured error', async () => {
     const root = path.join(os.tmpdir(), 'mangabound-generic');
     const files = fakeFiles(root);

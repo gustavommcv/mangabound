@@ -97,6 +97,24 @@ describe('Node process runner', () => {
     child.emit('close', null, 'SIGTERM');
   });
 
+  it('never starts a process for a run that was cancelled before it began', async () => {
+    const child = fakeChild();
+    const spawnProcess = fakeSpawner(child);
+    const alreadyCancelled = new AbortController();
+    alreadyCancelled.abort();
+
+    await expect(
+      createNodeProcessRunner({ spawnProcess }).run(
+        { executablePath: 'tool', arguments: [] },
+        { signal: alreadyCancelled.signal },
+      ),
+    ).rejects.toBeInstanceOf(ProcessCancelledError);
+
+    // A cancel that lands between two tool calls of a run must not let the next one run through:
+    // the abort event never fires again for a signal that is already aborted.
+    expect(spawnProcess).not.toHaveBeenCalled();
+  });
+
   it('wraps spawn failures but preserves cancellation races', async () => {
     const failedChild = fakeChild();
     const failure = createNodeProcessRunner({ spawnProcess: fakeSpawner(failedChild) }).run({

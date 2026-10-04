@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  bookFormatFromExtension,
   emptyLibraryManifest,
   type LibraryManifest,
   libraryManifestSchemaVersion,
@@ -118,4 +119,25 @@ describe('the path of a catalog entry', () => {
       expect.objectContaining({ code: 'invalid_manifest' }),
     );
   });
+});
+
+describe('bookFormatFromExtension', () => {
+  it.each([
+    ['Book.epub', 'epub'],
+    ['Book.cbz', 'cbz'],
+    ['Book.pdf', 'pdf'],
+    // A file copied from a camera or another system can be in capitals: it is still a book.
+    ['BOOK.CBZ', 'cbz'],
+    ['Book.EPUB', 'epub'],
+    ['Book.Pdf', 'pdf'],
+  ])('takes %s for %s', (fileName, format) => {
+    expect(bookFormatFromExtension(fileName)).toBe(format);
+  });
+
+  it.each(['notes.txt', 'Book.epub.part', 'epub', '.epub-backup', 'Book'])(
+    'takes %s for no book at all',
+    (fileName) => {
+      expect(bookFormatFromExtension(fileName)).toBeUndefined();
+    },
+  );
 });
