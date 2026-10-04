@@ -1,5 +1,15 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { copyFile, mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
+import {
+  copyFile,
+  mkdir,
+  open,
+  readFile,
+  readdir,
+  rename,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
 import path from 'node:path';
 
 import { z } from 'zod';
@@ -11,7 +21,13 @@ import type {
   CoverStorePort,
   StoredCover,
 } from '@/application/ports/cover-store';
-import { type CoverOrigin, type CoverSlot, isCoverImage } from '@/domain/book-covers';
+import {
+  type CoverOrigin,
+  type CoverSlot,
+  coverHeadLength,
+  isCoverImage,
+  looksLikeCoverImage,
+} from '@/domain/book-covers';
 
 const indexSchema = z.object({
   version: z.literal(1),
@@ -39,10 +55,23 @@ export interface FsCoverStoreDeps extends AtomicWriteDeps {
   ) => Promise<string | undefined>;
   readonly copyFile: (from: string, to: string) => Promise<void>;
   readonly isFile: (filePath: string) => Promise<boolean>;
+  /** The first bytes of a file. */
+  readonly readHead: (filePath: string, length: number) => Promise<Uint8Array>;
   /** The names of the files directly inside a folder, or undefined when it is not a folder. */
   readonly filesIn: (directoryPath: string) => Promise<readonly string[] | undefined>;
   readonly removeDirectory: (directoryPath: string) => Promise<void>;
   readonly createId: () => string;
+}
+
+async function readHead(filePath: string, length: number): Promise<Uint8Array> {
+  const handle = await open(filePath, 'r');
+  try {
+    const buffer = new Uint8Array(length);
+    const { bytesRead } = await handle.read(buffer, 0, length, 0);
+    return buffer.subarray(0, bytesRead);
+  } finally {
+    await handle.close();
+  }
 }
 
 async function isFile(filePath: string): Promise<boolean> {
@@ -95,6 +124,7 @@ export class FsCoverStore implements CoverStorePort, CoverSourcePort {
       mkdir: deps.mkdir ?? mkdir,
       copyFile: deps.copyFile ?? copyFile,
       isFile: deps.isFile ?? isFile,
+      readHead: deps.readHead ?? readHead,
       filesIn: deps.filesIn ?? filesIn,
       removeDirectory:
         deps.removeDirectory ??
@@ -171,13 +201,25 @@ export class FsCoverStore implements CoverStorePort, CoverSourcePort {
       const inside = await this.io.filesIn(candidate);
       if (inside !== undefined) {
         for (const name of inside) {
-          if (isCoverImage(name)) images.push({ path: path.join(candidate, name), name });
+          if (!isCoverImage(name)) continue;
+          const filePath = path.join(candidate, name);
+          images.push({ path: filePath, name, readable: await this.readsAsImage(filePath) });
         }
       } else if (isCoverImage(path.basename(candidate)) && (await this.io.isFile(candidate))) {
-        images.push({ path: candidate, name: path.basename(candidate) });
+        const name = path.basename(candidate);
+        images.push({ path: candidate, name, readable: await this.readsAsImage(candidate) });
       }
     }
     return images;
+  }
+
+  /** A file that cannot even be opened is not an image that can be read. */
+  private async readsAsImage(filePath: string): Promise<boolean> {
+    try {
+      return looksLikeCoverImage(await this.io.readHead(filePath, coverHeadLength));
+    } catch {
+      return false;
+    }
   }
 
   private directoryOf(itemPath: string): string {

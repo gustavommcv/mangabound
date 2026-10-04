@@ -112,7 +112,12 @@ export class MangapressConversionAdapter implements ConversionPort {
         },
       },
     );
-    const result = requireSuccessfulResult(run);
+    const result = requireSuccessfulResult(
+      run,
+      request.cover === undefined
+        ? undefined
+        : { book: request.book?.title ?? path.basename(request.inputPath) },
+    );
     if (
       result.operation !== 'convert' ||
       result.written !== true ||
@@ -140,8 +145,12 @@ export class MangapressConversionAdapter implements ConversionPort {
   }
 }
 
+/** The codes with which mangapress says the cover it was given could not be used. */
+const coverErrorCodes: ReadonlySet<string> = new Set(['cover_build_failed', 'cover_read_failed']);
+
 function requireSuccessfulResult(
   run: Awaited<ReturnType<MangapressCliAdapter['run']>>,
+  cover?: { readonly book: string },
 ): NonNullable<Awaited<ReturnType<MangapressCliAdapter['run']>>['result']> {
   if (run.exitCode === 0 && run.result !== undefined) return run.result;
   const error = run.errors[0];
@@ -157,7 +166,25 @@ function requireSuccessfulResult(
           ...(run.stderr === '' ? {} : { diagnostic: run.stderr }),
         }
       : issueFromError(error);
-  throw new ToolExecutionError(issue, run.exitCode);
+  throw new ToolExecutionError(
+    cover !== undefined && coverErrorCodes.has(issue.code)
+      ? aboutTheCover(issue, cover.book)
+      : issue,
+    run.exitCode,
+  );
+}
+
+/**
+ * The cover a person chose for a book could not be used. The tool says so in terms of an image;
+ * the person needs to know which book it is and where to change it, and the tool's own words and
+ * diagnostic stay with the details.
+ */
+function aboutTheCover(issue: PipelineIssue, book: string): PipelineIssue {
+  return {
+    ...issue,
+    message: `The cover chosen for ${book} could not be used. Remove it, or choose another image, on the book’s details page.`,
+    diagnostic: [issue.message, issue.diagnostic].filter((part) => part !== undefined).join(' '),
+  };
 }
 
 function issueFromError(error: MangapressErrorEvent): PipelineIssue {

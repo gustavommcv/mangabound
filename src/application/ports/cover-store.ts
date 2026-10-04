@@ -23,6 +23,8 @@ export interface CoverStorePort {
 export interface CoverImage {
   readonly path: string;
   readonly name: string;
+  /** Whether the file begins the way an image does: one that does not would stop the book it is for. */
+  readonly readable: boolean;
 }
 
 export interface CoverSourcePort {

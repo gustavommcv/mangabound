@@ -6,6 +6,7 @@ import {
   coverTypesSentence,
   describeFolderImport,
   planFolderImport,
+  unreadableCoverSentence,
 } from '@/domain/book-covers';
 
 /** The covers of an item after something was done to them, and what there is to say about it. */
@@ -45,6 +46,10 @@ export class BookCovers implements CoverLookup {
     const [image] = await this.sources.imagesIn([sourcePath]);
     if (image === undefined) {
       return { covers: await this.attached(itemPath), note: coverTypesSentence };
+    }
+    // Named like an image and not one: it would stop the book, so it is not kept as its cover.
+    if (!image.readable) {
+      return { covers: await this.attached(itemPath), note: unreadableCoverSentence };
     }
     await this.store.attach(itemPath, { slot, origin: 'chosen', sourcePath: image.path });
     return { covers: await this.attached(itemPath) };

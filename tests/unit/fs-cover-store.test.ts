@@ -242,6 +242,58 @@ describe('covers when a file of the app cannot be removed', () => {
   });
 });
 
+describe('telling an image from a file that only has its name', () => {
+  const png = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]);
+
+  it('reads what a file begins with, not what it is called', async () => {
+    const store = new FsCoverStore(root);
+    await writeFile(path.join(pictures, 'real.png'), png);
+    await writeFile(path.join(pictures, 'real-but-named-jpg.jpg'), png);
+    await writeFile(path.join(pictures, 'garbage.png'), 'not an image at all');
+    await writeFile(path.join(pictures, 'empty.jpg'), '');
+    await writeFile(path.join(pictures, 'truncated.png'), png.subarray(0, 4));
+
+    const images = await store.imagesIn([pictures]);
+
+    expect(Object.fromEntries(images.map((image) => [image.name, image.readable]))).toEqual({
+      'real.png': true,
+      'real-but-named-jpg.jpg': true,
+      'garbage.png': false,
+      'empty.jpg': false,
+      'truncated.png': false,
+    });
+  });
+
+  it('reads an image named on its own the same way', async () => {
+    const store = new FsCoverStore(root);
+    const good = path.join(work, 'good.webp');
+    const bad = path.join(work, 'bad.webp');
+    await writeFile(
+      good,
+      Uint8Array.from([...Buffer.from('RIFF'), 0, 0, 0, 0, ...Buffer.from('WEBP')]),
+    );
+    await writeFile(bad, 'RIFF but not a WebP');
+
+    const images = await store.imagesIn([good, bad]);
+
+    expect(images.map((image) => [image.name, image.readable])).toEqual([
+      ['good.webp', true],
+      ['bad.webp', false],
+    ]);
+  });
+
+  it('takes a file it cannot open for one that cannot be read', async () => {
+    const store = new FsCoverStore(root, {
+      readHead: () => Promise.reject(new Error('EACCES')),
+    });
+    await picture('locked.jpg');
+
+    const [image] = await store.imagesIn([pictures]);
+
+    expect(image).toMatchObject({ name: 'locked.jpg', readable: false });
+  });
+});
+
 describe('finding the images among what was picked or dropped', () => {
   it('takes the images directly inside a folder, and an image named on its own', async () => {
     const store = new FsCoverStore(root);
