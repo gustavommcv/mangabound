@@ -52,7 +52,7 @@ The rule resolves every import to the file it actually targets — the same reso
 ## Testing expectations
 
 - Pure domain and application behavior belongs in Vitest unit tests.
-- The IPC registration and conversion-job lifetime helpers (`src/main/ipc/handle.ts` and `run-job.ts`) the preload's reading of dropped files (`src/preload/dropped-paths.ts`) and the two decisions of the window that need no Electron (`src/main/permission-policy.ts`, `src/main/renderer-files.ts`) also have focused unit tests and belong to the 100% coverage gate. Only the Electron registrar is replaced in the registration tests; real bridge and dialog wiring still require the packaged end-to-end suite. The remaining main-process files are not covered by that unit gate.
+- The IPC registration and conversion-job lifetime helpers (`src/main/ipc/handle.ts` and `run-job.ts`) the preload's reading of dropped files (`src/preload/dropped-paths.ts`) and the decisions of the window and of the handlers that need no Electron (`src/main/permission-policy.ts`, `src/main/renderer-files.ts`, `src/main/quit-cleanup.ts` and the units beside `handle.ts` in `src/main/ipc`) also have focused unit tests and belong to the 100% coverage gate. Only the Electron registrar is replaced in the registration tests; real bridge and dialog wiring still require the packaged end-to-end suite. The remaining main-process files are not covered by that unit gate.
 - React behavior belongs in React Testing Library component tests.
 - Reusable component states belong in Storybook and visual regression coverage.
 - User-critical workflows belong in WebdriverIO tests against a packaged Electron application.

@@ -17,7 +17,9 @@ import {
 import type { MainContext } from '../context';
 import { requireWorkflow } from '../context';
 import { handle, ignoredPayloadSchema } from './handle';
-import { failed, ok } from './result';
+import { rememberPickerFolder } from './remembered-folders';
+import { ok } from './result';
+import { inspectOnce } from './selections';
 
 type InputsContext = Pick<
   MainContext,
@@ -49,33 +51,6 @@ async function registerInputPaths(
   return { inputs, rejected };
 }
 /**
- * Updates where the next dialog opens, in memory now and on disk right away: writes the last
- * known preferences, last Save-dialog folder and sharing interface unchanged, alongside the new picker
- * folder, rather than reading them from the file first (see `currentPreferences` for why).
- */
-function rememberPickerFolder(
-  folder: string,
-  context: Pick<
-    InputsContext,
-    | 'lastPickerFolder'
-    | 'preferences'
-    | 'currentPreferences'
-    | 'lastSaveFolder'
-    | 'preferredNetworkInterface'
-  >,
-): void {
-  context.lastPickerFolder = folder;
-  const saved = context.preferences?.save(
-    context.currentPreferences,
-    context.lastSaveFolder,
-    folder,
-    context.preferredNetworkInterface,
-  );
-  void saved?.catch((error: unknown) => {
-    console.error('Could not remember the last input dialog location.', error);
-  });
-}
-/**
  * Choosing and preparing what a job runs against: files, folders, a library to read, and the
  * a library to share. Every handler here ends in a selection the renderer can only ever
  * refer to by an id these register.
@@ -100,7 +75,7 @@ export function registerInputHandlers(context: InputsContext): void {
       });
       const firstPath = result.filePaths[0];
       if (!result.canceled && firstPath !== undefined) {
-        rememberPickerFolder(kind === 'folders' ? firstPath : path.dirname(firstPath), context);
+        rememberPickerFolder(context, kind === 'folders' ? firstPath : path.dirname(firstPath));
       }
       return ok(await registerInputPaths(result.canceled ? [] : result.filePaths, context));
     },
@@ -115,17 +90,10 @@ export function registerInputHandlers(context: InputsContext): void {
   handle(
     'workflow:inspect-input',
     identifierSchema,
-    async (_event, selectionId): Promise<WorkflowResult<InspectedInputPayload>> => {
-      const selection = context.selectedInputs.get(selectionId);
-      if (selection === undefined) {
-        return failed({ code: 'selection_not_found', message: 'Choose the input again.' });
-      }
-      try {
-        return ok(await requireWorkflow(context).inspect(selection));
-      } finally {
-        context.selectedInputs.delete(selectionId);
-      }
-    },
+    (_event, selectionId): Promise<WorkflowResult<InspectedInputPayload>> =>
+      inspectOnce(context.selectedInputs, selectionId, (selection) =>
+        requireWorkflow(context).inspect(selection),
+      ),
   );
   handle(
     'workflow:release-input',
@@ -149,7 +117,7 @@ export function registerInputHandlers(context: InputsContext): void {
       });
       const libraryPath = result.filePaths[0];
       if (result.canceled || libraryPath === undefined) return ok(null);
-      rememberPickerFolder(libraryPath, context);
+      rememberPickerFolder(context, libraryPath);
       const libraryId = randomUUID();
       context.selectedLibraries.set(libraryId, libraryPath);
       return ok({ libraryId, displayPath: libraryPath });

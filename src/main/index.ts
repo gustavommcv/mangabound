@@ -15,6 +15,7 @@ import { PreferencesWorkflow } from '@/application/workflows/preferences';
 
 import { registerRendererScheme, serveRenderer } from './app-protocol';
 import { createMainContext } from './context';
+import { cleanUpBeforeQuit } from './quit-cleanup';
 import { registerArtifactHandlers } from './ipc/artifacts';
 import { registerConversionHandlers } from './ipc/conversion';
 import { registerCoverHandlers } from './ipc/covers';
@@ -95,22 +96,25 @@ app.on('before-quit', (event) => {
   if (cleanupStarted) return;
   event.preventDefault();
   cleanupStarted = true;
-  for (const controller of context.activeJobs.values()) controller.abort();
-  // A change made an instant before quitting is still written.
-  void Promise.allSettled([
-    context.workflow?.releaseAll(),
-    context.activeSharing?.stop(),
-    context.preferences?.settled(),
-  ])
-    .then(async () => {
-      await context.pendingRuns?.pruneCompleted();
-    })
-    .catch((error: unknown) => {
-      console.error('Could not clear exported pending books.', error);
-    })
-    .finally(() => {
+  void cleanUpBeforeQuit(
+    {
+      activeJobs: context.activeJobs,
+      // A change made an instant before quitting is still written.
+      releaseAll: context.workflow === undefined ? undefined : () => context.workflow!.releaseAll(),
+      stopSharing:
+        context.activeSharing === undefined ? undefined : () => context.activeSharing!.stop(),
+      settlePreferences:
+        context.preferences === undefined ? undefined : () => context.preferences!.settled(),
+      pruneCompleted:
+        context.pendingRuns === undefined ? undefined : () => context.pendingRuns!.pruneCompleted(),
+    },
+    () => {
       app.quit();
-    });
+    },
+    (message, cause) => {
+      console.error(message, cause);
+    },
+  );
 });
 
 app.on('window-all-closed', () => {

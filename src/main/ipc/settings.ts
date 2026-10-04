@@ -4,6 +4,7 @@ import type { WorkflowResult } from '@/shared/workflow-contract';
 
 import type { MainContext } from '../context';
 import { handle, ignoredPayloadSchema } from './handle';
+import { remember, saveChosen } from './preferences-state';
 import { ok } from './result';
 
 /**
@@ -25,12 +26,7 @@ export function registerSettingsHandlers(
     ignoredPayloadSchema,
     async (): Promise<WorkflowResult<RestoredSettings>> => {
       const restored = await workflows.restore();
-      // An old output-folder preference is only a starting place for a native Save dialog.
-      // Restoring it must never silently send new conversions to that folder.
-      context.lastPickerFolder = restored.lastPickerFolder;
-      context.preferredNetworkInterface = restored.preferredNetworkInterface;
-      context.currentPreferences = restored.preferences;
-      context.lastSaveFolder = restored.outputFolder;
+      remember(context, restored);
       return ok({
         preferences: restored.preferences,
         ...(restored.preferredNetworkInterface === undefined
@@ -44,15 +40,7 @@ export function registerSettingsHandlers(
     'settings:save',
     saveSettingsCommandSchema,
     async (_event, command): Promise<WorkflowResult<undefined>> => {
-      const outputFolder = context.lastSaveFolder;
-      context.currentPreferences = command.preferences;
-      context.preferredNetworkInterface = command.preferredNetworkInterface;
-      await workflows.save(
-        command.preferences,
-        outputFolder,
-        context.lastPickerFolder,
-        context.preferredNetworkInterface,
-      );
+      await saveChosen(context, workflows, command);
       return ok(undefined);
     },
   );
