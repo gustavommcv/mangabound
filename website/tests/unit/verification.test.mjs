@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { auditLinks, translationGaps } from '../../scripts/verification.mjs';
+import { auditLinks, auditSearchData, translationGaps } from '../../scripts/verification.mjs';
 
 const options = { site: 'https://example.org', base: '/mangabound/' };
 const page = (path, html) => ({ path, html });
@@ -9,6 +9,7 @@ const page = (path, html) => ({ path, html });
 test('empty input cannot produce a false green verification', () => {
   assert.throws(() => translationGaps([]), /No documentation pages found/);
   assert.throws(() => auditLinks([], options), /No built HTML pages found/);
+  assert.throws(() => auditSearchData([], options), /No built HTML pages found/);
 });
 
 test('translation parity accepts Windows and POSIX separators', () => {
@@ -140,4 +141,56 @@ test('unsafe schemes, malformed URLs, and malformed encoding fail', () => {
     result.errors.map(({ reason }) => reason),
     ['Unsupported URL scheme', 'Invalid URL', 'Invalid URL encoding'],
   );
+});
+
+const description = 'd'.repeat(120);
+const indexed = (
+  address,
+  { title = `Page ${address}`, text = description, body = '<h1>T</h1>' } = {},
+) =>
+  `<head><title>${title}</title><meta name="description" content="${text}">` +
+  `<link rel="canonical" href="https://example.org/mangabound/${address}">` +
+  `<script type="application/ld+json">{"@type":"WebSite"}</script></head>${body}`;
+
+test('complete pages pass and a noindex page is not held to the same rules', () => {
+  const result = auditSearchData(
+    [
+      page('index.html', indexed('')),
+      page('guide\\index.html', indexed('guide/', { body: '<h1>T</h1><img src="a.png" alt="">' })),
+      page('404.html', '<head><meta name="robots" content="noindex"></head>'),
+    ],
+    options,
+  );
+  assert.deepEqual(result, { indexable: 2, errors: [] });
+});
+
+test('a page with nothing for a search engine reports each missing part', () => {
+  const result = auditSearchData([page('index.html', '<head></head><img src="a.png">')], options);
+  assert.deepEqual(
+    result.errors.map((error) => error.reason),
+    [
+      'No title',
+      'Description has 0 characters; expected 110 to 160',
+      'Canonical address is not https://example.org/mangabound/',
+      'Expected one h1, found 0',
+      'No structured data',
+      '1 image(s) without alternative text',
+    ],
+  );
+});
+
+test('a repeated title, an overlong description, and broken structured data fail', () => {
+  const result = auditSearchData(
+    [
+      page('index.html', indexed('', { title: 'Same' })),
+      page('a/index.html', indexed('a/', { title: 'Same', text: 'd'.repeat(161) })),
+      page('b/index.html', indexed('b/').replace('{"@type":"WebSite"}', '{')),
+    ],
+    options,
+  );
+  assert.deepEqual(result.errors, [
+    { source: 'a/index.html', reason: 'Title is also used by index.html' },
+    { source: 'a/index.html', reason: 'Description has 161 characters; expected 110 to 160' },
+    { source: 'b/index.html', reason: 'Structured data is not valid JSON' },
+  ]);
 });

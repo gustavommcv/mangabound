@@ -40,6 +40,7 @@ Before publishing, `npm run check` also runs `npm run audit`: npm's full depende
 - Use the application's **actual English control labels** in both languages. Explain the task around them; do not invent buttons or silently translate a label the reader cannot find.
 - The published guide and automatic app captures follow `main`, which may be ahead of the latest downloadable release (ADR 0034). Check current UI/source and update both locales together. Do not describe a planned feature as implemented.
 - Put a topic's explanation in one page and link to it elsewhere. CLI examples are selected tasks; upstream `--help` and the tools' documentation are the full flag reference. Protocol/provider/architecture contracts stay in their source repositories.
+- Give every page a `description` of 110 to 160 characters that names the task and the product: it is the text a search result shows. `npm test` checks the built pages for it, for a title no other page has, and for the rest of what a search engine reads. [SEO.md](SEO.md) records the indexing plan and the steps outside the repository.
 - Sidebar children use page slugs, so Starlight obtains each locale's frontmatter title. Group labels have explicit locale translations.
 - Use existing Starlight components and Markdown first. New custom code needs a concrete need and behavior tests, not string-presence tests for prose or tests of the framework's internals.
 - Use English for code, comments, commit messages, and contributor documents. Portuguese is intentional only in the translated public guide.

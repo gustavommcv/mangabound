@@ -83,3 +83,50 @@ export function auditLinks(pages, { site, base, assets = [] }) {
   }
   return { internal, external, errors };
 }
+
+/** What a search engine reads from each page it may index. A page marked `noindex` is not one. */
+export function auditSearchData(pages, { site, base }) {
+  if (pages.length === 0) throw new Error('No built HTML pages found');
+  const root = new URL(base.replace(/\/?$/, '/'), site);
+  const titles = new Map();
+  const errors = [];
+  let indexable = 0;
+
+  for (const page of pages) {
+    const source = portablePath(page.path);
+    const $ = load(page.html);
+    if ($('meta[name="robots"]').attr('content')?.includes('noindex')) continue;
+    indexable++;
+    const fail = (reason) => errors.push({ source, reason });
+
+    const title = $('head > title').text().trim();
+    if (!title) fail('No title');
+    else if (titles.has(title)) fail(`Title is also used by ${titles.get(title)}`);
+    else titles.set(title, source);
+
+    const description = $('meta[name="description"]').attr('content') ?? '';
+    if (description.length < 110 || description.length > 160)
+      fail(`Description has ${description.length} characters; expected 110 to 160`);
+
+    const address = new URL(source.replace(/index\.html$/, ''), root).href;
+    if ($('link[rel="canonical"]').attr('href') !== address)
+      fail(`Canonical address is not ${address}`);
+
+    const headings = $('h1').length;
+    if (headings !== 1) fail(`Expected one h1, found ${headings}`);
+
+    const data = $('script[type="application/ld+json"]').toArray();
+    if (data.length === 0) fail('No structured data');
+    for (const node of data) {
+      try {
+        JSON.parse($(node).text());
+      } catch {
+        fail('Structured data is not valid JSON');
+      }
+    }
+
+    const withoutText = $('img:not([alt])').length;
+    if (withoutText) fail(`${withoutText} image(s) without alternative text`);
+  }
+  return { indexable, errors };
+}

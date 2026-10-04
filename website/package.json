@@ -12,10 +12,10 @@
     "format:check": "prettier --check .",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "astro check",
-    "test:unit": "node --experimental-test-coverage --test-coverage-include=scripts/verification.mjs --test-coverage-include=scripts/audit-scope.mjs --test-coverage-lines=100 --test-coverage-branches=100 --test-coverage-functions=100 --test tests/unit/*.test.mjs",
+    "test:unit": "node --experimental-test-coverage --test-coverage-include=scripts/verification.mjs --test-coverage-include=scripts/audit-scope.mjs --test-coverage-include=src/structured-data.mjs --test-coverage-lines=100 --test-coverage-branches=100 --test-coverage-functions=100 --test tests/unit/*.test.mjs",
     "test:browser": "playwright test",
     "test:media": "playwright test --config playwright.media.config.mjs",
-    "test": "npm run test:unit && node scripts/check-i18n.mjs && node scripts/verify-links.mjs",
+    "test": "npm run test:unit && node scripts/check-i18n.mjs && node scripts/verify-links.mjs && node scripts/verify-search-data.mjs",
     "audit": "node scripts/check-audit-scope.mjs && audit-ci --config audit-ci.json",
     "check": "npm run format:check && npm run lint && npm run typecheck && npm run audit && npm run build && npm test && npm run test:browser && npm run test:media",
     "astro": "astro"
