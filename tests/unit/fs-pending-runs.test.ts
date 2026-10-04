@@ -178,6 +178,28 @@ describe('FsPendingRuns', () => {
     expect((await store.list()).map((item) => item.id)).toEqual([other.id]);
   });
 
+  it('only ever lists, removes or discards folders it made, however much they look like a run', async () => {
+    const { store, library } = await fixture();
+    await store.prepare();
+    const stranger = path.join(store.root, 'Somebody Else Library');
+    await mkdir(stranger, { recursive: true });
+    await writeFile(path.join(stranger, 'Book.epub'), 'not ours');
+    await library.publish(stranger, {
+      relativePath: 'Book.epub',
+      title: 'Book',
+      author: 'Author',
+      format: 'epub',
+      bytes: 8,
+      convertedAt: '2026-09-28T00:00:00.000Z',
+    });
+
+    expect(await store.list()).toEqual([]);
+    expect(await store.discard('Somebody Else Library')).toBe(false);
+    await store.pruneCompleted();
+
+    expect(await readFile(path.join(stranger, 'Book.epub'), 'utf8')).toBe('not ours');
+  });
+
   it('lists multiple populated runs newest first', async () => {
     const { store } = await bookFixture();
     await new Promise((resolve) => setTimeout(resolve, 20));

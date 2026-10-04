@@ -71,6 +71,16 @@ const request = {
 };
 
 describe('mangapress conversion port', () => {
+  it('is no success when the tool exits with an error even though it printed a result', async () => {
+    const run = vi.fn(() => Promise.resolve(runResult({ exitCode: 1 })));
+    const adapter = new MangapressConversionAdapter({ run });
+
+    await expect(adapter.convert(request, { onProgress: vi.fn() })).rejects.toMatchObject({
+      exitCode: 1,
+      issue: { code: 'process_failed' },
+    });
+  });
+
   it('returns a no-output plan from a complete mangapress dry run', async () => {
     const planned = resultEvent({
       dry_run: true,

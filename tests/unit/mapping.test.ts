@@ -466,6 +466,46 @@ describe('two copies of one chapter in the folder', () => {
   });
 });
 
+describe('what a volume number and a chapter number may be', () => {
+  const draft = createMappingDraft({ chapters, mangaTitle: 'Example' });
+
+  it.each(['-1', '0x10', '1e3', '1.', '.5', '1,5', '', ' ', 'one', '+1', '1 2'])(
+    'refuses %j as the number of a volume',
+    (number) => {
+      expect(() => addVolume(draft, 'v1', number)).toThrowError(
+        expect.objectContaining({ code: 'invalid_volume_number' }),
+      );
+    },
+  );
+
+  it.each([
+    ['1', '1'],
+    ['01', '1'],
+    [' 2 ', '2'],
+    ['1.5', '1.5'],
+    ['0', '0'],
+  ])('takes %j as volume %s', (typed, written) => {
+    expect(addVolume(draft, 'v1', typed).volumes[0]?.number).toBe(written);
+  });
+
+  it('refuses a chapter with a negative or a missing number, and a source with no id', () => {
+    const base = { id: 'x', name: 'X', path: '/x', pageCount: 1 };
+
+    expect(isMappableChapter({ ...base, chapter: 3 })).toBe(true);
+    expect(isMappableChapter({ ...base, chapter: 0 })).toBe(true);
+    expect(isMappableChapter({ ...base, chapter: -1 })).toBe(false);
+    expect(isMappableChapter(base)).toBe(false);
+
+    const sourced = (provider: string, id: string) =>
+      validateMapping(
+        createMappingDraft({ chapters, mangaTitle: 'Example', source: { provider, id } }),
+      ).map((issue) => issue.code);
+    expect(sourced('mangadex', ' ')).toContain('invalid_source');
+    expect(sourced(' ', 'abc')).toContain('invalid_source');
+    expect(sourced('mangadex', 'abc')).not.toContain('invalid_source');
+  });
+});
+
 describe('isMappableChapter', () => {
   it('accepts a chapter with a number, with or without a known special suffix', () => {
     expect(isMappableChapter(chapters[1]!)).toBe(true);

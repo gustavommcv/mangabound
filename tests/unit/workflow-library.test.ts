@@ -555,3 +555,37 @@ describe('library conversion workflow', () => {
     expect(ports.convert).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('a title mangabind could not bind', () => {
+  it('is not converted, even when it still lists volumes', async () => {
+    const ports = dependencies();
+    const { workflow, sessionId } = await openLibrary(ports);
+    ports.bindBatch.mockResolvedValueOnce({
+      workspaceId: 'batch-workspace',
+      titles: [
+        {
+          title: 'Half Bound',
+          status: 'failed',
+          volumes: numbered(['/work/batch/half-vol-1.cbz']),
+          issues: [],
+        },
+      ],
+      issues: [],
+    });
+
+    const outcomes = await workflow.convertLibrary(
+      {
+        sessionId,
+        libraryPath: '/pending',
+        settings: defaultMangapressSettings,
+        format: 'epub',
+      },
+      { onProgress: vi.fn() },
+    );
+
+    expect(outcomes.map(({ title, status }) => ({ title, status }))).toEqual([
+      { title: 'Half Bound', status: 'failed' },
+    ]);
+    expect(ports.convert).not.toHaveBeenCalled();
+  });
+});

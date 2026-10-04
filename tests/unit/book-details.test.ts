@@ -136,6 +136,12 @@ describe('isLanguageTag', () => {
     expect(isLanguageTag(tag)).toBe(true);
   });
 
+  it('allows a tag up to 20 characters, and no more', () => {
+    expect(isLanguageTag('en-abcdefgh-abcdefgh')).toBe(true);
+    // Each group is within its own limit; only the whole is too long.
+    expect(isLanguageTag('en-abcdefgh-abcdefgh-ab')).toBe(false);
+  });
+
   it.each(['', 'e', 'en_US', 'not a tag', 'pt-', '-br', 'english-language-tag-too-long'])(
     'refuses %j',
     (tag) => {

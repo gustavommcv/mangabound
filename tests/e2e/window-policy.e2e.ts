@@ -149,6 +149,24 @@ describe('packaged window policy', () => {
     assert.equal(outcome.clipboardWrite, 'granted');
   });
 
+  it('does not let the page open another window or leave the app for a web address', async () => {
+    const outcome = JSON.parse(
+      await browser.execute(async () => {
+        const before = location.href;
+        // Both go through the window's own policy in the main process: a new window is denied, and
+        // so is a navigation away from the page it loaded.
+        const opened = window.open('https://example.com/', '_blank');
+        location.href = 'https://example.com/';
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        return JSON.stringify({ opened: opened !== null, stayed: location.href === before });
+      }),
+    ) as { opened: boolean; stayed: boolean };
+
+    assert.equal(outcome.opened, false);
+    assert.equal(outcome.stayed, true);
+    assert.equal((await browser.getWindowHandles()).length, 1);
+  });
+
   it('does not start sharing on an address that is not one of the device’s own', async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), 'mangabound-window-policy-'));
     temporaryDirectories.push(directory);
