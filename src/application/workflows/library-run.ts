@@ -1,4 +1,4 @@
-import type { BindingPort } from '@/application/ports/conversion-tools';
+import type { BindingPort, BindingProgress } from '@/application/ports/conversion-tools';
 import { ProcessCancelledError } from '@/application/ports/process-runner';
 import type { CoverLookup } from '@/application/workflows/book-covers';
 import { type BookProduction, withCovers } from '@/application/workflows/book-production';
@@ -21,7 +21,7 @@ import type {
 import type { MangapressSettings } from '@/domain/output-profile';
 import { type BatchProcessMode, usesMangapress } from '@/domain/process-mode';
 
-/** Bind once, convert titles sequentially, retain partial outcomes and release the batch scratch. */
+/** Bind what is asked for, convert titles sequentially, retain partial outcomes and release the scratch. */
 export class LibraryRun {
   constructor(
     private readonly binding: BindingPort,
@@ -61,14 +61,30 @@ export class LibraryRun {
       stage: 'binding',
       message: 'Building volume files for the library…',
     });
-    const bound = await this.binding.bindBatch(
-      session.selection.inputPath,
-      signal,
-      singleBook,
-      (progress) => {
-        onProgress(presentBindingProgress(progress));
-      },
-    );
+    const showProgress = (progress: BindingProgress): void => {
+      onProgress(presentBindingProgress(progress));
+    };
+    // Only what is asked for is bound: a library of fifty titles of which one is left to convert
+    // (after a failure, say) would otherwise be bound whole, and its books thrown away.
+    const asked =
+      request.titles === undefined
+        ? library.titles
+        : library.titles.filter((title) => request.titles?.includes(title.title) === true);
+    const bound =
+      asked.length === library.titles.length
+        ? await this.binding.bindBatch(
+            session.selection.inputPath,
+            signal,
+            singleBook,
+            showProgress,
+          )
+        : await this.binding.bindTitles(
+            session.selection.inputPath,
+            asked.map((title) => title.inputPath),
+            signal,
+            singleBook,
+            showProgress,
+          );
     const titles =
       request.titles === undefined
         ? bound.titles

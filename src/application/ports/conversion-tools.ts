@@ -109,6 +109,17 @@ export interface BindingPort {
     combine?: boolean,
     onProgress?: (progress: BindingProgress) => void,
   ): Promise<BindingBatchResult>;
+  /**
+   * Joins only the titles in these folders, each with its own mangabind run, and leaves the rest of
+   * the library alone: a library of fifty titles of which one is asked for does not get fifty bound.
+   */
+  bindTitles(
+    parentPath: string,
+    folders: readonly string[],
+    signal?: AbortSignal,
+    combine?: boolean,
+    onProgress?: (progress: BindingProgress) => void,
+  ): Promise<BindingBatchResult>;
   /** Saves the mapping a user confirmed for one title as that title folder's mangabind.json. */
   writeTitleMapping(inputPath: string, mapping: MappingDraft): Promise<void>;
   /**
