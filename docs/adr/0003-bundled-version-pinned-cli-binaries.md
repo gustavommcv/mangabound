@@ -31,3 +31,7 @@ Local development may use an explicit, visibly marked binary override. Overrides
 Mangabound CI needs Node/Electron tooling, not Go and Rust, for normal builds. Reproducing a release means restoring the lockfile and the immutable release assets named by it. Upgrading either tool is an auditable pull request.
 
 If mangabind later exposes a stable public library API, it becomes another adapter option. The domain, application ports, and existing subprocess adapter do not need to change; adopting the API would require a new integration decision, not a rearchitecture.
+
+## Amendment (2026-10-04): what the start-up check is, and is not
+
+[P1-10 of the audit](../audit-2026-10-04.md) swapped a bundled tool for a script after the app had reported them verified, and the app ran the script. The tools live outside the asar (`resources/toolchain`), so the asar integrity check does not cover them, and each is hashed once at launch and run by its path afterwards. That is an integrity check against corruption and a wrong package, not protection against someone who can write to the install folder after launch: whoever can do that, the person's own account for an install under `%LOCALAPPDATA%`, can replace the unsigned app itself. It is not described as more than that. Copying the verified files into a private folder and running the copies would be the way to make it more.

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
 import { $, browser } from '@wdio/globals';
@@ -19,6 +20,34 @@ describe('packaged application shell', () => {
     assert.equal(await $('header').$(`span=v${version}`).isDisplayed(), true);
     assert.equal(await $('header').$('span=Desktop').isExisting(), false);
     assert.equal(await $('header').$('span=Foundation').isExisting(), false);
+  });
+
+  it('starts one copy of the app only: a second launch hands over to the first and quits', async () => {
+    const { binary, userData } = await browser.electron.execute((electron) => ({
+      binary: process.execPath,
+      userData: electron.app.getPath('userData'),
+    }));
+
+    // The same user data folder is what makes it the same app: two copies of it would share the
+    // settings and the pending books, and the second one's start-up cleanup could remove the
+    // folder the first has just made for a conversion.
+    const second = spawn(binary, [`--user-data-dir=${userData}`, '--no-sandbox'], {
+      stdio: 'ignore',
+      windowsHide: true,
+    });
+    const exitCode = await new Promise<number | null>((resolve) => {
+      const giveUp = setTimeout(() => {
+        second.kill();
+        resolve(-1);
+      }, 30_000);
+      second.once('exit', (code) => {
+        clearTimeout(giveUp);
+        resolve(code);
+      });
+    });
+
+    assert.equal(exitCode, 0, 'The second copy should have quit by itself.');
+    assert.equal(await $('h1').getText(), 'Queue');
   });
 
   it('returns safe command-specific failures for invalid IPC payloads without side effects', async () => {

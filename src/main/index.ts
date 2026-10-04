@@ -32,11 +32,24 @@ if (started) app.quit();
 // Electron accepts a new scheme's privileges only before the app is ready.
 registerRendererScheme();
 
+// A second copy would share the settings and the pending books with the first, and its start-up
+// cleanup could remove the folder the first has just made for a conversion. The second one asks the
+// first to come forward and quits.
+const holdsTheLock = app.requestSingleInstanceLock();
+if (!holdsTheLock) app.quit();
+app.on('second-instance', () => {
+  const [window] = BrowserWindow.getAllWindows();
+  if (window === undefined) return;
+  if (window.isMinimized()) window.restore();
+  window.focus();
+});
+
 const context = createMainContext();
 const oneDay = 24 * 60 * 60 * 1000;
 let cleanupStarted = false;
 
 void app.whenReady().then(async () => {
+  if (!holdsTheLock) return;
   // Before anything reads them: an earlier version kept these in the installer's own folder on
   // Windows, which uninstalling the app empties.
   const legacyMove = legacyStorageMove(process.platform, process.env, app.getPath('home'));
