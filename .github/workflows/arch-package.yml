@@ -74,6 +74,9 @@ jobs:
           useradd -m builder
           chown -R builder:builder packaging/arch
           su builder -c "cd packaging/arch && makepkg -f --noconfirm --nodeps"
+      - name: Check that the package can be used by someone who is not root
+        # A gate, unlike the diagnostic below: see make.yml's step of the same purpose.
+        run: .github/scripts/check-package-permissions.sh packaging/arch/*.pkg.tar.zst
       - name: 'Diagnostic: launch the installed package with the sandbox enabled'
         if: inputs.run-sandbox-diagnostic
         run: .github/scripts/check-pacman-sandbox.sh
