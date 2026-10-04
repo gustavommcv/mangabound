@@ -23,15 +23,18 @@ describe('packaged application shell', () => {
   });
 
   it('starts one copy of the app only: a second launch hands over to the first and quits', async () => {
-    const { binary, userData } = await browser.electron.execute((electron) => ({
-      binary: process.execPath,
-      userData: electron.app.getPath('userData'),
-    }));
+    // The copy is started as the service started the first: the same binary and the same flags,
+    // user data folder included, which is what makes it the same app (two copies of it would share
+    // the settings and the pending books, and the second one's start-up cleanup could remove the
+    // folder the first has just made for a conversion). The one flag left out is the debugging port.
+    const started = browser.requestedCapabilities['goog:chromeOptions'] as {
+      binary: string;
+      args: string[];
+    };
+    const args = started.args.filter((flag) => !flag.startsWith('--inspect'));
+    assert.ok(args.some((flag) => flag.startsWith('--user-data-dir=')));
 
-    // The same user data folder is what makes it the same app: two copies of it would share the
-    // settings and the pending books, and the second one's start-up cleanup could remove the
-    // folder the first has just made for a conversion.
-    const second = spawn(binary, [`--user-data-dir=${userData}`, '--no-sandbox'], {
+    const second = spawn(started.binary, args, {
       stdio: 'ignore',
       windowsHide: true,
     });
