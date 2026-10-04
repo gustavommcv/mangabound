@@ -20,6 +20,7 @@ import {
   type MappingEditorHistory,
   undoMappingCommand,
 } from '@/domain/mapping-editor';
+import { unrecognizedChaptersNote } from '@/domain/unrecognized-chapters';
 import {
   assignedVolumeId,
   dominantLanguage,
@@ -47,6 +48,8 @@ export interface MappingEditorProps {
   /** Set when `initialDraft` already carries mangabind's own grouping (volumes read from names). */
   readonly startedFrom?: 'mangabind' | undefined;
   readonly singleBook?: boolean;
+  /** Folders of the manga whose names could not be read as chapters: they are not in the draft. */
+  readonly unrecognized?: readonly string[];
   readonly onConfirm?: (metadata: string, draft: MappingDraft) => void;
   /** Offered when the folder can skip grouping and go straight to mangapress as one book. */
   readonly onSkipGrouping?: () => void;
@@ -105,6 +108,7 @@ export function MappingEditor({
   initialDraft,
   startedFrom,
   singleBook,
+  unrecognized = [],
   onConfirm,
   metadataProviders = [],
   onOpenProviderHomepage,
@@ -314,6 +318,9 @@ export function MappingEditor({
           </div>
         </div>
       </header>
+      {unrecognized.length > 0 && (
+        <InfoBanner message={unrecognizedChaptersNote(unrecognized)} title="Folders left out" />
+      )}
       {singleBook && (
         <InfoBanner
           message="Mapped volumes will form top-level entries in the table of contents of the unified EPUB, with chapters nested under them."

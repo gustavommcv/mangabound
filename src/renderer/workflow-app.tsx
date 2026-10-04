@@ -236,6 +236,9 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
           ...(result.value.mapping === undefined ? {} : { mapping: result.value.mapping }),
           ...(result.value.titles === undefined ? {} : { titles: result.value.titles }),
           ...(result.value.details === undefined ? {} : { details: result.value.details }),
+          ...(result.value.unrecognized === undefined
+            ? {}
+            : { unrecognized: result.value.unrecognized }),
         });
       }
     })();
@@ -908,6 +911,9 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
                     setNavigation({ screen: 'queue' });
                   }}
                   singleBook={singleBook}
+                  {...(editingRow.unrecognized === undefined
+                    ? {}
+                    : { unrecognized: editingRow.unrecognized })}
                   {...metadataProviderProps}
                   startedFrom={
                     editingRow.proposedSignature !== undefined &&

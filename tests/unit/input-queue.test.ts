@@ -105,6 +105,24 @@ describe('input queue reducer', () => {
     expect((rows[0] as InspectedRow).proposedSignature).toEqual(expect.any(String));
   });
 
+  it('keeps the folders mangabind could not read, and nothing when it read them all', () => {
+    const inspect = (unrecognized?: readonly string[]) =>
+      queueReducer(queueReducer(emptyQueue, { type: 'add', inputs: [folderInput] }), {
+        type: 'inspected',
+        id: 'a',
+        sessionId: 'session-a',
+        mapping: grouped,
+        ...(unrecognized === undefined ? {} : { unrecognized }),
+      })[0] as InspectedRow;
+
+    expect(inspect(['Omake', 'Ch.004 [GroupA]']).unrecognized).toEqual([
+      'Omake',
+      'Ch.004 [GroupA]',
+    ]);
+    expect(inspect([])).not.toHaveProperty('unrecognized');
+    expect(inspect()).not.toHaveProperty('unrecognized');
+  });
+
   it('marks a CBZ inspected without a mapping', () => {
     const row = inspectedCbz();
 
@@ -804,5 +822,55 @@ describe('the author and language read with a folder', () => {
         ['New', undefined],
       ],
     );
+  });
+});
+
+describe('what a row says of the folders mangabind could not read', () => {
+  const told =
+    'A folder has a name mangabind cannot read as a chapter, so it is left out of the books: Omake. Rename it to include a chapter number (Ch.005, for one), then add the folder again.';
+
+  it('adds it to the note of a row that is ready, which had none', () => {
+    const row = inspectedFolder(grouped, { confirmed: true, unrecognized: ['Omake'] });
+
+    expect(describeRow(row, 'bind-and-convert')).toMatchObject({ runnable: true, note: told });
+  });
+
+  it('adds it after what the row already says, with a space between', () => {
+    const row = inspectedFolder(gappy, { confirmed: true, unrecognized: ['Omake'] });
+
+    const { note } = describeRow(row, 'bind-and-convert');
+
+    expect(note).toBe(`1 chapter left out. ${told}`);
+  });
+
+  it('adds it to a row that needs volumes, and to one with no chapters at all', () => {
+    expect(
+      describeRow(inspectedFolder(ungrouped, { unrecognized: ['Omake'] }), 'bind-and-convert').note,
+    ).toContain(told);
+    const noChapters = inspectedFolder(draft([]), { unrecognized: ['Omake'] });
+    expect(
+      describeRow(
+        { ...noChapters, mapping: createMappingDraft({ mangaTitle: 'Work', chapters: [] }) },
+        'bind-and-convert',
+      ),
+    ).toMatchObject({ chip: 'Not recognized' });
+    expect(
+      describeRow(
+        { ...noChapters, mapping: createMappingDraft({ mangaTitle: 'Work', chapters: [] }) },
+        'bind-and-convert',
+      ).note,
+    ).toContain(told);
+  });
+
+  it('adds nothing for a row that has none, a CBZ, or one still being read', () => {
+    const plain = inspectedFolder(grouped, { confirmed: true });
+
+    expect(describeRow(plain, 'bind-and-convert').note).toBeUndefined();
+    expect(
+      describeRow(inspectedFolder(grouped, { unrecognized: [] }), 'bind-and-convert').note,
+    ).toBeUndefined();
+    expect(describeRow(inspectedCbz(), 'bind-and-convert').note).toBeUndefined();
+    const reading = queueReducer(emptyQueue, { type: 'add', inputs: [folderInput] })[0] as QueueRow;
+    expect(describeRow(reading, 'bind-and-convert').note).toBeUndefined();
   });
 });

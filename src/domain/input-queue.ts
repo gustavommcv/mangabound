@@ -1,6 +1,7 @@
 import { type BookDetails, hasBookDetails, normalizeBookDetails } from './book-details';
 import { type MappingDraft, mappingSignature } from './mapping';
 import { libraryReason, type ProcessMode, resolveMode } from './process-mode';
+import { unrecognizedChaptersNote } from './unrecognized-chapters';
 
 /** What can be added to the queue: a folder or one comic archive. */
 export type QueueInputKind = 'folder' | 'cbz';
@@ -55,6 +56,8 @@ export type QueueRow = QueueRowBase &
         readonly titles?: readonly LibraryTitle[];
         /** What was typed for this input's title, author and language (ADR 0030). */
         readonly details?: BookDetails;
+        /** Folders of the manga that could not be read as chapters, and are in no book. */
+        readonly unrecognized?: readonly string[];
       }
   );
 
@@ -79,6 +82,8 @@ export type QueueAction =
       readonly titles?: readonly ReadTitle[];
       /** The author and language kept with the folder, when there are any. */
       readonly details?: BookDetails;
+      /** Folders that could not be read as chapters. */
+      readonly unrecognized?: readonly string[];
     }
   | { readonly type: 'inspect-failed'; readonly id: string; readonly message: string }
   /** The library was read again, after a title had its volumes saved. Saved titles stay saved. */
@@ -136,6 +141,9 @@ export function queueReducer(rows: readonly QueueRow[], action: QueueAction): re
               ...(action.details === undefined || !hasBookDetails(action.details)
                 ? {}
                 : { details: normalizeBookDetails(action.details) }),
+              ...(action.unrecognized === undefined || action.unrecognized.length === 0
+                ? {}
+                : { unrecognized: action.unrecognized }),
             }
           : row,
       );
@@ -279,6 +287,20 @@ const plural = (count: number, word: string): string =>
   `${String(count)} ${word}${count === 1 ? '' : 's'}`;
 
 export function describeRow(row: QueueRow, mode: ProcessMode): RowView {
+  const view = describeRowBase(row, mode);
+  // Folders the tool could not read as chapters are in no book, whatever else the row says.
+  if (
+    row.state !== 'inspected' ||
+    row.unrecognized === undefined ||
+    row.unrecognized.length === 0
+  ) {
+    return view;
+  }
+  const told = unrecognizedChaptersNote(row.unrecognized);
+  return { ...view, note: view.note === undefined ? told : `${view.note} ${told}` };
+}
+
+function describeRowBase(row: QueueRow, mode: ProcessMode): RowView {
   if (row.state === 'inspecting') {
     return {
       chip: 'Checking…',

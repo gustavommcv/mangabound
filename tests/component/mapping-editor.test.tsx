@@ -291,6 +291,26 @@ describe('mapping editor', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('says which folders were left out because their names are not chapter names', () => {
+    render(
+      <MappingEditor
+        initialDraft={createMappingDraft({ mangaTitle: 'Series', chapters })}
+        unrecognized={['Omake']}
+      />,
+    );
+
+    expect(screen.getByRole('heading', { name: 'Folders left out' })).toBeVisible();
+    expect(
+      screen.getByText(/A folder has a name mangabind cannot read as a chapter/u),
+    ).toBeVisible();
+  });
+
+  it('has no such notice when every folder was read', () => {
+    render(<MappingEditor initialDraft={createMappingDraft({ mangaTitle: 'Series', chapters })} />);
+
+    expect(screen.queryByRole('heading', { name: 'Folders left out' })).not.toBeInTheDocument();
+  });
+
   it('shows a message and leaves the volume unchanged when the typed number is refused', async () => {
     const user = userEvent.setup();
     render(
