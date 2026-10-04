@@ -96,15 +96,18 @@ export class FsBookFileStore implements BookFileStorePort {
     return placed;
   }
 
-  // Names are compared without regard to case, so a library copied to Windows, macOS or a FAT
-  // drive never ends up with two books that differ only in capitals.
+  // Names are compared without regard to case or to the way an accent is written, so a library
+  // copied to Windows, macOS or a FAT drive never ends up with two books that differ only in
+  // capitals, or in an "é" made of one character in one and of two in the other (APFS takes those
+  // for the same name, and the second book would replace the first).
   private async move(
     sourcePath: string,
     libraryPath: string,
     name: string,
   ): Promise<SavedBookFile> {
-    const taken = new Set((await this.io.readdir(libraryPath)).map((entry) => entry.toLowerCase()));
-    const finalName = uniqueFileName(name, (candidate) => taken.has(candidate.toLowerCase()));
+    const comparable = (entry: string): string => entry.normalize('NFC').toLowerCase();
+    const taken = new Set((await this.io.readdir(libraryPath)).map(comparable));
+    const finalName = uniqueFileName(name, (candidate) => taken.has(comparable(candidate)));
     const finalPath = path.join(libraryPath, finalName);
     const { size } = await this.io.stat(sourcePath);
     await renameWithRetry(this.io.rename, sourcePath, finalPath);

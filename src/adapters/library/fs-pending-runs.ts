@@ -47,6 +47,7 @@ export interface FsPendingRunsDeps extends AtomicWriteDeps {
   readonly readFile: (filePath: string, encoding: 'utf8') => Promise<string>;
   readonly stat: (filePath: string) => Promise<Pick<Stats, 'isFile' | 'birthtimeMs'>>;
   readonly link: (from: string, to: string) => Promise<void>;
+  readonly copyFile: (from: string, to: string, mode: number) => Promise<void>;
 }
 
 /** Owns durable, app-local conversion output. Each run is isolated from name collisions in others. */
@@ -62,6 +63,7 @@ export class FsPendingRuns {
       readFile: deps.readFile ?? readFile,
       stat: deps.stat ?? stat,
       link: deps.link ?? link,
+      copyFile: deps.copyFile ?? copyFile,
       writeFile: deps.writeFile ?? writeFile,
       rename: deps.rename ?? rename,
       rm: deps.rm ?? rm,
@@ -135,7 +137,7 @@ export class FsPendingRuns {
       `.${path.basename(destination)}.${randomUUID()}.tmp`,
     );
     try {
-      await copyFile(book.path, tempPath, constants.COPYFILE_EXCL);
+      await this.io.copyFile(book.path, tempPath, constants.COPYFILE_EXCL);
       if (overwrite) await rename(tempPath, destination);
       else {
         try {
@@ -145,8 +147,11 @@ export class FsPendingRuns {
           const code = (error as NodeJS.ErrnoException).code;
           if (!new Set(['EPERM', 'ENOTSUP', 'EOPNOTSUPP', 'ENOSYS']).has(code ?? '')) throw error;
           // FAT/exFAT and some network drives cannot make hard links. Exclusive copying is
-          // not atomic, but it never replaces an existing book and leaves the source intact.
-          await copyFile(tempPath, destination, constants.COPYFILE_EXCL);
+          // not atomic, but it never replaces an existing book and leaves the source intact. The
+          // staged copy goes first: with both on the drive it would need twice the book's size, and
+          // a book that fits would be refused as "the destination is full".
+          await rm(tempPath, { force: true });
+          await this.io.copyFile(book.path, destination, constants.COPYFILE_EXCL);
         }
       }
     } finally {

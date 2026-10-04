@@ -1,4 +1,5 @@
 import type { BindingPort } from '@/application/ports/conversion-tools';
+import { ProcessCancelledError } from '@/application/ports/process-runner';
 import type { CoverLookup } from '@/application/workflows/book-covers';
 import { type BookProduction, withCovers } from '@/application/workflows/book-production';
 import type { InputSessions } from '@/application/workflows/input-sessions';
@@ -89,7 +90,16 @@ export class LibraryRun {
     const outcomes: BatchTitleOutcome[] = [];
     try {
       for (const title of titles) {
-        if (signal?.aborted === true) break;
+        if (signal?.aborted === true) {
+          // Said for every title the run did not get to, so the results can tell it was cancelled.
+          outcomes.push({
+            title: title.title,
+            status: 'failed',
+            artifacts: [],
+            error: new ProcessCancelledError(),
+          });
+          continue;
+        }
         if (singleBook) {
           if (title.status === 'failed' || title.combinedOutputPath === undefined) {
             outcomes.push({

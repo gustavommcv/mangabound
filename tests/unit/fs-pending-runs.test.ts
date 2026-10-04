@@ -1,4 +1,5 @@
 import {
+  copyFile,
   mkdtemp,
   mkdir,
   readFile,
@@ -280,6 +281,48 @@ describe('FsPendingRuns', () => {
     const destination = path.join(root, 'On USB.epub');
     await noLinks.export(book, destination, false);
     expect(await readFile(destination, 'utf8')).toBe('hello');
+  });
+
+  it('never has two copies of the book on a drive that cannot make hard links', async () => {
+    const { root, store } = await bookFixture();
+    const book = (await store.list())[0]?.books[0];
+    if (book === undefined) throw new Error('Fixture missing');
+    const onDrive: string[] = [];
+    const destination = path.join(root, 'On USB.epub');
+    const noLinks = new FsPendingRuns(store.root, new FsLibraryStore(), {
+      link: () => Promise.reject(Object.assign(new Error('unsupported'), { code: 'EPERM' })),
+      copyFile: async (from, to, mode) => {
+        await copyFile(from, to, mode);
+        // What is on the drive beside the destination at the moment this copy is done.
+        onDrive.push(`${path.basename(to)}: ${(await readdir(root)).sort().join(', ')}`);
+      },
+    });
+
+    await noLinks.export(book, destination, false);
+
+    expect(onDrive).toHaveLength(2);
+    // The staged copy is there while it is made, and gone before the book is copied to its name.
+    expect(onDrive[0]).toContain('.tmp');
+    expect(onDrive[1]).toBe('On USB.epub: On USB.epub, pending');
+    expect(await readFile(destination, 'utf8')).toBe('hello');
+  });
+
+  it('does not replace a book that is already there when it has to copy', async () => {
+    const { root, store } = await bookFixture();
+    const book = (await store.list())[0]?.books[0];
+    if (book === undefined) throw new Error('Fixture missing');
+    const destination = path.join(root, 'On USB.epub');
+    await writeFile(destination, 'someone else');
+    const noLinks = new FsPendingRuns(store.root, new FsLibraryStore(), {
+      link: () => Promise.reject(Object.assign(new Error('unsupported'), { code: 'EPERM' })),
+    });
+
+    await expect(noLinks.export(book, destination, false)).rejects.toMatchObject({
+      code: 'EEXIST',
+    });
+
+    expect(await readFile(destination, 'utf8')).toBe('someone else');
+    expect((await readdir(root)).sort()).toEqual(['On USB.epub', 'pending']);
   });
 
   it('propagates an unexpected hard-link failure without writing the destination', async () => {

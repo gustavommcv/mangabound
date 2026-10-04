@@ -304,6 +304,22 @@ describe('FsBookFileStore.stageBook', () => {
     expect(await readFile(second.saved.path, 'utf8')).toBe('the third book');
   });
 
+  it('takes a title written with a combined accent for the same name as one written with a letter', async () => {
+    const { library } = await workspace();
+    // "Café" with the é as "e" and a combining accent, as a Mac or a downloader may write it.
+    await writeFile(path.join(library, 'Café.epub'), 'the first book');
+    const store = new FsBookFileStore();
+
+    const saved = await store.stageBook(
+      { libraryPath: library },
+      // "Café" with the é as one character.
+      writeBook('Café.epub', 'the second book'),
+    );
+
+    expect(saved.saved.name).toBe('Café (2).epub');
+    expect(await readFile(path.join(library, 'Café.epub'), 'utf8')).toBe('the first book');
+  });
+
   it('gives books converted at the same time different names and their own folders', async () => {
     const { library } = await workspace();
     const store = new FsBookFileStore();

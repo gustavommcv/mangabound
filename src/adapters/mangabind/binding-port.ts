@@ -133,7 +133,7 @@ export class MangabindBindingAdapter implements BindingPort {
       } catch (error) {
         throw new ConversionWorkflowError(
           'mapping_save_failed',
-          "Couldn't save mangabind.json in the source folder. Check that the folder is writable and try again.",
+          "Couldn't save mangabind.json in the source folder. Check that the folder is writable and that its mangabind.json is valid JSON.",
           { cause: error },
         );
       }
@@ -209,6 +209,7 @@ export class MangabindBindingAdapter implements BindingPort {
       .map((volume) => ({
         name: path.basename(checkedChildPath(workspace.volumesPath, volume.output_path)),
         pageCount: volume.page_count,
+        number: volume.number,
       }));
     return { title: manga.name, volumes, issues: collectIssues(result) };
   }
@@ -317,7 +318,7 @@ export class MangabindBindingAdapter implements BindingPort {
     } catch (error) {
       throw new ConversionWorkflowError(
         'mapping_save_failed',
-        "Couldn't save mangabind.json in the source folder. Check that the folder is writable and try again.",
+        "Couldn't save mangabind.json in the source folder. Check that the folder is writable and that its mangabind.json is valid JSON.",
         { cause: error },
       );
     }

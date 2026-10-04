@@ -1,4 +1,4 @@
-import type { BookDetails } from './book-details';
+import { type BookDetails, volumeBookTitle } from './book-details';
 import type { MappingDraft } from './mapping';
 import type { MangapressSettings } from './output-profile';
 import type { ProcessMode } from './process-mode';
@@ -78,6 +78,24 @@ export interface ConversionArtifact {
 export interface PlannedBook {
   readonly name: string;
   readonly pageCount: number;
+}
+
+/**
+ * The name of the book mangapress makes of one joined volume, which is not the name of the CBZ
+ * mangabind joined it into: the typed title and the number of the volume if there is a title, else
+ * the file's own name, and the extension of the format chosen. (A Kobo's EPUB has another
+ * extension, which this does not know.)
+ */
+export function plannedVolumeBookName(
+  volume: { readonly name: string; readonly number?: number },
+  typedTitle: string | undefined,
+  format: BookFormat,
+): string {
+  const title =
+    typedTitle !== undefined && volume.number !== undefined
+      ? volumeBookTitle(typedTitle, volume.number)
+      : volume.name.replace(/\.cbz$/iu, '');
+  return `${title}.${format}`;
 }
 
 /** A combined series is one planned EPUB; its volumes remain table-of-contents sections. */

@@ -36,9 +36,10 @@ const fallbackLanguage = 'en';
 function volumesOf(aggregate: AggregateResponse): VolumeSuggestion[] {
   const volumes: VolumeSuggestion[] = [];
   for (const volume of Object.values(aggregate.volumes)) {
-    // Chapters MangaDex has not put in a volume are filed under "none", which is not a number.
-    const volumeNumber = Number(volume.volume);
-    if (!Number.isFinite(volumeNumber)) continue;
+    // Chapters MangaDex has not put in a volume are filed under "none", which is not a number. A
+    // number is what a volume can be named with: `Number` takes "+1", "-1" and "0x10" for one, and
+    // a single such value would make the app refuse every volume of the work.
+    if (!/^\d+(?:\.\d+)?$/u.test(volume.volume)) continue;
     const chapterNumbers = Object.values(volume.chapters)
       .map((chapter) => Number(chapter.chapter))
       .filter((chapterNumber) => Number.isFinite(chapterNumber));

@@ -276,6 +276,29 @@ describe('MangaDex provider', () => {
       expect(volumes).toEqual([{ number: '1', chapterNumbers: [1, 2] }]);
     });
 
+    it('leaves out a volume whose number cannot be one, so the others of the work still apply', async () => {
+      const one = { chapters: { '1': { chapter: '1' } } };
+      const body = JSON.stringify({
+        result: 'ok',
+        volumes: {
+          '1': { volume: '1', count: 1, ...one },
+          '1.5': { volume: '1.5', count: 1, ...one },
+          plus: { volume: '+1', count: 1, ...one },
+          minus: { volume: '-1', count: 1, ...one },
+          hex: { volume: '0x10', count: 1, ...one },
+          exponent: { volume: '1e3', count: 1, ...one },
+          blank: { volume: '', count: 1, ...one },
+          comma: { volume: '2,5', count: 1, ...one },
+        },
+      });
+
+      const { volumes } = await new MangaDexProvider(() =>
+        Promise.resolve(respond(200, body)),
+      ).suggestVolumes(work);
+
+      expect(volumes.map((volume) => volume.number)).toEqual(['1', '1.5']);
+    });
+
     it('passes the abort signal on to the request', async () => {
       const fetchImpl = vi.fn<typeof fetch>(englishAndPortuguese);
       const controller = new AbortController();

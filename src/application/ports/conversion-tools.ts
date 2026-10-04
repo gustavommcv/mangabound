@@ -66,6 +66,8 @@ export interface BindingPlan {
   readonly volumes: readonly {
     readonly name: string;
     readonly pageCount: number;
+    /** The volume's number in its series, when the tool said it. */
+    readonly number?: number;
   }[];
   readonly issues: readonly PipelineIssue[];
 }
