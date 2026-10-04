@@ -123,4 +123,52 @@ describe('RunningScreen', () => {
     );
     expect(screen.getByRole('progressbar', { name: '100% complete' })).toBeVisible();
   });
+
+  describe('for a screen reader', () => {
+    /** What every live region says, in the order of the page. */
+    const told = (container: HTMLElement): string =>
+      [...container.querySelectorAll('[aria-live]')].map((region) => region.textContent).join('|');
+
+    it('is told about a stage or a volume as it comes, and not about each page', () => {
+      const pages = (done: number): ConversionProgress => ({
+        stage: 'processing',
+        message: `Processed page ${String(done)} of 50.`,
+        page: done,
+        completed: done,
+        total: 50,
+      });
+      const { container, rerender } = render(
+        <RunningScreen onCancel={vi.fn()} progress={pages(1)} />,
+      );
+      const heard = new Set<string>([told(container)]);
+      let changes = 0;
+      let last = told(container);
+      for (let done = 2; done <= 50; done += 1) {
+        rerender(<RunningScreen onCancel={vi.fn()} progress={pages(done)} />);
+        const now = told(container);
+        if (now !== last) changes += 1;
+        last = now;
+        heard.add(now);
+      }
+
+      // Fifty pages, six things said: the start and each tenth, not a line for every page.
+      expect(changes).toBeLessThanOrEqual(10);
+      expect([...heard].some((line) => line.includes('Processed page'))).toBe(false);
+      // The eyes still see the page being processed, and the bar has the exact number.
+      expect(screen.getByText('Processed page 50 of 50.')).toBeVisible();
+      expect(screen.getByRole('progressbar', { name: '100% complete' })).toBeVisible();
+    });
+
+    it('is told a message about a stage or a volume in full, in the region that is read out', () => {
+      const { container } = render(<RunningScreen onCancel={vi.fn()} progress={progress} />);
+
+      expect(told(container)).toContain('1 of 3 volumes converted.');
+    });
+
+    it('is told nothing before there is anything to tell', () => {
+      const { container } = render(<RunningScreen onCancel={vi.fn()} />);
+
+      expect(told(container)).toBe('|');
+    });
+  });
 });

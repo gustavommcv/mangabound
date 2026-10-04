@@ -311,6 +311,50 @@ describe('mapping editor', () => {
     expect(screen.getByText('Invalid volume number: abc')).toBeVisible();
     // The draft itself kept "1": every other label still derived from it agrees.
     expect(screen.getByRole('button', { name: 'Split volume 1' })).toBeVisible();
+    // And the field does not go on showing a number the volume does not have.
+    expect(number).toHaveValue('1');
+  });
+
+  it('takes a decimal comma, which is how a volume 1.5 is written in many languages', async () => {
+    const user = userEvent.setup();
+    render(
+      <MappingEditor
+        initialDraft={createMappingDraft({
+          mangaTitle: 'One Volume',
+          chapters,
+          volumes: [{ id: 'volume-1', number: '1', chapterIds: ['chapter-1', 'chapter-2'] }],
+        })}
+      />,
+    );
+
+    const number = screen.getByLabelText('Volume number for volume 1');
+    await user.clear(number);
+    await user.type(number, '1,5');
+    await user.tab();
+
+    expect(screen.getByLabelText('Volume number for volume 1.5')).toHaveValue('1.5');
+    expect(screen.queryByText(/Invalid volume number/u)).not.toBeInTheDocument();
+  });
+
+  it('refuses a comma that is not between digits, and puts the old number back', async () => {
+    const user = userEvent.setup();
+    render(
+      <MappingEditor
+        initialDraft={createMappingDraft({
+          mangaTitle: 'One Volume',
+          chapters,
+          volumes: [{ id: 'volume-1', number: '1', chapterIds: ['chapter-1', 'chapter-2'] }],
+        })}
+      />,
+    );
+
+    const number = screen.getByLabelText('Volume number for volume 1');
+    await user.clear(number);
+    await user.type(number, '1,');
+    await user.tab();
+
+    expect(screen.getByText('Invalid volume number: 1,')).toBeVisible();
+    expect(number).toHaveValue('1');
   });
 
   it('assigns an inclusive range and exposes split, merge, and validation states accessibly', async () => {

@@ -3,6 +3,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 
 import type { ConversionProgress, VolumeConversionProgress } from '@/domain/conversion';
 import { Button } from '@/renderer/components/ui/button';
+import { isPageEvent, milestone } from '@/renderer/lib/announcements';
 
 export interface RunPosition {
   readonly name: string;
@@ -67,6 +68,7 @@ export function RunningScreen({
     reportedPercentage !== undefined
       ? Math.min(99, reportedPercentage)
       : reportedPercentage;
+  const pageEvent = isPageEvent(progress, percentage);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const detailsId = useId();
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -89,8 +91,15 @@ export function RunningScreen({
         {progress?.stage === 'binding' ? 'Building volume files for' : 'Converting'}{' '}
         {position?.name ?? 'your books'}
       </h1>
-      <p aria-live="polite" className="text-muted-foreground mt-3 text-sm">
-        {progress?.message}
+      {/* A stage or a volume is told as it is; a page is shown and not told (see isPageEvent). */}
+      <p aria-live="polite" className="text-muted-foreground mt-3 text-sm empty:hidden">
+        {pageEvent ? undefined : progress?.message}
+      </p>
+      <p className="text-muted-foreground mt-3 text-sm empty:hidden">
+        {pageEvent ? progress?.message : undefined}
+      </p>
+      <p aria-live="polite" className="sr-only">
+        {pageEvent && percentage !== undefined ? milestone(percentage) : undefined}
       </p>
       {percentage !== undefined && (
         <div className="mt-5">

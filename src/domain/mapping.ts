@@ -91,6 +91,16 @@ function canonicalVolumeNumber(value: string): string {
   return String(number);
 }
 
+/** Whether a volume number can be typed as it is: whole, or with a point and digits after it. */
+export function isVolumeNumber(value: string): boolean {
+  try {
+    canonicalVolumeNumber(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function chapterToken(chapter: MappingChapter): string {
   if (chapter.chapter === undefined || !Number.isFinite(chapter.chapter) || chapter.chapter < 0) {
     throw new MappingOperationError(

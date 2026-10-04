@@ -23,6 +23,7 @@ import {
 import {
   assignedVolumeId,
   dominantLanguage,
+  isVolumeNumber,
   type MappingDraft,
   MappingOperationError,
   mappingSignature,
@@ -664,13 +665,20 @@ export function MappingEditor({
                               inputMode="decimal"
                               key={`${volume.id}-${volume.number}`}
                               onBlur={(event) => {
-                                if (event.target.value !== volume.number) {
+                                // A comma is how a decimal is written in many languages.
+                                const typed = event.target.value
+                                  .trim()
+                                  .replace(/^(\d+),(\d+)$/u, '$1.$2');
+                                if (typed !== volume.number) {
                                   dispatch({
                                     type: 'renumber-volume',
                                     volumeId: volume.id,
-                                    number: event.target.value,
+                                    number: typed,
                                   });
                                 }
+                                // A number that was refused leaves the volume as it was, and the
+                                // field must not go on showing one the volume does not have.
+                                if (!isVolumeNumber(typed)) event.target.value = volume.number;
                               }}
                             />
                           </div>
