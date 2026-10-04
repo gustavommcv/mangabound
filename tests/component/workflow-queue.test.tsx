@@ -170,6 +170,8 @@ describe('queue application workflow', () => {
     expect(screen.getByRole('group', { name: 'Confirm deletion of Same.epub' })).toHaveTextContent(
       'Books saved elsewhere will stay untouched.',
     );
+    // The question has the focus, and Tab goes on to its buttons.
+    expect(screen.getByRole('group', { name: 'Confirm deletion of Same.epub' })).toHaveFocus();
     expect(discardPendingRun).not.toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(discardPendingRun).not.toHaveBeenCalled();
@@ -852,6 +854,34 @@ describe('queue application workflow', () => {
 
     await user.click(screen.getByRole('button', { name: 'Cancel conversion' }));
     expect(cancelConversion).toHaveBeenCalledWith(jobId);
+  });
+
+  it('shows what a job reports before the screen has been drawn again for it', async () => {
+    const user = userEvent.setup();
+    let emit: (progress: ConversionProgressPayload) => void = () => undefined;
+    // The tool's first word arrives while the call is being made, ahead of the render that follows
+    // the item starting: it belongs to the run all the same.
+    const convert = vi.fn<MangaboundBridge['convert']>((command) => {
+      act(() => {
+        emit({ jobId: command.jobId, stage: 'processing', message: 'Opened the first chapter.' });
+      });
+      return new Promise(() => undefined);
+    });
+    installBridge(
+      bridge({
+        convert,
+        onConversionProgress: (listener) => {
+          emit = listener;
+          return () => undefined;
+        },
+      }),
+    );
+    render(<App />);
+    await addFolder(user);
+
+    await user.click(await runButton(1));
+
+    expect(await screen.findByText('Opened the first chapter.')).toBeVisible();
   });
 
   it('says why an item was not added and lets the message be dismissed', async () => {

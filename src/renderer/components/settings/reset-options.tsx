@@ -2,6 +2,7 @@ import { RotateCcw } from 'lucide-react';
 import { useId, useRef, useState } from 'react';
 
 import { Button } from '@/renderer/components/ui/button';
+import { useFocusOnOpen } from '@/renderer/hooks/use-focus-on-open';
 
 /**
  * Puts options back to their defaults, after a second click: what it discards is also what was
@@ -22,6 +23,7 @@ export function ResetOptions({
   const [confirming, setConfirming] = useState(false);
   const [done, setDone] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
+  const question = useFocusOnOpen<HTMLDivElement>(confirming && changed);
   const panelId = useId();
   const reasonId = useId();
 
@@ -57,12 +59,14 @@ export function ResetOptions({
       {confirming && changed && (
         <div
           aria-label="Confirm reset"
-          className="border-border bg-background space-y-3 rounded-lg border p-3"
+          className="border-border bg-background focus-visible:ring-ring focus-visible:ring-offset-background space-y-3 rounded-lg border p-3 outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
           id={panelId}
           onKeyDown={(event) => {
             if (event.key === 'Escape') close();
           }}
+          ref={question}
           role="group"
+          tabIndex={-1}
         >
           <p className="text-muted-foreground text-xs leading-relaxed">
             Put {scope} back to their defaults?

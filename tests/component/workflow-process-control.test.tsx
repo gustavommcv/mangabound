@@ -284,6 +284,55 @@ describe('process control in the queue', () => {
     expect(within(queue).queryByText('First')).not.toBeInTheDocument();
   });
 
+  it('cancels the item that is running when Cancel is pressed the instant the next one starts', async () => {
+    const user = userEvent.setup();
+    const first = deferred<Awaited<ReturnType<MangaboundBridge['convert']>>>();
+    const second = deferred<Awaited<ReturnType<MangaboundBridge['convert']>>>();
+    const cancelConversion = vi.fn<MangaboundBridge['cancelConversion']>(() =>
+      Promise.resolve({ ok: true, value: undefined }),
+    );
+    const convert = vi.fn<MangaboundBridge['convert']>(() => {
+      if (convert.mock.calls.length === 2) {
+        // The screen has not been drawn again for this item yet, so the button is still the one
+        // of the item before it: Cancel is pressed in the instant between the two.
+        screen.getByRole('button', { name: 'Cancel conversion' }).click();
+        return second.promise;
+      }
+      return first.promise;
+    });
+    installBridge(
+      bridge({
+        convert,
+        cancelConversion,
+        chooseInputs: () =>
+          Promise.resolve({
+            ok: true,
+            value: { inputs: [folder('First', 'first'), folder('Second', 'second')], rejected: [] },
+          }),
+      }),
+    );
+    render(<App />);
+    await addFolder(user);
+    await user.click(await runButton(2));
+    await screen.findByRole('button', { name: 'Cancel conversion' });
+
+    await act(async () => {
+      first.resolve({
+        ok: true,
+        value: [{ id: 'first-book', name: 'First.epub', bytes: 2048, format: 'epub' }],
+      });
+      await first.promise;
+    });
+
+    await waitFor(() => {
+      expect(convert).toHaveBeenCalledTimes(2);
+    });
+    // It is the second item that is told to stop, not the first, which has finished.
+    expect(cancelConversion).toHaveBeenCalledExactlyOnceWith(convert.mock.calls[1]![0].jobId);
+    expect(convert.mock.calls[1]![0].jobId).not.toBe(convert.mock.calls[0]![0].jobId);
+    second.resolve({ ok: true, value: [] });
+  });
+
   it('offers to fix a folder that was left out, and opens its volumes', async () => {
     const user = userEvent.setup();
     installBridge(
