@@ -111,33 +111,38 @@ describe('packaged window policy', () => {
     const outcome = JSON.parse(
       await browser.execute(async () => {
         const notification = await Notification.requestPermission();
-        let microphone = 'granted';
-        try {
-          (await navigator.mediaDevices.getUserMedia({ audio: true }))
-            .getTracks()
-            .forEach((track) => {
-              track.stop();
-            });
-        } catch (error) {
-          // A machine with no microphone says NotFoundError, which would also pass for a
-          // permission that had been given: only an answer of "not allowed" means it was refused.
-          microphone = error instanceof DOMException ? error.name : String(error);
-        }
+        // Asking, not only querying: a request goes through a different door of the policy than
+        // a query does. A machine with no microphone or camera answers NotFoundError to
+        // getUserMedia before any permission is looked at, so those two are only queried; a
+        // position request is refused (code 1) before anything asks for a position.
+        const locationError = await new Promise<number>((resolve) => {
+          navigator.geolocation.getCurrentPosition(
+            () => {
+              resolve(0);
+            },
+            (error) => {
+              resolve(error.code);
+            },
+            { timeout: 5000 },
+          );
+        });
         const state = async (name: string): Promise<string> =>
           (await navigator.permissions.query({ name: name as PermissionName })).state;
         return JSON.stringify({
           notification,
-          microphone,
+          locationError,
+          microphone: await state('microphone'),
           camera: await state('camera'),
           geolocation: await state('geolocation'),
           notifications: await state('notifications'),
           clipboardWrite: await state('clipboard-write'),
         });
       }),
-    ) as Record<string, string>;
+    ) as Record<string, string | number>;
 
     assert.equal(outcome.notification, 'denied');
-    assert.equal(outcome.microphone, 'NotAllowedError');
+    assert.equal(outcome.microphone, 'denied');
+    assert.equal(outcome.locationError, 1);
     assert.equal(outcome.camera, 'denied');
     assert.equal(outcome.geolocation, 'denied');
     assert.equal(outcome.notifications, 'denied');
