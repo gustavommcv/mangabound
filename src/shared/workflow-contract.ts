@@ -341,6 +341,8 @@ export interface InspectedInputPayload {
   readonly details?: BookDetails;
   /** The manga of a library. */
   readonly titles?: readonly LibraryTitleSummary[];
+  /** The names of the folders that could not be read as chapters, and so are in no book. */
+  readonly unrecognized?: readonly string[];
   readonly issues: readonly PipelineIssue[];
 }
 

@@ -369,6 +369,37 @@ describe('queue application workflow', () => {
     expect(screen.queryByText('The saved book is no longer available.')).not.toBeInTheDocument();
   });
 
+  it('says on the row, and in the editor, which folders mangabind could not read as chapters', async () => {
+    const user = userEvent.setup();
+    installBridge(
+      bridge({
+        inspectInput: (id) => {
+          const read = inspection(id);
+          return Promise.resolve(
+            read.ok
+              ? {
+                  ok: true as const,
+                  value: { ...read.value, unrecognized: ['Omake', 'Ch.004 [GroupA]'] },
+                }
+              : read,
+          );
+        },
+      }),
+    );
+    render(<App />);
+
+    await addFolder(user);
+
+    const told =
+      '2 folders have a name mangabind cannot read as a chapter, so they are left out of the books: Omake, Ch.004 [GroupA]. Rename them to include a chapter number (Ch.005, for one), then add the folder again.';
+    const list = screen.getByRole('list', { name: 'Queued items' });
+    expect(within(list).getByText(told)).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Edit volumes for Offline Work' }));
+    expect(await screen.findByRole('heading', { name: 'Folders left out' })).toBeVisible();
+    expect(screen.getByText(told)).toBeVisible();
+  });
+
   it('focuses the Queue heading as soon as the app opens', async () => {
     installBridge(bridge());
     render(<App />);

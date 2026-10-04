@@ -53,6 +53,10 @@ A folder sometimes holds one chapter from two groups, for example `Ch.0002 [G1]`
 
 If a book is made anyway and something was left out of it, the results say so under the book, for example that chapters with more than one copy, chapters missing inside a volume, or chapters with no pages were left out.
 
+## Folders whose names are not chapter names
+
+mangabind reads each folder's name for a chapter number. A folder it cannot read (`Omake`, `Ch.004 [GroupA]`, a name in another script with no number) is in no volume and in no book, and the editor cannot place it, since it does not know which chapter it is. The queue row and the editor say so, with the names, under **Folders left out**. Rename the folders to include a chapter number, for example `Ch.005`, and add the folder again.
+
 ## Online source: optional suggestions
 
 Choose **Online source**, select MangaDex, enter the title, and press **Search**.

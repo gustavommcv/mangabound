@@ -12,6 +12,7 @@ import {
   type LibraryPlan,
 } from '@/domain/conversion';
 import { createMappingDraft, type MappingDraft, validateMapping } from '@/domain/mapping';
+import { unrecognizedChapterNames } from '@/domain/unrecognized-chapters';
 
 /** The manga folders of a library as last planned. Their paths never leave the workflow. */
 interface LibraryState {
@@ -67,12 +68,14 @@ export class InputSessions {
       workspaceId: inspection.workspaceId,
     });
     const details = await this.binding.readDetails(selection.inputPath);
+    const unrecognized = unrecognizedChapterNames(inspection.issues);
     return {
       sessionId,
       displayName: selection.displayName,
       kind: 'folder',
       mapping: inspection.draft,
       ...(hasBookDetails(details) ? { details } : {}),
+      ...(unrecognized.length === 0 ? {} : { unrecognized }),
       issues: inspection.issues,
     };
   }
