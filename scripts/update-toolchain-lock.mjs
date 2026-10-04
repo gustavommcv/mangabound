@@ -79,7 +79,7 @@ if (pullRequestBodyPath !== undefined) {
 | Release | \`${oldTag}\` | \`${change.newPin.releaseTag}\` |
 | Machine protocol | \`${oldProtocol}\` | \`${change.newPin.protocolVersion}\` |
 
-Every supported platform asset was downloaded, checked against upstream \`checksums.txt\` and GitHub's asset digest, unpacked, and hashed. The host executable also runs its version and protocol handshakes. The normal pull-request CI will package and exercise the candidate binaries on Windows, macOS, Linux, and Wayland.
+Every supported platform asset was downloaded, checked against upstream \`checksums.txt\` and GitHub's asset digest, unpacked, and hashed. No executable was run here, and the protocol version above is the one already assumed, not one the tool reported: the version and protocol handshakes run when CI builds the candidate, and the unit tests run the real tools and read their output with the app's parsers. The normal pull-request CI will package and exercise the candidate binaries on Windows, macOS, Linux, and Wayland.
 
 ### Upstream release notes
 

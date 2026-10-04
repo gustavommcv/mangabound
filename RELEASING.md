@@ -66,6 +66,16 @@ This project's own CI proves `make` succeeds, and for every Linux package it rea
 - **macOS (arm64):** download the real `.zip`, unzip, attempt to open, and record the exact Gatekeeper wording and the bypass steps that actually work on the macOS version tested — same update-the-notes step as Windows. Confirm launch and one real conversion.
 - **Linux:** install the real `.deb` on a Debian/Ubuntu machine and the real `.rpm` on a Fedora-family machine (or at minimum confirm `rpm -i` validates without erroring), confirm launch on each, then run one real conversion on each as a normal user (not root): the app opens even when it cannot reach its bundled tools, and only a conversion shows it. Install the real `.pkg.tar.zst` with `sudo pacman -U ./mangabound-<version>-1-x86_64.pkg.tar.zst` on a real Arch machine and confirm launch there too — CI's own Arch job runs in a fresh container every time, which is not the same thing as an existing, personally-configured Arch install.
 
+## 8b. Withdrawing a real release
+
+A release that turns out to be bad (a package that does not start, a conversion that is wrong) has no way to be recalled from the people who downloaded it: there is no update feed, and the files carry no published checksums to tell a withdrawn file from a good one. What can be done, in this order:
+
+1. Edit the release notes on GitHub so that the first line says the release is withdrawn, what is wrong and which release to use instead.
+2. Mark the release as a pre-release if it is not one, so that it stops being the "latest" one.
+3. Delete the assets of the bad release (the files people would download), leaving the release and its notes, so that the page says what happened instead of a 404.
+4. Say it where the project's other news goes, and record it in `docs/releases/` beside the notes of the release it withdraws.
+5. Release the fix as the next version. Never reuse the tag or the version string.
+
 ## 9. Aborting or cleaning up a test release
 
 This is the procedure this project's own dry run actually used and verified works cleanly — safe to repeat:
