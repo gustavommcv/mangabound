@@ -10,6 +10,7 @@ import { coversRoot, pendingRoot } from '@/adapters/library/pending-path';
 import { FsSettingsStore } from '@/adapters/settings/fs-settings-store';
 import { PreferencesWorkflow } from '@/application/workflows/preferences';
 
+import { registerRendererScheme, serveRenderer } from './app-protocol';
 import { createMainContext } from './context';
 import { registerArtifactHandlers } from './ipc/artifacts';
 import { registerConversionHandlers } from './ipc/conversion';
@@ -23,6 +24,9 @@ import { bootstrapToolchain } from './toolchain-bootstrap';
 import { createMainWindow } from './window';
 
 if (started) app.quit();
+
+// Electron accepts a new scheme's privileges only before the app is ready.
+registerRendererScheme();
 
 const context = createMainContext();
 let cleanupStarted = false;
@@ -56,6 +60,7 @@ void app.whenReady().then(async () => {
   registerPendingHandlers(context);
   registerOpdsHandlers(context);
 
+  serveRenderer();
   createMainWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow();

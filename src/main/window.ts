@@ -1,5 +1,8 @@
 import { app, BrowserWindow, type BrowserWindowConstructorOptions } from 'electron';
 
+import { rendererUrl } from './app-protocol';
+import { isPermissionGranted } from './permission-policy';
+
 export const createMainWindow = (): BrowserWindow => {
   const platformTitleBar: Pick<
     BrowserWindowConstructorOptions,
@@ -35,6 +38,14 @@ export const createMainWindow = (): BrowserWindow => {
       sandbox: true,
     },
   });
+  // Request, check and device handlers are three separate doors: each one that is left alone
+  // answers "yes" for everything.
+  const { session } = window.webContents;
+  session.setPermissionRequestHandler((_contents, permission, callback) => {
+    callback(isPermissionGranted(permission));
+  });
+  session.setPermissionCheckHandler((_contents, permission) => isPermissionGranted(permission));
+  session.setDevicePermissionHandler(() => false);
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', (event) => {
     event.preventDefault();
@@ -52,7 +63,7 @@ export const createMainWindow = (): BrowserWindow => {
     if (!hasLoadedOnce) app.quit();
   });
   window
-    .loadURL(MAIN_WINDOW_WEBPACK_ENTRY)
+    .loadURL(rendererUrl)
     .then(() => {
       hasLoadedOnce = true;
     })
