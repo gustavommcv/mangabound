@@ -123,6 +123,36 @@ describe('packaged queue', () => {
     await resetQueue();
   });
 
+  it('does not let the page choose which paths it drops', async () => {
+    const testRoot = await mkdtemp(path.join(os.tmpdir(), 'mangabound-drop-forged-e2e-'));
+    temporaryDirectories.push(testRoot);
+    const victim = path.join(testRoot, 'Not Chosen');
+    await cp(path.resolve('tests', 'fixtures', 'e2e', 'manga-folder', 'Mangabound E2E'), victim, {
+      recursive: true,
+    });
+
+    // A page that is not what it should be passes an object with a `map` of its own, which would
+    // make the bridge send whatever paths it returns. The bridge reads only a real array of files.
+    const outcome = await browser.execute(async (forgedPath: string) => {
+      const bridge = window.mangabound;
+      if (bridge === undefined) return 'no bridge';
+      const forged = { map: () => [forgedPath] } as unknown as readonly File[];
+      const registered = await bridge.registerDroppedFiles(forged);
+      const covers = await bridge.dropCovers({ sessionId: 'any', slots: [1] }, forged);
+      return JSON.stringify({ registered, covers });
+    }, victim);
+
+    const { registered, covers } = JSON.parse(outcome) as {
+      registered: { ok: boolean; value?: { inputs: unknown[] } };
+      covers: { ok: boolean };
+    };
+    assert.equal(registered.ok, false);
+    assert.equal(registered.value, undefined);
+    assert.equal(covers.ok, false);
+    assert.equal(await $('p=Not Chosen').isExisting(), false);
+    assert.equal(await $('p=Mangabound E2E').isExisting(), false);
+  });
+
   it('opens a menu when the empty area is clicked, and adds the folder chosen', async () => {
     const testRoot = await mkdtemp(path.join(os.tmpdir(), 'mangabound-queue-click-e2e-'));
     temporaryDirectories.push(testRoot);

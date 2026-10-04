@@ -24,6 +24,7 @@ export default defineConfig({
         'src/main/ipc/handle.ts',
         'src/main/ipc/run-job.ts',
         'src/opds/**/*.ts',
+        'src/preload/dropped-paths.ts',
         'src/renderer/lib/**/*.ts',
       ],
       provider: 'v8',

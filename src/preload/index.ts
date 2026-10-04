@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 
 import type { AttachedCover } from '../domain/book-covers';
+import { droppedPaths } from './dropped-paths';
 import type { MappingDraft } from '../domain/mapping';
 import type {
   NetworkInterfaceOption,
@@ -46,9 +47,9 @@ function invoke<T>(channel: string, payload?: unknown): Promise<WorkflowResult<T
  * no place on disk (dragged out of a web page) gives an empty string. Either way an empty path is
  * handed on, which the main process reports as one item that could not be read.
  */
-function droppedFilePath(file: File): string {
+function droppedFilePath(file: unknown): string {
   try {
-    return webUtils.getPathForFile(file);
+    return webUtils.getPathForFile(file as File);
   } catch {
     return '';
   }
@@ -70,7 +71,7 @@ const bridge: MangaboundBridge = Object.freeze({
     invoke<RegisteredInputs>('workflow:choose-inputs', kind),
   registerDroppedFiles: (files: readonly File[]) =>
     invoke<RegisteredInputs>('workflow:register-inputs', {
-      paths: files.map(droppedFilePath),
+      paths: droppedPaths(files, droppedFilePath),
     }),
   inspectInput: (selectionId: string) =>
     invoke<InspectedInputPayload>('workflow:inspect-input', selectionId),
@@ -100,7 +101,10 @@ const bridge: MangaboundBridge = Object.freeze({
   chooseCoversFolder: (command: CoversFolderCommand) =>
     invoke<CoversChange | null>('covers:choose-folder', command),
   dropCovers: (command: DropCoversCommand, files: readonly File[]) =>
-    invoke<CoversChange>('covers:drop', { ...command, paths: files.map(droppedFilePath) }),
+    invoke<CoversChange>('covers:drop', {
+      ...command,
+      paths: droppedPaths(files, droppedFilePath),
+    }),
   removeCover: (command: CoverOfBookCommand) => invoke<CoversChange>('covers:remove', command),
   convertLibrary: (command: LibraryConversionCommand) =>
     invoke<readonly LibraryTitleResult[]>('workflow:convert-library', command),
