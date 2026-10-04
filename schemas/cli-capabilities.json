@@ -7,7 +7,7 @@
       "internal": ["-json", "-progress-json", "-protocol-version", "-version"]
     },
     "mangapress": {
-      "workflow": ["--nested-toc", "--output", "-o"],
+      "workflow": ["--cover", "--nested-toc", "--output", "-o"],
       "user": [
         "--author",
         "--autolevel",
@@ -78,7 +78,7 @@
         "-V",
         "-h"
       ],
-      "deferred": ["--cover", "--spreads"]
+      "deferred": ["--spreads"]
     }
   }
 }

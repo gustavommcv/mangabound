@@ -169,6 +169,33 @@ export class InputSessions {
     await this.binding.writeDetails(session.selection.inputPath, details);
   }
 
+  /**
+   * Where an item is on disk: the folder or CBZ of a session, or the folder of one title of a
+   * library. It is what the app's own records about the item are kept under.
+   */
+  itemPath(sessionId: string, title?: string): string {
+    const session = this.requireSession(sessionId);
+    if (title !== undefined) {
+      const known = this.librarySession(sessionId).library.titles.find(
+        (candidate) => candidate.title === title,
+      );
+      if (known === undefined) {
+        throw new ConversionWorkflowError(
+          'title_not_found',
+          'That title is no longer in the library. Choose the library again.',
+        );
+      }
+      return known.inputPath;
+    }
+    if (session.library !== undefined) {
+      throw new ConversionWorkflowError(
+        'unsupported_mode',
+        'A library is made of titles; choose one of them.',
+      );
+    }
+    return session.selection.inputPath;
+  }
+
   requireSession(sessionId: string): ActiveSession {
     const session = this.sessions.get(sessionId);
     if (session === undefined) {

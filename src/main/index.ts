@@ -4,14 +4,16 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import started from 'electron-squirrel-startup';
 
 import { directoryExists } from '@/adapters/library/directory-exists';
+import { FsCoverStore } from '@/adapters/covers/fs-cover-store';
 import { FsPendingRuns } from '@/adapters/library/fs-pending-runs';
-import { pendingRoot } from '@/adapters/library/pending-path';
+import { coversRoot, pendingRoot } from '@/adapters/library/pending-path';
 import { FsSettingsStore } from '@/adapters/settings/fs-settings-store';
 import { PreferencesWorkflow } from '@/application/workflows/preferences';
 
 import { createMainContext } from './context';
 import { registerArtifactHandlers } from './ipc/artifacts';
 import { registerConversionHandlers } from './ipc/conversion';
+import { registerCoverHandlers } from './ipc/covers';
 import { registerInputHandlers } from './ipc/inputs';
 import { registerMetadataHandlers } from './ipc/metadata';
 import { registerOpdsHandlers } from './ipc/opds';
@@ -26,6 +28,9 @@ const context = createMainContext();
 let cleanupStarted = false;
 
 void app.whenReady().then(async () => {
+  context.coverStore = new FsCoverStore(
+    coversRoot(process.platform, process.env, app.getPath('home')),
+  );
   const toolchainStatus = await bootstrapToolchain(context);
   ipcMain.handle('toolchain:get-status', () => toolchainStatus);
 
@@ -45,6 +50,7 @@ void app.whenReady().then(async () => {
   registerSettingsHandlers(context, preferencesWorkflow);
   registerInputHandlers(context);
   registerConversionHandlers(context);
+  registerCoverHandlers(context);
   registerMetadataHandlers(context);
   registerArtifactHandlers(context);
   registerPendingHandlers(context);

@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 
+import type { AttachedCover } from '../domain/book-covers';
 import type { MappingDraft } from '../domain/mapping';
 import type {
   NetworkInterfaceOption,
@@ -22,6 +23,11 @@ import type {
   MetadataSearchResult,
   PlanSummary,
   PlanConversionCommand,
+  CoverOfBookCommand,
+  CoversChange,
+  CoversFolderCommand,
+  CoverTarget,
+  DropCoversCommand,
   SaveBookDetailsCommand,
   PendingRunSummary,
   SaveAllResult,
@@ -88,6 +94,14 @@ const bridge: MangaboundBridge = Object.freeze({
     invoke<undefined>('workflow:write-title-mapping', { sessionId, title, mapping }),
   saveBookDetails: (command: SaveBookDetailsCommand) =>
     invoke<undefined>('workflow:save-book-details', command),
+  listCovers: (target: CoverTarget) => invoke<readonly AttachedCover[]>('covers:list', target),
+  chooseCover: (command: CoverOfBookCommand) =>
+    invoke<CoversChange | null>('covers:choose', command),
+  chooseCoversFolder: (command: CoversFolderCommand) =>
+    invoke<CoversChange | null>('covers:choose-folder', command),
+  dropCovers: (command: DropCoversCommand, files: readonly File[]) =>
+    invoke<CoversChange>('covers:drop', { ...command, paths: files.map(droppedFilePath) }),
+  removeCover: (command: CoverOfBookCommand) => invoke<CoversChange>('covers:remove', command),
   convertLibrary: (command: LibraryConversionCommand) =>
     invoke<readonly LibraryTitleResult[]>('workflow:convert-library', command),
   listMetadataProviders: () =>

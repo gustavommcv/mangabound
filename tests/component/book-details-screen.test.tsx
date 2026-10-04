@@ -485,4 +485,47 @@ describe('looking up the author of a work', () => {
 
     expect(screen.getByRole('button', { name: 'Search' })).toBeDisabled();
   });
+
+  const coverControls = {
+    attached: [],
+    onChoose: () => undefined,
+    onChooseFolder: () => undefined,
+    onDropFiles: () => undefined,
+    onRemove: () => undefined,
+  };
+  const coverRows = (): HTMLElement[] =>
+    within(screen.getByRole('list', { name: 'Books and their covers' })).getAllByRole('listitem');
+
+  it('offers a cover for every volume of a series, under the title each book will have', async () => {
+    const user = userEvent.setup();
+    render(<Harness covers={coverControls} onChange={vi.fn()} volumes={[1, 2, 3.5, 4, 5]} />);
+
+    // Every volume, not only the few the titles preview lists.
+    expect(coverRows()).toHaveLength(5);
+    expect(coverRows()[2]).toHaveTextContent('Chainsaw Man - Vol.3.5');
+
+    await user.type(screen.getByLabelText('Series title'), 'CSM');
+    expect(coverRows()[0]).toHaveTextContent('CSM - Vol.01');
+  });
+
+  it('offers one cover for an item that makes a single book', () => {
+    render(<BookDetailsScreen {...base} covers={coverControls} defaultTitle="Vagabond Vol.03" />);
+
+    expect(coverRows()).toHaveLength(1);
+    expect(
+      screen.getByRole('button', { name: 'Choose a cover for Vagabond Vol.03' }),
+    ).toBeVisible();
+  });
+
+  it('says a PDF has no cover, and offers no covers at all where mangapress makes no book', () => {
+    const { rerender } = render(
+      <BookDetailsScreen {...base} covers={coverControls} format="pdf" volumes={[1]} />,
+    );
+    expect(
+      screen.getByText('A PDF has no cover. What is set here is kept for the other formats.'),
+    ).toBeVisible();
+
+    rerender(<BookDetailsScreen {...base} volumes={[1]} />);
+    expect(screen.queryByRole('heading', { name: 'Covers' })).not.toBeInTheDocument();
+  });
 });

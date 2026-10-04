@@ -1,3 +1,4 @@
+import type { FsCoverStore } from '@/adapters/covers/fs-cover-store';
 import { FsLibraryStore } from '@/adapters/library/fs-library-store';
 import type { FsPendingRuns } from '@/adapters/library/fs-pending-runs';
 import { createMetadataProviders } from '@/adapters/metadata-providers/registry';
@@ -27,6 +28,8 @@ export interface MainContext {
   readonly artifactPaths: Map<string, string>;
   readonly pendingArtifacts: Map<string, { readonly runId: string; readonly relativePath: string }>;
   pendingRuns: FsPendingRuns | undefined;
+  /** Where the covers a person attached are kept; set before the workflow is built. */
+  coverStore: FsCoverStore | undefined;
   readonly pendingRunActivity: PendingRunActivity;
   readonly activeJobs: Map<string, AbortController>;
   readonly metadataProviders: Map<string, MetadataProviderPort>;
@@ -58,6 +61,7 @@ export function createMainContext(): MainContext {
     artifactPaths: new Map(),
     pendingArtifacts: new Map(),
     pendingRuns: undefined,
+    coverStore: undefined,
     pendingRunActivity: new PendingRunActivity(),
     activeJobs: new Map(),
     metadataProviders: new Map(

@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent, { type UserEvent } from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { defaultPreferences } from '@/domain/preferences';
@@ -475,5 +475,210 @@ describe('keeping the author and language with the folder', () => {
       title: 'Broken Manga',
       details: { author: 'Someone' },
     });
+  });
+});
+
+describe('the covers a person gives the books of an item', () => {
+  const openDetails = async (user: UserEvent, name = 'Offline Work'): Promise<void> => {
+    await user.click(await screen.findByRole('button', { name: `Edit details of ${name}` }));
+    expect(await screen.findByRole('heading', { name })).toBeVisible();
+  };
+  const book = 'Offline Work - Vol.01';
+  const coverRow = (): HTMLElement =>
+    within(screen.getByRole('list', { name: 'Books and their covers' })).getByRole('listitem');
+
+  it('are read when the details open, and follow what each change answers with', async () => {
+    const user = userEvent.setup();
+    const listCovers = vi.fn<MangaboundBridge['listCovers']>(() =>
+      Promise.resolve({ ok: true, value: [{ slot: 1, name: 'kept.jpg', origin: 'folder' }] }),
+    );
+    const chooseCover = vi.fn<MangaboundBridge['chooseCover']>(() =>
+      Promise.resolve({
+        ok: true,
+        value: { covers: [{ slot: 1, name: 'mine.png', origin: 'chosen' }] },
+      }),
+    );
+    const removeCover = vi.fn<MangaboundBridge['removeCover']>(() =>
+      Promise.resolve({ ok: true, value: { covers: [] } }),
+    );
+    installBridge(bridge({ listCovers, chooseCover, removeCover }));
+    render(<App />);
+    await addFolder(user);
+
+    await openDetails(user);
+    expect(await screen.findByText('kept.jpg · from a folder')).toBeVisible();
+    // The item is named by its session; the screen never holds a path.
+    expect(listCovers).toHaveBeenCalledExactlyOnceWith({ sessionId: 'session' });
+
+    await user.click(screen.getByRole('button', { name: `Change the cover of ${book}` }));
+    expect(chooseCover).toHaveBeenCalledExactlyOnceWith({ sessionId: 'session', slot: 1 });
+    expect(await within(coverRow()).findByText('mine.png')).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: `Remove the cover of ${book}` }));
+    expect(removeCover).toHaveBeenCalledExactlyOnceWith({ sessionId: 'session', slot: 1 });
+    expect(await within(coverRow()).findByText('First page')).toBeVisible();
+  });
+
+  it('take a folder for the books in order, and say what it left to say', async () => {
+    const user = userEvent.setup();
+    const chooseCoversFolder = vi.fn<MangaboundBridge['chooseCoversFolder']>(() =>
+      Promise.resolve({
+        ok: true,
+        value: {
+          covers: [{ slot: 1, name: '01.jpg', origin: 'folder' }],
+          note: '2 images were not used: there is 1 book.',
+        },
+      }),
+    );
+    installBridge(bridge({ chooseCoversFolder }));
+    render(<App />);
+    await addFolder(user);
+    await openDetails(user);
+
+    await user.click(screen.getByRole('button', { name: 'Add covers from a folder…' }));
+
+    expect(chooseCoversFolder).toHaveBeenCalledExactlyOnceWith({
+      sessionId: 'session',
+      slots: [1],
+    });
+    expect(await screen.findByText('01.jpg · from a folder')).toBeVisible();
+    expect(screen.getByText('2 images were not used: there is 1 book.')).toBeVisible();
+  });
+
+  it('take what is dropped on a book, handing over the files themselves', async () => {
+    const user = userEvent.setup();
+    const dropCovers = vi.fn<MangaboundBridge['dropCovers']>(() =>
+      Promise.resolve({
+        ok: true,
+        value: { covers: [{ slot: 1, name: 'dropped.jpg', origin: 'chosen' }] },
+      }),
+    );
+    installBridge(bridge({ dropCovers }));
+    render(<App />);
+    await addFolder(user);
+    await openDetails(user);
+    const file = new File(['x'], 'dropped.jpg', { type: 'image/jpeg' });
+
+    fireEvent.drop(coverRow(), { dataTransfer: { files: [file], types: ['Files'] } });
+    expect(await screen.findByText('dropped.jpg')).toBeVisible();
+    expect(dropCovers).toHaveBeenLastCalledWith({ sessionId: 'session', slots: [1], slot: 1 }, [
+      file,
+    ]);
+
+    fireEvent.drop(screen.getByRole('region', { name: 'Covers' }), {
+      dataTransfer: { files: [file], types: ['Files'] },
+    });
+    await waitFor(() => {
+      expect(dropCovers).toHaveBeenLastCalledWith({ sessionId: 'session', slots: [1] }, [file]);
+    });
+  });
+
+  it('stay as they were when nothing was picked, and when a change fails, which is said', async () => {
+    const user = userEvent.setup();
+    const chooseCover = vi
+      .fn<MangaboundBridge['chooseCover']>()
+      .mockResolvedValueOnce({ ok: true, value: null })
+      .mockResolvedValueOnce({
+        ok: false,
+        error: { code: 'cover_failed', message: 'The cover could not be kept.' },
+      });
+    installBridge(
+      bridge({
+        chooseCover,
+        listCovers: () =>
+          Promise.resolve({ ok: true, value: [{ slot: 1, name: 'kept.jpg', origin: 'chosen' }] }),
+      }),
+    );
+    render(<App />);
+    await addFolder(user);
+    await openDetails(user);
+    expect(await screen.findByText('kept.jpg')).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: `Change the cover of ${book}` }));
+    await waitFor(() => {
+      expect(chooseCover).toHaveBeenCalledOnce();
+    });
+    expect(screen.getByText('kept.jpg')).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: `Change the cover of ${book}` }));
+    expect(await screen.findByRole('status', { name: 'Notices' })).toHaveTextContent(
+      'The cover could not be kept.',
+    );
+    expect(screen.getByText('kept.jpg')).toBeVisible();
+  });
+
+  it('say so when they could not be read, and offer the books without them', async () => {
+    const user = userEvent.setup();
+    installBridge(
+      bridge({
+        listCovers: () =>
+          Promise.resolve({
+            ok: false,
+            error: { code: 'covers_unreadable', message: 'The covers could not be read.' },
+          }),
+      }),
+    );
+    render(<App />);
+    await addFolder(user);
+    await openDetails(user);
+
+    expect(await screen.findByRole('status', { name: 'Notices' })).toHaveTextContent(
+      'The covers could not be read.',
+    );
+    expect(within(coverRow()).getByText('First page')).toBeVisible();
+  });
+
+  it('are one cover for an item that makes a single book', async () => {
+    const user = userEvent.setup();
+    const chooseCover = vi.fn<MangaboundBridge['chooseCover']>(bridge().chooseCover);
+    const chooseCoversFolder = vi.fn<MangaboundBridge['chooseCoversFolder']>(
+      bridge().chooseCoversFolder,
+    );
+    installBridge(
+      bridge({
+        chooseCover,
+        chooseCoversFolder,
+        chooseInputs: () => Promise.resolve({ ok: true, value: { inputs: [cbz], rejected: [] } }),
+      }),
+    );
+    render(<App />);
+    await addFolder(user);
+    await openDetails(user, 'Standalone.cbz');
+
+    await user.click(screen.getByRole('button', { name: 'Choose a cover for Standalone' }));
+    expect(chooseCover).toHaveBeenCalledExactlyOnceWith({ sessionId: 'cbz-session', slot: 'book' });
+    await user.click(screen.getByRole('button', { name: 'Add covers from a folder…' }));
+    expect(chooseCoversFolder).toHaveBeenCalledExactlyOnceWith({
+      sessionId: 'cbz-session',
+      slots: ['book'],
+    });
+  });
+
+  it('are kept for each title of a library, by the title’s name', async () => {
+    const user = userEvent.setup();
+    const listCovers = vi.fn<MangaboundBridge['listCovers']>(bridge().listCovers);
+    const removeCover = vi.fn<MangaboundBridge['removeCover']>(bridge().removeCover);
+    installBridge(
+      libraryBridge([goodTitle, looseTitle], {
+        listCovers: (target) => {
+          void listCovers(target);
+          return Promise.resolve({
+            ok: true,
+            value: [{ slot: 1, name: 'good.jpg', origin: 'chosen' }],
+          });
+        },
+        removeCover,
+      }),
+    );
+    render(<App />);
+    await addFolder(user);
+    await user.click(screen.getByRole('button', { name: 'Edit titles of Manga Library' }));
+    await user.click(await screen.findByRole('button', { name: 'Edit details of Good Manga' }));
+    expect(await screen.findByRole('heading', { name: 'Good Manga' })).toBeVisible();
+
+    expect(await screen.findByText('good.jpg')).toBeVisible();
+    expect(listCovers.mock.calls[0]?.[0]).toMatchObject({ title: 'Good Manga' });
+    await user.click(screen.getByRole('button', { name: /^Remove the cover of Good Manga/u }));
+    expect(removeCover.mock.calls[0]?.[0]).toMatchObject({ title: 'Good Manga', slot: 1 });
   });
 });

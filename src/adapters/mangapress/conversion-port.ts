@@ -80,6 +80,7 @@ export class MangapressConversionAdapter implements ConversionPort {
       readonly outputDirectory: string;
       readonly settings: MangapressSettings;
       readonly book?: BookDetails;
+      readonly cover?: string;
       readonly format: BookFormat;
       readonly nestedToc?: boolean;
     },
@@ -101,6 +102,7 @@ export class MangapressConversionAdapter implements ConversionPort {
         nestedToc,
         ...settings,
         ...bookArguments(request.book, settings.language),
+        ...(request.cover === undefined ? {} : { cover: request.cover }),
       },
       {
         ...(options.signal === undefined ? {} : { signal: options.signal }),

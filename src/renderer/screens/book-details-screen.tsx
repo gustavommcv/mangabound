@@ -12,6 +12,7 @@ import {
 } from '@/domain/book-details';
 import type { BookFormat } from '@/domain/conversion';
 import { AuthorLookupPanel, type AuthorLookup } from '@/renderer/components/details/author-lookup';
+import { type BookCoverControls, BookCovers } from '@/renderer/components/details/book-covers';
 import { FieldMessage } from '@/renderer/components/shared/field-message';
 import { Button } from '@/renderer/components/ui/button';
 import { Input } from '@/renderer/components/ui/input';
@@ -35,6 +36,11 @@ export interface BookDetailsScreenProps {
   /** Where to look up who wrote it. Absent when there is no source to ask. */
   readonly lookup?: AuthorLookup;
   /**
+   * The covers of the item's books and what can be done with them. Absent when mangapress does
+   * not make the books, since a cover is its to make.
+   */
+  readonly covers?: BookCoverControls;
+  /**
    * The volumes of the series this makes, one book each; empty while none are set yet. Absent
    * when it makes a single book.
    */
@@ -51,6 +57,7 @@ const previewedVolumes = 3;
  */
 export function BookDetailsScreen({
   backLabel,
+  covers,
   declaredLanguage,
   defaultLanguage,
   defaultTitle,
@@ -277,6 +284,20 @@ export function BookDetailsScreen({
           </ul>
         )}
       </div>
+
+      {covers !== undefined && (
+        <BookCovers
+          {...covers}
+          books={
+            series
+              ? volumes.map((volume) => ({ slot: volume, title: volumeBookTitle(title, volume) }))
+              : [{ slot: 'book', title }]
+          }
+          {...(format === 'pdf'
+            ? { unavailable: 'A PDF has no cover. What is set here is kept for the other formats.' }
+            : {})}
+        />
+      )}
     </section>
   );
 }

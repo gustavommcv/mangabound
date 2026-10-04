@@ -47,6 +47,8 @@ import { SendToKoreader } from '@/renderer/components/sharing/send-to-koreader';
 import { SharePanel } from '@/renderer/components/sharing/share-panel';
 import { ShareMenu } from '@/renderer/components/sharing/share-menu';
 import { useKeptSettings } from '@/renderer/hooks/use-kept-settings';
+import type { CoverSlot } from '@/domain/book-covers';
+import { useBookCovers } from '@/renderer/hooks/use-book-covers';
 import { usePendingRuns } from '@/renderer/hooks/use-pending-runs';
 import { useSharing } from '@/renderer/hooks/use-sharing';
 import { useToolchain } from '@/renderer/hooks/use-toolchain';
@@ -722,6 +724,36 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
     editingTarget?.kind === 'title' && editingRow?.state === 'inspected'
       ? editingRow.titles?.find((title) => title.title === editingTarget.title)
       : undefined;
+  // The covers of the item whose details are open, where mangapress makes its books: a cover is
+  // its to make, so a run that stops at the joined volumes has none to set.
+  const inputProcess =
+    editingRow === undefined || editingRow.kind === 'library'
+      ? 'skip'
+      : rowMode(editingRow.kind, mode);
+  const coverTarget =
+    navigation.screen !== 'details' || editingRow?.state !== 'inspected'
+      ? undefined
+      : editingTarget?.kind === 'title'
+        ? editingTitleEntry !== undefined && libraryMakesBooks
+          ? { sessionId: editingRow.sessionId, title: editingTitleEntry.title }
+          : undefined
+        : inputProcess !== 'skip' && usesMangapress(inputProcess)
+          ? { sessionId: editingRow.sessionId }
+          : undefined;
+  // The books the item makes, in order: its volumes, or the one book it is.
+  const coverSlots: readonly CoverSlot[] =
+    editingTarget?.kind === 'title'
+      ? singleBook
+        ? ['book']
+        : volumeNumbers(editingTitleEntry?.draft)
+      : editingRow?.state === 'inspected' &&
+          editingRow.kind === 'folder' &&
+          !singleBook &&
+          inputProcess === 'bind-and-convert'
+        ? volumeNumbers(editingRow.mapping)
+        : ['book'];
+  const covers = useBookCovers(bridge, coverTarget, coverSlots, notify);
+
   // A device the tools no longer list cannot be converted for, whether it came from the file or is
   // the default. This adjusts state while rendering, the way React documents for state that follows
   // other state, so the screen never shows it selected.
@@ -940,6 +972,7 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
                 format={format}
                 key={editingRow.id}
                 lookup={authorLookup}
+                {...(covers === undefined ? {} : { covers })}
                 name={editingRow.displayName}
                 onBack={() => {
                   // A loose CBZ has no folder to keep anything with.
@@ -971,6 +1004,7 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
                 format={format}
                 key={editingTitleEntry.title}
                 lookup={authorLookup}
+                {...(covers === undefined ? {} : { covers })}
                 name={editingTitleEntry.title}
                 onBack={() => {
                   keepDetails(

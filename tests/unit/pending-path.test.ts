@@ -2,7 +2,7 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { pendingRoot } from '@/adapters/library/pending-path';
+import { coversRoot, pendingRoot } from '@/adapters/library/pending-path';
 
 describe('pendingRoot', () => {
   it('allows an isolated absolute root for packaged testing', () => {
@@ -40,5 +40,36 @@ describe('pendingRoot', () => {
     expect(pendingRoot('linux', {}, '/home/person')).toBe(
       path.join('/home/person', '.local', 'share', 'mangabound', 'pending'),
     );
+  });
+});
+
+describe('coversRoot', () => {
+  it('sits beside the pending books, named the way each platform names that folder', () => {
+    const localAppData = path.resolve('local-app-data');
+    expect(coversRoot('win32', { LOCALAPPDATA: localAppData }, 'C:\\Users\\person')).toBe(
+      path.join(localAppData, 'Mangabound', 'Covers'),
+    );
+    expect(coversRoot('darwin', {}, '/Users/person')).toBe(
+      path.join('/Users/person', 'Library', 'Application Support', 'Mangabound', 'Covers'),
+    );
+    expect(coversRoot('linux', { XDG_DATA_HOME: '/data' }, '/home/person')).toBe(
+      path.join('/data', 'mangabound', 'covers'),
+    );
+    expect(coversRoot('freebsd', {}, '/home/person')).toBe(
+      path.join('/home/person', '.local', 'share', 'mangabound', 'covers'),
+    );
+  });
+
+  it('allows an isolated absolute root of its own, and does not follow the pending one', () => {
+    const isolated = path.resolve('isolated-covers');
+    expect(coversRoot('linux', { MANGABOUND_COVERS_ROOT: isolated }, '/home/person')).toBe(
+      isolated,
+    );
+    expect(coversRoot('linux', { MANGABOUND_COVERS_ROOT: 'relative' }, '/home/person')).toBe(
+      path.join('/home/person', '.local', 'share', 'mangabound', 'covers'),
+    );
+    expect(
+      coversRoot('linux', { MANGABOUND_PENDING_ROOT: path.resolve('elsewhere') }, '/home/person'),
+    ).toBe(path.join('/home/person', '.local', 'share', 'mangabound', 'covers'));
   });
 });
