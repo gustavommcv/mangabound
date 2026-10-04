@@ -49,6 +49,15 @@ export function registerOpdsHandlers(context: OpdsContext): void {
       if (libraryPath === undefined) {
         return failed({ code: 'library_not_found', message: 'Choose a library to share again.' });
       }
+      // The address comes from the page, and only the page limits it to the list on screen: a
+      // wildcard would put the books on every network this device is on.
+      if (!context.networkInterfaces.canShareOn(command.interfaceAddress)) {
+        return failed({
+          code: 'sharing_address_unavailable',
+          message:
+            'That network address is not available on this device. Choose one from the list.',
+        });
+      }
       if (context.pendingRunActivity.isDeleting(command.libraryId)) {
         return failed({
           code: 'pending_in_use',

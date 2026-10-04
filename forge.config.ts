@@ -100,6 +100,11 @@ const config: ForgeConfig = {
       [FuseV1Options.EnableNodeCliInspectArguments]: buildForPackagedE2e,
       [FuseV1Options.EnableEmbeddedAsarIntegrityValidation]: true,
       [FuseV1Options.OnlyLoadAppFromAsar]: true,
+      // On by default: it lets a page loaded from file:// read any other file:// URL with fetch
+      // or XMLHttpRequest, so code that got into the page could read any file the person can.
+      // Off, Electron cannot load a page from inside app.asar over file:// at all, so the
+      // packaged page is served from its own scheme instead (src/main/app-protocol.ts).
+      [FuseV1Options.GrantFileProtocolExtraPrivileges]: false,
     }),
   ],
 };

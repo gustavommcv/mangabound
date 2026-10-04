@@ -23,6 +23,8 @@ export default defineConfig({
         'src/library/**/*.ts',
         'src/main/ipc/handle.ts',
         'src/main/ipc/run-job.ts',
+        'src/main/permission-policy.ts',
+        'src/main/renderer-files.ts',
         'src/opds/**/*.ts',
         'src/preload/dropped-paths.ts',
         'src/renderer/lib/**/*.ts',

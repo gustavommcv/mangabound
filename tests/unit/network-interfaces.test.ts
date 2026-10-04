@@ -61,6 +61,40 @@ describe('OsNetworkInterfaces', () => {
     expect(new OsNetworkInterfaces(() => ({})).list()).toEqual([]);
   });
 
+  describe('canShareOn', () => {
+    const interfaces = new OsNetworkInterfaces(() => ({
+      lo: [ipv4('127.0.0.1', true), ipv6('::1', true)],
+      eth0: [ipv4('192.168.1.20', false), ipv6('fe80::1', false)],
+      docker0: [ipv4('172.17.0.1', false)],
+    }));
+
+    it('accepts an address the list offers', () => {
+      expect(interfaces.canShareOn('192.168.1.20')).toBe(true);
+      expect(interfaces.canShareOn('172.17.0.1')).toBe(true);
+    });
+
+    it('accepts the loopback address, which no other device can reach', () => {
+      expect(interfaces.canShareOn('127.0.0.1')).toBe(true);
+    });
+
+    it.each(['0.0.0.0', '::', '::1', 'localhost', 'example.com', '192.168.1.21', 'fe80::1', ''])(
+      'refuses %j, which is not an address this device offers',
+      (address) => {
+        expect(interfaces.canShareOn(address)).toBe(false);
+      },
+    );
+
+    it('refuses an address that was offered once and is gone', () => {
+      let present = true;
+      const changing = new OsNetworkInterfaces(() => ({
+        eth0: present ? [ipv4('192.168.1.20', false)] : [],
+      }));
+      expect(changing.canShareOn('192.168.1.20')).toBe(true);
+      present = false;
+      expect(changing.canShareOn('192.168.1.20')).toBe(false);
+    });
+  });
+
   it('uses the real os.networkInterfaces by default', () => {
     expect(() => new OsNetworkInterfaces().list()).not.toThrow();
   });
