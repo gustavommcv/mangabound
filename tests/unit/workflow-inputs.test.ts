@@ -926,3 +926,39 @@ describe('the books a validated plan says it will make', () => {
     ]);
   });
 });
+
+describe('the folders of a manga that mangabind could not read as chapters', () => {
+  const unparsed = (folderName: string) => ({
+    tool: 'mangabind' as const,
+    severity: 'warning' as const,
+    code: 'unparsed_chapter',
+    stage: 'parse',
+    recoverable: true,
+    message: `Couldn't parse chapter name "${folderName}"; it was skipped.`,
+    path: `/input/Trusted Manga/${folderName}`,
+  });
+
+  async function inspected(issues: readonly ReturnType<typeof unparsed>[]) {
+    const ports = dependencies();
+    ports.inspect.mockResolvedValue({ workspaceId: 'workspace-1', draft: trustedDraft, issues });
+    let id = 0;
+    const workflow = new ConversionWorkflow(
+      ports.binding,
+      ports.conversion,
+      () => String(++id),
+      ports.bookFiles,
+    );
+    return workflow.inspect(folder);
+  }
+
+  it('are told by name with what was read, so that nothing hides them', async () => {
+    const result = await inspected([unparsed('Omake'), unparsed('Ch.004 [GroupA]')]);
+
+    expect(result.unrecognized).toEqual(['Omake', 'Ch.004 [GroupA]']);
+    expect(result.issues).toHaveLength(2);
+  });
+
+  it('are not mentioned when there are none', async () => {
+    expect(await inspected([])).not.toHaveProperty('unrecognized');
+  });
+});
