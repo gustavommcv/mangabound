@@ -362,6 +362,110 @@ describe('mapping validation and serialization', () => {
   });
 });
 
+describe('two copies of one chapter in the folder', () => {
+  /** Chapter 2 twice, from two groups, with chapters 1 and 3 beside it. */
+  const copies = (overrides: Partial<MappingChapter> = {}): readonly MappingChapter[] => [
+    { id: 'c1', name: 'Ch.1 [G1]', path: '/m/1', pageCount: 1, chapter: 1 },
+    { id: 'c2-g1', name: 'Ch.2 [G1]', path: '/m/2a', pageCount: 1, chapter: 2, ...overrides },
+    { id: 'c2-g2', name: 'Ch.2 [G2]', path: '/m/2b', pageCount: 1, chapter: 2, ...overrides },
+    { id: 'c3', name: 'Ch.3 [G1]', path: '/m/3', pageCount: 1, chapter: 3 },
+  ];
+
+  const place = (chapterList: readonly MappingChapter[], ids: readonly string[]) =>
+    assignChapters(
+      addVolume(createMappingDraft({ chapters: chapterList, mangaTitle: 'Dup' }), 'v1', '1'),
+      'v1',
+      ids,
+    );
+
+  const errorsOf = (draft: ReturnType<typeof place>) =>
+    validateMapping(draft).filter((issue) => issue.severity === 'error');
+
+  it('is an error to place one copy, since the file mangabind reads cannot choose it', () => {
+    const draft = place(copies(), ['c1', 'c2-g2', 'c3']);
+
+    const errors = errorsOf(draft);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatchObject({
+      code: 'duplicate_chapter',
+      severity: 'error',
+      chapterIds: ['c2-g2', 'c2-g1'],
+    });
+    expect(errors[0]?.message).toContain('Chapter 2 is in the folder more than once');
+    expect(() => toMangabindMetadata(draft)).toThrowError(MappingValidationError);
+  });
+
+  it('says to remove the copies from the folder, which is the one thing that fixes it', () => {
+    const [issue] = errorsOf(place(copies(), ['c1', 'c2-g1', 'c3']));
+
+    expect(issue?.message).toContain('remove all but one from the folder');
+  });
+
+  it('is no error while neither copy is placed, only a note that the chapter is not in a volume', () => {
+    const draft = place(copies(), ['c1', 'c3']);
+
+    expect(errorsOf(draft)).toEqual([]);
+    expect(validateMapping(draft).map((issue) => issue.code)).toEqual(['unassigned_chapters']);
+  });
+
+  it('names every copy once when both are placed and a third is not', () => {
+    const three: readonly MappingChapter[] = [
+      ...copies(),
+      { id: 'c2-g3', name: 'Ch.2 [G3]', path: '/m/2c', pageCount: 1, chapter: 2 },
+    ];
+    const issues = errorsOf(place(three, ['c1', 'c2-g1', 'c2-g2', 'c3']));
+
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({
+      code: 'duplicate_chapter',
+      message: 'More than one source represents chapter 2; mangabind cannot choose between them.',
+      chapterIds: ['c2-g1', 'c2-g2', 'c2-g3'],
+    });
+  });
+
+  it('does not take a special chapter for a copy of the chapter it follows', () => {
+    const withSpecial: readonly MappingChapter[] = [
+      ...copies().slice(0, 2),
+      { id: 'c2x1', name: 'Ch.2 extra', path: '/m/2x', pageCount: 1, chapter: 2, special: 'x1' },
+    ];
+
+    expect(errorsOf(place(withSpecial, ['c1', 'c2-g1']))).toEqual([]);
+  });
+
+  it('passes over a chapter mangabind could not map, whether or not another is placed', () => {
+    const unmappable: readonly MappingChapter[] = [
+      ...copies().slice(0, 2),
+      { id: 'afterword', name: 'Afterword', path: '/m/after', pageCount: 1 },
+    ];
+
+    expect(errorsOf(place(unmappable, ['c1', 'c2-g1']))).toEqual([]);
+  });
+
+  describe('when the file names say which volume each copy is in', () => {
+    const named = (placed: number | undefined, other: number | undefined) => {
+      const list: readonly MappingChapter[] = [
+        { id: 'a', name: 'A', path: '/m/a', pageCount: 1, chapter: 2, parsedVolume: placed },
+        { id: 'b', name: 'B', path: '/m/b', pageCount: 1, chapter: 2, parsedVolume: other },
+      ];
+      return errorsOf(place(list, ['a'])).map((issue) => issue.code);
+    };
+
+    it('counts copies that name the same volume', () => {
+      expect(named(1, 1)).toEqual(['duplicate_chapter']);
+    });
+
+    it('counts a copy that names no volume, since the file can only give it the placed one', () => {
+      expect(named(undefined, 1)).toEqual(['duplicate_chapter']);
+      expect(named(1, undefined)).toEqual(['duplicate_chapter']);
+      expect(named(undefined, undefined)).toEqual(['duplicate_chapter']);
+    });
+
+    it('leaves alone a copy that names another volume, which mangabind tells apart by it', () => {
+      expect(named(1, 2)).toEqual([]);
+    });
+  });
+});
+
 describe('isMappableChapter', () => {
   it('accepts a chapter with a number, with or without a known special suffix', () => {
     expect(isMappableChapter(chapters[1]!)).toBe(true);

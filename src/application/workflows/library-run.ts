@@ -3,6 +3,7 @@ import type { CoverLookup } from '@/application/workflows/book-covers';
 import { type BookProduction, withCovers } from '@/application/workflows/book-production';
 import type { InputSessions } from '@/application/workflows/input-sessions';
 import { presentBindingProgress } from '@/application/workflows/binding-progress';
+import { withBindingWarnings } from '@/application/workflows/binding-warnings';
 import {
   assertSingleBook,
   emptyBindingError,
@@ -121,7 +122,11 @@ export class LibraryRun {
             );
             artifacts.push(artifact);
             onArtifact?.(artifact);
-            outcomes.push({ title: title.title, status: 'done', artifacts });
+            outcomes.push({
+              title: title.title,
+              status: 'done',
+              artifacts: [...withBindingWarnings(artifacts, [undefined], title.issues)],
+            });
           } catch (error) {
             outcomes.push({ title: title.title, status: 'failed', artifacts, error });
           }
@@ -150,7 +155,15 @@ export class LibraryRun {
             },
             { title: title.title, onArtifact, onProgress, signal },
           );
-          outcomes.push({ title: title.title, ...result });
+          outcomes.push({
+            title: title.title,
+            ...result,
+            artifacts: withBindingWarnings(
+              result.artifacts,
+              title.volumes.map((volume) => volume.number),
+              title.issues,
+            ),
+          });
         }
       }
     } finally {

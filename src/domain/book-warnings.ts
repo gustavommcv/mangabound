@@ -46,6 +46,22 @@ const knownWarnings: Readonly<Record<string, Pick<WarningNotice, 'title' | 'mess
     title: 'Saved under another name',
     message: 'The book would have replaced its own source, so it was given another name.',
   },
+  // From mangabind, which joins the chapters, not from mangapress: the notes it gives when it
+  // had to leave something out of a book.
+  chapter_conflict: {
+    title: 'Chapters with more than one copy were left out',
+    message:
+      'A chapter that is in the folder more than once cannot be told from its copy, so none of its copies is in the book. Remove all but one copy from the folder and convert again.',
+  },
+  chapter_gap: {
+    title: 'Chapters are missing inside a volume',
+    message:
+      'Some chapter numbers are missing between the first and the last chapter of a volume. If they are not in the folder, the book goes without them.',
+  },
+  empty_chapter: {
+    title: 'Chapters with no pages were left out',
+    message: 'A chapter in the input holds no pages, so it is not in the book.',
+  },
 };
 
 /** For a code a later mangapress adds: its own sentence, under a heading that says whose it is. */

@@ -33,3 +33,11 @@ Known limits:
 - The options are not reachable from a notice; it names the option and the person goes there.
 
 Unit tests cover the grouping and every sentence, the adapter keeping warnings (and not the path), and the pinned mangapress giving the warning for small pages and none once they are enlarged. Component tests cover the results with warnings; a story shows them.
+
+## Amendment (2026-10-04): the notes of mangabind that mean something was left out
+
+The same place shows what the joining step left out. [P2-01 of the audit](../audit-2026-10-04.md) found that two copies of a chapter in one folder make `mangabind` skip every copy, that the run said nothing, and that the last line read "2 books saved." The issues of the joining step reached the plan screen but were dropped after a run.
+
+- Three of `mangabind`'s documented codes are carried to the books as warnings: `chapter_conflict` (copies of a chapter were all skipped), `chapter_gap` (chapter numbers are missing inside a volume) and `empty_chapter` (a chapter holds no pages). They are the ones that say content of the person's is not in a book. The others (a chapter in no volume, a name no parser read) the person already saw while placing chapters, and an unknown code is not shown, since the app would have to title it.
+- A note that names a volume goes to that volume's book; a note that names none, or a series bound as one book, goes to every book it could be about. The results group them by kind like the others, with the app's words.
+- The editor refuses to place one of two copies of a chapter (`duplicate_chapter`): `mangabind.json` can only say "chapter 2", so every copy in the folder is found for it and all are skipped. A copy that the file name puts in another volume is not counted, since `mangabind` tells those apart. The message says to remove all but one from the folder, the one thing that fixes it.

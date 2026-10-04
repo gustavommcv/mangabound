@@ -414,6 +414,35 @@ export function assignedVolumeId(draft: MappingDraft, chapterId: string): string
   return draft.volumes.find((volume) => volume.chapterIds.includes(chapterId))?.id;
 }
 
+/**
+ * The chapters that no volume holds but that share a chapter number with one that is placed, by
+ * that number. A copy the filename puts in another volume than the placed one is not counted:
+ * mangabind tells those apart by volume, and the copies of a chapter in the same volume are the
+ * ones it cannot.
+ */
+function copiesLeftOut(
+  draft: MappingDraft,
+  assigned: ReadonlySet<string>,
+  placedByToken: ReadonlyMap<string, readonly string[]>,
+): ReadonlyMap<string, readonly string[]> {
+  const leftOut = new Map<string, string[]>();
+  for (const chapter of draft.chapters) {
+    if (assigned.has(chapter.id) || !isMappableChapter(chapter)) continue;
+    const token = chapterToken(chapter);
+    const sameVolume = (placedByToken.get(token) ?? []).some((placedId) => {
+      const { parsedVolume } = chapterById(draft, placedId);
+      return (
+        parsedVolume === undefined ||
+        chapter.parsedVolume === undefined ||
+        parsedVolume === chapter.parsedVolume
+      );
+    });
+    if (!sameVolume) continue;
+    leftOut.set(token, [...(leftOut.get(token) ?? []), chapter.id]);
+  }
+  return leftOut;
+}
+
 export function validateMapping(draft: MappingDraft): readonly MappingIssue[] {
   const issues: MappingIssue[] = [];
   const numbers = new Map<string, string[]>();
@@ -480,13 +509,24 @@ export function validateMapping(draft: MappingDraft): readonly MappingIssue[] {
       });
     }
   }
+  const leftOut = copiesLeftOut(draft, assigned, tokens);
   for (const [token, chapterIds] of tokens) {
+    const copies = leftOut.get(token) ?? [];
     if (chapterIds.length > 1) {
       issues.push({
         code: 'duplicate_chapter',
         severity: 'error',
         message: `More than one source represents chapter ${token}; mangabind cannot choose between them.`,
-        chapterIds,
+        chapterIds: [...chapterIds, ...copies],
+      });
+    } else if (copies.length > 0) {
+      // Placing one copy does not choose it: mangabind.json can only say "chapter 2", so every copy
+      // in the folder is found for it, and it leaves all of them out.
+      issues.push({
+        code: 'duplicate_chapter',
+        severity: 'error',
+        message: `Chapter ${token} is in the folder more than once. mangabind cannot choose between the copies and would leave all of them out of the book; remove all but one from the folder.`,
+        chapterIds: [...chapterIds, ...copies],
       });
     }
   }
