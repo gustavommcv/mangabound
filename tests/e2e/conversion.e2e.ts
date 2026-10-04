@@ -5,7 +5,15 @@ import path from 'node:path';
 
 import { $, browser } from '@wdio/globals';
 
-import { readZipEntry, resetQueue, saveAllBooks, saveBookAs, waitForFolderNames } from './support';
+import {
+  readZipEntry,
+  recordProgress,
+  reportedProgress,
+  resetQueue,
+  saveAllBooks,
+  saveBookAs,
+  waitForFolderNames,
+} from './support';
 
 const temporaryDirectories: string[] = [];
 
@@ -200,8 +208,32 @@ describe('packaged conversion pipeline', () => {
 
     await $('button=Queue').click();
     await $('span=2 titles').waitForDisplayed({ timeout: 30_000 });
+    await recordProgress();
     await $('button=Process 1 item').click();
     await $('h1=2 books ready').waitForDisplayed({ timeout: 120_000 });
+    const progressSeen = await reportedProgress();
+    // All of it is of the one run, and begins with the library being bound.
+    assert.equal(new Set(progressSeen.map((progress) => progress.jobId)).size, 1);
+    assert.equal(progressSeen[0]?.message, 'Building volume files for the library…');
+    const titles = ['Auto-Resolved Manga', 'Needs Mapping Manga'];
+    for (const title of titles) {
+      const own = progressSeen.filter((progress) => progress.title === title);
+      for (const stage of ['binding', 'processing', 'saving']) {
+        assert.ok(
+          own.some((progress) => progress.stage === stage),
+          `${title} should have been reported in the ${stage} stage.`,
+        );
+      }
+      // The pages are counted up to the whole of the title's book.
+      const counted = own.filter((progress) => progress.total !== undefined);
+      assert.ok(counted.length > 0);
+      assert.equal(counted.at(-1)?.completed, counted.at(-1)?.total);
+    }
+    // The titles are converted one after the other, in the order of the library.
+    const converting = progressSeen
+      .filter((progress) => progress.stage === 'processing')
+      .map((progress) => progress.title);
+    assert.deepEqual([...new Set(converting)], titles);
     assert.deepEqual(await readdir(outputLibraryPath), []);
     // A file blocking the catalog directory lets the books copy but produces a warning.
     // Retrying after removing the obstruction must not require another conversion.
@@ -242,6 +274,31 @@ describe('packaged conversion pipeline', () => {
       describeAppState: () => $('main').getText(),
     });
     assert.equal(openDialog.mock.calls.length, 4);
+  });
+
+  it('binds only the titles of a library that are ready, and leaves the others alone', async () => {
+    const testRoot = await mkdtemp(path.join(os.tmpdir(), 'mangabound-library-subset-e2e-'));
+    temporaryDirectories.push(testRoot);
+    const sourceLibrary = path.resolve('tests', 'fixtures', 'e2e', 'manga-batch', 'Library');
+    const libraryParentPath = path.join(testRoot, 'Library');
+    await cp(sourceLibrary, libraryParentPath, { recursive: true });
+    const openDialog = await browser.electron.mock('dialog', 'showOpenDialog');
+    await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [libraryParentPath] });
+
+    await resetQueue();
+    await $('button=Folder').click();
+    // One title has volumes and the other waits for them, so a run is of one title of two.
+    await $('span=1 title').waitForDisplayed({ timeout: 60_000 });
+    assert.match(await $('main').getText(), /1 title left out until they have volumes/u);
+    await recordProgress();
+    await $('button=Process 1 item').click();
+    await $('h1=1 book ready').waitForDisplayed({ timeout: 120_000 });
+
+    // The title that waits was not bound: nothing was said of it, as it was when the whole library
+    // was bound first and the title it was asked for picked from it.
+    const titles = new Set((await reportedProgress()).map((progress) => progress.title));
+    assert.ok(titles.has('Auto-Resolved Manga'));
+    assert.equal(titles.has('Needs Mapping Manga'), false);
   });
 
   it('recovers an unsaved book after the window reloads', async () => {
