@@ -470,14 +470,29 @@ describe('two copies of one chapter in the folder', () => {
 describe('what a volume number and a chapter number may be', () => {
   const draft = createMappingDraft({ chapters, mangaTitle: 'Example' });
 
-  it.each(['-1', '0x10', '1e3', '1.', '.5', '1,5', '', ' ', 'one', '+1', '1 2'])(
-    'refuses %j as the number of a volume',
-    (number) => {
-      expect(() => addVolume(draft, 'v1', number)).toThrowError(
-        expect.objectContaining({ code: 'invalid_volume_number' }),
-      );
-    },
-  );
+  it.each([
+    '-1',
+    '0x10',
+    '1e3',
+    '1.',
+    '.5',
+    '1,5',
+    '',
+    ' ',
+    'one',
+    '+1',
+    '1 2',
+    // Written with an exponent, or with other digits than the ones typed, they would not be what
+    // the person meant in mangabind.json.
+    '10000000000000000000000',
+    '9007199254740993',
+    '0.0000001',
+    '9'.repeat(400),
+  ])('refuses %j as the number of a volume', (number) => {
+    expect(() => addVolume(draft, 'v1', number)).toThrowError(
+      expect.objectContaining({ code: 'invalid_volume_number' }),
+    );
+  });
 
   it.each([
     ['1', '1'],
@@ -487,6 +502,20 @@ describe('what a volume number and a chapter number may be', () => {
     ['0', '0'],
   ])('takes %j as volume %s', (typed, written) => {
     expect(addVolume(draft, 'v1', typed).volumes[0]?.number).toBe(written);
+  });
+
+  it('takes the largest volume number whose digits survive', () => {
+    expect(addVolume(draft, 'v1', '9007199254740991').volumes[0]?.number).toBe('9007199254740991');
+  });
+
+  it('does not take a draft whose volume is numbered with an exponent from the page', () => {
+    expect(() =>
+      createMappingDraft({
+        chapters,
+        mangaTitle: 'Example',
+        volumes: [{ id: 'v1', number: '1e+22', chapterIds: [chapters[0]!.id] }],
+      }),
+    ).toThrowError(expect.objectContaining({ code: 'invalid_volume_number' }));
   });
 
   it('refuses a chapter with a negative or a missing number, and a source with no id', () => {

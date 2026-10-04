@@ -85,10 +85,13 @@ function canonicalVolumeNumber(value: string): string {
     throw new MappingOperationError('invalid_volume_number', `Invalid volume number: ${value}`);
   }
   const number = Number(trimmed);
-  if (!Number.isFinite(number)) {
+  const written = String(number);
+  // Past 2^53 the digits stop being the ones typed, and past 10^21 the number is written with an
+  // exponent (1e+22), which is not what a volume of mangabind.json is: no series has either.
+  if (!Number.isSafeInteger(Math.trunc(number)) || !/^\d+(?:\.\d+)?$/u.test(written)) {
     throw new MappingOperationError('invalid_volume_number', `Invalid volume number: ${value}`);
   }
-  return String(number);
+  return written;
 }
 
 /** Whether a volume number can be typed as it is: whole, or with a point and digits after it. */
