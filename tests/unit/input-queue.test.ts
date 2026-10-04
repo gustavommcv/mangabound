@@ -454,6 +454,24 @@ describe('a library in the queue', () => {
     expect(Object.keys(row.titles?.[0] ?? {}).sort()).toEqual(['draft', 'title', 'volumes']);
   });
 
+  it('keeps the folders of a title that mangabind could not read, and nothing when it read them all', () => {
+    const row = libraryRow(
+      { ...readTitle('Beta', 1), unrecognized: ['Omake'] },
+      { ...readTitle('Good', 1), unrecognized: [] },
+    );
+    const again = queueReducer([row], {
+      type: 'library-planned',
+      id: 'a',
+      titles: [{ ...readTitle('Beta', 1), unrecognized: ['Omake', 'Extra'] }, readTitle('Good', 1)],
+    });
+
+    expect(row.titles?.map((title) => title.unrecognized)).toEqual([['Omake'], undefined]);
+    expect((again[0] as InspectedRow).titles?.map((title) => title.unrecognized)).toEqual([
+      ['Omake', 'Extra'],
+      undefined,
+    ]);
+  });
+
   it('is read again without forgetting what was already saved, and forgets what failed', () => {
     const rows = queueReducer([libraryRow(readTitle('Good', 1), readTitle('Bad', 1))], {
       type: 'library-results',
@@ -860,6 +878,22 @@ describe('what a row says of the folders mangabind could not read', () => {
         'bind-and-convert',
       ).note,
     ).toContain(told);
+  });
+
+  it('says it for a library, under the title the folder is in, whatever else the row says', () => {
+    const beta = { ...readTitle('Beta', 1), unrecognized: ['Omake'] };
+    const told =
+      'A folder has a name mangabind cannot read as a chapter, so it is left out of the books: Beta (Omake). Rename it to include a chapter number (Ch.005, for one), then add the library again.';
+
+    expect(describeRow(libraryRow(readTitle('Good', 2), beta), 'bind-and-convert')).toMatchObject({
+      runnable: true,
+      note: told,
+    });
+    // The title that has the folder is not ready, and the note about that comes first.
+    expect(describeRow(libraryRow({ ...beta, volumes: [] }), 'bind-and-convert').note).toBe(
+      `1 title has no volumes yet. Use the pencil on this row to group it. ${told}`,
+    );
+    expect(describeRow(libraryRow(readTitle('Good', 2)), 'bind-and-convert').note).toBeUndefined();
   });
 
   it('adds nothing for a row that has none, a CBZ, or one still being read', () => {

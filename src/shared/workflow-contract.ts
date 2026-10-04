@@ -330,6 +330,8 @@ export interface LibraryTitleSummary {
   readonly issues: readonly PipelineIssue[];
   /** The author and language kept with the title's folder, when there are any. */
   readonly details?: BookDetails;
+  /** The names of the title's folders that could not be read as chapters, and so are in no book. */
+  readonly unrecognized?: readonly string[];
 }
 
 export interface InspectedInputPayload {

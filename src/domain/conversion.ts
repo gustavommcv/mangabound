@@ -22,6 +22,8 @@ export interface InspectedTitle {
   readonly issues: readonly PipelineIssue[];
   /** The author and language kept with the title's folder, when there are any. */
   readonly details?: BookDetails;
+  /** The names of the title's folders its tool could not read as chapters: left out of its books. */
+  readonly unrecognized?: readonly string[];
 }
 
 export interface InspectedInput {
