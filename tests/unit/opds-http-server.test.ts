@@ -1,11 +1,20 @@
+import { once } from 'node:events';
+import { createReadStream } from 'node:fs';
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
+import { Readable } from 'node:stream';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { FsLibraryStore } from '@/adapters/library/fs-library-store';
-import { formatHost, NodeOpdsServer } from '@/adapters/opds/http-server';
+import {
+  clientLeft,
+  formatHost,
+  NodeOpdsServer,
+  type NodeOpdsServerOptions,
+} from '@/adapters/opds/http-server';
 import type { LibraryStorePort } from '@/application/ports/library-store';
 import type { OpdsAuthConfig, OpdsServerHandle } from '@/application/ports/opds-server';
 import type { LibraryBookEntry, LibraryManifest } from '@/library/manifest';
@@ -31,8 +40,9 @@ const activeHandles: OpdsServerHandle[] = [];
 async function startServer(
   store: LibraryStorePort,
   auth: OpdsAuthConfig,
+  options?: NodeOpdsServerOptions,
 ): Promise<OpdsServerHandle> {
-  const handle = await new NodeOpdsServer(store).start({
+  const handle = await new NodeOpdsServer(store, options).start({
     libraryPath: '/library',
     libraryTitle: 'My Library',
     interfaceAddress: '127.0.0.1',
@@ -45,6 +55,21 @@ async function startServer(
 
 afterEach(async () => {
   await Promise.all(activeHandles.splice(0).map((handle) => handle.stop()));
+});
+
+describe('clientLeft', () => {
+  it.each(['ERR_STREAM_PREMATURE_CLOSE', 'ECONNRESET', 'EPIPE'])(
+    'takes %s for a reader that went away',
+    (code) => {
+      expect(clientLeft(Object.assign(new Error('gone'), { code }))).toBe(true);
+    },
+  );
+
+  it('takes a failure of the file, an error with no code, and something that is not an error, for something else', () => {
+    expect(clientLeft(Object.assign(new Error('disk'), { code: 'EIO' }))).toBe(false);
+    expect(clientLeft(new Error('no code'))).toBe(false);
+    expect(clientLeft('ECONNRESET')).toBe(false);
+  });
 });
 
 describe('formatHost', () => {
@@ -129,6 +154,45 @@ describe('NodeOpdsServer', () => {
     });
 
     expect(response.status).toBe(401);
+  });
+
+  it('does not take a Bearer header carrying valid credentials for a Basic one', async () => {
+    const handle = await startServer(memoryStore([]), { username: 'reader', password: 'hunter2' });
+    const credentials = Buffer.from('reader:hunter2').toString('base64');
+
+    const response = await fetch(`${handle.url}/recent`, {
+      headers: { Authorization: `Bearer ${credentials}` },
+    });
+
+    expect(response.status).toBe(401);
+  });
+
+  it('asks for credentials on the navigation feed too, which names the library', async () => {
+    const handle = await startServer(memoryStore([]), { username: 'reader', password: 'hunter2' });
+
+    const without = await fetch(`${handle.url}/`);
+    const wrong = await fetch(`${handle.url}/`, {
+      headers: { Authorization: basicHeader('reader', 'wrong') },
+    });
+    const right = await fetch(`${handle.url}/`, {
+      headers: { Authorization: basicHeader('reader', 'hunter2') },
+    });
+
+    expect(without.status).toBe(401);
+    expect(wrong.status).toBe(401);
+    expect(right.status).toBe(200);
+  });
+
+  it('is not open when only the username was left blank: a password alone still protects the share', async () => {
+    const handle = await startServer(memoryStore([]), { username: '', password: 'hunter2' });
+
+    const without = await fetch(`${handle.url}/`);
+    const withBoth = await fetch(`${handle.url}/`, {
+      headers: { Authorization: basicHeader('', 'hunter2') },
+    });
+
+    expect(without.status).toBe(401);
+    expect(withBoth.status).toBe(200);
   });
 
   it('rejects a request with no colon separator in the credentials', async () => {
@@ -451,7 +515,7 @@ describe('NodeOpdsServer', () => {
     expect(body).not.toMatch(/JSON/u);
   });
 
-  it('ends the response without a status change when the stream fails after headers are sent', async () => {
+  it('answers 404 for a catalog entry that is not a file', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'mangabound-opds-eisdir-'));
     try {
       await mkdir(path.join(root, 'a-directory'), { recursive: true });
@@ -474,7 +538,7 @@ describe('NodeOpdsServer', () => {
 
       const response = await fetch(`${handle.url}/books/a-directory`);
 
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(404);
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -512,4 +576,163 @@ describe('NodeOpdsServer', () => {
       }),
     ).rejects.toMatchObject({ code: 'EADDRINUSE' });
   });
+});
+
+describe('NodeOpdsServer while a book is being downloaded', () => {
+  const bookName = 'Big.epub';
+  const bookBytes = 64 * 1024 * 1024;
+  const tenSeconds = 10_000;
+  const directories: string[] = [];
+  const clients: net.Socket[] = [];
+
+  afterEach(async () => {
+    for (const client of clients.splice(0)) client.destroy();
+    vi.restoreAllMocks();
+    await Promise.all(
+      directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })),
+    );
+  });
+
+  /** A library with one book too large to be sent before the reader has read any of it. */
+  async function startSharingBigBook(options?: NodeOpdsServerOptions): Promise<OpdsServerHandle> {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'mangabound-opds-download-'));
+    directories.push(root);
+    await writeFile(path.join(root, bookName), Buffer.alloc(bookBytes, 1));
+    const entry: LibraryBookEntry = {
+      relativePath: bookName,
+      title: 'Big',
+      author: 'Unknown',
+      format: 'epub',
+      bytes: bookBytes,
+      convertedAt: '2026-09-16T10:00:00.000Z',
+    };
+    const handle = await new NodeOpdsServer(memoryStore([entry]), options).start({
+      libraryPath: root,
+      libraryTitle: 'My Library',
+      interfaceAddress: '127.0.0.1',
+      port: 0,
+      auth: open,
+    });
+    activeHandles.push(handle);
+    return handle;
+  }
+
+  /** Asks for the book, waits until the answer has begun, and then stops reading it. */
+  async function startDownloadAndStopReading(handle: OpdsServerHandle): Promise<net.Socket> {
+    const { hostname, port } = new URL(handle.url);
+    const client = net.connect({ host: hostname, port: Number(port) });
+    clients.push(client);
+    // A server that ends the connection may reset it, which a socket reports as an error.
+    client.on('error', () => undefined);
+    await once(client, 'connect');
+    client.write(`GET /books/${bookName} HTTP/1.1\r\nHost: ${hostname}\r\n\r\n`);
+    await once(client, 'data');
+    client.pause();
+    return client;
+  }
+
+  /** Starts reading again, and answers how much came before the connection ended. */
+  async function receivedUntilClosed(client: net.Socket): Promise<number> {
+    let received = 0;
+    client.on('data', (chunk: Buffer) => {
+      received += chunk.length;
+    });
+    client.resume();
+    await once(client, 'close');
+    return received;
+  }
+
+  it(
+    'ends the download in progress when sharing stops, instead of waiting for the reader',
+    async () => {
+      const handle = await startSharingBigBook();
+      const client = await startDownloadAndStopReading(handle);
+
+      const stopped = await Promise.race([
+        handle.stop().then(() => true),
+        new Promise<boolean>((resolve) => setTimeout(resolve, 5000, false)),
+      ]);
+      activeHandles.splice(activeHandles.indexOf(handle), 1);
+
+      expect(stopped).toBe(true);
+      // The reader is paused, so it only sees the connection end once it reads what was already on
+      // its way: a few megabytes of a book that is much larger. A server that kept sending would
+      // have delivered all of it.
+      expect(await receivedUntilClosed(client)).toBeLessThan(bookBytes / 2);
+    },
+    tenSeconds,
+  );
+
+  it(
+    'closes the connection of a reader that has stopped reading, once it has been idle long enough',
+    async () => {
+      const handle = await startSharingBigBook({ idleTimeoutMs: 200 });
+      const client = await startDownloadAndStopReading(handle);
+
+      // Left alone for longer than the server waits; a server that kept the connection would then
+      // send the whole book.
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      expect(await receivedUntilClosed(client)).toBeLessThan(bookBytes / 2);
+    },
+    tenSeconds,
+  );
+
+  it(
+    'closes the file when the reader goes away in the middle of a download',
+    async () => {
+      const opened: Readable[] = [];
+      const handle = await startSharingBigBook({
+        openBook: (filePath) => {
+          const stream = createReadStream(filePath);
+          opened.push(stream);
+          return stream;
+        },
+      });
+      const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const client = await startDownloadAndStopReading(handle);
+
+      client.destroy();
+
+      await vi.waitFor(() => {
+        expect(opened).toHaveLength(1);
+        expect(opened[0]?.destroyed).toBe(true);
+      });
+      // Leaving halfway is nothing the person needs to be told about.
+      expect(error).not.toHaveBeenCalled();
+    },
+    tenSeconds,
+  );
+
+  it(
+    'cuts the connection and logs it when the file fails to read, so a book is never delivered cut short',
+    async () => {
+      const handle = await startSharingBigBook({
+        openBook: () =>
+          new Readable({
+            read() {
+              this.destroy(Object.assign(new Error('The disk failed.'), { code: 'EIO' }));
+            },
+          }),
+      });
+      const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+      let outcome = 'delivered';
+      try {
+        const response = await fetch(`${handle.url}/books/${bookName}`);
+        await response.arrayBuffer();
+      } catch {
+        outcome = 'refused';
+      }
+
+      expect(outcome).toBe('refused');
+      await vi.waitFor(() => {
+        expect(error).toHaveBeenCalledWith(
+          'OPDS request failed.',
+          expect.objectContaining({ code: 'EIO' }),
+        );
+      });
+    },
+    tenSeconds,
+  );
 });
