@@ -5,7 +5,6 @@ import { app, dialog } from 'electron';
 import { z } from 'zod';
 
 import type { PendingBook, PendingRun } from '@/adapters/library/fs-pending-runs';
-import type { BookFormat } from '@/domain/conversion';
 import { PendingSaveError, pendingSaveMessage, saveWithUniqueName } from '@/library/pending-save';
 import {
   identifierSchema,
@@ -16,6 +15,8 @@ import {
 
 import type { MainContext } from '../context';
 import { handle, ignoredPayloadSchema } from './handle';
+import { discardRefusal, runOfSelection, wrongExtension } from './pending-decisions';
+import { rememberSaveFolder } from './remembered-folders';
 import { failed, ok } from './result';
 
 type PendingContext = Pick<
@@ -34,7 +35,6 @@ type PendingContext = Pick<
   | 'pendingRunActivity'
 >;
 const idsSchema = z.array(identifierSchema).min(1).max(1000);
-const extension: Readonly<Record<BookFormat, string>> = { epub: '.epub', cbz: '.cbz', pdf: '.pdf' };
 function saveFailure(error: unknown): {
   code: string;
   message: string;
@@ -42,18 +42,6 @@ function saveFailure(error: unknown): {
   if (!(error instanceof PendingSaveError))
     console.error('A pending book could not be saved.', error);
   return { code: 'save_failed', message: pendingSaveMessage(error) };
-}
-function rememberFolder(context: PendingContext, folder: string): void {
-  context.lastSaveFolder = folder;
-  const saved = context.preferences?.save(
-    context.currentPreferences,
-    folder,
-    context.lastPickerFolder,
-    context.preferredNetworkInterface,
-  );
-  void saved?.catch((error: unknown) => {
-    console.error('Could not remember the last Save dialog location.', error);
-  });
 }
 async function findBook(
   context: PendingContext,
@@ -82,16 +70,12 @@ async function saveBook(
   overwrite: boolean,
 ): Promise<string | undefined> {
   const { run, book } = await findBook(context, id);
-  if (path.extname(destination).toLowerCase() !== extension[book.entry.format]) {
-    throw new PendingSaveError(
-      'wrong_extension',
-      `Choose a ${extension[book.entry.format]} file for this book.`,
-    );
-  }
+  const refusal = wrongExtension(book.entry.format, destination);
+  if (refusal !== undefined) throw refusal;
   if (context.pendingRuns === undefined) throw new Error('Pending storage is unavailable.');
   const outcome = await context.pendingRuns.exportAndRecord(run, book, destination, overwrite);
   context.artifactPaths.set(id, destination);
-  rememberFolder(context, path.dirname(destination));
+  rememberSaveFolder(context, path.dirname(destination));
   if (outcome.status === 'saved') return undefined;
   console.error('Could not finish recording an exported pending book.', outcome.cause);
   return outcome.status === 'catalog_failed'
@@ -157,18 +141,12 @@ export function registerPendingHandlers(context: PendingContext): void {
     identifierSchema,
     async (_event, id): Promise<WorkflowResult<undefined>> => {
       if (context.pendingRuns === undefined) throw new Error('Pending storage is unavailable.');
-      if (context.activeSharingLibraryId === id) {
-        return failed({
-          code: 'pending_in_use',
-          message: 'Stop sharing these books before deleting their pending copies.',
-        });
-      }
-      if (context.activeJobs.size > 0) {
-        return failed({
-          code: 'pending_in_use',
-          message: 'Wait for the current conversion to finish before deleting pending books.',
-        });
-      }
+      const refusal = discardRefusal({
+        runId: id,
+        sharingRunId: context.activeSharingLibraryId,
+        activeJobs: context.activeJobs.size,
+      });
+      if (refusal !== undefined) return failed(refusal);
       const release = context.pendingRunActivity.beginDelete(id);
       if (release === undefined) {
         return failed({
@@ -243,16 +221,9 @@ export function registerPendingHandlers(context: PendingContext): void {
     'pending:save-all',
     idsSchema,
     async (_event, ids): Promise<WorkflowResult<SaveAllResult | null>> => {
-      if (new Set(ids).size !== ids.length) throw new Error('A book was selected more than once.');
-      const references = ids.map((id) => context.pendingArtifacts.get(id));
-      if (
-        references.some(
-          (reference) => reference === undefined || reference.runId !== references[0]?.runId,
-        )
-      ) {
-        throw new Error('Select books from one conversion at a time.');
-      }
-      const release = context.pendingRunActivity.beginExport(references[0]!.runId);
+      const release = context.pendingRunActivity.beginExport(
+        runOfSelection(ids, context.pendingArtifacts),
+      );
       if (release === undefined)
         throw new PendingSaveError('run_deleting', 'This pending book is being deleted.');
       try {
@@ -263,7 +234,7 @@ export function registerPendingHandlers(context: PendingContext): void {
         });
         const folder = result.filePaths[0];
         if (result.canceled || folder === undefined) return ok(null);
-        rememberFolder(context, folder);
+        rememberSaveFolder(context, folder);
         const savedIds: string[] = [];
         const failures: {
           id: string;
