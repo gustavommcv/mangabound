@@ -9,6 +9,7 @@ import {
   createMappingDraft,
   dominantLanguage,
   isMappableChapter,
+  isVolumeNumber,
   MappingOperationError,
   mappingSignature,
   MappingValidationError,
@@ -582,4 +583,17 @@ describe('the language chapters declare', () => {
     expect(dominantLanguage([chapter('c1', 'es'), chapter('c2', 'en')])).toBe('es');
     expect(dominantLanguage([chapter('c1', 'en'), chapter('c2', 'es')])).toBe('en');
   });
+});
+
+describe('isVolumeNumber', () => {
+  it.each(['1', '01', '12', '1.5', '0', ' 2 '])('takes %j for a volume number', (typed) => {
+    expect(isVolumeNumber(typed)).toBe(true);
+  });
+
+  it.each(['', 'one', '1,5', '-1', '+1', '1e3', '0x10', '.5', '1.'])(
+    'does not take %j for one',
+    (typed) => {
+      expect(isVolumeNumber(typed)).toBe(false);
+    },
+  );
 });

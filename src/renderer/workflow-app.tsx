@@ -1,5 +1,5 @@
 import { ChevronLeft, CircleAlert } from 'lucide-react';
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 
 import {
   type BookDetails,
@@ -320,28 +320,36 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
     commandJobId: string,
   ): ConversionCommand => ({ ...planCommandFor(row, rowProcess, commandJobId), libraryId });
 
-  // A validated plan only describes the queue, process and settings it was made for.
-  const planKey = JSON.stringify([
-    mode,
-    format,
-    settings,
-    singleBook,
-    rows.map((row) => [
-      row.id,
-      row.state,
-      row.state === 'inspected' && row.mapping !== undefined ? mappingSignature(row.mapping) : '',
-      row.state === 'inspected' ? row.confirmed : false,
-      row.state === 'inspected'
-        ? (row.titles ?? []).map((title) => [
-            title.title,
-            title.volumes.length,
-            title.outcome?.status,
-            title.details ?? null,
-          ])
-        : [],
-      row.state === 'inspected' ? (row.details ?? null) : null,
-    ]),
-  ]);
+  // A validated plan only describes the queue, process and settings it was made for. Worked out
+  // only when one of those changes: a progress event renders this again about once a second, and
+  // the key walks every row of the queue and every volume of every mapping.
+  const planKey = useMemo(
+    () =>
+      JSON.stringify([
+        mode,
+        format,
+        settings,
+        singleBook,
+        rows.map((row) => [
+          row.id,
+          row.state,
+          row.state === 'inspected' && row.mapping !== undefined
+            ? mappingSignature(row.mapping)
+            : '',
+          row.state === 'inspected' ? row.confirmed : false,
+          row.state === 'inspected'
+            ? (row.titles ?? []).map((title) => [
+                title.title,
+                title.volumes.length,
+                title.outcome?.status,
+                title.details ?? null,
+              ])
+            : [],
+          row.state === 'inspected' ? (row.details ?? null) : null,
+        ]),
+      ]),
+    [mode, format, settings, singleBook, rows],
+  );
   const plans = validated?.key === planKey ? validated.plans : undefined;
 
   const validatePlans = async (): Promise<void> => {

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 
 import type { BookFormat } from '@/domain/conversion';
 import {
@@ -1016,6 +1016,10 @@ function NumberField({
   readonly step?: number;
   readonly value: number | undefined;
 }): React.JSX.Element {
+  // What is being typed, until the field is left. A required option keeps its last valid number
+  // while the field is empty, and showing that number again under the cursor made a new one
+  // typed after clearing the field come out as "12" for "2".
+  const [typed, setTyped] = useState<string>();
   return (
     <div className="space-y-2">
       <SettingFieldHeader
@@ -1034,8 +1038,12 @@ function NumberField({
         id={id}
         max={max}
         min={min}
+        onBlur={() => {
+          setTyped(undefined);
+        }}
         onChange={(event) => {
           const raw = event.target.value;
+          setTyped(raw);
           if (raw === '') {
             if (optional) onValue(undefined);
             return;
@@ -1046,7 +1054,7 @@ function NumberField({
         placeholder={placeholder}
         step={step}
         type="number"
-        value={value ?? ''}
+        value={typed ?? value ?? ''}
       />
       <FieldMessage description={description} error={error} id={`${id}-message`} />
     </div>
