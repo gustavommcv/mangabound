@@ -56,9 +56,12 @@ package() {
   # any file under here at all without traverse (execute) permission on every directory in the
   # path, no matter what mode the files themselves have - confirmed live: the first real build's
   # mangabound binary itself was already 755 and still could not be executed by a non-root user
-  # ("Permission denied") because of this. Reasserted after the copy, not just before it.
-  chmod 755 "$pkgdir/opt/mangabound"
-  chmod 755 "$pkgdir/opt/mangabound/mangabound"
+  # ("Permission denied") because of this. Reasserted after the copy, not just before it, and for
+  # everything inside, not only the first two entries: the bundled tools sit two folders down
+  # (resources/toolchain/<target>), and a folder there that only root can enter keeps every
+  # conversion from starting. a+rX adds read to everything and execute to folders and to files
+  # that already run, so nothing becomes runnable that was not meant to be.
+  chmod -R a+rX "$pkgdir/opt/mangabound"
 
   # The setuid bit does not survive being written by a non-root build user; fakeroot (which
   # makepkg always runs package() under) records the chown/chmod below into the package's own

@@ -67,6 +67,20 @@ jobs:
           name: ${{ inputs.artifact-name-prefix }}${{ matrix.name }}
           path: out/make/**
           if-no-files-found: error
+      - name: Check that the Linux packages can be used by someone who is not root
+        # A gate, unlike the diagnostic below: packages are installed by root and run by a person,
+        # and a bundled tool in a folder only root can enter installs fine and then keeps every
+        # conversion from starting. Reads the listing of each finished package, so it checks what
+        # would be installed.
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          mapfile -t packages < <(find out/make -type f \( -name '*.deb' -o -name '*.rpm' \))
+          if [[ ${#packages[@]} -eq 0 ]]; then
+            echo "::error::No .deb or .rpm found under out/make to check."
+            exit 1
+          fi
+          .github/scripts/check-package-permissions.sh "${packages[@]}"
       - name: 'Diagnostic: launch the real .deb with the sandbox enabled'
         if: inputs.run-sandbox-diagnostic && runner.os == 'Linux'
         # Not a release gate (always exits 0) - purely to observe and record real behavior before
