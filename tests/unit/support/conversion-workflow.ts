@@ -128,6 +128,25 @@ export function dependencies({
       issues: [],
     }),
   );
+  // Each folder asked for is a title named after it, with two volumes of its own.
+  const bindTitles = vi.fn<BindingPort['bindTitles']>((_parentPath, folders, _signal, combine) =>
+    Promise.resolve({
+      workspaceId: 'titles-workspace',
+      titles: folders.map((folder) => {
+        const name = folder.split('/').at(-1) ?? folder;
+        return {
+          title: name,
+          status: 'completed' as const,
+          volumes: combine
+            ? []
+            : numbered([`/work/titles/${name}-vol-1.cbz`, `/work/titles/${name}-vol-2.cbz`]),
+          combinedOutputPath: combine ? `/work/titles/${name}-combined.cbz` : undefined,
+          issues: [],
+        };
+      }),
+      issues: [],
+    }),
+  );
   const writeTitleMapping = vi.fn<BindingPort['writeTitleMapping']>(() => Promise.resolve());
   const readDetails = vi.fn<BindingPort['readDetails']>(() => Promise.resolve({}));
   const writeDetails = vi.fn<BindingPort['writeDetails']>(() => Promise.resolve());
@@ -149,6 +168,7 @@ export function dependencies({
       release,
       planBatch,
       bindBatch,
+      bindTitles,
       writeTitleMapping,
       readDetails,
       writeDetails,
@@ -164,6 +184,7 @@ export function dependencies({
     conversionPlan,
     planBatch,
     bindBatch,
+    bindTitles,
     writeTitleMapping,
     readDetails,
     writeDetails,

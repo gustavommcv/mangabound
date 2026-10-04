@@ -563,6 +563,125 @@ describe('library conversion workflow', () => {
   });
 });
 
+describe('what a library run binds', () => {
+  /** A library of two titles, as mangabind reads it. */
+  function libraryOfTwo(ports: ReturnType<typeof dependencies>) {
+    const titleOf = (title: string) => ({
+      title,
+      inputPath: `/library/${title}`,
+      status: 'completed' as const,
+      draft: trustedDraft,
+      volumes: [{ name: `${title} - Vol.01.cbz`, pageCount: 2 }],
+      issues: [],
+    });
+    ports.planBatch.mockResolvedValue({
+      titles: [titleOf('Good Manga'), titleOf('Second Manga')],
+      issues: [],
+    });
+  }
+  const run = {
+    libraryPath: '/output',
+    settings: defaultMangapressSettings,
+    format: 'epub' as const,
+  };
+
+  it('is only the titles asked for, each from its own folder, and nothing else of the library', async () => {
+    const ports = dependencies();
+    libraryOfTwo(ports);
+    const { workflow, sessionId } = await openLibrary(ports);
+
+    const outcomes = await workflow.convertLibrary(
+      { ...run, sessionId, titles: ['Second Manga'] },
+      { onProgress: vi.fn() },
+    );
+
+    expect(ports.bindBatch).not.toHaveBeenCalled();
+    expect(ports.bindTitles).toHaveBeenCalledExactlyOnceWith(
+      '/input/Library',
+      ['/library/Second Manga'],
+      undefined,
+      false,
+      expect.any(Function),
+    );
+    expect(outcomes).toMatchObject([{ title: 'Second Manga', status: 'done' }]);
+    expect(ports.convert).toHaveBeenCalledTimes(2);
+    expect(ports.release).toHaveBeenCalledWith('titles-workspace');
+  });
+
+  it('is told about the binding of each title it binds, and binds them as one book when asked', async () => {
+    const ports = dependencies();
+    libraryOfTwo(ports);
+    const { workflow, sessionId } = await openLibrary(ports);
+    const onProgress = vi.fn();
+    ports.bindTitles.mockImplementationOnce((_parent, _folders, _signal, _combine, report) => {
+      report?.({ stage: 'inspect', state: 'started', manga: 'Good Manga' });
+      return Promise.resolve({
+        workspaceId: 'titles-workspace',
+        titles: [
+          {
+            title: 'Good Manga',
+            status: 'completed',
+            volumes: [],
+            combinedOutputPath: '/work/titles/good.cbz',
+            issues: [],
+          },
+        ],
+        issues: [],
+      });
+    });
+
+    const outcomes = await workflow.convertLibrary(
+      { ...run, sessionId, titles: ['Good Manga'], singleBook: true },
+      { onProgress },
+    );
+
+    expect(ports.bindTitles).toHaveBeenCalledWith(
+      '/input/Library',
+      ['/library/Good Manga'],
+      undefined,
+      true,
+      expect.any(Function),
+    );
+    expect(onProgress).toHaveBeenCalledWith({
+      stage: 'binding',
+      title: 'Good Manga',
+      message: 'Inspecting Good Manga…',
+    });
+    expect(outcomes).toMatchObject([{ title: 'Good Manga', status: 'done' }]);
+  });
+
+  it('is the whole library with one run when every title is asked for, or none is named', async () => {
+    const ports = dependencies();
+    libraryOfTwo(ports);
+    const { workflow, sessionId } = await openLibrary(ports);
+
+    await workflow.convertLibrary({ ...run, sessionId }, { onProgress: vi.fn() });
+    await workflow.convertLibrary(
+      { ...run, sessionId, titles: ['Second Manga', 'Good Manga'] },
+      { onProgress: vi.fn() },
+    );
+
+    expect(ports.bindBatch).toHaveBeenCalledTimes(2);
+    expect(ports.bindTitles).not.toHaveBeenCalled();
+  });
+
+  it('is nothing when none of the titles asked for is in the library', async () => {
+    const ports = dependencies();
+    libraryOfTwo(ports);
+    const { workflow, sessionId } = await openLibrary(ports);
+
+    const outcomes = await workflow.convertLibrary(
+      { ...run, sessionId, titles: ['Not Here'] },
+      { onProgress: vi.fn() },
+    );
+
+    expect(outcomes).toEqual([]);
+    expect(ports.bindBatch).not.toHaveBeenCalled();
+    expect(ports.convert).not.toHaveBeenCalled();
+    expect(ports.release).toHaveBeenCalledWith('titles-workspace');
+  });
+});
+
 describe('a title mangabind could not bind', () => {
   it('is not converted, even when it still lists volumes', async () => {
     const ports = dependencies();

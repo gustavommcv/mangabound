@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { MangabindBindingAdapter } from '@/adapters/mangabind/binding-port';
 import { MangabindCliAdapter } from '@/adapters/mangabind/cli';
 import { MangapressCliAdapter } from '@/adapters/mangapress/cli';
 import { createNodeProcessRunner } from '@/adapters/process/node-process-runner';
@@ -48,6 +49,33 @@ describe('what the pinned tools print, read with the app’s own parsers', () =>
     expect(library.exitCode).toBe(0);
     expect(library.report.manga.length).toBeGreaterThan(1);
   });
+
+  it('binds one title of a library on its own, the way the whole library is bound', async () => {
+    const cli = new MangabindCliAdapter(executable('mangabind'), runner, true);
+    const scratch = await mkdtemp(path.join(tmpdir(), 'mangabound-pinned-bind-'));
+    const adapter = new MangabindBindingAdapter(cli, undefined, scratch);
+    const library = path.join(fixtures, 'manga-batch', 'Library');
+    try {
+      const whole = await adapter.bindBatch(library);
+      const alone = await adapter.bindTitles(library, [path.join(library, 'Auto-Resolved Manga')]);
+
+      const named = (bound: typeof whole): unknown =>
+        bound.titles
+          .filter((title) => title.title === 'Auto-Resolved Manga')
+          .map((title) => ({
+            status: title.status,
+            volumes: title.volumes.map((volume) => [volume.number, path.basename(volume.path)]),
+          }));
+      expect(alone.titles.map((title) => title.title)).toEqual(['Auto-Resolved Manga']);
+      expect(named(alone)).toEqual(named(whole));
+      // The library has another title, which only the whole run reads.
+      expect(whole.titles.map((title) => title.title)).toHaveLength(2);
+      await adapter.release(whole.workspaceId);
+      await adapter.release(alone.workspaceId);
+    } finally {
+      await rm(scratch, { force: true, recursive: true });
+    }
+  }, 60_000);
 
   it('reads the event stream of mangapress for a plan, a conversion and its list of devices', async () => {
     const mangapress = new MangapressCliAdapter(executable('mangapress'), runner);
