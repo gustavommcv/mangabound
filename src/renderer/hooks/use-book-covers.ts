@@ -16,6 +16,7 @@ const keyOf = (target: CoverTarget): string => `${target.sessionId}\n${target.ti
 /**
  * The covers of the item whose details are open: read when the page opens, and replaced by what
  * each change answers with. A change that fails is said and leaves the covers as they were.
+ * `notify` is a dependency of the read, so pass a stable function (a `useCallback`).
  */
 export function useBookCovers(
   bridge: Pick<
@@ -28,21 +29,24 @@ export function useBookCovers(
 ): BookCoverControls | undefined {
   const key = target === undefined ? undefined : keyOf(target);
   const [state, setState] = useState<CoverState>();
+  // The target is a new object on every render: what names the item is these two values.
+  const sessionId = target?.sessionId;
+  const title = target?.title;
 
   useEffect(() => {
-    if (target === undefined || key === undefined) return;
+    if (sessionId === undefined) return;
+    const item: CoverTarget = title === undefined ? { sessionId } : { sessionId, title };
+    const itemKey = keyOf(item);
     let current = true;
-    void bridge.listCovers(target).then((result) => {
+    void bridge.listCovers(item).then((result) => {
       if (!current) return;
-      if (result.ok) setState({ key, attached: result.value });
+      if (result.ok) setState({ key: itemKey, attached: result.value });
       else notify(result.error.message);
     });
     return () => {
       current = false;
     };
-    // The target is a new object on every render; its key is what names the item.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bridge, key]);
+  }, [bridge, sessionId, title, notify]);
 
   if (target === undefined || key === undefined) return undefined;
 

@@ -52,6 +52,15 @@ const knownWarnings: Readonly<Record<string, Pick<WarningNotice, 'title' | 'mess
 const unknownWarningTitle = 'A note from mangapress';
 
 /**
+ * What the app says for a code, or `undefined` for one it does not know. A code is known only if
+ * the table has it as its own entry: `constructor` and `toString` are not codes, and must not find
+ * the methods every object has.
+ */
+function knownWarning(code: string): Pick<WarningNotice, 'title' | 'message'> | undefined {
+  return Object.hasOwn(knownWarnings, code) ? knownWarnings[code] : undefined;
+}
+
+/**
  * The warnings of a run, one notice per kind in the order they first came, each saying which
  * books it is about. Twenty volumes with the same warning are one notice, not twenty.
  *
@@ -65,15 +74,17 @@ export function warningNotices(books: readonly BookWithWarnings[]): readonly War
   >();
   for (const book of books) {
     for (const warning of book.warnings ?? []) {
-      const known = warning.code in knownWarnings;
-      const key = known ? warning.code : `${warning.code}\n${warning.message}`;
+      const key =
+        knownWarning(warning.code) === undefined
+          ? `${warning.code}\n${warning.message}`
+          : warning.code;
       const group = groups.get(key) ?? { code: warning.code, message: warning.message, names: [] };
       if (!group.names.includes(book.name)) group.names.push(book.name);
       groups.set(key, group);
     }
   }
   return [...groups.values()].map(({ code, message, names }) => {
-    const text = knownWarnings[code] ?? { title: unknownWarningTitle, message };
+    const text = knownWarning(code) ?? { title: unknownWarningTitle, message };
     const where = whichBooks(names, books.length);
     return { code, ...text, ...(where === undefined ? {} : { where }) };
   });

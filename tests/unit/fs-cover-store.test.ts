@@ -155,6 +155,13 @@ describe('covers kept as files of the app', () => {
     const { directory, files } = await itemFolder();
     const kept = files.find((file) => file !== 'covers.json')!;
     const outside = await picture('outside.jpg');
+    // Files that a `..` from the item's folder reaches: a path that names nothing proves nothing.
+    const reached = ['reached-1.jpg', 'reached-2.jpg'].map((name) => ({
+      name,
+      path: path.join(root, name),
+      entry: path.join('..', name),
+    }));
+    for (const file of reached) await writeFile(file.path, file.name);
     const entry = { name: 'x.jpg', origin: 'chosen' };
     await writeFile(
       path.join(directory, 'covers.json'),
@@ -168,15 +175,23 @@ describe('covers kept as files of the app', () => {
           '-1': { ...entry, file: kept },
           '4': { ...entry, file: outside },
           '5': { ...entry, file: path.join('..', 'elsewhere.jpg') },
+          '6': { ...entry, file: reached[0]!.entry },
+          '7': { ...entry, file: reached[1]!.entry },
         },
       }),
     );
 
+    // A file that exists and is reached through `..` is not a cover either.
     await expect(store.list(item)).resolves.toMatchObject([{ slot: 1 }]);
     // Replacing or removing such an entry never deletes the file it pointed at.
     await store.attach(item, { slot: 4, origin: 'chosen', sourcePath: await picture('new.jpg') });
+    await store.attach(item, { slot: 6, origin: 'chosen', sourcePath: await picture('new6.jpg') });
     await store.remove(item, 5);
+    await store.remove(item, 7);
     await expect(readFile(outside, 'utf8')).resolves.toBe('outside.jpg');
+    for (const file of reached) {
+      await expect(readFile(file.path, 'utf8')).resolves.toBe(file.name);
+    }
   });
 
   it('leaves no copy behind when the index cannot be saved', async () => {
