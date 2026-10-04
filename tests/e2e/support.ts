@@ -168,3 +168,29 @@ export async function resetQueue(): Promise<void> {
     await clear.waitForExist({ reverse: true, timeout: 10_000 });
   }
 }
+
+/** What the main process tells the window while a run goes on. */
+export interface ReportedProgress {
+  readonly jobId: string;
+  readonly stage: string;
+  readonly title?: string;
+  readonly message: string;
+  readonly completed?: number;
+  readonly total?: number;
+}
+
+/**
+ * Starts keeping what the main process tells the window as it arrives: the screen shows it for a
+ * moment, so a run is read from what was kept once it is over (`reportedProgress`).
+ */
+export async function recordProgress(): Promise<void> {
+  await browser.execute(() => {
+    const seen: unknown[] = [];
+    Reflect.set(window, 'progressSeen', seen);
+    window.mangabound?.onConversionProgress((progress) => seen.push(progress));
+  });
+}
+
+export function reportedProgress(): Promise<readonly ReportedProgress[]> {
+  return browser.execute(() => Reflect.get(window, 'progressSeen') as readonly ReportedProgress[]);
+}
