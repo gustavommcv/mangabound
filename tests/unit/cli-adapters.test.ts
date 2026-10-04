@@ -171,6 +171,8 @@ describe('CLI process adapters', () => {
     expect(onEvent).toHaveBeenCalledTimes(18);
     expect(result.result).toMatchObject({ type: 'result', written: true });
     expect(result.errors).toEqual([]);
+    // A run that succeeds can still have noticed something; that is kept, not dropped.
+    expect(result.warnings).toMatchObject([{ code: 'skipped_non_images', severity: 'warning' }]);
     expect(runner.run).toHaveBeenCalledWith(
       expect.objectContaining({ executablePath: '/tools/mangapress' }),
       expect.objectContaining({ signal: controller.signal }),

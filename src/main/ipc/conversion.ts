@@ -1,5 +1,6 @@
 import type { IpcMainInvokeEvent } from 'electron';
 
+import type { ConversionArtifact } from '@/domain/conversion';
 import {
   type ArtifactSummary,
   conversionCommandSchema,
@@ -21,6 +22,17 @@ import { requireWorkflow } from '../context';
 import { handle, ignoredPayloadSchema } from './handle';
 import { failed, ok, toFailure } from './result';
 import { runJob } from './run-job';
+
+/** What the screen is told about a finished book: never its path, and its warnings if it has any. */
+function toArtifactSummary({
+  bytes,
+  format,
+  id,
+  name,
+  warnings,
+}: ConversionArtifact): ArtifactSummary {
+  return { bytes, format, id, name, ...(warnings === undefined ? {} : { warnings }) };
+}
 type ConversionContext = Pick<
   MainContext,
   | 'mangapressCli'
@@ -116,7 +128,7 @@ export function registerConversionHandlers(context: ConversionContext): void {
             },
           },
         );
-        return artifacts.map(({ bytes, format, id, name }) => ({ bytes, format, id, name }));
+        return artifacts.map(toArtifactSummary);
       });
     },
   );
@@ -185,12 +197,7 @@ export function registerConversionHandlers(context: ConversionContext): void {
         return outcomes.map((outcome) => ({
           title: outcome.title,
           status: outcome.status,
-          artifacts: outcome.artifacts.map(({ bytes, format, id, name }) => ({
-            bytes,
-            format,
-            id,
-            name,
-          })),
+          artifacts: outcome.artifacts.map(toArtifactSummary),
           ...(outcome.error === undefined ? {} : { failure: toFailure(outcome.error) }),
         }));
       });

@@ -129,6 +129,11 @@ export class MangapressConversionAdapter implements ConversionPort {
       format: result.format,
       title: result.manga ?? path.basename(outputPath, path.extname(outputPath)),
       author: result.author ?? 'Unknown',
+      // Only the code and the tool's own sentence go on: the path in a warning is the tool's
+      // input, which for a bound volume is a scratch file nobody chose.
+      ...(run.warnings.length === 0
+        ? {}
+        : { warnings: run.warnings.map(({ code, message }) => ({ code, message })) }),
     };
   }
 }

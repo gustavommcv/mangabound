@@ -6,6 +6,7 @@ import type { MangapressCliAdapter, MangapressRunResult } from '@/adapters/manga
 import { MangapressConversionAdapter } from '@/adapters/mangapress/conversion-port';
 import {
   isMangapressResultEvent,
+  isMangapressWarningEvent,
   parseMangapressEventLine,
   type MangapressErrorEvent,
   type MangapressEvent,
@@ -54,6 +55,7 @@ function runResult(overrides: Partial<MangapressRunResult> = {}): MangapressRunR
   return {
     events: overrides.events ?? [result],
     errors: overrides.errors ?? [],
+    warnings: overrides.warnings ?? [],
     ...('result' in overrides ? { result: overrides.result } : { result }),
     exitCode: 'exitCode' in overrides ? (overrides.exitCode ?? null) : 0,
     stderr: overrides.stderr ?? '',
@@ -92,6 +94,41 @@ describe('mangapress conversion port', () => {
       expect.objectContaining({ dryRun: true, profile: defaultMangapressSettings.deviceProfile }),
       { signal: controller.signal },
     );
+  });
+
+  it('keeps what mangapress noticed with the book, as a code and its own sentence', async () => {
+    const warning = event({
+      type: 'warning',
+      severity: 'warning',
+      code: 'images_smaller_than_device',
+      stage: 'inspect',
+      recoverable: true,
+      message: '3 of 4 pages are smaller than the screen.',
+      path: path.resolve('/scratch', 'Volume 01.cbz'),
+    });
+    if (!isMangapressWarningEvent(warning)) throw new Error('Invalid warning fixture.');
+    const adapter = new MangapressConversionAdapter(
+      { run: () => Promise.resolve(runResult({ warnings: [warning] })) },
+      () => 'artifact-1',
+    );
+
+    const book = await adapter.convert(request, { onProgress: () => undefined });
+
+    // The path in a warning is the tool's input, a scratch file for a bound volume: not kept.
+    expect(book.warnings).toEqual([
+      { code: 'images_smaller_than_device', message: '3 of 4 pages are smaller than the screen.' },
+    ]);
+  });
+
+  it('adds no warnings to a book made without any', async () => {
+    const adapter = new MangapressConversionAdapter(
+      { run: () => Promise.resolve(runResult()) },
+      () => 'artifact-1',
+    );
+
+    await expect(
+      adapter.convert(request, { onProgress: () => undefined }),
+    ).resolves.not.toHaveProperty('warnings');
   });
 
   it("takes a Kobo profile's .kepub.epub as the EPUB it is", async () => {
