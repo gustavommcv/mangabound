@@ -41,6 +41,14 @@ const profiles = [
     family: 'kindle',
   },
   {
+    code: 'KoC',
+    name: 'Kobo Clara HD',
+    width: 1072,
+    height: 1448,
+    grayLevels: 16,
+    family: 'kobo',
+  },
+  {
     code: 'OTHER',
     name: 'Custom',
     width: 0,
@@ -127,6 +135,7 @@ describe('mangapress settings editor', () => {
       'Two-page view',
       'Color and tone',
       'Page images',
+      'Cover',
       'Book metadata',
       'Tool behavior',
     ]) {
@@ -138,6 +147,7 @@ describe('mangapress settings editor', () => {
       'Custom width (optional)',
       'Custom height (optional)',
       'Use the images as they are',
+      'Name the book .epub',
       'Content',
       'Manga reading order',
       'Wide pages',
@@ -165,6 +175,8 @@ describe('mangapress settings editor', () => {
       'Keep all 256 grays',
       '8-bit PNG',
       'Color pages as PNG too',
+      'Cut the front cover from a wide image',
+      'Crop the cover to fill the screen',
       'ComicInfo title',
       'EPUB language',
       'Keep ComicInfo.xml',
@@ -369,6 +381,9 @@ describe('mangapress settings editor', () => {
     expect(screen.getByLabelText('Page format')).toHaveValue('jpeg');
     for (const label of [
       'Use the images as they are',
+      'Name the book .epub',
+      'Cut the front cover from a wide image',
+      'Crop the cover to fill the screen',
       'Whole spread first',
       'Keep the whole spread upright',
       'Rotate clockwise',
@@ -626,6 +641,79 @@ describe('mangapress settings editor', () => {
     expect(screen.getByText('Nothing is saved as JPEG.')).toBeVisible();
   });
 
+  it('offers the plain .epub name only for a Kobo’s EPUB at the device’s own size', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<StatefulEditor onChange={onChange} />);
+    const name = (): HTMLElement => screen.getByLabelText('Name the book .epub');
+
+    expect(name()).toBeDisabled();
+    expect(screen.getByText('Only for a Kobo’s EPUB.')).toBeVisible();
+
+    await user.selectOptions(screen.getByLabelText('Device profile'), 'KoC');
+    expect(name()).toBeEnabled();
+    expect(
+      screen.getByText('Instead of .kepub.epub, the name Kobo’s own reader looks for.'),
+    ).toBeVisible();
+    await user.click(name());
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ deviceProfile: 'KoC', noKepub: true }),
+    );
+
+    await user.type(screen.getByLabelText('Custom width (optional)'), '1000');
+    expect(name()).toBeDisabled();
+    expect(screen.getByText('A custom size already names the book .epub.')).toBeVisible();
+    // What was chosen is kept for when the size is the device's own again.
+    expect(name()).toBeChecked();
+    await user.clear(screen.getByLabelText('Custom width (optional)'));
+    expect(name()).toBeEnabled();
+
+    await user.selectOptions(screen.getByLabelText('Book format'), 'cbz');
+    expect(name()).toBeDisabled();
+    expect(screen.getByText('Only for a Kobo’s EPUB.')).toBeVisible();
+  });
+
+  it('makes a cover for an EPUB, for a CBZ when the front is cut, and never for a PDF', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<StatefulEditor onChange={onChange} />);
+    const cut = (): HTMLElement => screen.getByLabelText('Cut the front cover from a wide image');
+    const fill = (): HTMLElement => screen.getByLabelText('Crop the cover to fill the screen');
+
+    expect(cut()).toBeEnabled();
+    expect(fill()).toBeEnabled();
+    expect(
+      screen.getByText('When the first image is a whole jacket or a spread, use only its front.'),
+    ).toBeVisible();
+    expect(
+      screen.getByText('Instead of fitting inside it. Small covers are enlarged.'),
+    ).toBeVisible();
+    await user.click(fill());
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ coverFill: true, smartCoverCrop: false }),
+    );
+
+    await user.selectOptions(screen.getByLabelText('Book format'), 'cbz');
+    expect(cut()).toBeEnabled();
+    expect(fill()).toBeDisabled();
+    expect(
+      screen.getByText('A CBZ has a cover only when one is cut from a wide image.'),
+    ).toBeVisible();
+    await user.click(cut());
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ coverFill: true, smartCoverCrop: true }),
+    );
+    expect(fill()).toBeEnabled();
+
+    await user.selectOptions(screen.getByLabelText('Book format'), 'pdf');
+    expect(cut()).toBeDisabled();
+    expect(fill()).toBeDisabled();
+    expect(screen.getAllByText('A PDF has no cover.')).toHaveLength(2);
+    // Both choices are kept for the formats that have a cover.
+    expect(cut()).toBeChecked();
+    expect(fill()).toBeChecked();
+  });
+
   it('leaves the images as they are, locking what would change them', async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
@@ -662,6 +750,8 @@ describe('mangapress settings editor', () => {
       'Invert page turns',
       'Color pages',
       'JPEG quality (optional)',
+      'Cut the front cover from a wide image',
+      'Crop the cover to fill the screen',
     ];
 
     await user.click(screen.getByLabelText('Use the images as they are'));

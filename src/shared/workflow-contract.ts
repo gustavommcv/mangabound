@@ -55,6 +55,7 @@ const mangapressSettingFields = {
   // An option added after a release starts with a default: the settings file of someone who
   // updates has no such key, and must still be read (ADR 0014).
   noProcessing: z.boolean().default(false),
+  noKepub: z.boolean().default(false),
   quiet: z.boolean(),
   webtoon: z.boolean().default(false),
   mangaStyle: z.boolean(),
@@ -87,6 +88,8 @@ const mangapressSettingFields = {
   colorAutoContrast: z.boolean().default(false),
   interPanelCrop: z.enum(['disabled', 'horizontal', 'both']),
   eraseRainbow: z.boolean(),
+  smartCoverCrop: z.boolean().default(false),
+  coverFill: z.boolean().default(false),
   metadataTitle: z.enum(['series-only', 'combine', 'title-only']),
   keepComicInfo: z.boolean(),
   language: z.string().trim().min(1).max(40),

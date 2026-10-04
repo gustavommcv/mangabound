@@ -316,6 +316,33 @@ describe('bundled toolchain verification', () => {
       expect(book.name).toBe('Mangabound Direct.kepub.epub');
       expect(book.format).toBe('epub');
       expect(book.bytes).toBeGreaterThan(0);
+
+      // The same book under the plain name, with both cover options (ADR 0038).
+      const plain = await conversion.convert(
+        {
+          inputPath: path.join(
+            repositoryRoot,
+            'tests',
+            'fixtures',
+            'e2e',
+            'cbz',
+            'Mangabound Direct.cbz',
+          ),
+          outputDirectory,
+          settings: {
+            ...defaultMangapressSettings,
+            deviceProfile: 'KoC',
+            noKepub: true,
+            smartCoverCrop: true,
+            coverFill: true,
+          },
+          format: 'epub',
+        },
+        { onProgress: () => undefined },
+      );
+      expect(plain.name).toBe('Mangabound Direct.epub');
+      expect(plain.format).toBe('epub');
+      expect(plain.bytes).toBeGreaterThan(0);
     } finally {
       await rm(outputDirectory, { recursive: true, force: true });
     }

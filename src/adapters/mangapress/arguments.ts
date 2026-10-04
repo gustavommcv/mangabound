@@ -46,6 +46,10 @@ export interface MangapressRunArguments {
   readonly colorAutoContrast?: boolean;
   readonly interPanelCrop?: InterPanelCropMode;
   readonly eraseRainbow?: boolean;
+  readonly smartCoverCrop?: boolean;
+  readonly coverFill?: boolean;
+  /** Name a Kobo's EPUB `.epub` instead of `.kepub.epub`. */
+  readonly noKepub?: boolean;
   readonly title?: string;
   readonly author?: string;
   readonly metadataTitle?: MetadataTitleMode;
@@ -102,8 +106,11 @@ export function buildMangapressArguments(request: MangapressRunArguments): reado
     ...enabled('--colorautocontrast', request.colorAutoContrast),
     ...optionalValue('--ipc', request.interPanelCrop),
     ...enabled('--eraserainbow', request.eraseRainbow),
+    ...enabled('--smartcovercrop', request.smartCoverCrop),
+    ...enabled('--coverfill', request.coverFill),
     '--format',
     request.format,
+    ...enabled('--nokepub', request.noKepub),
     '--output',
     request.outputPath,
     ...optionalValue('--title', request.title),

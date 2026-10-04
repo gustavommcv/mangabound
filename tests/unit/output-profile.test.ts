@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   autoContrastOf,
   borderModeOf,
+  coverAndNameLocks,
   defaultForceColorFor,
   defaultJpegQualityFor,
   defaultMangapressSettings,
@@ -441,6 +442,56 @@ describe('the image controls another choice leaves without effect', () => {
     expect(imageLocks({ ...png, forceColor: true, forcePngRgb: true }, 'pdf').jpegQuality).toBe(
       'Nothing is saved as JPEG.',
     );
+  });
+});
+
+describe('the cover and file-name controls another choice leaves without effect', () => {
+  const settings = defaultMangapressSettings;
+  const koboOnly = 'Only for a Kobo’s EPUB.';
+
+  it('locks nothing for a Kobo’s EPUB at the device’s own size', () => {
+    expect(coverAndNameLocks(settings, 'epub', 'kobo')).toEqual({});
+  });
+
+  it('offers the plain .epub name only where mangapress names a book .kepub.epub', () => {
+    expect(coverAndNameLocks(settings, 'epub', 'kindle')).toEqual({ noKepub: koboOnly });
+    // The family is what mangapress reports; until the profiles load there is none.
+    expect(coverAndNameLocks(settings, 'epub', undefined)).toEqual({ noKepub: koboOnly });
+    expect(coverAndNameLocks({ ...settings, smartCoverCrop: true }, 'cbz', 'kobo')).toEqual({
+      noKepub: koboOnly,
+    });
+  });
+
+  it('has no name to change once a custom size makes the book a plain EPUB', () => {
+    const reason = 'A custom size already names the book .epub.';
+    expect(coverAndNameLocks({ ...settings, customWidth: 1000 }, 'epub', 'kobo').noKepub).toBe(
+      reason,
+    );
+    expect(coverAndNameLocks({ ...settings, customHeight: 1400 }, 'epub', 'kobo').noKepub).toBe(
+      reason,
+    );
+    // Not a Kobo's EPUB in the first place: that is the reason shown.
+    expect(coverAndNameLocks({ ...settings, customWidth: 1000 }, 'epub', 'kindle').noKepub).toBe(
+      koboOnly,
+    );
+  });
+
+  it('makes a cover for a CBZ only when the front is cut out of a wide image', () => {
+    expect(coverAndNameLocks(settings, 'cbz', 'kindle')).toEqual({
+      coverFill: 'A CBZ has a cover only when one is cut from a wide image.',
+      noKepub: koboOnly,
+    });
+    expect(
+      coverAndNameLocks({ ...settings, smartCoverCrop: true }, 'cbz', 'kindle').coverFill,
+    ).toBeUndefined();
+  });
+
+  it('makes no cover for a PDF', () => {
+    expect(coverAndNameLocks({ ...settings, smartCoverCrop: true }, 'pdf', 'kobo')).toEqual({
+      smartCoverCrop: 'A PDF has no cover.',
+      coverFill: 'A PDF has no cover.',
+      noKepub: koboOnly,
+    });
   });
 });
 

@@ -6,6 +6,7 @@ import {
   autoContrastOf,
   type BorderMode,
   borderModeOf,
+  coverAndNameLocks,
   defaultJpegQualityFor,
   defaultPageSizeFor,
   defaultValueForSetting,
@@ -119,6 +120,7 @@ export function MangapressSettingsEditor({
   });
   const locks = pageLayoutLocks(settings, format);
   const imageLock = imageLocks(settings, format);
+  const bookLock = coverAndNameLocks(settings, format, selectedProfile?.family);
   const pageSize = pageSizeOf(settings);
   const borders = borderModeOf(settings);
   const autoContrast = autoContrastOf(settings);
@@ -258,6 +260,19 @@ export function MangapressSettingsEditor({
           label="Use the images as they are"
           onChecked={(checked) => {
             update('noProcessing', checked);
+          }}
+        />
+        <ToggleField
+          {...resetProps('noKepub')}
+          checked={settings.noKepub}
+          description={
+            bookLock.noKepub ?? 'Instead of .kepub.epub, the name Kobo’s own reader looks for.'
+          }
+          disabled={bookLock.noKepub !== undefined}
+          id="no-kepub"
+          label="Name the book .epub"
+          onChecked={(checked) => {
+            update('noKepub', checked);
           }}
         />
       </SettingsSection>
@@ -759,6 +774,40 @@ export function MangapressSettingsEditor({
           label="Color pages as PNG too"
           onChecked={(checked) => {
             update('forcePngRgb', checked);
+          }}
+        />
+      </SettingsSection>
+
+      <SettingsSection
+        description="The cover a reader shows in its library, made from the first image of each book."
+        eyebrow="Advanced"
+        title="Cover"
+      >
+        <ToggleField
+          {...resetProps('smartCoverCrop')}
+          checked={settings.smartCoverCrop}
+          description={
+            bookLock.smartCoverCrop ??
+            'When the first image is a whole jacket or a spread, use only its front.'
+          }
+          disabled={bookLock.smartCoverCrop !== undefined}
+          id="smart-cover-crop"
+          label="Cut the front cover from a wide image"
+          onChecked={(checked) => {
+            update('smartCoverCrop', checked);
+          }}
+        />
+        <ToggleField
+          {...resetProps('coverFill')}
+          checked={settings.coverFill}
+          description={
+            bookLock.coverFill ?? 'Instead of fitting inside it. Small covers are enlarged.'
+          }
+          disabled={bookLock.coverFill !== undefined}
+          id="cover-fill"
+          label="Crop the cover to fill the screen"
+          onChecked={(checked) => {
+            update('coverFill', checked);
           }}
         />
       </SettingsSection>
