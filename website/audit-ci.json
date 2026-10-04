@@ -7,48 +7,5 @@
   "show-found": true,
   "show-not-found": true,
   "report-type": "full",
-  "allowlist": [
-    {
-      "GHSA-ch52-4w7c-c8xp|@astrojs/starlight>@astrojs/mdx>astro>http-cache-semantics": {
-        "active": true,
-        "expiry": "2026-10-17T00:00:00.000Z",
-        "notes": "Owner-approved temporary exception for the static documentation build only. The vulnerable reuse methods are not called by the reviewed Astro version. This does not fix the package; see SECURITY.md."
-      }
-    },
-    {
-      "GHSA-ch52-4w7c-c8xp|astro>http-cache-semantics>": {
-        "active": true,
-        "expiry": "2026-10-17T00:00:00.000Z",
-        "notes": "Owner-approved temporary exception for the static documentation build only. The vulnerable reuse methods are not called by the reviewed Astro version. This does not fix the package; see SECURITY.md."
-      }
-    },
-    {
-      "GHSA-ch52-4w7c-c8xp|@astrojs/mdx>astro>http-cache-semantics": {
-        "active": true,
-        "expiry": "2026-10-17T00:00:00.000Z",
-        "notes": "Owner-approved temporary exception for the static documentation build only. The vulnerable reuse methods are not called by the reviewed Astro version. This does not fix the package; see SECURITY.md."
-      }
-    },
-    {
-      "GHSA-ch52-4w7c-c8xp|@astrojs/starlight>astro>http-cache-semantics": {
-        "active": true,
-        "expiry": "2026-10-17T00:00:00.000Z",
-        "notes": "Owner-approved temporary exception for the static documentation build only. The vulnerable reuse methods are not called by the reviewed Astro version. This does not fix the package; see SECURITY.md."
-      }
-    },
-    {
-      "GHSA-ch52-4w7c-c8xp|astro-expressive-code>astro>http-cache-semantics": {
-        "active": true,
-        "expiry": "2026-10-17T00:00:00.000Z",
-        "notes": "Owner-approved temporary exception for the static documentation build only. The vulnerable reuse methods are not called by the reviewed Astro version. This does not fix the package; see SECURITY.md."
-      }
-    },
-    {
-      "GHSA-ch52-4w7c-c8xp|astro-expressive-code>astro>http-cache-semantics>": {
-        "active": true,
-        "expiry": "2026-10-17T00:00:00.000Z",
-        "notes": "Owner-approved temporary exception for the static documentation build only. The vulnerable reuse methods are not called by the reviewed Astro version. This does not fix the package; see SECURITY.md."
-      }
-    }
-  ]
+  "allowlist": []
 }

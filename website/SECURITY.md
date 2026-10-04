@@ -2,27 +2,25 @@
 
 `npm run audit` uses the lockfile-pinned `audit-ci` CLI to run npm's audit over **all** website dependencies, including development dependencies. Low, moderate, high, and critical findings block the build unless an owner-approved, unexpired exception matches the exact advisory and dependency path. The full npm report remains visible, including accepted findings. Registry failures are failures, not clean audits. `npm run check` includes this gate locally and in documentation CI; the application's separate `npm audit --omit=dev` gate is unchanged.
 
-## Temporary exception: GHSA-ch52-4w7c-c8xp
+**No exception is in effect.** The allowlist in `audit-ci.json` is empty, and a test says so: adding a record means changing that test in the same PR.
 
-- Approved by the repository owner on 2026-10-03 after reviewing the exposure analysis.
-- Expires at **2026-10-17 00:00 UTC**. Expiration is enforced by `audit-ci`, not by a reminder or an automatic renewal.
-- Reviewed versions: `astro@7.3.5` and `http-cache-semantics@4.2.0`, resolved by `package-lock.json`.
-- Scope: the reviewed Astro dependency routes for this advisory, recorded as six exact strings in `audit-ci.json`. There are no package-wide, advisory-wide, or wildcard exclusions. npm's cached transitive findings can produce different `audit-ci@7.1.0` path representations, including a trailing `>` or Starlight through MDX. Both the local registry scenario and the real cold-cache CI report are tested. Do not replace these literal records with a wildcard.
+## What an exception requires
 
-The [reviewed advisory](https://github.com/advisories/GHSA-ch52-4w7c-c8xp) describes a real cross-user response disclosure: a client's `Cache-Control: max-stale` can make a shared HTTP cache reuse responses that should require revalidation, including responses carrying another user's `Set-Cookie`. At review time there is no published patched version. [Upstream PR 58](https://github.com/kornelski/http-cache-semantics/pull/58) is still open; this project does not vendor its unmerged patch or downgrade Astro to an incompatible version.
+An exception is temporary and is the repository owner's to approve, in a reviewed PR that adds:
 
-### Why this deployment is not exposed to the described attack
+- an exposure assessment here: what the advisory describes, why this deployment is not exposed, and for which versions that was checked;
+- records in `audit-ci.json` for the exact advisory and dependency paths, never package-wide, advisory-wide or wildcard, with a UTC expiry that `audit-ci` enforces;
+- tests through the real auditor showing that the finding is accepted only on those paths, and that removing or expiring the exception, another advisory, a development-dependency advisory and a registry failure all still fail;
+- a guard that fails when the assessed conditions change (the versions, the site's output mode), for as long as the exception lasts.
 
-The installed Astro package imports `http-cache-semantics` only in `dist/assets/build/remote.js`. Its remote-image build helpers construct their own requests and call `storable()` and `timeToLive()`. They do not call `evaluateRequest()` or `satisfiesWithoutRevalidation()`, the vulnerable reuse methods, or forward arbitrary visitor request headers. A controlled reproduction against the installed library confirmed that restricted entries have zero TTL but can be incorrectly reused with `max-stale`; the exception does not claim the library is fixed.
+If no fix exists by the expiry, publication stays blocked until the owner approves a new assessment and expiry. Do not extend the date automatically, raise the severity threshold, skip development dependencies, or convert audit errors into success.
 
-The website currently uses local assets. GitHub Pages receives only the static `website/dist` output, with no Node server, shared response cache, or authenticated image endpoint. The vulnerable dependency is a website build input, not an Electron runtime dependency, and is not bundled into the desktop installer. This assessment applies to the reviewed deployment and versions, not every application using Astro.
+## History
 
-Before auditing, `scripts/check-audit-scope.mjs` checks the actual Astro configuration and lockfile through the small, coverage-gated `assertAuditScope` helper. Server output, an adapter, version changes, missing copies, relocated copies, or extra copies of either reviewed package require removing or reviewing the exception. The guard is not a general proof of non-exploitability: new integrations, remote-image use, hosting changes, and any new use of the cache library also require a security review.
+### GHSA-ch52-4w7c-c8xp, 2026-10-03 to 2026-10-04
 
-### Verification and removal
+[The advisory](https://github.com/advisories/GHSA-ch52-4w7c-c8xp): in `http-cache-semantics` up to 4.2.0, a client's `Cache-Control: max-stale` can make a shared HTTP cache reuse responses that should require revalidation. Astro depends on the package for its remote-image build helpers, and no patched version existed.
 
-The audit tests exercise the installed CLI and npm against a local registry. `tests/fixtures/cache-advisory.json` is the actual response captured on 2026-10-03 from npm's `/-/npm/v1/security/advisories/bulk` endpoint for `http-cache-semantics@4.2.0`. The registry fixture serves package metadata derived from the real lockfile; it never fetches a third-party service during tests. `tests/fixtures/cache-audit-ci-report.json` is the full npm report from the [Linux documentation job](https://github.com/gustavommcv/mangabound/actions/runs/37097556349/job/111130490862) at commit `9882546d86bbe07f9b6dced5db696260b5a75873`. A test replays that report at the npm CLI boundary through the real auditor and verifies that its additional literal paths must be explicitly accepted; it does not replace or inspect the auditor's internal implementation. Deliberate mutations verify that removing or expiring the exception, another advisory at any blocking severity, a development-dependency advisory, a direct dependency outside the reviewed paths, and registry failure all produce a failing exit status. Separate tests cover scope changes and the real configuration/lockfile.
+The owner approved an exception on 2026-10-03, expiring 2026-10-17, for `astro@7.3.5` with `http-cache-semantics@4.2.0`: the site is static, GitHub Pages receives only `website/dist`, and the installed Astro does not call the vulnerable reuse methods. It was six exact path records, a scope guard and its tests.
 
-When a patched compatible version is published, update the lockfile in a reviewed PR, remove the six allowlist records, and remove the temporary scope guard and its tests/coverage entry. Keep `audit-ci` and the all-severity audit gate. Update the audit fixture tests to cover the empty policy and ordinary failure cases rather than retaining an exception that is no longer needed. Confirm the unrestricted audit and every required remote check for the exact PR head before merging.
-
-If no fix exists by expiry, publication remains blocked until the owner explicitly approves a new assessment and expiry in a reviewed PR. Do not extend the date automatically, raise the severity threshold, skip development dependencies, or convert audit errors into success.
+`http-cache-semantics@4.3.0` was published on 2026-10-04 with the fix. The lockfile was updated to it, and the records, the guard and its tests were removed, as that exception's own removal procedure asked. The audit tests now cover the empty policy: the locked version is outside the recorded advisory's range, and the recorded advisory, any other advisory at any severity, a development-dependency advisory and a registry failure all fail.

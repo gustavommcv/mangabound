@@ -111,38 +111,41 @@ async function audit(
   return { ...result, bulkRequests, requests };
 }
 
-test('the recorded advisory is accepted only on its reviewed paths and remains visible', async (t) => {
+/** The real lockfile with the version the recorded advisory was written about. */
+function vulnerableLock() {
+  const packages = structuredClone(lock);
+  packages.packages['node_modules/http-cache-semantics'].version = '4.2.0';
+  return packages;
+}
+
+test('no exception is in effect', () => {
+  assert.deepEqual(policy.allowlist, []);
+});
+
+test('the locked version is outside the range of the recorded advisory', async (t) => {
   const result = await audit(t);
   assert.equal(result.code, 0, result.output);
   assert.equal(result.bulkRequests, 1);
-  assert.match(result.output, /http-cache-semantics max-stale handling/);
-  assert.match(result.output, /GHSA-ch52-4w7c-c8xp/);
-  assert.match(result.output, /"high": 5/);
+  assert.match(result.output, /"total": 0/);
 });
 
-test('the real cold-cache CI report needs its explicit paths and remains visible', async (t) => {
-  const accepted = await audit(t, { report: ciReport });
-  assert.equal(accepted.code, 0, accepted.output);
-  assert.equal(accepted.requests, 0);
-  assert.match(accepted.output, /"high": 5/);
-  const paths = [
+test('the recorded advisory fails for the version it was written about', async (t) => {
+  const result = await audit(t, { packages: vulnerableLock() });
+  assert.notEqual(result.code, 0);
+  assert.match(result.output, /http-cache-semantics max-stale handling/);
+  assert.match(result.output, /Failed security audit due to high/);
+  assert.match(result.output, /GHSA-ch52-4w7c-c8xp/);
+});
+
+test('the real cold-cache CI report of that advisory fails on every path it names', async (t) => {
+  const result = await audit(t, { report: ciReport });
+  assert.notEqual(result.code, 0, result.output);
+  assert.equal(result.requests, 0);
+  for (const dependencyPath of [
     'GHSA-ch52-4w7c-c8xp|@astrojs/starlight>@astrojs/mdx>astro>http-cache-semantics',
     'GHSA-ch52-4w7c-c8xp|astro>http-cache-semantics>',
-  ];
-  const config = {
-    ...policy,
-    allowlist: policy.allowlist.filter((record) => !paths.includes(Object.keys(record)[0])),
-  };
-  const result = await audit(t, { config, report: ciReport });
-  assert.notEqual(result.code, 0, result.output);
-  for (const dependencyPath of paths)
+  ])
     assert.ok(result.output.includes(dependencyPath), result.output);
-});
-
-test('the same recorded advisory fails without the exception', async (t) => {
-  const result = await audit(t, { config: { ...policy, allowlist: [] } });
-  assert.notEqual(result.code, 0);
-  assert.match(result.output, /Failed security audit due to high/);
 });
 
 test('a clean registry report passes without suppressing audit failures', async (t) => {
@@ -152,26 +155,20 @@ test('a clean registry report passes without suppressing audit failures', async 
   assert.match(result.output, /"total": 0/);
 });
 
-test('expiry and invalid expiry disable the exception', async (t) => {
-  for (const expiry of ['2000-01-01T00:00:00.000Z', 'invalid']) {
-    const config = structuredClone(policy);
-    for (const record of config.allowlist) Object.values(record)[0].expiry = expiry;
-    const result = await audit(t, { config });
-    assert.notEqual(result.code, 0);
-    assert.match(result.output, /Failed security audit due to high/);
-  }
-});
-
-test('a different advisory in the same package is still blocked at every severity', async (t) => {
+test('an advisory for the locked version is blocked at every severity', async (t) => {
   for (const severity of ['low', 'moderate', 'high', 'critical']) {
-    const advisories = structuredClone(fixture);
-    advisories['http-cache-semantics'].push({
-      ...advisories['http-cache-semantics'][0],
-      id: 9999999,
-      url: 'https://github.com/advisories/GHSA-aaaa-bbbb-cccc',
-      title: 'Deliberately injected unaccepted advisory',
-      severity,
-    });
+    const advisories = {
+      'http-cache-semantics': [
+        {
+          ...fixture['http-cache-semantics'][0],
+          id: 9999999,
+          url: 'https://github.com/advisories/GHSA-aaaa-bbbb-cccc',
+          title: 'Deliberately injected advisory',
+          severity,
+          vulnerable_versions: '<=4.3.0',
+        },
+      ],
+    };
     const result = await audit(t, { advisories });
     assert.notEqual(result.code, 0);
     assert.match(result.output, new RegExp(`Failed security audit due to .*${severity}`));
@@ -179,26 +176,19 @@ test('a different advisory in the same package is still blocked at every severit
   }
 });
 
-test('the recorded advisory through another consumer is not accepted', async (t) => {
-  const packages = structuredClone(lock);
-  packages.packages[''].dependencies['http-cache-semantics'] = '4.2.0';
-  const result = await audit(t, { packages });
-  assert.notEqual(result.code, 0);
-  assert.match(result.output, /GHSA-ch52-4w7c-c8xp\|http-cache-semantics/);
-});
-
 test('an advisory in a development dependency is not omitted', async (t) => {
-  const advisories = structuredClone(fixture);
-  advisories['audit-ci'] = [
-    {
-      ...advisories['http-cache-semantics'][0],
-      id: 9999999,
-      url: 'https://github.com/advisories/GHSA-aaaa-bbbb-cccc',
-      title: 'Deliberately injected development dependency advisory',
-      severity: 'low',
-      vulnerable_versions: '<=7.1.0',
-    },
-  ];
+  const advisories = {
+    'audit-ci': [
+      {
+        ...fixture['http-cache-semantics'][0],
+        id: 9999999,
+        url: 'https://github.com/advisories/GHSA-aaaa-bbbb-cccc',
+        title: 'Deliberately injected development dependency advisory',
+        severity: 'low',
+        vulnerable_versions: '<=7.1.0',
+      },
+    ],
+  };
   const result = await audit(t, { advisories });
   assert.notEqual(result.code, 0);
   assert.match(result.output, /Failed security audit due to low/);
