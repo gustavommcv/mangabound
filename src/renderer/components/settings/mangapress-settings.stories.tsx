@@ -38,6 +38,14 @@ const profiles = [
     grayLevels: 16,
     family: 'kindle',
   },
+  {
+    code: 'KoC',
+    name: 'Kobo Clara HD',
+    width: 1072,
+    height: 1448,
+    grayLevels: 16,
+    family: 'kobo',
+  },
 ] as const;
 
 const meta = {
@@ -172,6 +180,31 @@ export const UntouchedImages: Story = {
     await expect(canvas.getByRole('combobox', { name: 'Page format' })).toBeDisabled();
     await expect(canvas.getByRole('checkbox', { name: 'Manga reading order' })).toBeEnabled();
     await expect(canvas.getByRole('combobox', { name: 'Color pages' })).toBeEnabled();
+  },
+};
+
+/** A Kobo with the plain file name, and a cover cut from a wide image and cropped to the screen. */
+export const KoboCover: Story = {
+  args: {
+    settings: {
+      ...defaultMangapressSettings,
+      deviceProfile: 'KoC',
+      noKepub: true,
+      smartCoverCrop: true,
+      coverFill: true,
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const name = canvas.getByRole('checkbox', { name: 'Name the book .epub' });
+    await expect(name).toBeEnabled();
+    await expect(name).toBeChecked();
+    await expect(
+      canvas.getByRole('checkbox', { name: 'Cut the front cover from a wide image' }),
+    ).toBeChecked();
+    await expect(
+      canvas.getByRole('checkbox', { name: 'Crop the cover to fill the screen' }),
+    ).toBeChecked();
   },
 };
 

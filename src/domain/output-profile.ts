@@ -18,6 +18,8 @@ export interface MangapressSettings {
   readonly deviceProfile: string;
   /** Every image is packaged exactly as it is: nothing is cropped, resized or saved again. */
   readonly noProcessing: boolean;
+  /** A Kobo's EPUB is named `.epub` instead of `.kepub.epub`. */
+  readonly noKepub: boolean;
   readonly quiet: boolean;
   /** The images are long strips to cut into pages between panels, not pages. */
   readonly webtoon: boolean;
@@ -62,6 +64,10 @@ export interface MangapressSettings {
   readonly colorAutoContrast: boolean;
   readonly interPanelCrop: InterPanelCropMode;
   readonly eraseRainbow: boolean;
+  /** The cover is the front cut out of a wide first image, not the whole image. */
+  readonly smartCoverCrop: boolean;
+  /** The cover is cropped, and enlarged if small, until it fills the screen exactly. */
+  readonly coverFill: boolean;
   readonly metadataTitle: MetadataTitleMode;
   readonly keepComicInfo: boolean;
   /** The EPUB language a book gets unless its own details name another (ADR 0030). */
@@ -102,6 +108,7 @@ export interface MangapressSettingIssue {
 export const defaultMangapressSettings: MangapressSettings = Object.freeze({
   deviceProfile: 'KPW6',
   noProcessing: false,
+  noKepub: false,
   quiet: false,
   webtoon: false,
   mangaStyle: true,
@@ -132,6 +139,8 @@ export const defaultMangapressSettings: MangapressSettings = Object.freeze({
   colorAutoContrast: false,
   interPanelCrop: 'disabled',
   eraseRainbow: false,
+  smartCoverCrop: false,
+  coverFill: false,
   metadataTitle: 'series-only',
   keepComicInfo: false,
   language: 'en-US',
@@ -446,6 +455,41 @@ export function imageLocks(
     locks.pngLegacy = 'Always 8-bit in a PDF.';
   }
   if (!settings.forceColor) locks.forcePngRgb = 'Only when color pages are kept in color.';
+  return locks;
+}
+
+/** The cover and file-name controls another choice can leave without effect. */
+export type CoverAndNameControl = 'smartCoverCrop' | 'coverFill' | 'noKepub';
+
+/**
+ * Why each cover or file-name control has no effect with the current choices, on the same terms
+ * as {@link pageLayoutLocks}.
+ *
+ * mangapress makes a cover for every EPUB, for a CBZ only when the front is cut out of a wide
+ * image, and never for a PDF. The cover is made apart from the pages, so images left as they are
+ * lock neither option.
+ *
+ * Only a Kobo's EPUB is named `.kepub.epub`, and only at the device's own size: with a custom one
+ * mangapress no longer treats the device as a Kobo. The family is the one mangapress reports for
+ * the chosen profile; while it is not known, the name is not offered.
+ */
+export function coverAndNameLocks(
+  settings: Pick<MangapressSettings, 'smartCoverCrop' | 'customWidth' | 'customHeight'>,
+  format: BookFormat,
+  deviceFamily: string | undefined,
+): Partial<Record<CoverAndNameControl, string>> {
+  const locks: Partial<Record<CoverAndNameControl, string>> = {};
+  if (format === 'pdf') {
+    locks.smartCoverCrop = 'A PDF has no cover.';
+    locks.coverFill = 'A PDF has no cover.';
+  } else if (format === 'cbz' && !settings.smartCoverCrop) {
+    locks.coverFill = 'A CBZ has a cover only when one is cut from a wide image.';
+  }
+  if (format !== 'epub' || deviceFamily !== 'kobo') {
+    locks.noKepub = 'Only for a Kobo’s EPUB.';
+  } else if (settings.customWidth !== undefined || settings.customHeight !== undefined) {
+    locks.noKepub = 'A custom size already names the book .epub.';
+  }
   return locks;
 }
 

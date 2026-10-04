@@ -37,8 +37,11 @@ describe('parseStoredSettings', () => {
   });
 
   it('reads a file written before an option existed, with that option off', () => {
-    // What a release before the page-layout and image options kept: none of their keys.
+    // What a release before the page-layout, image and cover options kept: none of their keys.
     const {
+      noKepub,
+      smartCoverCrop,
+      coverFill,
       noProcessing,
       forceColor,
       colorAutoContrast,
@@ -58,6 +61,7 @@ describe('parseStoredSettings', () => {
     void [webtoon, noRotate, rotateFirst, maximizeStrips, blackBorders];
     void [spreadShift, onePageLandscape, invertDirection];
     void [noProcessing, forceColor, colorAutoContrast, noQuantize, pngLegacy, forcePngRgb];
+    void [noKepub, smartCoverCrop, coverFill];
 
     const parsed = parseStoredSettings(file({ settings: older }));
 

@@ -239,6 +239,18 @@ test('images left as they are lock every control that would change them', async 
   await expect(page.locator('#storybook-root')).toHaveScreenshot('output-settings-untouched.png');
 });
 
+test('a Kobo offers the plain file name beside the cover choices', async ({ page }) => {
+  await page.goto('/iframe.html?id=workflows-output-settings--kobo-cover&viewMode=story');
+  await expect(
+    page.getByRole('checkbox', { name: 'Name the book .epub', exact: true }),
+  ).toBeChecked();
+  await expect(
+    page.getByRole('checkbox', { name: 'Crop the cover to fill the screen', exact: true }),
+  ).toBeChecked();
+  await page.evaluate(async () => document.fonts.ready);
+  await expect(page.locator('#storybook-root')).toHaveScreenshot('output-settings-kobo-cover.png');
+});
+
 test('changed output settings show aligned labels and individual resets', async ({ page }) => {
   await page.goto('/iframe.html?id=workflows-output-settings--modified-options&viewMode=story');
   await expect(page.getByRole('button', { name: 'Restore default for Gamma' })).toBeVisible();

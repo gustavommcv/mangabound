@@ -38,6 +38,10 @@ These dimensions are an example; use the size appropriate for your screen.
 
 **Use the images as they are**, beside the device, packages the pages untouched: nothing is cropped, resized, converted to grayscale or saved again. Use it for images that were already prepared for your reader. Everything that would change an image is locked while it is on. The reading order, the webtoon cut and the two-page view still apply, and an EPUB's cover is still made from the first image.
 
+**Cover** decides how each book's cover is made from its first image. **Cut the front cover from a wide image** is for a first image that is a whole jacket or a spread: the cover becomes its front only, on the side the reading order puts it. **Crop the cover to fill the screen** crops the cover, and enlarges a small one, until it is exactly the size of the screen; without it the cover is only shrunk to fit. An EPUB always has this cover, a CBZ gets one only when the front is cut from a wide image, and a PDF has none.
+
+For a Kobo, an EPUB is named `.kepub.epub`, the name Kobo's own reader looks for. **Name the book .epub**, beside the device, gives it the plain name instead; nothing inside the book changes. It applies only to a Kobo's EPUB at the device's own size.
+
 An option that another choice leaves without effect stays visible, dimmed, and says why. With **Webtoon strips**, for example, reading order, wide pages, borders and margin cropping are locked, because webtoon strips never use them; what you had chosen comes back when you return to pages.
 
 Modified fields can be reset individually, or together with **Reset to defaults**. Settings are kept between launches.
