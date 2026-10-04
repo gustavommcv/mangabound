@@ -1,5 +1,48 @@
 import path from 'node:path';
 
+/**
+ * Where the app's own folders are on Windows. Not `Mangabound`: the installer puts the app in
+ * `%LOCALAPPDATA%\mangabound`, which Windows takes for the same name, and uninstalling removes
+ * everything in that folder, a person's unsaved books with it.
+ */
+const windowsStorageFolder = 'Mangabound Data';
+
+function windowsLocalAppData(environment: NodeJS.ProcessEnv, home: string): string {
+  const localAppData = environment.LOCALAPPDATA;
+  return localAppData !== undefined && path.isAbsolute(localAppData)
+    ? localAppData
+    : path.join(home, 'AppData', 'Local');
+}
+
+/**
+ * What to move out of the folder an earlier version kept pending books and covers in (the
+ * installer's own) into where they are kept now, or `undefined` where there is nothing to move: a
+ * platform that never had that installer, or a root chosen by the environment, which no version
+ * kept in the installer's folder. A covers root chosen by the environment is left out of the
+ * move, since nothing reads the covers from the folder they would be moved to.
+ */
+export function legacyStorageMove(
+  platform: NodeJS.Platform,
+  environment: NodeJS.ProcessEnv,
+  home: string,
+): { readonly from: string; readonly to: string; readonly folders: readonly string[] } | undefined {
+  if (platform !== 'win32') return undefined;
+  if (
+    environment.MANGABOUND_PENDING_ROOT !== undefined &&
+    path.isAbsolute(environment.MANGABOUND_PENDING_ROOT)
+  ) {
+    return undefined;
+  }
+  const coversChosen =
+    environment.MANGABOUND_COVERS_ROOT !== undefined &&
+    path.isAbsolute(environment.MANGABOUND_COVERS_ROOT);
+  return {
+    from: path.join(windowsLocalAppData(environment, home), 'Mangabound'),
+    to: path.dirname(pendingRoot(platform, environment, home)),
+    folders: coversChosen ? ['Pending'] : ['Pending', 'Covers'],
+  };
+}
+
 /** Pending books are user work, not disposable OS temp files or roaming settings data. */
 export function pendingRoot(
   platform: NodeJS.Platform,
@@ -13,14 +56,7 @@ export function pendingRoot(
     return environment.MANGABOUND_PENDING_ROOT;
   }
   if (platform === 'win32') {
-    const localAppData = environment.LOCALAPPDATA;
-    return path.join(
-      localAppData !== undefined && path.isAbsolute(localAppData)
-        ? localAppData
-        : path.join(home, 'AppData', 'Local'),
-      'Mangabound',
-      'Pending',
-    );
+    return path.join(windowsLocalAppData(environment, home), windowsStorageFolder, 'Pending');
   }
   if (platform === 'darwin') {
     return path.join(home, 'Library', 'Application Support', 'Mangabound', 'Pending');

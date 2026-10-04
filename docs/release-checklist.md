@@ -19,6 +19,7 @@ CI automates the repeatable launch and rendering checks. Compositor policy and r
 
 - Test current Windows at 100%, 125%, and 200% scaling.
 - Verify drag, double-click maximize/restore, snap layouts, and multi-monitor movement.
+- Convert a book without saving it, install the next version over the first, and check the book is still in the queue. Uninstall, and check `%LOCALAPPDATA%\Mangabound Data` is still there with it.
 
 ## macOS
 
