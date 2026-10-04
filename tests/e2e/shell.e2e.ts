@@ -27,12 +27,19 @@ describe('packaged application shell', () => {
     // user data folder included, which is what makes it the same app (two copies of it would share
     // the settings and the pending books, and the second one's start-up cleanup could remove the
     // folder the first has just made for a conversion). The one flag left out is the debugging port.
+    // The folder is the one the driver reports, since it picks one when no flag names it.
     const started = browser.requestedCapabilities['goog:chromeOptions'] as {
       binary: string;
       args: string[];
     };
-    const args = started.args.filter((flag) => !flag.startsWith('--inspect'));
-    assert.ok(args.some((flag) => flag.startsWith('--user-data-dir=')));
+    const { userDataDir } = (browser.capabilities as { chrome: { userDataDir: string } }).chrome;
+    assert.ok(userDataDir, 'The driver should say where the first copy keeps its data.');
+    const args = [
+      ...started.args.filter(
+        (flag) => !flag.startsWith('--inspect') && !flag.startsWith('--user-data-dir='),
+      ),
+      `--user-data-dir=${userDataDir}`,
+    ];
 
     const second = spawn(started.binary, args, {
       stdio: 'ignore',
