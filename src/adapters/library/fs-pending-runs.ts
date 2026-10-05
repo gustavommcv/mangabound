@@ -51,6 +51,11 @@ export interface FsPendingRunsDeps extends AtomicWriteDeps {
 }
 
 /** Owns durable, app-local conversion output. Each run is isolated from name collisions in others. */
+/** Whether a folder's name is one a pending run is made under (an id the app gave it). */
+export function isPendingRunFolder(name: string): boolean {
+  return /^[0-9a-f-]{36}$/iu.test(name);
+}
+
 export class FsPendingRuns {
   private readonly io: FsPendingRunsDeps;
 
@@ -88,7 +93,7 @@ export class FsPendingRuns {
     const children = await readdir(this.root, { withFileTypes: true });
     const runs: PendingRun[] = [];
     for (const child of children) {
-      if (!child.isDirectory() || !/^[0-9a-f-]{36}$/iu.test(child.name)) continue;
+      if (!child.isDirectory() || !isPendingRunFolder(child.name)) continue;
       const runPath = path.join(this.root, child.name);
       const manifest = await this.libraries.read(runPath);
       const state = await this.readState(runPath);
@@ -192,7 +197,7 @@ export class FsPendingRuns {
     }
     // A cancelled or wholly failed run may never have produced a book or catalog.
     for (const child of await readdir(this.root, { withFileTypes: true })) {
-      if (!child.isDirectory() || !/^[0-9a-f-]{36}$/iu.test(child.name)) continue;
+      if (!child.isDirectory() || !isPendingRunFolder(child.name)) continue;
       const runPath = path.join(this.root, child.name);
       if ((await readdir(runPath)).length === 0)
         await rm(runPath, { recursive: true, force: true });
@@ -208,7 +213,7 @@ export class FsPendingRuns {
   async pruneAbandoned(olderThanMs: number, now = Date.now()): Promise<void> {
     const listed = new Set((await this.list()).map((run) => run.id));
     for (const child of await readdir(this.root, { withFileTypes: true })) {
-      if (!child.isDirectory() || !/^[0-9a-f-]{36}$/iu.test(child.name)) continue;
+      if (!child.isDirectory() || !isPendingRunFolder(child.name)) continue;
       if (listed.has(child.name)) continue;
       const runPath = path.join(this.root, child.name);
       if (now - (await newestChange(runPath)) > olderThanMs) {

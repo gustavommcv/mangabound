@@ -28,3 +28,13 @@ The usual flow has fewer decisions up front, while exporting remains explicit. P
 - On Windows the app's own folders are now in `%LOCALAPPDATA%\Mangabound Data` (`Pending` and `Covers`), which no installer owns. macOS and Linux are unchanged.
 - At start, before anything reads them, `Pending` and `Covers` in the old place are moved to the new one (`src/adapters/library/legacy-storage.ts`): whole when the new place has no such folder, entry by entry when it has, never replacing an entry that is already there. The rest of the old folder, the installer's files, is not touched. A folder that cannot be moved is reported in the log and left where it is; the app starts either way. A root chosen by the environment (packaged tests) never had anything in the old place, and is not moved.
 - Not reproduced: the uninstall itself was not run, because the machine used for the check has a real install with real data. The layout above was seen; the removal is Squirrel's documented behavior for the folder it installed to.
+
+## Amendment (2026-10-04): sharing serves every ready book, not one conversion
+
+Sharing a pending conversion served the folder of that conversion and nothing else, and each processing run is a folder of its own. A person who converted a book, shared it, and then converted another found the second one missing from the reader's "Recently converted", with nothing on screen to say why; stopping and sharing again served only the second. The Share panel promises "what you've converted".
+
+- Sharing a pending conversion now serves the books ready to be saved of every pending conversion, newest first (`PendingCatalogStore`, `sharingTarget`). The catalog is read at each request, so a book converted while sharing is running appears on the reader without anything being restarted. Each book is named by its conversion's folder and its own path, which is also where its file is, so the server's checks that a file is inside the shared folder apply as for any library.
+- What is shared is wider than before: older conversions that were never saved or deleted are in it. They are the person's own books, on the network interface they chose and behind the password they set, and the user guide says so.
+- A conversion whose own catalog is damaged is left out of the shared one, and logged, instead of stopping the reader from seeing the others.
+- While the ready books are shared no pending conversion can be deleted, since each is in what is served, and sharing does not start while one is being deleted. Before, only the shared conversion was protected.
+- A folder chosen with **Share** in the title bar is served as it is, as before.

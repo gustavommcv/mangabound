@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import type { PreferencesWorkflow, RestoredPreferences } from '@/application/workflows/preferences';
@@ -14,6 +16,7 @@ import {
 import { remember, saveChosen } from '@/main/ipc/preferences-state';
 import { rememberPickerFolder, rememberSaveFolder } from '@/main/ipc/remembered-folders';
 import { inspectOnce } from '@/main/ipc/selections';
+import { sharingTarget } from '@/main/ipc/sharing-target';
 import { cleanUpBeforeQuit, type QuitCleanup } from '@/main/quit-cleanup';
 
 const nothingRemembered = {
@@ -144,33 +147,65 @@ describe('which books Save All may take', () => {
 });
 
 describe('when a pending run may be deleted', () => {
-  it('may be, when it is not shared and nothing is converting', () => {
-    expect(
-      discardRefusal({ runId: 'run', sharingRunId: undefined, activeJobs: 0 }),
-    ).toBeUndefined();
-    expect(
-      discardRefusal({ runId: 'run', sharingRunId: 'another', activeJobs: 0 }),
-    ).toBeUndefined();
+  it('may be, when the ready books are not shared and nothing is converting', () => {
+    expect(discardRefusal({ sharingReadyBooks: false, activeJobs: 0 })).toBeUndefined();
   });
 
-  it('may not while its books are shared', () => {
-    expect(discardRefusal({ runId: 'run', sharingRunId: 'run', activeJobs: 0 })).toEqual({
+  it('may not while the ready books are shared, whichever run is asked for', () => {
+    expect(discardRefusal({ sharingReadyBooks: true, activeJobs: 0 })).toEqual({
       code: 'pending_in_use',
-      message: 'Stop sharing these books before deleting their pending copies.',
+      message:
+        'The ready books are being shared. Stop sharing before deleting their pending copies.',
     });
   });
 
   it('may not while a conversion runs, which could be making books in it', () => {
-    expect(discardRefusal({ runId: 'run', sharingRunId: undefined, activeJobs: 1 })).toEqual({
+    expect(discardRefusal({ sharingReadyBooks: false, activeJobs: 1 })).toEqual({
       code: 'pending_in_use',
       message: 'Wait for the current conversion to finish before deleting pending books.',
     });
   });
 
-  it('says first that it is shared, when both are true', () => {
-    expect(discardRefusal({ runId: 'run', sharingRunId: 'run', activeJobs: 2 })?.message).toContain(
+  it('says first that they are shared, when both are true', () => {
+    expect(discardRefusal({ sharingReadyBooks: true, activeJobs: 2 })?.message).toContain(
       'Stop sharing',
     );
+  });
+});
+
+describe('what a share serves', () => {
+  const root = path.join(path.sep, 'data', 'Pending');
+
+  it('is every ready book when one pending conversion is asked for', () => {
+    expect(sharingTarget(path.join(root, 'run-1'), root)).toEqual({
+      path: root,
+      title: 'Mangabound ready books',
+      readyBooks: true,
+    });
+  });
+
+  it('is a folder as it is, under its own name, when it is not a pending conversion', () => {
+    const library = path.join(path.sep, 'books', 'Manga');
+
+    expect(sharingTarget(library, root)).toEqual({
+      path: library,
+      title: 'Manga',
+      readyBooks: false,
+    });
+    // A folder inside a pending conversion is not one, and the folder that holds them is a library
+    // of its own as far as this goes: only a conversion's own folder stands for all of them.
+    expect(sharingTarget(path.join(root, 'run-1', 'nested'), root).readyBooks).toBe(false);
+    expect(sharingTarget(root, root).readyBooks).toBe(false);
+  });
+
+  it('is a folder as it is when the pending folder is not known', () => {
+    const library = path.join(root, 'run-1');
+
+    expect(sharingTarget(library, undefined)).toEqual({
+      path: library,
+      title: 'run-1',
+      readyBooks: false,
+    });
   });
 });
 

@@ -1,5 +1,6 @@
 import type { FsCoverStore } from '@/adapters/covers/fs-cover-store';
 import { FsLibraryStore } from '@/adapters/library/fs-library-store';
+import { PendingCatalogStore } from '@/adapters/library/pending-catalog-store';
 import type { FsPendingRuns } from '@/adapters/library/fs-pending-runs';
 import { createMetadataProviders } from '@/adapters/metadata-providers/registry';
 import { type MangapressCliAdapter } from '@/adapters/mangapress/cli';
@@ -14,6 +15,7 @@ import { type ConversionWorkflow } from '@/application/workflows/conversion-work
 import type { InputSelection } from '@/domain/conversion';
 import { defaultPreferences, type Preferences } from '@/domain/preferences';
 
+import type { SharingTarget } from './ipc/sharing-target';
 import { PendingRunActivity } from './pending-run-activity';
 
 /**
@@ -34,12 +36,15 @@ export interface MainContext {
   readonly activeJobs: Map<string, AbortController>;
   readonly metadataProviders: Map<string, MetadataProviderPort>;
   readonly libraryStore: FsLibraryStore;
+  /** What the share serves: the library store, except that the pending folder is every ready book. */
+  readonly pendingCatalog: PendingCatalogStore;
   readonly libraryPublisher: LibraryPublisher;
   readonly opdsServer: NodeOpdsServer;
   readonly networkInterfaces: OsNetworkInterfaces;
   preferences: PreferencesWorkflow | undefined;
   activeSharing: OpdsServerHandle | undefined;
-  activeSharingLibraryId: string | undefined;
+  /** What is being shared, or about to be: set before the server is up, so a second start is refused. */
+  activeSharingTarget: SharingTarget | undefined;
   // Where a choose-file or choose-folder dialog should open next; kept in memory and mirrored to
   // disk so it survives a restart, but never told to the renderer, which never holds paths.
   lastPickerFolder: string | undefined;
@@ -55,6 +60,7 @@ export interface MainContext {
 
 export function createMainContext(): MainContext {
   const libraryStore = new FsLibraryStore();
+  const pendingCatalog = new PendingCatalogStore(libraryStore);
   return {
     selectedInputs: new Map(),
     selectedLibraries: new Map(),
@@ -68,12 +74,13 @@ export function createMainContext(): MainContext {
       createMetadataProviders().map((provider) => [provider.descriptor.id, provider] as const),
     ),
     libraryStore,
+    pendingCatalog,
     libraryPublisher: new LibraryPublisher(libraryStore),
-    opdsServer: new NodeOpdsServer(libraryStore),
+    opdsServer: new NodeOpdsServer(pendingCatalog),
     networkInterfaces: new OsNetworkInterfaces(),
     preferences: undefined,
     activeSharing: undefined,
-    activeSharingLibraryId: undefined,
+    activeSharingTarget: undefined,
     lastPickerFolder: undefined,
     preferredNetworkInterface: undefined,
     currentPreferences: defaultPreferences,

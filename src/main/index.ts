@@ -76,6 +76,8 @@ void app.whenReady().then(async () => {
     pendingRoot(process.platform, process.env, app.getPath('home')),
     context.libraryStore,
   );
+  // Sharing the ready books serves this folder, every conversion in it.
+  context.pendingCatalog.useRoot(context.pendingRuns.root);
   await context.pendingRuns.pruneCompleted().catch((error: unknown) => {
     console.error('Could not clear previously exported pending books.', error);
   });

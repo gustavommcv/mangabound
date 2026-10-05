@@ -28,6 +28,7 @@ export default defineConfig({
         'src/main/ipc/remembered-folders.ts',
         'src/main/ipc/run-job.ts',
         'src/main/ipc/selections.ts',
+        'src/main/ipc/sharing-target.ts',
         'src/main/permission-policy.ts',
         'src/main/quit-cleanup.ts',
         'src/main/renderer-files.ts',
