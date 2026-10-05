@@ -3,6 +3,7 @@ import { createReadStream } from 'node:fs';
 import { realpath, stat } from 'node:fs/promises';
 import http, { type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import os from 'node:os';
 import type { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 
@@ -15,6 +16,7 @@ import type {
 } from '@/application/ports/opds-server';
 import type { LibraryBookEntry, LibraryManifest } from '@/library/manifest';
 import { isInsideLibrary, resolveLibraryFile } from '@/library/paths';
+import { isOwnHost } from '@/opds/host';
 import {
   acquisitionFeedType,
   buildAcquisitionFeed,
@@ -52,6 +54,8 @@ export interface NodeOpdsServerOptions {
   readonly idleTimeoutMs?: number;
   /** Overrides how a book's file is opened for sending; only the tests need to. */
   readonly openBook?: (filePath: string) => Readable;
+  /** Overrides the names this computer is called by in a `Host` header; only the tests need to. */
+  readonly ownNames?: readonly string[];
 }
 
 export function formatHost(address: string): string {
@@ -65,11 +69,16 @@ function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(bufferA, bufferB);
 }
 
-function decodeRelativePath(encoded: string): string {
-  return encoded
-    .split('/')
-    .map((segment) => decodeURIComponent(segment))
-    .join('/');
+/** The path a request named, or `undefined` when its percent-encoding is not valid. */
+function decodeRelativePath(encoded: string): string | undefined {
+  try {
+    return encoded
+      .split('/')
+      .map((segment) => decodeURIComponent(segment))
+      .join('/');
+  } catch {
+    return undefined;
+  }
 }
 
 /** Both credentials left blank is an explicit choice to share with no authentication (ADR 0018). */
@@ -107,6 +116,11 @@ async function staysInsideLibrary(libraryPath: string, filePath: string): Promis
   return isInsideLibrary(root, file);
 }
 
+function respondForbidden(res: ServerResponse): void {
+  res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+  res.end('Use an address of this computer to reach the catalog.');
+}
+
 function respondNotFound(res: ServerResponse): void {
   res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
   res.end('Not found.');
@@ -115,6 +129,8 @@ function respondNotFound(res: ServerResponse): void {
 export class NodeOpdsServer implements OpdsServerPort {
   private readonly idleTimeoutMs: number;
   private readonly openBook: (filePath: string) => Readable;
+  private readonly ownNames: readonly string[];
+  private readonly refusedHosts = new Set<string>();
 
   constructor(
     private readonly libraryStore: LibraryStorePort,
@@ -122,6 +138,8 @@ export class NodeOpdsServer implements OpdsServerPort {
   ) {
     this.idleTimeoutMs = options.idleTimeoutMs ?? idleConnectionTimeoutMs;
     this.openBook = options.openBook ?? ((filePath) => createReadStream(filePath));
+    const computer = os.hostname().toLowerCase();
+    this.ownNames = options.ownNames ?? [computer, `${computer}.local`];
   }
 
   start(options: OpdsServerStartOptions): Promise<OpdsServerHandle> {
@@ -172,6 +190,13 @@ export class NodeOpdsServer implements OpdsServerPort {
     options: OpdsServerStartOptions,
     baseUrl: string,
   ): Promise<void> {
+    // Before anything else, the password included: a page that is reaching the catalog through the
+    // browser by a name of its own is not to be asked for credentials either.
+    if (!isOwnHost(req.headers.host, this.ownNames)) {
+      this.noteRefusedHost(req.headers.host);
+      respondForbidden(res);
+      return;
+    }
     const url = new URL(req.url!, 'http://localhost');
     if (!isAuthorized(req, options.auth)) {
       respondUnauthorized(res);
@@ -214,6 +239,19 @@ export class NodeOpdsServer implements OpdsServerPort {
   }
 
   /**
+   * Says once, in the app's log, which name a request was refused for, so that a person whose
+   * reader reaches the computer by a name of its own can find out why it is not let in.
+   */
+  private noteRefusedHost(header: string | undefined): void {
+    const name = String(header);
+    if (this.refusedHosts.has(name) || this.refusedHosts.size >= 20) return;
+    this.refusedHosts.add(name);
+    console.warn(
+      `A request to the catalog was refused: ${name} is not an address of this computer. Use the address Mangabound shows, or the computer's own name.`,
+    );
+  }
+
+  /**
    * A tracked entry, or one this asks a fresh scan for. The scan only ever returns bare file names
    * it just found on disk. A tracked entry comes from a file anyone can edit, so where it points is
    * checked again before it is opened (see `serveBook`).
@@ -235,6 +273,10 @@ export class NodeOpdsServer implements OpdsServerPort {
     encodedRelativePath: string,
   ): Promise<void> {
     const requestedPath = decodeRelativePath(encodedRelativePath);
+    if (requestedPath === undefined) {
+      respondNotFound(res);
+      return;
+    }
     const manifest = await this.libraryStore.read(libraryPath);
     const entry = await this.findBook(libraryPath, manifest, requestedPath);
     if (entry === undefined) {
