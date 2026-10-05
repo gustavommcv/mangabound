@@ -62,6 +62,11 @@ const knownWarnings: Readonly<Record<string, Pick<WarningNotice, 'title' | 'mess
     title: 'Chapters with no pages were left out',
     message: 'A chapter in the input holds no pages, so it is not in the book.',
   },
+  link_skipped: {
+    title: 'Links that lead outside the folder were left out',
+    message:
+      'A file in the folder is a link that does not lead to a file inside it (it leads outside the folder, to a folder, or to nothing), so it was not copied into the book: a folder that came from someone else could otherwise put a file of yours into it. If the page is meant to be there, put a copy of the file in the folder and convert again.',
+  },
 };
 
 /** For a code a later mangapress adds: its own sentence, under a heading that says whose it is. */

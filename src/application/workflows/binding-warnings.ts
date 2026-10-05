@@ -10,6 +10,7 @@ const leftOutCodes: ReadonlySet<string> = new Set([
   'chapter_conflict',
   'chapter_gap',
   'empty_chapter',
+  'link_skipped',
 ]);
 
 /**
