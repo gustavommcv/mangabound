@@ -55,3 +55,5 @@ Mangabound serves only files that are inside the shared folder. A subfolder that
 ## If your reader cannot connect
 
 Check that both devices can reach the same local network, the chosen interface is correct, sharing is still active, and your firewall allows the app on that trusted network. Guest Wi-Fi/client isolation and VPNs can block access even when both devices have internet. If the selected computer IP changes, update the catalog address in KOReader.
+
+Mangabound answers only to an address of the computer it runs on: the numbers it shows (such as `192.168.1.150`), `localhost`, or the computer's own name. A request that comes by any other name is refused, so a web page you happen to visit cannot reach your catalog through your browser. If your router gives the computer a name of its own and your reader uses it, use the address shown in the app instead; the app's log says which name was refused.
