@@ -21,7 +21,7 @@ Choose your package from [GitHub Releases](https://github.com/gustavommcv/mangab
 | Linux, Fedora/RHEL family, x64   | `.rpm`                                    |
 | Linux, Arch, x64                 | `.pkg.tar.zst`                            |
 
-Mangabound is in **alpha**. Read the release notes for installation instructions and signing notices.
+Mangabound is in **alpha**. The [installation guide](https://gustavommcv.github.io/mangabound/getting-started/installation/) has the steps, the notices about unsigned installers and how to check a download, and the [known limitations](https://gustavommcv.github.io/mangabound/getting-started/overview/#known-limitations) are listed on the overview page. The release notes only say what changed.
 
 ## Get started
 
