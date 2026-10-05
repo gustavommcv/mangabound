@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -74,6 +74,35 @@ describe('what the pinned tools print, read with the app’s own parsers', () =>
       await adapter.release(alone.workspaceId);
     } finally {
       await rm(scratch, { force: true, recursive: true });
+    }
+  }, 60_000);
+
+  it('leaves out a link that leads outside the folder it binds, and says so', async ({ skip }) => {
+    const mangabind = new MangabindCliAdapter(executable('mangabind'), runner);
+    const root = await mkdtemp(path.join(tmpdir(), 'mangabound-pinned-links-'));
+    try {
+      const chapter = path.join(root, 'Hostile', 'Vol.01 Ch.001');
+      await mkdir(chapter, { recursive: true });
+      await writeFile(path.join(chapter, '001.png'), 'its own page');
+      await writeFile(path.join(root, 'private.png'), 'not part of the manga');
+      try {
+        await symlink(path.join(root, 'private.png'), path.join(chapter, '002.png'));
+      } catch {
+        // Windows allows a link only with Developer Mode or an elevated shell.
+        skip('This system does not allow a symbolic link here.');
+      }
+
+      const { report } = await mangabind.run({
+        inputPath: path.join(root, 'Hostile'),
+        outputPath: path.join(root, 'volumes'),
+        dryRun: true,
+      });
+
+      // An earlier mangabind (0.6.0) copied the target into the volume and said nothing.
+      expect(report.manga[0]?.issues.map((issue) => issue.code)).toContain('link_skipped');
+      expect(report.manga[0]?.volumes.map((volume) => volume.page_count)).toEqual([1]);
+    } finally {
+      await rm(root, { force: true, recursive: true });
     }
   }, 60_000);
 
