@@ -24,4 +24,18 @@ Organização, conversão e salvamento acontecem no computador. As buscas de vol
 
 Ative o compartilhamento de rede pelo painel **Share**. Mantenha o aplicativo aberto enquanto o leitor baixa os livros.
 
+## Limitações conhecidas
+
+O Mangabound está em alpha.
+
+- Combinar uma série inteira em um livro só funciona em EPUB, não em CBZ nem em PDF.
+- O autor é gravado apenas em livros EPUB e PDF. Um CBZ não carrega autor.
+- Os livros pendentes são locais a esta instalação e não são um backup. Depois que uma conversão é apagada, ou limpa por ter todos os livros salvos, recuperar os livros significa processar a origem de novo.
+- Compartilhar os livros prontos compartilha todos eles, inclusive conversões antigas que nunca foram salvas nem apagadas.
+- Um link em uma pasta de mangá, ou em uma pasta compartilhada, que leve para fora dessa pasta não é seguido.
+- O aplicativo está apenas em inglês.
+- Não há atualização automática: baixe e instale cada release você mesmo.
+- Os instaladores não têm assinatura de código nem notarização, e não há atestado de build publicado.
+- Os builds para macOS são apenas para Apple Silicon. Não há AppImage, e o pacote do Arch é um download direto, não uma submissão ao AUR.
+
 Siga o [guia rápido](../quickstart/) para experimentar. Para detalhes da implementação, veja a [documentação da arquitetura](../../development/architecture/).
