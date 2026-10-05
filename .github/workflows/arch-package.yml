@@ -56,6 +56,11 @@ jobs:
             exit 1
           fi
           cp -a "$packaged" packaging/arch/payload
+      - name: Stage the default icon for the PKGBUILD
+        # The file electron-installer-debian and electron-installer-redhat fall back to when no icon
+        # is configured (the two ship identical copies), so every Linux package shows the same one
+        # until the app has an icon of its own. The desktop entry's Icon= names it.
+        run: cp node_modules/electron-installer-debian/resources/icon.png packaging/arch/mangabound.png
       - name: Set the package version from package.json
         # pacman forbids hyphens in pkgver; RELEASING.md documents the same x.y.z-alpha.N shape
         # every other maker's version transform starts from.
@@ -77,6 +82,20 @@ jobs:
       - name: Check that the package can be used by someone who is not root
         # A gate, unlike the diagnostic below: see make.yml's step of the same purpose.
         run: .github/scripts/check-package-permissions.sh packaging/arch/*.pkg.tar.zst
+      - name: Check that the package ships the icon its desktop entry names
+        # A gate: an Icon= that names nothing the package installs gives every launcher (rofi,
+        # GNOME, KDE) a blank in place of an icon, and nothing else would notice.
+        run: |
+          icon=$(sed -n 's/^Icon=//p' packaging/arch/mangabound.desktop)
+          if [[ -z "$icon" ]]; then
+            echo "::error::The desktop entry has no Icon= line."
+            exit 1
+          fi
+          listing=$(tar --zstd -tf packaging/arch/*.pkg.tar.zst)
+          if ! grep -Fxq "usr/share/pixmaps/$icon.png" <<<"$listing"; then
+            echo "::error::The desktop entry names the icon '$icon', and the package does not install usr/share/pixmaps/$icon.png."
+            exit 1
+          fi
       - name: 'Diagnostic: launch the installed package with the sandbox enabled'
         if: inputs.run-sandbox-diagnostic
         run: .github/scripts/check-pacman-sandbox.sh
