@@ -30,7 +30,7 @@ type PendingContext = Pick<
   | 'preferences'
   | 'currentPreferences'
   | 'preferredNetworkInterface'
-  | 'activeSharingLibraryId'
+  | 'activeSharingTarget'
   | 'activeJobs'
   | 'pendingRunActivity'
 >;
@@ -142,8 +142,7 @@ export function registerPendingHandlers(context: PendingContext): void {
     async (_event, id): Promise<WorkflowResult<undefined>> => {
       if (context.pendingRuns === undefined) throw new Error('Pending storage is unavailable.');
       const refusal = discardRefusal({
-        runId: id,
-        sharingRunId: context.activeSharingLibraryId,
+        sharingReadyBooks: context.activeSharingTarget?.readyBooks === true,
         activeJobs: context.activeJobs.size,
       });
       if (refusal !== undefined) return failed(refusal);

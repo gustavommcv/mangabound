@@ -22,4 +22,9 @@ export class PendingRunActivity {
   isDeleting(runId: string): boolean {
     return this.deletions.has(runId);
   }
+
+  /** Whether any pending run is being deleted: what a share of every ready book must wait for. */
+  isDeletingAny(): boolean {
+    return this.deletions.size > 0;
+  }
 }

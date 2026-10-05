@@ -34,18 +34,19 @@ export function runOfSelection(
 }
 
 /**
- * Why a pending run cannot be deleted right now, or `undefined` when it can: its books are being
- * shared, or a conversion is running, which could be making books in it.
+ * Why a pending run cannot be deleted right now, or `undefined` when it can: the ready books are
+ * being shared (every pending run is in what is served, not only the one that was asked for), or a
+ * conversion is running, which could be making books in it.
  */
 export function discardRefusal(state: {
-  readonly runId: string;
-  readonly sharingRunId: string | undefined;
+  readonly sharingReadyBooks: boolean;
   readonly activeJobs: number;
 }): WorkflowFailure | undefined {
-  if (state.sharingRunId === state.runId) {
+  if (state.sharingReadyBooks) {
     return {
       code: 'pending_in_use',
-      message: 'Stop sharing these books before deleting their pending copies.',
+      message:
+        'The ready books are being shared. Stop sharing before deleting their pending copies.',
     };
   }
   if (state.activeJobs > 0) {

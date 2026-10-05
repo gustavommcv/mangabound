@@ -301,6 +301,77 @@ describe('packaged conversion pipeline', () => {
     assert.equal(titles.has('Needs Mapping Manga'), false);
   });
 
+  it('keeps sharing every ready book, the one converted after sharing started included', async () => {
+    const directCbzPath = path.resolve('tests', 'fixtures', 'e2e', 'cbz', 'Mangabound Direct.cbz');
+    const openDialog = await browser.electron.mock('dialog', 'showOpenDialog');
+    await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [directCbzPath] });
+    await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [directCbzPath] });
+    const hrefsOf = (feed: string): string[] =>
+      [...feed.matchAll(/href="([^"]*\/books\/[^"]*)"/gu)].map((match) => match[1] ?? '');
+
+    await resetQueue();
+    await $('button=Files').click();
+    await $('span=Ready').waitForDisplayed({ timeout: 30_000 });
+    await $('button=Process 1 item').click();
+    await $('h1=1 book ready').waitForDisplayed({ timeout: 120_000 });
+
+    // The person shares the books that are ready, as the results screen offers.
+    const shared = await browser.execute(async () => {
+      const bridge = window.mangabound;
+      if (bridge === undefined) throw new Error('The app bridge is unavailable.');
+      const listed = await bridge.listPendingRuns();
+      if (!listed.ok) throw new Error(listed.error.message);
+      const run = listed.value[0];
+      if (run === undefined) throw new Error('The converted book was not registered as pending.');
+      const started = await bridge.startSharing(run.libraryId, '127.0.0.1', {
+        username: '',
+        password: '',
+      });
+      if (!started.ok) throw new Error(started.error.message);
+      return { runId: run.libraryId, url: started.value.url };
+    });
+    try {
+      if (shared.url === undefined) throw new Error('The pending catalog has no address.');
+      const before = hrefsOf(await (await fetch(`${shared.url}/recent`)).text());
+      assert.ok(before.length > 0);
+
+      // Another book is converted while sharing goes on: it is a conversion of its own.
+      await $('button=Convert more').click();
+      await $('h1=Queue').waitForDisplayed();
+      await $('button=Files').click();
+      await $('span=Ready').waitForDisplayed({ timeout: 30_000 });
+      await $('button=Process 1 item').click();
+      await $('h1=1 book ready').waitForDisplayed({ timeout: 120_000 });
+
+      const after = hrefsOf(await (await fetch(`${shared.url}/recent`)).text());
+      const added = after.filter((href) => !before.includes(href));
+      assert.equal(added.length, 1, 'The book converted after sharing started should be listed.');
+      assert.equal(after.length, before.length + 1);
+      for (const href of [...before, ...added]) {
+        const book = await fetch(href);
+        assert.equal(book.status, 200, `${href} should be served.`);
+        assert.equal(
+          Buffer.from(await book.arrayBuffer())
+            .subarray(0, 2)
+            .toString('ascii'),
+          'PK',
+        );
+      }
+
+      // Every pending conversion is in what is served, so none can be deleted meanwhile.
+      const refusal = await browser.execute(async (runId) => {
+        const result = await window.mangabound?.discardPendingRun(runId);
+        if (result === undefined) return 'the bridge is unavailable';
+        return result.ok ? 'deleted' : result.error.code;
+      }, shared.runId);
+      assert.equal(refusal, 'pending_in_use');
+    } finally {
+      await browser.execute(async () => {
+        await window.mangabound?.stopSharing();
+      });
+    }
+  });
+
   it('recovers an unsaved book after the window reloads', async () => {
     const testRoot = await mkdtemp(path.join(os.tmpdir(), 'mangabound-restart-e2e-'));
     temporaryDirectories.push(testRoot);
@@ -373,7 +444,7 @@ describe('packaged conversion pipeline', () => {
     await deletionError.waitForDisplayed();
     assert.equal(
       await deletionError.getText(),
-      'Stop sharing these books before deleting their pending copies.',
+      'The ready books are being shared. Stop sharing before deleting their pending copies.',
     );
     assert.ok((await readdir(pendingRoot)).includes(newRuns[0]!));
     await browser.execute(async () => {

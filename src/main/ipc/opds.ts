@@ -1,5 +1,3 @@
-import path from 'node:path';
-
 import type { OpdsServerHandle } from '@/application/ports/opds-server';
 import { LibraryIndexError } from '@/library/manifest';
 import {
@@ -14,14 +12,15 @@ import type { MainContext } from '../context';
 import { handle, ignoredPayloadSchema } from './handle';
 import { failed, ok, toFailure } from './result';
 import { sharingFailure } from './sharing-failure';
+import { sharingTarget } from './sharing-target';
 
 type OpdsContext = Pick<
   MainContext,
   | 'selectedLibraries'
   | 'activeSharing'
-  | 'activeSharingLibraryId'
+  | 'activeSharingTarget'
   | 'pendingRunActivity'
-  | 'libraryStore'
+  | 'pendingCatalog'
   | 'opdsServer'
   | 'networkInterfaces'
   | 'pendingRuns'
@@ -58,40 +57,42 @@ export function registerOpdsHandlers(context: OpdsContext): void {
             'That network address is not available on this device. Choose one from the list.',
         });
       }
-      if (context.pendingRunActivity.isDeleting(command.libraryId)) {
+      const target = sharingTarget(libraryPath, context.pendingRuns?.root);
+      // Every ready book is shared, so a deletion of any pending conversion is in the way.
+      const deleting = target.readyBooks
+        ? context.pendingRunActivity.isDeletingAny()
+        : context.pendingRunActivity.isDeleting(command.libraryId);
+      if (deleting) {
         return failed({
           code: 'pending_in_use',
           message: 'These pending books are being deleted and can no longer be shared.',
         });
       }
-      if (context.activeSharing !== undefined || context.activeSharingLibraryId !== undefined) {
+      if (context.activeSharing !== undefined || context.activeSharingTarget !== undefined) {
         return failed({
           code: 'sharing_already_active',
           message: 'Sharing is already running.',
         });
       }
-      context.activeSharingLibraryId = command.libraryId;
+      context.activeSharingTarget = target;
       // The listener never reads the catalog on start, so a corrupt one would otherwise only
       // surface as a broken feed on the reader. A missing catalog is fine (read() returns an
       // empty one); only unreadable content stops sharing here. Any read failure gets the same
       // message, and its cause goes to the log.
       try {
-        await context.libraryStore.read(libraryPath);
+        await context.pendingCatalog.read(target.path);
       } catch (error) {
         console.error('The library catalog could not be read to start sharing.', error);
-        context.activeSharingLibraryId = undefined;
+        context.activeSharingTarget = undefined;
         return failed({
           code: error instanceof LibraryIndexError ? error.code : 'library_unreadable',
           message: 'The output library catalog could not be read.',
         });
       }
-      const isPendingRun =
-        context.pendingRuns !== undefined &&
-        path.dirname(path.resolve(libraryPath)) === path.resolve(context.pendingRuns.root);
       try {
         context.activeSharing = await context.opdsServer.start({
-          libraryPath,
-          libraryTitle: isPendingRun ? 'Mangabound ready books' : path.basename(libraryPath),
+          libraryPath: target.path,
+          libraryTitle: target.title,
           interfaceAddress: command.interfaceAddress,
           port: opdsPort,
           auth: command.auth,
@@ -102,13 +103,13 @@ export function registerOpdsHandlers(context: OpdsContext): void {
         const failure = sharingFailure(error);
         if (failure === undefined) throw error;
         console.error('The sharing server could not be started.', error);
-        context.activeSharingLibraryId = undefined;
+        context.activeSharingTarget = undefined;
         return failed(failure);
       }
       return ok(toSharingStatus(context.activeSharing));
     },
     (error: unknown) => {
-      context.activeSharingLibraryId = undefined;
+      context.activeSharingTarget = undefined;
       return toFailure(error);
     },
   );
@@ -121,7 +122,7 @@ export function registerOpdsHandlers(context: OpdsContext): void {
       }
       await context.activeSharing.stop();
       context.activeSharing = undefined;
-      context.activeSharingLibraryId = undefined;
+      context.activeSharingTarget = undefined;
       return ok(undefined);
     },
   );
