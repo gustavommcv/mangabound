@@ -63,6 +63,30 @@ describe('withBindingWarnings', () => {
     expect(result[1]?.warnings).toHaveLength(1);
   });
 
+  it('gives a link that was not followed to the book of the volume it was in', () => {
+    const result = withBindingWarnings(
+      volumes,
+      [1, 2, 3],
+      [
+        issue('link_skipped', {
+          stage: 'inspect',
+          volume: '3',
+          chapter: '12',
+          message: 'found a link "002.png" that leads outside the input folder, skipped',
+        }),
+      ],
+    );
+
+    expect(result[0]).toBe(volumes[0]);
+    expect(result[1]).toBe(volumes[1]);
+    expect(result[2]?.warnings).toEqual([
+      {
+        code: 'link_skipped',
+        message: 'found a link "002.png" that leads outside the input folder, skipped',
+      },
+    ]);
+  });
+
   it('gives a note that names no volume to every book', () => {
     const result = withBindingWarnings(volumes, [1, 2, 3], [issue('empty_chapter')]);
 
