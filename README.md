@@ -47,7 +47,7 @@ Requirements:
 - npm 11+
 - `tar` (and `unzip` on Linux and macOS) for verified release extraction. On Windows run the npm scripts from PowerShell: the `tar` that ships with Git Bash breaks the toolchain step.
 
-`main` is the latest state and can be ahead of what a release shipped. To build what a given release contains, check out its tag first (`git checkout v0.1.0-alpha.10`).
+`main` is the latest state and can be ahead of what a release shipped. To build what a given release contains, check out its tag first (`git checkout v0.1.0-alpha.11`).
 
 Install and run the development shell:
 
