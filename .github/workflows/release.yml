@@ -129,9 +129,15 @@ jobs:
         # among everything else here.
         run: |
           mkdir -p release-assets
+          # GitHub renames a file on upload when its name has a character it does not keep: a space
+          # and a tilde (the Squirrel installer has the first, the .deb the second) become a dot.
+          # The files are given those names here, so that the name that is uploaded, the name in
+          # SHA256SUMS and the name in the release notes are one and the same.
           find artifacts -type f \( \
             -name '*.exe' -o -name '*.zip' -o -name '*.deb' -o -name '*.rpm' -o -name '*.pkg.tar.zst' \
-          \) -exec cp {} release-assets/ \;
+          \) -print0 | while IFS= read -r -d '' file; do
+            cp "$file" "release-assets/$(basename "$file" | tr ' ~' '..')"
+          done
           echo "Assets to publish:"
           ls -la release-assets
       - name: List the checksum of every file, so that a download can be checked
@@ -175,3 +181,19 @@ jobs:
             --title "${GITHUB_REF_NAME}" \
             --notes-file "docs/releases/${GITHUB_REF_NAME}.md" \
             release-assets/*
+      - name: Check that every file listed in SHA256SUMS was published under that name
+        # What a person runs is `sha256sum -c SHA256SUMS` in the folder they downloaded to, which
+        # only works if the names in it are the names of the files on the release page. A name that
+        # GitHub changed on upload fails here, after the release exists, so that it is seen and not
+        # found by whoever tries the checksums.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          published="$(gh release view "${GITHUB_REF_NAME}" --json assets --jq '.assets[].name' | sort)"
+          listed="$( (cut -c67- release-assets/SHA256SUMS; echo SHA256SUMS) | sort)"
+          if [[ "$published" != "$listed" ]]; then
+            echo "::error::The names in SHA256SUMS are not the names of the published files."
+            diff <(echo "$published") <(echo "$listed") || true
+            exit 1
+          fi
+          echo "SHA256SUMS names every published file as it is published."
