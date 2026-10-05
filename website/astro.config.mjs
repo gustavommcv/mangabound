@@ -24,7 +24,7 @@ export default defineConfig({
     starlight({
       title: 'Mangabound',
       description:
-        'Mangabound is a free, open-source desktop app that groups manga chapters into volumes and converts them to EPUB, CBZ or PDF for Kindle, Kobo and KOReader.',
+        'Mangabound organizes manga chapters into volumes, converts them into EPUB, CBZ or PDF for your e-reader, and shares books with KOReader over your local network.',
       routeMiddleware: './src/routeData.ts',
       social: [
         { icon: 'github', label: 'GitHub', href: 'https://github.com/gustavommcv/mangabound' },

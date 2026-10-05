@@ -3,6 +3,7 @@ const application = {
   name: 'Mangabound',
   applicationCategory: 'UtilitiesApplication',
   operatingSystem: 'Windows, macOS, Linux',
+  inLanguage: 'en',
   downloadUrl: 'https://github.com/gustavommcv/mangabound/releases',
   license: 'https://opensource.org/license/mit',
   isAccessibleForFree: true,
@@ -31,7 +32,7 @@ export function structuredData({ url, home, title, description, lang }) {
     '@context': 'https://schema.org',
     '@graph': [
       { '@type': 'WebSite', name: 'Mangabound', url: home, inLanguage: lang, description },
-      { ...application, url: home, inLanguage: lang, description },
+      { ...application, url: home, description },
     ],
   };
 }
