@@ -83,6 +83,20 @@ describe('loading the settings file', () => {
     expect(loaded).toEqual({ settings: kept, unreadable: false });
   });
 
+  it('gives what it could use, and names the options it could not, when one saved value is out of range', async () => {
+    const { deps } = memoryDeps(
+      JSON.stringify({
+        version: settingsFileVersion,
+        ...kept,
+        settings: { ...kept.settings, gamma: 18 },
+      }),
+    );
+
+    const loaded = await new FsSettingsStore(settingsFile, deps).load();
+
+    expect(loaded).toEqual({ settings: kept, unreadable: false, reset: ['gamma'] });
+  });
+
   it.each([
     ['is not JSON', 'not json'],
     ['is from a version this build does not know', JSON.stringify({ ...kept, version: 99 })],

@@ -8,6 +8,7 @@ import { type MangaboundBridge } from '@/shared/runtime-info';
 import {
   addFolder,
   expectNoOutputFolderPicker,
+  deferred,
   folder,
   inspection,
   installBridge,
@@ -377,6 +378,72 @@ describe('libraries in the queue', () => {
     expect(screen.queryByRole('button', { name: 'Fix Manga Library' })).not.toBeInTheDocument();
   });
 
+  describe('when the person leaves while the library is read again after a title was fixed', () => {
+    /** Confirms the volumes of Broken Manga with the second reading of the library held back. */
+    async function confirmWithTheRereadHeldBack() {
+      const user = userEvent.setup();
+      const reread = deferred<Awaited<ReturnType<MangaboundBridge['planLibrary']>>>();
+      const planLibrary = vi.fn<MangaboundBridge['planLibrary']>(() => reread.promise);
+      installBridge(libraryBridge([goodTitle, looseTitle], { planLibrary }));
+      render(<App />);
+      await addFolder(user);
+      await user.click(screen.getByRole('button', { name: 'Edit titles of Manga Library' }));
+      await user.click(
+        await screen.findByRole('button', { name: 'Edit volumes for Broken Manga' }),
+      );
+      await user.click(await screen.findByRole('button', { name: 'Select all' }));
+      await user.click(screen.getByRole('button', { name: 'Add volume' }));
+      await user.click(screen.getByRole('button', { name: 'Assign selected' }));
+      await user.click(screen.getByRole('button', { name: 'Confirm mapping' }));
+      await waitFor(() => {
+        expect(planLibrary).toHaveBeenCalled();
+      });
+      return {
+        user,
+        finish: () => {
+          reread.resolve({ ok: true, value: { titles: [goodTitle, groupedTitle], issues: [] } });
+        },
+      };
+    }
+
+    it('stays on the queue when they went back to it, instead of being pulled back to the library', async () => {
+      const { user, finish } = await confirmWithTheRereadHeldBack();
+      await user.click(screen.getByRole('button', { name: 'Manga Library' }));
+      await user.click(screen.getByRole('button', { name: 'Queue' }));
+      expect(screen.getByRole('heading', { name: 'Queue' })).toBeVisible();
+
+      finish();
+
+      await waitFor(() => {
+        expect(screen.getByText('2 titles')).toBeVisible();
+      });
+      expect(screen.getByRole('heading', { name: 'Queue' })).toBeVisible();
+    });
+
+    it('is not left with an empty window when they also cleared the queue', async () => {
+      const { user, finish } = await confirmWithTheRereadHeldBack();
+      await user.click(screen.getByRole('button', { name: 'Manga Library' }));
+      await user.click(screen.getByRole('button', { name: 'Queue' }));
+      await user.click(screen.getByRole('button', { name: 'Clear' }));
+      expect(screen.queryByText('Manga Library')).not.toBeInTheDocument();
+
+      finish();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+
+      // The answer was for a library that is gone: nothing brings the person anywhere.
+      expect(screen.getByRole('heading', { name: 'Queue' })).toBeVisible();
+    });
+
+    it('still goes to the library when they waited where they were', async () => {
+      const { finish } = await confirmWithTheRereadHeldBack();
+
+      finish();
+
+      expect(await screen.findByRole('list', { name: 'Titles' })).toBeVisible();
+      expect(screen.getByRole('heading', { name: 'Manga Library' })).toBeVisible();
+    });
+  });
+
   it('shows what a library would make by reading it again, without writing anything', async () => {
     const user = userEvent.setup();
     const planLibrary = vi.fn<MangaboundBridge['planLibrary']>(() =>
@@ -495,6 +562,36 @@ describe('libraries in the queue', () => {
       'mangabind could not read this library.',
     );
     expect(screen.getByRole('button', { name: 'Confirm mapping' })).toBeVisible();
+  });
+
+  it('says which folders of a title were left out, on the row and in the editor of that title', async () => {
+    const user = userEvent.setup();
+    const withOmake = { ...groupedTitle, unrecognized: ['Omake', 'Ch.004 [GroupA]'] };
+    installBridge(libraryBridge([goodTitle, withOmake]));
+    render(<App />);
+    await addFolder(user);
+
+    const list = screen.getByRole('list', { name: 'Queued items' });
+    expect(
+      within(list).getByText(
+        '2 folders have a name mangabind cannot read as a chapter, so they are left out of the books: Broken Manga (Omake, Ch.004 [GroupA]). Rename them to include a chapter number (Ch.005, for one), then add the library again.',
+      ),
+    ).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Edit titles of Manga Library' }));
+    await user.click(await screen.findByRole('button', { name: 'Edit volumes for Broken Manga' }));
+    expect(await screen.findByText('Folders left out')).toBeVisible();
+    expect(
+      screen.getByText(
+        '2 folders have a name mangabind cannot read as a chapter, so they are left out of the books: Omake, Ch.004 [GroupA]. Rename them to include a chapter number (Ch.005, for one), then add the library again.',
+      ),
+    ).toBeVisible();
+
+    // The title that has none says nothing of it.
+    await user.click(await screen.findByRole('button', { name: /Manga Library/u }));
+    await user.click(await screen.findByRole('button', { name: 'Edit volumes for Good Manga' }));
+    await screen.findByRole('button', { name: 'Confirm mapping' });
+    expect(screen.queryByText('Folders left out')).not.toBeInTheDocument();
   });
 
   it('goes back to the queue, and from the title editor to the library', async () => {

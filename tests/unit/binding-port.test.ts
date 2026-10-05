@@ -273,8 +273,8 @@ describe('mangabind binding port', () => {
       controller.signal,
     );
     expect(planned.volumes).toEqual([
-      { name: 'planned-v1.cbz', pageCount: 2 },
-      { name: 'planned-v2.cbz', pageCount: 1 },
+      { name: 'planned-v1.cbz', pageCount: 2, number: 1 },
+      { name: 'planned-v2.cbz', pageCount: 1, number: 2 },
     ]);
     expect(files.writeTextAtomically).not.toHaveBeenCalled();
     const onProgress = vi.fn();
@@ -494,6 +494,20 @@ describe('mangabind binding port', () => {
     expect(files.removeDirectory).toHaveBeenCalledOnce();
   });
 
+  it('is no success when the report says it failed, even though the tool exited cleanly', async () => {
+    const files = fakeFiles(path.join(os.tmpdir(), 'mangabound-failed-report'));
+    const report = structuredClone(fixture);
+    report.status = 'failed';
+    const adapter = new MangabindBindingAdapter(
+      { run: () => Promise.resolve(result({ report, exitCode: 0 })) },
+      files,
+      os.tmpdir(),
+      () => 'failed-report',
+    );
+
+    await expect(adapter.inspect('/input')).rejects.toMatchObject({ exitCode: 0 });
+  });
+
   it('uses an actionable fallback when a failed report has no structured error', async () => {
     const root = path.join(os.tmpdir(), 'mangabound-generic');
     const files = fakeFiles(root);
@@ -542,7 +556,7 @@ describe('mangabind binding port', () => {
     await expect(adapter.bind('save-failure', completeMapping())).rejects.toMatchObject({
       code: 'mapping_save_failed',
       message:
-        "Couldn't save mangabind.json in the source folder. Check that the folder is writable and try again.",
+        "Couldn't save mangabind.json in the source folder. Check that the folder is writable and that its mangabind.json is valid JSON.",
     });
   });
 
@@ -812,6 +826,143 @@ describe('mangabind binding port', () => {
     expect(bound.titles[0]!.volumes).toEqual([]);
   });
 
+  describe('binding only some titles of a library', () => {
+    /** The report of one title run on its own, as a run of that folder alone reports it. */
+    function titleReport(volumesPath: string, name: string): MangabindRunResult['report'] {
+      const report = batchReport(volumesPath);
+      report.mode = 'execute';
+      report.batch = false;
+      const manga = report.manga[0]!;
+      manga.name = name;
+      manga.volumes = manga.volumes.map((volume) => ({
+        ...volume,
+        output_path: path.join(volumesPath, `${name} - Vol.0${String(volume.number)}.cbz`),
+      }));
+      report.manga = [manga];
+      report.status = 'completed';
+      return report;
+    }
+
+    it('runs mangabind once on each folder, not as a batch, into the one workspace', async () => {
+      const root = path.join(os.tmpdir(), 'mangabound-titles');
+      const files = fakeFiles(root);
+      const volumesPath = path.join(root, 'volumes');
+      const cli = {
+        run: vi.fn<MangabindCliAdapter['run']>((request, options) => {
+          const name = path.basename(request.inputPath);
+          options?.onProgress?.({
+            protocol_version: 1,
+            tool: 'mangabind',
+            tool_version: 'test',
+            kind: 'progress',
+            stage: 'inspect',
+            state: 'started',
+            manga: name,
+          });
+          const report = titleReport(volumesPath, name);
+          report.issues = [
+            {
+              tool: 'mangabind',
+              severity: 'warning',
+              code: 'library_note',
+              stage: 'inspect',
+              recoverable: true,
+              message: `About ${name}.`,
+            },
+          ];
+          return Promise.resolve(result({ report }));
+        }),
+      };
+      const adapter = new MangabindBindingAdapter(cli, files, os.tmpdir(), () => 'titles');
+      const controller = new AbortController();
+      const onProgress = vi.fn();
+
+      const bound = await adapter.bindTitles(
+        '/library',
+        [path.join('/library', 'Alpha'), path.join('/library', 'Beta')],
+        controller.signal,
+        false,
+        onProgress,
+      );
+
+      expect(cli.run).toHaveBeenCalledTimes(2);
+      expect(cli.run).toHaveBeenNthCalledWith(
+        1,
+        {
+          inputPath: path.join('/library', 'Alpha'),
+          outputPath: volumesPath,
+          dryRun: false,
+          combine: false,
+        },
+        expect.objectContaining({ signal: controller.signal }),
+      );
+      expect(cli.run.mock.calls[1]?.[0]).toMatchObject({
+        inputPath: path.join('/library', 'Beta'),
+        outputPath: volumesPath,
+      });
+      expect(cli.run.mock.calls.map(([request]) => request.batch)).toEqual([undefined, undefined]);
+      expect(onProgress.mock.calls.map(([event]) => (event as { manga: string }).manga)).toEqual([
+        'Alpha',
+        'Beta',
+      ]);
+      expect(bound.workspaceId).toBe('titles');
+      expect(bound.titles.map((title) => title.title)).toEqual(['Alpha', 'Beta']);
+      expect(
+        bound.titles[1]!.volumes.map((volume) => [volume.number, path.basename(volume.path)]),
+      ).toEqual([
+        [1, 'Beta - Vol.01.cbz'],
+        [2, 'Beta - Vol.02.cbz'],
+      ]);
+      expect(bound.issues.map((issue) => issue.message)).toEqual(['About Alpha.', 'About Beta.']);
+      // The caller releases the workspace once the books are made.
+      expect(files.removeDirectory).not.toHaveBeenCalled();
+      await adapter.release(bound.workspaceId);
+      expect(files.removeDirectory).toHaveBeenCalledWith(path.resolve(root));
+    });
+
+    it('asks for the series as one book, and runs nothing for no folder', async () => {
+      const root = path.join(os.tmpdir(), 'mangabound-titles-combine');
+      const volumesPath = path.join(root, 'volumes');
+      const report = titleReport(volumesPath, 'Alpha');
+      report.manga[0]!.combined_output_path = path.join(volumesPath, 'Alpha.cbz');
+      const cli = {
+        run: vi.fn<MangabindCliAdapter['run']>(() => Promise.resolve(result({ report }))),
+      };
+      const adapter = new MangabindBindingAdapter(
+        cli,
+        fakeFiles(root),
+        os.tmpdir(),
+        () => 'titles-combine',
+      );
+
+      const combined = await adapter.bindTitles('/library', ['/library/Alpha'], undefined, true);
+      const none = await adapter.bindTitles('/library', []);
+
+      expect(cli.run).toHaveBeenCalledExactlyOnceWith(
+        { inputPath: '/library/Alpha', outputPath: volumesPath, dryRun: false, combine: true },
+        {},
+      );
+      expect(combined.titles[0]!.combinedOutputPath).toBe(path.join(volumesPath, 'Alpha.cbz'));
+      expect(none).toMatchObject({ titles: [], issues: [] });
+    });
+
+    it('releases the workspace when one of the runs fails, and runs no further', async () => {
+      const root = path.join(os.tmpdir(), 'mangabound-titles-crash');
+      const files = fakeFiles(root);
+      const cli = {
+        run: vi.fn<MangabindCliAdapter['run']>(() => Promise.reject(new Error('spawn failed'))),
+      };
+      const adapter = new MangabindBindingAdapter(cli, files, os.tmpdir(), () => 'titles-crash');
+
+      await expect(
+        adapter.bindTitles('/library', ['/library/Alpha', '/library/Beta']),
+      ).rejects.toThrow('spawn failed');
+
+      expect(cli.run).toHaveBeenCalledTimes(1);
+      expect(files.removeDirectory).toHaveBeenCalledWith(path.resolve(root));
+    });
+  });
+
   it('releases the batch workspace when the process itself fails', async () => {
     const root = path.join(os.tmpdir(), 'mangabound-batch-crash');
     const files = fakeFiles(root);
@@ -874,7 +1025,7 @@ describe('mangabind binding port', () => {
     ).rejects.toMatchObject({
       code: 'mapping_save_failed',
       message:
-        "Couldn't save mangabind.json in the source folder. Check that the folder is writable and try again.",
+        "Couldn't save mangabind.json in the source folder. Check that the folder is writable and that its mangabind.json is valid JSON.",
     });
   });
 });

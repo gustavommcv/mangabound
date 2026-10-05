@@ -11,6 +11,8 @@ import {
   dependencies,
   folder,
   cbz,
+  library,
+  openLibrary,
 } from './support/conversion-workflow';
 
 describe('conversion workflow', () => {
@@ -599,9 +601,10 @@ describe('conversion workflow', () => {
       tool: 'mangabind',
       title: 'Trusted Manga',
       message: 'mangabind validated 2 volumes · no library files written',
+      // Named as the books the run makes, in the format chosen, not as the CBZ files mangabind joins.
       books: [
-        { name: 'Trusted Manga - Vol.01.cbz', pageCount: 2 },
-        { name: 'Trusted Manga - Vol.02.cbz', pageCount: 3 },
+        { name: 'Trusted Manga - Vol.01.epub', pageCount: 2 },
+        { name: 'Trusted Manga - Vol.02.epub', pageCount: 3 },
       ],
       issues: [],
     });
@@ -841,5 +844,168 @@ describe('conversion workflow', () => {
     await workflow.releaseAll();
 
     expect(ports.release).toHaveBeenCalledExactlyOnceWith('workspace-1');
+  });
+});
+
+describe('the books a validated plan says it will make', () => {
+  const settings = defaultMangapressSettings;
+
+  async function plannedBooks(
+    overrides: Partial<Parameters<ConversionWorkflow['plan']>[0]> & {
+      details?: { title?: string };
+    },
+    volumes: readonly { name: string; pageCount: number; number?: number }[] = [
+      { name: 'Trusted Manga - Vol.01.cbz', pageCount: 2, number: 1 },
+      { name: 'Trusted Manga - Vol.02.cbz', pageCount: 3, number: 2 },
+    ],
+  ) {
+    const ports = dependencies();
+    ports.bindingPlan.mockResolvedValue({ title: 'Trusted Manga', volumes, issues: [] });
+    let id = 0;
+    const workflow = new ConversionWorkflow(
+      ports.binding,
+      ports.conversion,
+      () => String(++id),
+      ports.bookFiles,
+    );
+    const { sessionId } = await workflow.inspect(folder);
+    const plan = await workflow.plan({
+      sessionId,
+      libraryPath: '/library',
+      settings,
+      format: 'epub',
+      mapping: mappedDraft(),
+      ...overrides,
+    });
+    return plan.books.map((book) => book.name);
+  }
+
+  it('names the title that was typed, the number of the volume and the format chosen', async () => {
+    expect(await plannedBooks({ details: { title: 'My Title' } })).toEqual([
+      'My Title - Vol.01.epub',
+      'My Title - Vol.02.epub',
+    ]);
+  });
+
+  it('keeps the name the tool gave a volume when no title was typed, in the format chosen', async () => {
+    expect(await plannedBooks({ format: 'cbz' })).toEqual([
+      'Trusted Manga - Vol.01.cbz',
+      'Trusted Manga - Vol.02.cbz',
+    ]);
+    expect(await plannedBooks({ format: 'pdf' })).toEqual([
+      'Trusted Manga - Vol.01.pdf',
+      'Trusted Manga - Vol.02.pdf',
+    ]);
+  });
+
+  it('counts a title of blanks as none', async () => {
+    expect(await plannedBooks({ details: { title: '   ' } })).toEqual([
+      'Trusted Manga - Vol.01.epub',
+      'Trusted Manga - Vol.02.epub',
+    ]);
+  });
+
+  it('numbers a volume that is not a whole number the way the files are named', async () => {
+    expect(
+      await plannedBooks({ details: { title: 'Series' } }, [
+        { name: 'x.cbz', pageCount: 1, number: 1.5 },
+      ]),
+    ).toEqual(['Series - Vol.1.5.epub']);
+  });
+
+  it('uses the name of the file when the tool did not say the number of a volume', async () => {
+    expect(
+      await plannedBooks({ details: { title: 'Series' } }, [
+        { name: 'Odd name.CBZ', pageCount: 1 },
+      ]),
+    ).toEqual(['Odd name.epub']);
+  });
+
+  it('says the CBZ files that will be saved when the run stops after joining, whatever the format', async () => {
+    expect(await plannedBooks({ mode: 'bind-only', details: { title: 'My Title' } })).toEqual([
+      'Trusted Manga - Vol.01.cbz',
+      'Trusted Manga - Vol.02.cbz',
+    ]);
+  });
+});
+
+describe('the folders of a manga that mangabind could not read as chapters', () => {
+  const unparsed = (folderName: string) => ({
+    tool: 'mangabind' as const,
+    severity: 'warning' as const,
+    code: 'unparsed_chapter',
+    stage: 'parse',
+    recoverable: true,
+    message: `Couldn't parse chapter name "${folderName}"; it was skipped.`,
+    path: `/input/Trusted Manga/${folderName}`,
+  });
+
+  async function inspected(issues: readonly ReturnType<typeof unparsed>[]) {
+    const ports = dependencies();
+    ports.inspect.mockResolvedValue({ workspaceId: 'workspace-1', draft: trustedDraft, issues });
+    let id = 0;
+    const workflow = new ConversionWorkflow(
+      ports.binding,
+      ports.conversion,
+      () => String(++id),
+      ports.bookFiles,
+    );
+    return workflow.inspect(folder);
+  }
+
+  it('are told by name with what was read, so that nothing hides them', async () => {
+    const result = await inspected([unparsed('Omake'), unparsed('Ch.004 [GroupA]')]);
+
+    expect(result.unrecognized).toEqual(['Omake', 'Ch.004 [GroupA]']);
+    expect(result.issues).toHaveLength(2);
+  });
+
+  it('are not mentioned when there are none', async () => {
+    expect(await inspected([])).not.toHaveProperty('unrecognized');
+  });
+
+  describe('of the titles of a library', () => {
+    /** A library of two titles, the second with folders mangabind could not read. */
+    async function openWith(issues: readonly ReturnType<typeof unparsed>[]) {
+      const ports = dependencies();
+      const titleOf = (title: string, titleIssues: readonly ReturnType<typeof unparsed>[]) => ({
+        title,
+        inputPath: `/library/${title}`,
+        status: 'completed' as const,
+        draft: trustedDraft,
+        volumes: [{ name: `${title} - Vol.01.cbz`, pageCount: 2 }],
+        issues: titleIssues,
+      });
+      ports.planBatch.mockResolvedValue({
+        titles: [titleOf('Good', []), titleOf('Beta', issues)],
+        issues: [],
+      });
+      const { workflow, sessionId } = await openLibrary(ports);
+      return { workflow, sessionId, inspected: await workflow.inspect(library) };
+    }
+
+    it('are told by name under the title they are in, and for no other', async () => {
+      const { inspected } = await openWith([unparsed('Omake'), unparsed('Extra')]);
+
+      expect(inspected.titles?.map((title) => title.unrecognized)).toEqual([
+        undefined,
+        ['Omake', 'Extra'],
+      ]);
+      expect(inspected.titles?.[0]).not.toHaveProperty('unrecognized');
+    });
+
+    it('are told again when the library is read again', async () => {
+      const { workflow, sessionId } = await openWith([unparsed('Omake')]);
+
+      const planned = await workflow.planLibrary(sessionId);
+
+      expect(planned.titles.map((title) => title.unrecognized)).toEqual([undefined, ['Omake']]);
+    });
+
+    it('are not mentioned when there are none', async () => {
+      const { inspected } = await openWith([]);
+
+      expect(inspected.titles?.some((title) => 'unrecognized' in title)).toBe(false);
+    });
   });
 });

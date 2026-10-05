@@ -46,10 +46,40 @@ const knownWarnings: Readonly<Record<string, Pick<WarningNotice, 'title' | 'mess
     title: 'Saved under another name',
     message: 'The book would have replaced its own source, so it was given another name.',
   },
+  // From mangabind, which joins the chapters, not from mangapress: the notes it gives when it
+  // had to leave something out of a book.
+  chapter_conflict: {
+    title: 'Chapters with more than one copy were left out',
+    message:
+      'A chapter that is in the folder more than once cannot be told from its copy, so none of its copies is in the book. Remove all but one copy from the folder and convert again.',
+  },
+  chapter_gap: {
+    title: 'Chapters are missing inside a volume',
+    message:
+      'Some chapter numbers are missing between the first and the last chapter of a volume. If they are not in the folder, the book goes without them.',
+  },
+  empty_chapter: {
+    title: 'Chapters with no pages were left out',
+    message: 'A chapter in the input holds no pages, so it is not in the book.',
+  },
+  link_skipped: {
+    title: 'Links that lead outside the folder were left out',
+    message:
+      'A file in the folder is a link that does not lead to a file inside it (it leads outside the folder, to a folder, or to nothing), so it was not copied into the book: a folder that came from someone else could otherwise put a file of yours into it. If the page is meant to be there, put a copy of the file in the folder and convert again.',
+  },
 };
 
 /** For a code a later mangapress adds: its own sentence, under a heading that says whose it is. */
 const unknownWarningTitle = 'A note from mangapress';
+
+/**
+ * What the app says for a code, or `undefined` for one it does not know. A code is known only if
+ * the table has it as its own entry: `constructor` and `toString` are not codes, and must not find
+ * the methods every object has.
+ */
+function knownWarning(code: string): Pick<WarningNotice, 'title' | 'message'> | undefined {
+  return Object.hasOwn(knownWarnings, code) ? knownWarnings[code] : undefined;
+}
 
 /**
  * The warnings of a run, one notice per kind in the order they first came, each saying which
@@ -65,15 +95,17 @@ export function warningNotices(books: readonly BookWithWarnings[]): readonly War
   >();
   for (const book of books) {
     for (const warning of book.warnings ?? []) {
-      const known = warning.code in knownWarnings;
-      const key = known ? warning.code : `${warning.code}\n${warning.message}`;
+      const key =
+        knownWarning(warning.code) === undefined
+          ? `${warning.code}\n${warning.message}`
+          : warning.code;
       const group = groups.get(key) ?? { code: warning.code, message: warning.message, names: [] };
       if (!group.names.includes(book.name)) group.names.push(book.name);
       groups.set(key, group);
     }
   }
   return [...groups.values()].map(({ code, message, names }) => {
-    const text = knownWarnings[code] ?? { title: unknownWarningTitle, message };
+    const text = knownWarning(code) ?? { title: unknownWarningTitle, message };
     const where = whichBooks(names, books.length);
     return { code, ...text, ...(where === undefined ? {} : { where }) };
   });

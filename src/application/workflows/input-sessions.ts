@@ -12,6 +12,7 @@ import {
   type LibraryPlan,
 } from '@/domain/conversion';
 import { createMappingDraft, type MappingDraft, validateMapping } from '@/domain/mapping';
+import { unrecognizedChapterNames } from '@/domain/unrecognized-chapters';
 
 /** The manga folders of a library as last planned. Their paths never leave the workflow. */
 interface LibraryState {
@@ -67,12 +68,14 @@ export class InputSessions {
       workspaceId: inspection.workspaceId,
     });
     const details = await this.binding.readDetails(selection.inputPath);
+    const unrecognized = unrecognizedChapterNames(inspection.issues);
     return {
       sessionId,
       displayName: selection.displayName,
       kind: 'folder',
       mapping: inspection.draft,
       ...(hasBookDetails(details) ? { details } : {}),
+      ...(unrecognized.length === 0 ? {} : { unrecognized }),
       issues: inspection.issues,
     };
   }
@@ -169,6 +172,33 @@ export class InputSessions {
     await this.binding.writeDetails(session.selection.inputPath, details);
   }
 
+  /**
+   * Where an item is on disk: the folder or CBZ of a session, or the folder of one title of a
+   * library. It is what the app's own records about the item are kept under.
+   */
+  itemPath(sessionId: string, title?: string): string {
+    const session = this.requireSession(sessionId);
+    if (title !== undefined) {
+      const known = this.librarySession(sessionId).library.titles.find(
+        (candidate) => candidate.title === title,
+      );
+      if (known === undefined) {
+        throw new ConversionWorkflowError(
+          'title_not_found',
+          'That title is no longer in the library. Choose the library again.',
+        );
+      }
+      return known.inputPath;
+    }
+    if (session.library !== undefined) {
+      throw new ConversionWorkflowError(
+        'unsupported_mode',
+        'A library is made of titles; choose one of them.',
+      );
+    }
+    return session.selection.inputPath;
+  }
+
   requireSession(sessionId: string): ActiveSession {
     const session = this.sessions.get(sessionId);
     if (session === undefined) {
@@ -204,11 +234,13 @@ export class InputSessions {
 
 /** What the renderer is told about a title: everything but where it lives. */
 function summarizeTitle(title: BindingBatchTitle): InspectedTitle {
+  const unrecognized = unrecognizedChapterNames(title.issues);
   return {
     title: title.title,
     draft: title.draft,
     volumes: title.volumes,
     issues: title.issues,
+    ...(unrecognized.length === 0 ? {} : { unrecognized }),
   };
 }
 

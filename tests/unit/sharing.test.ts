@@ -17,6 +17,15 @@ describe('resolveNetworkInterface', () => {
     expect(resolveNetworkInterface(interfaces, interfaces[1])).toEqual(interfaces[1]);
   });
 
+  it('keeps the exact address of an adapter that has two', () => {
+    const twoAddresses = [
+      { name: 'Ethernet', address: '192.168.18.39' },
+      { name: 'Ethernet', address: '192.168.18.40' },
+    ];
+
+    expect(resolveNetworkInterface(twoAddresses, twoAddresses[1])).toEqual(twoAddresses[1]);
+  });
+
   it('keeps the adapter when DHCP changes its address', () => {
     expect(
       resolveNetworkInterface(interfaces, { name: 'Ethernet', address: '192.168.18.12' }),

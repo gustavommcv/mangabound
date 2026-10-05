@@ -1,12 +1,16 @@
-import type { BindingPort } from '@/application/ports/conversion-tools';
-import type { BookProduction } from '@/application/workflows/book-production';
+import type { BindingPort, BindingProgress } from '@/application/ports/conversion-tools';
+import { ProcessCancelledError } from '@/application/ports/process-runner';
+import type { CoverLookup } from '@/application/workflows/book-covers';
+import { type BookProduction, withCovers } from '@/application/workflows/book-production';
 import type { InputSessions } from '@/application/workflows/input-sessions';
 import { presentBindingProgress } from '@/application/workflows/binding-progress';
+import { withBindingWarnings } from '@/application/workflows/binding-warnings';
 import {
   assertSingleBook,
   emptyBindingError,
   validateRunOptions,
 } from '@/application/workflows/run-preconditions';
+import type { CoverSlot } from '@/domain/book-covers';
 import { type BookDetails, detailsForBook, noBookDetails } from '@/domain/book-details';
 import type {
   BatchTitleOutcome,
@@ -17,12 +21,13 @@ import type {
 import type { MangapressSettings } from '@/domain/output-profile';
 import { type BatchProcessMode, usesMangapress } from '@/domain/process-mode';
 
-/** Bind once, convert titles sequentially, retain partial outcomes and release the batch scratch. */
+/** Bind what is asked for, convert titles sequentially, retain partial outcomes and release the scratch. */
 export class LibraryRun {
   constructor(
     private readonly binding: BindingPort,
     private readonly sessions: InputSessions,
     private readonly books: BookProduction,
+    private readonly covers: CoverLookup,
   ) {}
 
   /** Joins a library with one mangabind call, then makes a book of each volume of each title. */
@@ -51,19 +56,35 @@ export class LibraryRun {
     const mode = validateRunOptions(request, 'converting');
     const singleBook = Boolean(request.singleBook);
     if (singleBook) assertSingleBook(mode, request.format);
-    const { session } = this.sessions.librarySession(request.sessionId);
+    const { session, library } = this.sessions.librarySession(request.sessionId);
     onProgress({
       stage: 'binding',
       message: 'Building volume files for the library…',
     });
-    const bound = await this.binding.bindBatch(
-      session.selection.inputPath,
-      signal,
-      singleBook,
-      (progress) => {
-        onProgress(presentBindingProgress(progress));
-      },
-    );
+    const showProgress = (progress: BindingProgress): void => {
+      onProgress(presentBindingProgress(progress));
+    };
+    // Only what is asked for is bound: a library of fifty titles of which one is left to convert
+    // (after a failure, say) would otherwise be bound whole, and its books thrown away.
+    const asked =
+      request.titles === undefined
+        ? library.titles
+        : library.titles.filter((title) => request.titles?.includes(title.title) === true);
+    const bound =
+      asked.length === library.titles.length
+        ? await this.binding.bindBatch(
+            session.selection.inputPath,
+            signal,
+            singleBook,
+            showProgress,
+          )
+        : await this.binding.bindTitles(
+            session.selection.inputPath,
+            asked.map((title) => title.inputPath),
+            signal,
+            singleBook,
+            showProgress,
+          );
     const titles =
       request.titles === undefined
         ? bound.titles
@@ -74,10 +95,27 @@ export class LibraryRun {
         ? (request.titleDetails?.find((entry) => entry.title === title)?.details ?? noBookDetails)
         : noBookDetails;
 
+    // Each title's covers are kept under its own folder, which the library was read with.
+    const coversOf = async (title: string): Promise<ReadonlyMap<CoverSlot, string>> => {
+      const folder = library.titles.find((known) => known.title === title)?.inputPath;
+      return folder === undefined || !usesMangapress(mode)
+        ? new Map()
+        : this.covers.pathsFor(folder);
+    };
+
     const outcomes: BatchTitleOutcome[] = [];
     try {
       for (const title of titles) {
-        if (signal?.aborted === true) break;
+        if (signal?.aborted === true) {
+          // Said for every title the run did not get to, so the results can tell it was cancelled.
+          outcomes.push({
+            title: title.title,
+            status: 'failed',
+            artifacts: [],
+            error: new ProcessCancelledError(),
+          });
+          continue;
+        }
         if (singleBook) {
           if (title.status === 'failed' || title.combinedOutputPath === undefined) {
             outcomes.push({
@@ -97,6 +135,7 @@ export class LibraryRun {
                 libraryPath: request.libraryPath,
                 settings: request.settings,
                 book: detailsForBook(detailsOf(title.title)),
+                ...coverOfTheBook(await coversOf(title.title)),
                 format: request.format,
                 nestedToc: true,
               },
@@ -109,7 +148,11 @@ export class LibraryRun {
             );
             artifacts.push(artifact);
             onArtifact?.(artifact);
-            outcomes.push({ title: title.title, status: 'done', artifacts });
+            outcomes.push({
+              title: title.title,
+              status: 'done',
+              artifacts: [...withBindingWarnings(artifacts, [undefined], title.issues)],
+            });
           } catch (error) {
             outcomes.push({ title: title.title, status: 'failed', artifacts, error });
           }
@@ -124,7 +167,10 @@ export class LibraryRun {
             continue;
           }
           const result = await this.books.produceVolumes(
-            title.volumes.map((volume) => ({ path: volume.path, volume: volume.number })),
+            withCovers(
+              title.volumes.map((volume) => ({ path: volume.path, volume: volume.number })),
+              await coversOf(title.title),
+            ),
             mode,
             {
               libraryPath: request.libraryPath,
@@ -135,7 +181,15 @@ export class LibraryRun {
             },
             { title: title.title, onArtifact, onProgress, signal },
           );
-          outcomes.push({ title: title.title, ...result });
+          outcomes.push({
+            title: title.title,
+            ...result,
+            artifacts: withBindingWarnings(
+              result.artifacts,
+              title.volumes.map((volume) => volume.number),
+              title.issues,
+            ),
+          });
         }
       }
     } finally {
@@ -143,4 +197,10 @@ export class LibraryRun {
     }
     return outcomes;
   }
+}
+
+/** The cover of a title bound as one book, as the field a book is made with. */
+function coverOfTheBook(covers: ReadonlyMap<CoverSlot, string>): { readonly cover?: string } {
+  const cover = covers.get('book');
+  return cover === undefined ? {} : { cover };
 }

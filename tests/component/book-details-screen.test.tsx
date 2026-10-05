@@ -117,6 +117,46 @@ describe('the book details screen', () => {
     expect(lastChange(onChange)).toEqual({});
   });
 
+  it('stops a title at what a file name can hold, counted in bytes and cut at a whole character', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<Harness onChange={onChange} />);
+    const title = screen.getByLabelText('Book title');
+
+    // Ninety Japanese letters are 270 bytes: the first 66 fit, and no half of a letter is kept.
+    await user.click(title);
+    await user.paste('あ'.repeat(90));
+
+    expect(title).toHaveValue('あ'.repeat(66));
+    expect(lastChange(onChange)).toEqual({ title: 'あ'.repeat(66) });
+    expect(screen.getByText(/as long as the title of a book can be/u)).toBeVisible();
+  });
+
+  it('says nothing about the length of a title until there is no room for one more letter', async () => {
+    const user = userEvent.setup();
+    render(<Harness onChange={vi.fn()} />);
+    const title = screen.getByLabelText('Book title');
+
+    await user.click(title);
+    await user.paste('a'.repeat(199));
+    expect(screen.queryByText(/as long as the title of a book can be/u)).not.toBeInTheDocument();
+
+    await user.type(title, 'b');
+    expect(title).toHaveValue(`${'a'.repeat(199)}b`);
+    expect(screen.getByText(/as long as the title of a book can be/u)).toBeVisible();
+  });
+
+  it('turns a line break pasted into the title into a space, as it does for the author', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<Harness onChange={onChange} />);
+
+    await user.click(screen.getByLabelText('Author'));
+    await user.paste('Fujimoto' + String.fromCharCode(0) + 'Tatsuki');
+
+    expect(lastChange(onChange)).toEqual({ author: 'Fujimoto Tatsuki' });
+  });
+
   it('starts from the details already typed', () => {
     render(
       <BookDetailsScreen
@@ -484,5 +524,48 @@ describe('looking up the author of a work', () => {
     await openLookup(user);
 
     expect(screen.getByRole('button', { name: 'Search' })).toBeDisabled();
+  });
+
+  const coverControls = {
+    attached: [],
+    onChoose: () => undefined,
+    onChooseFolder: () => undefined,
+    onDropFiles: () => undefined,
+    onRemove: () => undefined,
+  };
+  const coverRows = (): HTMLElement[] =>
+    within(screen.getByRole('list', { name: 'Books and their covers' })).getAllByRole('listitem');
+
+  it('offers a cover for every volume of a series, under the title each book will have', async () => {
+    const user = userEvent.setup();
+    render(<Harness covers={coverControls} onChange={vi.fn()} volumes={[1, 2, 3.5, 4, 5]} />);
+
+    // Every volume, not only the few the titles preview lists.
+    expect(coverRows()).toHaveLength(5);
+    expect(coverRows()[2]).toHaveTextContent('Chainsaw Man - Vol.3.5');
+
+    await user.type(screen.getByLabelText('Series title'), 'CSM');
+    expect(coverRows()[0]).toHaveTextContent('CSM - Vol.01');
+  });
+
+  it('offers one cover for an item that makes a single book', () => {
+    render(<BookDetailsScreen {...base} covers={coverControls} defaultTitle="Vagabond Vol.03" />);
+
+    expect(coverRows()).toHaveLength(1);
+    expect(
+      screen.getByRole('button', { name: 'Choose a cover for Vagabond Vol.03' }),
+    ).toBeVisible();
+  });
+
+  it('says a PDF has no cover, and offers no covers at all where mangapress makes no book', () => {
+    const { rerender } = render(
+      <BookDetailsScreen {...base} covers={coverControls} format="pdf" volumes={[1]} />,
+    );
+    expect(
+      screen.getByText('A PDF has no cover. What is set here is kept for the other formats.'),
+    ).toBeVisible();
+
+    rerender(<BookDetailsScreen {...base} volumes={[1]} />);
+    expect(screen.queryByRole('heading', { name: 'Covers' })).not.toBeInTheDocument();
   });
 });

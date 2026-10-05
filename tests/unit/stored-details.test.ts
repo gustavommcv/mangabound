@@ -78,9 +78,143 @@ describe('carrying the details over when the mapping is saved', () => {
   it.each([
     ['there is no file yet', undefined],
     ['the file holds no details', file({ manga: { title: 'X' } })],
-    ['the file is not JSON', 'nope'],
+    ['the file only holds what the mapping makes', mapping],
   ])('writes the mapping as it is when %s', (_case, existing) => {
     expect(carryStoredDetails(existing, mapping)).toBe(mapping);
+  });
+
+  it.each([
+    ['is not JSON', 'nope'],
+    ['is an empty file', ''],
+    ['is JSON that is not an object', '[1, 2]'],
+    ['is a bare number', '3'],
+    ['is null', 'null'],
+  ])(
+    'refuses to overwrite a file that %s, which is not the app\u2019s to destroy',
+    (_case, existing) => {
+      expect(() => carryStoredDetails(existing, mapping)).toThrow();
+    },
+  );
+
+  describe('keeps what the person or another tool keeps in the file', () => {
+    const hand = {
+      schema_version: 1,
+      my_notes: 'kept by me',
+      manga: { title: 'Series', author: 'Old', anilist_id: 12345, tags: ['a', 'b'] },
+      volumes: [
+        { number: '1', chapters: ['1', '2'], note: 'first arc' },
+        { number: '2', chapters: ['3'], note: 'second arc' },
+      ],
+      source: { provider: 'mangadex', id: 'abc' },
+    };
+    const remade = (volumes: unknown, extra: Record<string, unknown> = {}) =>
+      file({ schema_version: 1, manga: { title: 'Series' }, volumes, ...extra });
+
+    it('keeps a key of its own at the top, and every key under manga', () => {
+      const written = JSON.parse(
+        carryStoredDetails(file(hand), remade([{ number: '1', chapters: ['1', '2', '3'] }])),
+      ) as typeof hand;
+
+      expect(written.my_notes).toBe('kept by me');
+      expect(written.manga).toEqual({
+        title: 'Series',
+        author: 'Old',
+        anilist_id: 12345,
+        tags: ['a', 'b'],
+      });
+    });
+
+    it('keeps a key on a volume that is still there, and replaces its chapters', () => {
+      const written = JSON.parse(
+        carryStoredDetails(
+          file(hand),
+          remade([
+            { number: '1', chapters: ['1', '2', '3'] },
+            { number: '2', chapters: ['4'] },
+          ]),
+        ),
+      ) as typeof hand;
+
+      expect(written.volumes).toEqual([
+        { number: '1', chapters: ['1', '2', '3'], note: 'first arc' },
+        { number: '2', chapters: ['4'], note: 'second arc' },
+      ]);
+    });
+
+    it('lets go of the notes of a volume that is not there any more, and keeps those of a new one empty', () => {
+      const written = JSON.parse(
+        carryStoredDetails(
+          file(hand),
+          remade([
+            { number: '2', chapters: ['3'] },
+            { number: '3', chapters: ['9'] },
+          ]),
+        ),
+      ) as typeof hand;
+
+      expect(written.volumes).toEqual([
+        { number: '2', chapters: ['3'], note: 'second arc' },
+        { number: '3', chapters: ['9'] },
+      ]);
+    });
+
+    it('keeps the source when the mapping names none, and takes the one it names', () => {
+      const without = JSON.parse(
+        carryStoredDetails(file(hand), remade([{ number: '1', chapters: ['1'] }])),
+      ) as typeof hand;
+      const with_ = JSON.parse(
+        carryStoredDetails(
+          file(hand),
+          remade([{ number: '1', chapters: ['1'] }], { source: { provider: 'other', id: 'z' } }),
+        ),
+      ) as typeof hand;
+
+      expect(without.source).toEqual({ provider: 'mangadex', id: 'abc' });
+      expect(with_.source).toEqual({ provider: 'other', id: 'z' });
+    });
+
+    it('keeps the file in the order it had, with what is new after it', () => {
+      const written = carryStoredDetails(
+        file(hand),
+        remade([{ number: '1', chapters: ['1'] }], { extra_from_mapping: true }),
+      );
+
+      expect(Object.keys(JSON.parse(written) as object)).toEqual([
+        'schema_version',
+        'my_notes',
+        'manga',
+        'volumes',
+        'source',
+        'extra_from_mapping',
+      ]);
+    });
+
+    it('takes a volume in the file that has no number, or a file whose volumes are not a list, for nothing', () => {
+      const odd = file({ volumes: [{ chapters: ['1'] }, 'text'], note: 'x' });
+      const alsoOdd = file({ volumes: 'none', note: 'y' });
+      const one = remade([{ number: '1', chapters: ['1'] }]);
+
+      expect((JSON.parse(carryStoredDetails(odd, one)) as { note: string }).note).toBe('x');
+      expect(
+        JSON.parse(carryStoredDetails(alsoOdd, one)) as { volumes: unknown[]; note: string },
+      ).toMatchObject({ note: 'y', volumes: [{ number: '1', chapters: ['1'] }] });
+    });
+
+    it('lays a mapping that has no volumes over the file without losing the rest', () => {
+      const written = JSON.parse(
+        carryStoredDetails(file({ my_notes: 'mine', volumes: [] }), file({ schema_version: 1 })),
+      ) as Record<string, unknown>;
+
+      expect(written).toEqual({ my_notes: 'mine', volumes: [], schema_version: 1 });
+    });
+
+    it('takes a mapping that is not a list of volumes as it comes', () => {
+      const written = JSON.parse(
+        carryStoredDetails(file({ my_notes: 'mine' }), file({ schema_version: 1, volumes: 'x' })),
+      ) as Record<string, unknown>;
+
+      expect(written).toMatchObject({ my_notes: 'mine', volumes: 'x' });
+    });
   });
 });
 

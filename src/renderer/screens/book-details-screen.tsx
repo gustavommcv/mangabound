@@ -5,13 +5,17 @@ import {
   type BookDetails,
   canonicalLanguageTag,
   isLanguageTag,
+  clipTitle,
   maxDetailLength,
   maxLanguageLength,
+  maxTitleBytes,
   normalizeBookDetails,
+  titleFits,
   volumeBookTitle,
 } from '@/domain/book-details';
 import type { BookFormat } from '@/domain/conversion';
 import { AuthorLookupPanel, type AuthorLookup } from '@/renderer/components/details/author-lookup';
+import { type BookCoverControls, BookCovers } from '@/renderer/components/details/book-covers';
 import { FieldMessage } from '@/renderer/components/shared/field-message';
 import { Button } from '@/renderer/components/ui/button';
 import { Input } from '@/renderer/components/ui/input';
@@ -35,6 +39,11 @@ export interface BookDetailsScreenProps {
   /** Where to look up who wrote it. Absent when there is no source to ask. */
   readonly lookup?: AuthorLookup;
   /**
+   * The covers of the item's books and what can be done with them. Absent when mangapress does
+   * not make the books, since a cover is its to make.
+   */
+  readonly covers?: BookCoverControls;
+  /**
    * The volumes of the series this makes, one book each; empty while none are set yet. Absent
    * when it makes a single book.
    */
@@ -51,6 +60,7 @@ const previewedVolumes = 3;
  */
 export function BookDetailsScreen({
   backLabel,
+  covers,
   declaredLanguage,
   defaultLanguage,
   defaultTitle,
@@ -66,6 +76,7 @@ export function BookDetailsScreen({
   const authorRef = useRef<HTMLInputElement>(null);
   const languageRef = useRef<HTMLInputElement>(null);
   const [lookupOpen, setLookupOpen] = useState(false);
+  const [titleCutShort, setTitleCutShort] = useState(false);
   useEffect(() => {
     titleRef.current?.focus();
   }, []);
@@ -99,6 +110,8 @@ export function BookDetailsScreen({
   };
 
   const series = volumes !== undefined;
+  // Whatever was just typed was cut, or there is no room left for one more plain letter.
+  const titleIsFull = titleCutShort || !titleFits(`${text.title}x`);
   const title = text.title.trim() === '' ? defaultTitle : text.title.trim();
   const titles = series
     ? [...volumes].slice(0, previewedVolumes).map((volume) => volumeBookTitle(title, volume))
@@ -142,18 +155,24 @@ export function BookDetailsScreen({
           <Input
             aria-describedby="details-title-message"
             id="details-title"
-            maxLength={maxDetailLength}
+            maxLength={maxTitleBytes}
             onChange={(event) => {
-              update('title', event.target.value);
+              // A book's file is named after its title, and a file name holds a limited number of
+              // bytes, which is fewer Japanese characters than English ones.
+              const clipped = clipTitle(event.target.value);
+              setTitleCutShort(clipped !== event.target.value);
+              update('title', clipped);
             }}
             placeholder={defaultTitle}
             value={text.title}
           />
           <FieldMessage
             description={
-              series
-                ? 'Each volume is titled with this and its number.'
-                : 'The title the book has in your reader.'
+              titleIsFull
+                ? 'This is as long as the title of a book can be: its file is named after it.'
+                : series
+                  ? 'Each volume is titled with this and its number.'
+                  : 'The title the book has in your reader.'
             }
             id="details-title-message"
           />
@@ -277,6 +296,20 @@ export function BookDetailsScreen({
           </ul>
         )}
       </div>
+
+      {covers !== undefined && (
+        <BookCovers
+          {...covers}
+          books={
+            series
+              ? volumes.map((volume) => ({ slot: volume, title: volumeBookTitle(title, volume) }))
+              : [{ slot: 'book', title }]
+          }
+          {...(format === 'pdf'
+            ? { unavailable: 'A PDF has no cover. What is set here is kept for the other formats.' }
+            : {})}
+        />
+      )}
     </section>
   );
 }

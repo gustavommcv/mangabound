@@ -79,6 +79,11 @@ export function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => voi
 
 export function bridge(overrides: Partial<MangaboundBridge> = {}): MangaboundBridge {
   return {
+    listCovers: () => Promise.resolve({ ok: true, value: [] }),
+    chooseCover: () => Promise.resolve({ ok: true, value: null }),
+    chooseCoversFolder: () => Promise.resolve({ ok: true, value: null }),
+    dropCovers: () => Promise.resolve({ ok: true, value: { covers: [] } }),
+    removeCover: () => Promise.resolve({ ok: true, value: { covers: [] } }),
     createPendingRun: () => Promise.resolve({ ok: true, value: 'pending-run' }),
     listPendingRuns: () => Promise.resolve({ ok: true, value: [] }),
     discardPendingRun: () => Promise.resolve({ ok: true, value: undefined }),

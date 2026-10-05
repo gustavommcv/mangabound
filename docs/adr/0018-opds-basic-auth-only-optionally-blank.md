@@ -23,3 +23,12 @@ The premise behind choosing token-in-URL does not hold. KOReader's OPDS catalog 
 The address given to a reader is always short enough to type by hand. There is one authentication concept instead of two, with one less thing to explain in the Share panel. A person who wants no password at all now has an explicit, understood way to say so, rather than being pushed toward a token they cannot use.
 
 This does not address downloading more than one book at a time from the catalog — KOReader's OPDS browser fetches one entry at a time, and has no built-in multi-select or batch download ([koreader/koreader#10635](https://github.com/koreader/koreader/issues/10635), open). That is a client-side limitation this ADR does not attempt to solve; it remains open for a future decision.
+
+## Amendment (2026-10-04): a name that is not the computer's is refused
+
+Leaving both fields blank is an explicit choice, and a share with no password can be read by anything that reaches the server. A web page the person visits can reach it too: if the page's own name is made to point at the computer's address on the local network (DNS rebinding), the browser sends the page's requests to the catalog with the page's name in `Host`, and lets the page read what comes back. [Finding 6 of the audit of 2026-10-01](../audit-2026-10-01.md) listed it, and a request with `Host: evil.example` was answered `200`.
+
+- The server answers only a request whose `Host` is an address in numbers (which can only be what it says), `localhost`, or the computer's own name (with or without `.local`). Any other name gets `403`, before the password is asked for, so that a page is not shown a login either (`src/opds/host.ts`).
+- A request with no `Host` at all is let through: a browser always sends one, and an HTTP/1.0 reader may not.
+- A person whose reader reaches the computer by a name the router gave it is refused, and has to use the address the app shows. The refused name is written once to the app's log, and the user guide says so.
+- This applies with a password too: it is not what protects a share with one, and the check costs nothing.

@@ -1,5 +1,5 @@
 import { ChevronLeft, CircleAlert } from 'lucide-react';
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 
 import {
   type BookDetails,
@@ -47,9 +47,12 @@ import { SendToKoreader } from '@/renderer/components/sharing/send-to-koreader';
 import { SharePanel } from '@/renderer/components/sharing/share-panel';
 import { ShareMenu } from '@/renderer/components/sharing/share-menu';
 import { useKeptSettings } from '@/renderer/hooks/use-kept-settings';
+import type { CoverSlot } from '@/domain/book-covers';
+import { useBookCovers } from '@/renderer/hooks/use-book-covers';
 import { usePendingRuns } from '@/renderer/hooks/use-pending-runs';
 import { useSharing } from '@/renderer/hooks/use-sharing';
 import { useToolchain } from '@/renderer/hooks/use-toolchain';
+import { resolveNavigation, type WorkflowNavigation } from '@/renderer/lib/navigation';
 import { resolveNetworkInterface } from '@/renderer/lib/sharing';
 import { Titlebar } from '@/renderer/components/shell/titlebar';
 import { Button } from '@/renderer/components/ui/button';
@@ -74,16 +77,6 @@ import type {
   VolumeSuggestion,
   WorkflowFailure,
 } from '@/shared/workflow-contract';
-
-type EditingTarget =
-  | { readonly kind: 'input'; readonly rowId: string }
-  | { readonly kind: 'title'; readonly rowId: string; readonly title: string };
-
-/** A screen and its target travel together; non-editing screens keep no stale selection. */
-type WorkflowNavigation =
-  | { readonly screen: 'queue' | 'options' | 'running' | 'results' }
-  | { readonly screen: 'library'; readonly rowId: string }
-  | { readonly screen: 'mapping' | 'details'; readonly target: EditingTarget };
 
 /** The volumes of a mapping, numbered, in order: what a series of books is made of. */
 const volumeNumbers = (mapping: MappingDraft | undefined): readonly number[] =>
@@ -131,8 +124,10 @@ const toQueueInput = (input: SelectedInput): QueueInput => ({
 export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): React.JSX.Element {
   const [failure, setFailure] = useState<WorkflowFailure>();
   const { toolchain, profiles } = useToolchain(bridge, setFailure);
-  const [navigation, setNavigation] = useState<WorkflowNavigation>({ screen: 'queue' });
+  const [requestedNavigation, setNavigation] = useState<WorkflowNavigation>({ screen: 'queue' });
   const [rows, dispatch] = useReducer(queueReducer, emptyQueue);
+  // A screen about an item that is no longer in the queue is not shown (see resolveNavigation).
+  const navigation = resolveNavigation(requestedNavigation, rows);
   const [rejected, setRejected] = useState<
     readonly { readonly name: string; readonly reason: string }[]
   >([]);
@@ -160,7 +155,6 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
   // present its grouping/EPUB locks as active while the queue contains only CBZ files.
   const singleBookActive =
     singleBook && !(rows.length > 0 && rows.every((row) => row.kind === 'cbz'));
-  const [jobId, setJobId] = useState<string>();
   const [progress, setProgress] = useState<ConversionProgress>();
   const [runPosition, setRunPosition] = useState<{
     readonly name: string;
@@ -180,6 +174,9 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
   const rowsRef = useRef(rows);
   const attemptedInspection = useRef(new Set<string>());
   const cancelRequested = useRef(false);
+  // The job that is running, set as it starts: a button pressed in the instant between two items
+  // still holds the render of the item before, so what it cancels cannot come from state.
+  const runningJob = useRef<string>(undefined);
   const {
     pendingRuns,
     refresh: refreshPendingRuns,
@@ -188,9 +185,9 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
 
   useEffect(() => {
     return bridge.onConversionProgress((update) => {
-      if (update.jobId === jobId) setProgress(update);
+      if (update.jobId === runningJob.current) setProgress(update);
     });
-  }, [bridge, jobId]);
+  }, [bridge]);
 
   const sharing = useSharing(bridge, setFailure);
 
@@ -241,6 +238,9 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
           ...(result.value.mapping === undefined ? {} : { mapping: result.value.mapping }),
           ...(result.value.titles === undefined ? {} : { titles: result.value.titles }),
           ...(result.value.details === undefined ? {} : { details: result.value.details }),
+          ...(result.value.unrecognized === undefined
+            ? {}
+            : { unrecognized: result.value.unrecognized }),
         });
       }
     })();
@@ -325,28 +325,36 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
     commandJobId: string,
   ): ConversionCommand => ({ ...planCommandFor(row, rowProcess, commandJobId), libraryId });
 
-  // A validated plan only describes the queue, process and settings it was made for.
-  const planKey = JSON.stringify([
-    mode,
-    format,
-    settings,
-    singleBook,
-    rows.map((row) => [
-      row.id,
-      row.state,
-      row.state === 'inspected' && row.mapping !== undefined ? mappingSignature(row.mapping) : '',
-      row.state === 'inspected' ? row.confirmed : false,
-      row.state === 'inspected'
-        ? (row.titles ?? []).map((title) => [
-            title.title,
-            title.volumes.length,
-            title.outcome?.status,
-            title.details ?? null,
-          ])
-        : [],
-      row.state === 'inspected' ? (row.details ?? null) : null,
-    ]),
-  ]);
+  // A validated plan only describes the queue, process and settings it was made for. Worked out
+  // only when one of those changes: a progress event renders this again about once a second, and
+  // the key walks every row of the queue and every volume of every mapping.
+  const planKey = useMemo(
+    () =>
+      JSON.stringify([
+        mode,
+        format,
+        settings,
+        singleBook,
+        rows.map((row) => [
+          row.id,
+          row.state,
+          row.state === 'inspected' && row.mapping !== undefined
+            ? mappingSignature(row.mapping)
+            : '',
+          row.state === 'inspected' ? row.confirmed : false,
+          row.state === 'inspected'
+            ? (row.titles ?? []).map((title) => [
+                title.title,
+                title.volumes.length,
+                title.outcome?.status,
+                title.details ?? null,
+              ])
+            : [],
+          row.state === 'inspected' ? (row.details ?? null) : null,
+        ]),
+      ]),
+    [mode, format, settings, singleBook, rows],
+  );
   const plans = validated?.key === planKey ? validated.plans : undefined;
 
   const validatePlans = async (): Promise<void> => {
@@ -405,7 +413,7 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
       if (cancelRequested.current) break;
       attempted.add(row.id);
       const nextJobId = crypto.randomUUID();
-      setJobId(nextJobId);
+      runningJob.current = nextJobId;
       setRunPosition({ name: row.displayName, index: index + 1, total: items.length });
       setProgress({ stage: 'processing', message: 'Preparing…' });
       if (row.kind === 'library') {
@@ -440,7 +448,7 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
       settled.push(...report.outcomes);
       if (report.cancelled) cancelRequested.current = true;
     }
-    setJobId(undefined);
+    runningJob.current = undefined;
     setProgress(undefined);
     setRunPosition(undefined);
     const report = finishRunReport({ rows, mode, settled, attempted, completedTitles });
@@ -456,9 +464,10 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
   };
 
   const cancelConversion = async (): Promise<void> => {
-    if (jobId === undefined) return;
+    const job = runningJob.current;
+    if (job === undefined) return;
     cancelRequested.current = true;
-    const result = await bridge.cancelConversion(jobId);
+    const result = await bridge.cancelConversion(job);
     if (!result.ok) setFailure(result.error);
   };
 
@@ -528,7 +537,16 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
       return;
     }
     dispatch({ type: 'library-planned', id: row.id, titles: planned.value.titles });
-    setNavigation({ screen: 'library', rowId: row.id });
+    // Reading the library again takes as long as mangabind's dry run over all of it, and the person
+    // may have gone back to the queue, or cleared it, meanwhile: only bring them to the library if
+    // they are still where they asked for this.
+    setNavigation((current) =>
+      current.screen === 'mapping' &&
+      current.target.kind === 'title' &&
+      current.target.rowId === row.id
+        ? { screen: 'library', rowId: row.id }
+        : current,
+    );
   };
 
   const runArtifactAction = async (
@@ -722,6 +740,36 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
     editingTarget?.kind === 'title' && editingRow?.state === 'inspected'
       ? editingRow.titles?.find((title) => title.title === editingTarget.title)
       : undefined;
+  // The covers of the item whose details are open, where mangapress makes its books: a cover is
+  // its to make, so a run that stops at the joined volumes has none to set.
+  const inputProcess =
+    editingRow === undefined || editingRow.kind === 'library'
+      ? 'skip'
+      : rowMode(editingRow.kind, mode);
+  const coverTarget =
+    navigation.screen !== 'details' || editingRow?.state !== 'inspected'
+      ? undefined
+      : editingTarget?.kind === 'title'
+        ? editingTitleEntry !== undefined && libraryMakesBooks
+          ? { sessionId: editingRow.sessionId, title: editingTitleEntry.title }
+          : undefined
+        : inputProcess !== 'skip' && usesMangapress(inputProcess)
+          ? { sessionId: editingRow.sessionId }
+          : undefined;
+  // The books the item makes, in order: its volumes, or the one book it is.
+  const coverSlots: readonly CoverSlot[] =
+    editingTarget?.kind === 'title'
+      ? singleBook
+        ? ['book']
+        : volumeNumbers(editingTitleEntry?.draft)
+      : editingRow?.state === 'inspected' &&
+          editingRow.kind === 'folder' &&
+          !singleBook &&
+          inputProcess === 'bind-and-convert'
+        ? volumeNumbers(editingRow.mapping)
+        : ['book'];
+  const covers = useBookCovers(bridge, coverTarget, coverSlots, notify);
+
   // A device the tools no longer list cannot be converted for, whether it came from the file or is
   // the default. This adjusts state while rendering, the way React documents for state that follows
   // other state, so the screen never shows it selected.
@@ -866,6 +914,9 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
                     setNavigation({ screen: 'queue' });
                   }}
                   singleBook={singleBook}
+                  {...(editingRow.unrecognized === undefined
+                    ? {}
+                    : { unrecognized: editingRow.unrecognized })}
                   {...metadataProviderProps}
                   startedFrom={
                     editingRow.proposedSignature !== undefined &&
@@ -922,6 +973,9 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
                     void confirmTitleMapping(editingRow, editingTitleEntry.title, draft);
                   }}
                   singleBook={singleBook}
+                  {...(editingTitleEntry.unrecognized === undefined
+                    ? {}
+                    : { unrecognized: editingTitleEntry.unrecognized, inLibrary: true })}
                   {...metadataProviderProps}
                   startedFrom={editingTitleEntry.draft.volumes.length > 0 ? 'mangabind' : undefined}
                 />
@@ -940,6 +994,7 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
                 format={format}
                 key={editingRow.id}
                 lookup={authorLookup}
+                {...(covers === undefined ? {} : { covers })}
                 name={editingRow.displayName}
                 onBack={() => {
                   // A loose CBZ has no folder to keep anything with.
@@ -971,6 +1026,7 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
                 format={format}
                 key={editingTitleEntry.title}
                 lookup={authorLookup}
+                {...(covers === undefined ? {} : { covers })}
                 name={editingTitleEntry.title}
                 onBack={() => {
                   keepDetails(
@@ -1017,10 +1073,13 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
                 ) : undefined
               }
               onBack={() => {
+                // An error about a book that was being opened is about this screen, not the queue.
+                setFailure(undefined);
                 setOutcomes([]);
                 setNavigation({ screen: 'queue' });
               }}
               onFix={(rowId) => {
+                setFailure(undefined);
                 setOutcomes([]);
                 openEditor(rowId);
               }}

@@ -1,17 +1,24 @@
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { app, BrowserWindow, ipcMain } from 'electron';
 import started from 'electron-squirrel-startup';
 
 import { directoryExists } from '@/adapters/library/directory-exists';
+import { FsCoverStore } from '@/adapters/covers/fs-cover-store';
+import { removeStaleScratch } from '@/adapters/fs/stale-scratch';
 import { FsPendingRuns } from '@/adapters/library/fs-pending-runs';
-import { pendingRoot } from '@/adapters/library/pending-path';
+import { moveLegacyStorage } from '@/adapters/library/legacy-storage';
+import { coversRoot, legacyStorageMove, pendingRoot } from '@/adapters/library/pending-path';
 import { FsSettingsStore } from '@/adapters/settings/fs-settings-store';
 import { PreferencesWorkflow } from '@/application/workflows/preferences';
 
+import { registerRendererScheme, serveRenderer } from './app-protocol';
 import { createMainContext } from './context';
+import { cleanUpBeforeQuit } from './quit-cleanup';
 import { registerArtifactHandlers } from './ipc/artifacts';
 import { registerConversionHandlers } from './ipc/conversion';
+import { registerCoverHandlers } from './ipc/covers';
 import { registerInputHandlers } from './ipc/inputs';
 import { registerMetadataHandlers } from './ipc/metadata';
 import { registerOpdsHandlers } from './ipc/opds';
@@ -22,10 +29,41 @@ import { createMainWindow } from './window';
 
 if (started) app.quit();
 
+// Electron accepts a new scheme's privileges only before the app is ready.
+registerRendererScheme();
+
+// A second copy would share the settings and the pending books with the first, and its start-up
+// cleanup could remove the folder the first has just made for a conversion. The second one asks the
+// first to come forward and quits.
+const holdsTheLock = app.requestSingleInstanceLock();
+if (!holdsTheLock) app.quit();
+app.on('second-instance', () => {
+  const [window] = BrowserWindow.getAllWindows();
+  if (window === undefined) return;
+  if (window.isMinimized()) window.restore();
+  window.focus();
+});
+
 const context = createMainContext();
+const oneDay = 24 * 60 * 60 * 1000;
 let cleanupStarted = false;
 
 void app.whenReady().then(async () => {
+  if (!holdsTheLock) return;
+  // Before anything reads them: an earlier version kept these in the installer's own folder on
+  // Windows, which uninstalling the app empties.
+  const legacyMove = legacyStorageMove(process.platform, process.env, app.getPath('home'));
+  if (legacyMove !== undefined) {
+    await moveLegacyStorage({
+      ...legacyMove,
+      onProblem: (message, cause) => {
+        console.error(message, cause);
+      },
+    });
+  }
+  context.coverStore = new FsCoverStore(
+    coversRoot(process.platform, process.env, app.getPath('home')),
+  );
   const toolchainStatus = await bootstrapToolchain(context);
   ipcMain.handle('toolchain:get-status', () => toolchainStatus);
 
@@ -38,18 +76,31 @@ void app.whenReady().then(async () => {
     pendingRoot(process.platform, process.env, app.getPath('home')),
     context.libraryStore,
   );
+  // Sharing the ready books serves this folder, every conversion in it.
+  context.pendingCatalog.useRoot(context.pendingRuns.root);
   await context.pendingRuns.pruneCompleted().catch((error: unknown) => {
     console.error('Could not clear previously exported pending books.', error);
+  });
+  // What a run that was killed left behind: a half-made first book in the pending folder, and the
+  // scratch copies of its volumes in the temporary folder. Anything newer than a day may belong to
+  // another copy of the app that is still working.
+  await context.pendingRuns.pruneAbandoned(oneDay).catch((error: unknown) => {
+    console.error('Could not clear a run that was interrupted before its first book.', error);
+  });
+  await removeStaleScratch(tmpdir(), oneDay).catch((error: unknown) => {
+    console.error('Could not clear scratch folders an earlier run left behind.', error);
   });
 
   registerSettingsHandlers(context, preferencesWorkflow);
   registerInputHandlers(context);
   registerConversionHandlers(context);
+  registerCoverHandlers(context);
   registerMetadataHandlers(context);
   registerArtifactHandlers(context);
   registerPendingHandlers(context);
   registerOpdsHandlers(context);
 
+  serveRenderer();
   createMainWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
@@ -60,22 +111,25 @@ app.on('before-quit', (event) => {
   if (cleanupStarted) return;
   event.preventDefault();
   cleanupStarted = true;
-  for (const controller of context.activeJobs.values()) controller.abort();
-  // A change made an instant before quitting is still written.
-  void Promise.allSettled([
-    context.workflow?.releaseAll(),
-    context.activeSharing?.stop(),
-    context.preferences?.settled(),
-  ])
-    .then(async () => {
-      await context.pendingRuns?.pruneCompleted();
-    })
-    .catch((error: unknown) => {
-      console.error('Could not clear exported pending books.', error);
-    })
-    .finally(() => {
+  void cleanUpBeforeQuit(
+    {
+      activeJobs: context.activeJobs,
+      // A change made an instant before quitting is still written.
+      releaseAll: context.workflow === undefined ? undefined : () => context.workflow!.releaseAll(),
+      stopSharing:
+        context.activeSharing === undefined ? undefined : () => context.activeSharing!.stop(),
+      settlePreferences:
+        context.preferences === undefined ? undefined : () => context.preferences!.settled(),
+      pruneCompleted:
+        context.pendingRuns === undefined ? undefined : () => context.pendingRuns!.pruneCompleted(),
+    },
+    () => {
       app.quit();
-    });
+    },
+    (message, cause) => {
+      console.error(message, cause);
+    },
+  );
 });
 
 app.on('window-all-closed', () => {

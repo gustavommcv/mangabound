@@ -50,6 +50,8 @@ export interface MangapressRunArguments {
   readonly coverFill?: boolean;
   /** Name a Kobo's EPUB `.epub` instead of `.kepub.epub`. */
   readonly noKepub?: boolean;
+  /** The image to make the book's cover from, in the place of its first image. */
+  readonly cover?: string;
   readonly title?: string;
   readonly author?: string;
   readonly metadataTitle?: MetadataTitleMode;
@@ -108,6 +110,7 @@ export function buildMangapressArguments(request: MangapressRunArguments): reado
     ...enabled('--eraserainbow', request.eraseRainbow),
     ...enabled('--smartcovercrop', request.smartCoverCrop),
     ...enabled('--coverfill', request.coverFill),
+    ...optionalValue('--cover', request.cover),
     '--format',
     request.format,
     ...enabled('--nokepub', request.noKepub),

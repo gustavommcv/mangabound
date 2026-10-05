@@ -33,6 +33,17 @@ describe('startSharingCommandSchema', () => {
     ).toBe(false);
   });
 
+  it('rejects an interface address longer than any address can be written', () => {
+    const command = { libraryId: 'library', auth: { username: '', password: '' } };
+
+    expect(
+      startSharingCommandSchema.safeParse({ ...command, interfaceAddress: '1'.repeat(65) }).success,
+    ).toBe(false);
+    expect(
+      startSharingCommandSchema.safeParse({ ...command, interfaceAddress: '1'.repeat(64) }).success,
+    ).toBe(true);
+  });
+
   it('rejects a missing interface address or library id', () => {
     expect(
       startSharingCommandSchema.safeParse({

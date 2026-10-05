@@ -1,6 +1,7 @@
 import { type BookDetails, hasBookDetails, normalizeBookDetails } from './book-details';
 import { type MappingDraft, mappingSignature } from './mapping';
 import { libraryReason, type ProcessMode, resolveMode } from './process-mode';
+import { unrecognizedChaptersNote, unrecognizedInLibraryNote } from './unrecognized-chapters';
 
 /** What can be added to the queue: a folder or one comic archive. */
 export type QueueInputKind = 'folder' | 'cbz';
@@ -23,6 +24,8 @@ export interface LibraryTitle {
   readonly outcome?: TitleOutcome;
   /** What was typed for this title's title, author and language (ADR 0030). */
   readonly details?: BookDetails;
+  /** Folders of the title that could not be read as chapters, and are in no book. */
+  readonly unrecognized?: readonly string[];
 }
 
 /**
@@ -55,6 +58,8 @@ export type QueueRow = QueueRowBase &
         readonly titles?: readonly LibraryTitle[];
         /** What was typed for this input's title, author and language (ADR 0030). */
         readonly details?: BookDetails;
+        /** Folders of the manga that could not be read as chapters, and are in no book. */
+        readonly unrecognized?: readonly string[];
       }
   );
 
@@ -79,6 +84,8 @@ export type QueueAction =
       readonly titles?: readonly ReadTitle[];
       /** The author and language kept with the folder, when there are any. */
       readonly details?: BookDetails;
+      /** Folders that could not be read as chapters. */
+      readonly unrecognized?: readonly string[];
     }
   | { readonly type: 'inspect-failed'; readonly id: string; readonly message: string }
   /** The library was read again, after a title had its volumes saved. Saved titles stay saved. */
@@ -136,6 +143,9 @@ export function queueReducer(rows: readonly QueueRow[], action: QueueAction): re
               ...(action.details === undefined || !hasBookDetails(action.details)
                 ? {}
                 : { details: normalizeBookDetails(action.details) }),
+              ...(action.unrecognized === undefined || action.unrecognized.length === 0
+                ? {}
+                : { unrecognized: action.unrecognized }),
             }
           : row,
       );
@@ -226,6 +236,9 @@ function readTitle(title: ReadTitle): ReadTitle {
     ...(title.details === undefined || !hasBookDetails(title.details)
       ? {}
       : { details: normalizeBookDetails(title.details) }),
+    ...(title.unrecognized === undefined || title.unrecognized.length === 0
+      ? {}
+      : { unrecognized: title.unrecognized }),
   };
 }
 
@@ -279,6 +292,26 @@ const plural = (count: number, word: string): string =>
   `${String(count)} ${word}${count === 1 ? '' : 's'}`;
 
 export function describeRow(row: QueueRow, mode: ProcessMode): RowView {
+  const view = describeRowBase(row, mode);
+  // Folders the tool could not read as chapters are in no book, whatever else the row says.
+  const told = row.state === 'inspected' ? leftOutNote(row) : '';
+  return told === ''
+    ? view
+    : { ...view, note: view.note === undefined ? told : `${view.note} ${told}` };
+}
+
+function leftOutNote(row: InspectedRow): string {
+  return row.kind === 'library'
+    ? unrecognizedInLibraryNote(
+        (row.titles ?? []).map((title) => ({
+          title: title.title,
+          names: title.unrecognized ?? [],
+        })),
+      )
+    : unrecognizedChaptersNote(row.unrecognized ?? []);
+}
+
+function describeRowBase(row: QueueRow, mode: ProcessMode): RowView {
   if (row.state === 'inspecting') {
     return {
       chip: 'Checking…',

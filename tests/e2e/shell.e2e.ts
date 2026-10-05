@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
 import { $, browser } from '@wdio/globals';
@@ -19,6 +20,44 @@ describe('packaged application shell', () => {
     assert.equal(await $('header').$(`span=v${version}`).isDisplayed(), true);
     assert.equal(await $('header').$('span=Desktop').isExisting(), false);
     assert.equal(await $('header').$('span=Foundation').isExisting(), false);
+  });
+
+  it('starts one copy of the app only: a second launch hands over to the first and quits', async () => {
+    // The copy is started as the service started the first: the same binary and the same flags,
+    // user data folder included, which is what makes it the same app (two copies of it would share
+    // the settings and the pending books, and the second one's start-up cleanup could remove the
+    // folder the first has just made for a conversion). The one flag left out is the debugging port.
+    // The folder is the one the driver reports, since it picks one when no flag names it.
+    const started = browser.requestedCapabilities['goog:chromeOptions'] as {
+      binary: string;
+      args: string[];
+    };
+    const { userDataDir } = (browser.capabilities as { chrome: { userDataDir: string } }).chrome;
+    assert.ok(userDataDir, 'The driver should say where the first copy keeps its data.');
+    const args = [
+      ...started.args.filter(
+        (flag) => !flag.startsWith('--inspect') && !flag.startsWith('--user-data-dir='),
+      ),
+      `--user-data-dir=${userDataDir}`,
+    ];
+
+    const second = spawn(started.binary, args, {
+      stdio: 'ignore',
+      windowsHide: true,
+    });
+    const exitCode = await new Promise<number | null>((resolve) => {
+      const giveUp = setTimeout(() => {
+        second.kill();
+        resolve(-1);
+      }, 30_000);
+      second.once('exit', (code) => {
+        clearTimeout(giveUp);
+        resolve(code);
+      });
+    });
+
+    assert.equal(exitCode, 0, 'The second copy should have quit by itself.');
+    assert.equal(await $('h1').getText(), 'Queue');
   });
 
   it('returns safe command-specific failures for invalid IPC payloads without side effects', async () => {

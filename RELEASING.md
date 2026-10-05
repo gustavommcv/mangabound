@@ -33,12 +33,15 @@ Tag a commit of `main`: it is the only long-lived branch, and releases are cut f
 
 Pushing a tag matching `v*` is the only thing that triggers `.github/workflows/release.yml` — nothing runs on an ordinary push or PR.
 
+The workflow itself refuses a commit that is not on `main`, or whose CI run (the `CI` workflow, on its push to `main`) did not pass; see `verify-commit` below. Tagging right after a merge is fine: if CI is still running it waits for it, up to twenty minutes. It still pays to look at the run of the exact commit before tagging, as the checklist asks, since a failure here costs a tag to delete and push again.
+
 ## 4. What the workflow does automatically
 
 1. **`check-version`** fails fast if the tag doesn't match `package.json`.
-2. **`build`** — one job per platform (`windows-latest`, `ubuntu-latest`, and a pinned arm64 macOS runner, see below), each running the real `npm run make` and uploading its own output as an ordinary CI artifact. Defined once in `.github/workflows/make.yml` and called from here with `workflow_call`, not copy-pasted — `ci.yml`'s `make-verification` job calls the exact same file, so the two can never drift the way they once did.
-3. **`arch-package`** — Electron Forge has no maker for Arch/pacman, so this hand-rolls one: packages the app the same way `build` does, then wraps it in a `.pkg.tar.zst` with a PKGBUILD (`packaging/arch/`), following the ArchWiki's Electron package guidelines. Also defined once, in `.github/workflows/arch-package.yml`, shared with `ci.yml`'s `arch-package-verification`.
-4. **`publish`** — runs only once every job in steps 2 and 3 has succeeded (a failure in any one of them means no Release is created at all, verified for real during this workflow's dry run, not just read off the YAML). Downloads every artifact, keeps only the files a user should actually download (see "Public assets" below), and creates the Release from `docs/releases/v<version>.md`, marked pre-release whenever the tag has a hyphen.
+2. **`verify-commit`** requires that the tagged commit is reachable from `main` and that the `CI` workflow ran for exactly that commit, on a push, and passed (`scripts/verify-release-commit.mjs`, which decides from what the workflow asks GitHub; the newest run of the commit is the one that counts). A run that has not finished, or has not started, is waited for; anything else stops the release before anything is built. This is what keeps a tag on a commit that never went green from publishing. It is a check of the commit, not of who pushed the tag: the workflow file is the tagged commit's own, so a rule that only the owner may create `v*` tags (a tag ruleset in the repository settings) is still what protects against a tag made from someone else's branch.
+3. **`build`** — one job per platform (`windows-latest`, `ubuntu-latest`, and a pinned arm64 macOS runner, see below), each running the real `npm run make` and uploading its own output as an ordinary CI artifact. Defined once in `.github/workflows/make.yml` and called from here with `workflow_call`, not copy-pasted — `ci.yml`'s `make-verification` job calls the exact same file, so the two can never drift the way they once did.
+4. **`arch-package`** — Electron Forge has no maker for Arch/pacman, so this hand-rolls one: packages the app the same way `build` does, then wraps it in a `.pkg.tar.zst` with a PKGBUILD (`packaging/arch/`), following the ArchWiki's Electron package guidelines. Also defined once, in `.github/workflows/arch-package.yml`, shared with `ci.yml`'s `arch-package-verification`.
+5. **`publish`** — runs only once every job in steps 2 and 3 has succeeded (a failure in any one of them means no Release is created at all, verified for real during this workflow's dry run, not just read off the YAML). Downloads every artifact, keeps only the files a user should actually download (see "Public assets" below), and creates the Release from `docs/releases/v<version>.md`, marked pre-release whenever the tag has a hyphen.
 
 ## 5. macOS is Apple Silicon only, on purpose
 
@@ -55,16 +58,27 @@ The GitHub Release publishes only what a person downloading the app actually nee
 - Windows: the Squirrel `.exe` installer, and a portable `.zip` (unzip and run, no install, no admin rights) for anyone who'd rather not run an installer.
 - macOS: the `.zip` archive.
 - Linux: the `.deb`, the `.rpm`, and the Arch `.pkg.tar.zst`.
+- `SHA256SUMS`: one line for each of the files above, in the format `sha256sum -c` reads (`sha256sum -c SHA256SUMS`, or `shasum -a 256 -c SHA256SUMS` on macOS, run in the folder the files were downloaded to; it reports the files that are missing from that folder as well as the ones that do not match). It is made by the `publish` job from the files it is about to upload, so it shows that a download is what the workflow collected and that it arrived whole. It does not show where the files were built, which would take a signed build attestation: not published yet, and said so in the notes of each release.
 
 Squirrel's `.nupkg` and `RELEASES` files (its own internal update-feed manifest) are deliberately **not** published as Release assets while there's no update-feed infrastructure to actually use them — publishing files nobody can act on yet just adds confusing choices to the download page. They still exist inside each platform's own CI build artifact (`release-windows-latest`, etc.) if anyone needs to inspect them; only the curated, public-facing Release asset list is restricted.
 
 ## 8. Smoke test after publishing — required, not optional
 
-This project's own CI can prove `make` succeeds and that the installed `.deb` and the Arch package both launch with the sandbox on (see `.github/scripts/check-deb-sandbox.sh` and `.github/scripts/check-pacman-sandbox.sh`), but nothing in CI has ever downloaded the _actual published Release asset_ the way a real user would. Before calling a release done:
+This project's own CI proves `make` succeeds, and for every Linux package it reads the listing of the finished file and fails when something in it cannot be used by someone who is not root (`.github/scripts/check-package-permissions.sh`, in `make.yml` for the `.deb` and the `.rpm` and in `arch-package.yml` for the Arch package; the release workflow runs the same steps). It also installs the `.deb` and the Arch package and launches them with the sandbox on (`.github/scripts/check-deb-sandbox.sh` and `.github/scripts/check-pacman-sandbox.sh`), but those two are diagnostics that always exit 0, run only in `ci.yml`, and a launch proves little: the app starts even when its bundled tools cannot be reached. Nothing in CI has ever downloaded the _actual published Release asset_ and converted a book with it the way a real user would. Before calling a release done:
 
 - **Windows:** download the real `.exe` from the Release page (not a local build), run it, and record the exact SmartScreen wording and click path — update `docs/releases/v<version>.md`'s "Security prompts" section with what was actually seen, replacing the placeholder language if the notes were written before this step ran. Confirm install, launch, and one real conversion. Also confirm the portable `.zip` extracts and runs directly.
 - **macOS (arm64):** download the real `.zip`, unzip, attempt to open, and record the exact Gatekeeper wording and the bypass steps that actually work on the macOS version tested — same update-the-notes step as Windows. Confirm launch and one real conversion.
-- **Linux:** install the real `.deb` on a Debian/Ubuntu machine and the real `.rpm` on a Fedora-family machine (or at minimum confirm `rpm -i` validates without erroring), confirm launch on each. Install the real `.pkg.tar.zst` with `sudo pacman -U ./mangabound-<version>-1-x86_64.pkg.tar.zst` on a real Arch machine and confirm launch there too — CI's own Arch job runs in a fresh container every time, which is not the same thing as an existing, personally-configured Arch install.
+- **Linux:** install the real `.deb` on a Debian/Ubuntu machine and the real `.rpm` on a Fedora-family machine (or at minimum confirm `rpm -i` validates without erroring), confirm launch on each, then run one real conversion on each as a normal user (not root): the app opens even when it cannot reach its bundled tools, and only a conversion shows it. Install the real `.pkg.tar.zst` with `sudo pacman -U ./mangabound-<version>-1-x86_64.pkg.tar.zst` on a real Arch machine and confirm launch there too — CI's own Arch job runs in a fresh container every time, which is not the same thing as an existing, personally-configured Arch install.
+
+## 8b. Withdrawing a real release
+
+A release that turns out to be bad (a package that does not start, a conversion that is wrong) has no way to be recalled from the people who downloaded it: there is no update feed, and the files carry no published checksums to tell a withdrawn file from a good one. What can be done, in this order:
+
+1. Edit the release notes on GitHub so that the first line says the release is withdrawn, what is wrong and which release to use instead.
+2. Mark the release as a pre-release if it is not one, so that it stops being the "latest" one.
+3. Delete the assets of the bad release (the files people would download), leaving the release and its notes, so that the page says what happened instead of a 404.
+4. Say it where the project's other news goes, and record it in `docs/releases/` beside the notes of the release it withdraws.
+5. Release the fix as the next version. Never reuse the tag or the version string.
 
 ## 9. Aborting or cleaning up a test release
 

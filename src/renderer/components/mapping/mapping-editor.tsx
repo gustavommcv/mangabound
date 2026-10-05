@@ -20,9 +20,11 @@ import {
   type MappingEditorHistory,
   undoMappingCommand,
 } from '@/domain/mapping-editor';
+import { unrecognizedChaptersNote } from '@/domain/unrecognized-chapters';
 import {
   assignedVolumeId,
   dominantLanguage,
+  isVolumeNumber,
   type MappingDraft,
   MappingOperationError,
   mappingSignature,
@@ -46,6 +48,10 @@ export interface MappingEditorProps {
   /** Set when `initialDraft` already carries mangabind's own grouping (volumes read from names). */
   readonly startedFrom?: 'mangabind' | undefined;
   readonly singleBook?: boolean;
+  /** Folders of the manga whose names could not be read as chapters: they are not in the draft. */
+  readonly unrecognized?: readonly string[];
+  /** The editor is of a title of a library, so a name is fixed by adding the library again. */
+  readonly inLibrary?: boolean;
   readonly onConfirm?: (metadata: string, draft: MappingDraft) => void;
   /** Offered when the folder can skip grouping and go straight to mangapress as one book. */
   readonly onSkipGrouping?: () => void;
@@ -104,6 +110,8 @@ export function MappingEditor({
   initialDraft,
   startedFrom,
   singleBook,
+  unrecognized = [],
+  inLibrary = false,
   onConfirm,
   metadataProviders = [],
   onOpenProviderHomepage,
@@ -313,6 +321,12 @@ export function MappingEditor({
           </div>
         </div>
       </header>
+      {unrecognized.length > 0 && (
+        <InfoBanner
+          message={unrecognizedChaptersNote(unrecognized, inLibrary ? 'library' : 'folder')}
+          title="Folders left out"
+        />
+      )}
       {singleBook && (
         <InfoBanner
           message="Mapped volumes will form top-level entries in the table of contents of the unified EPUB, with chapters nested under them."
@@ -664,13 +678,20 @@ export function MappingEditor({
                               inputMode="decimal"
                               key={`${volume.id}-${volume.number}`}
                               onBlur={(event) => {
-                                if (event.target.value !== volume.number) {
+                                // A comma is how a decimal is written in many languages.
+                                const typed = event.target.value
+                                  .trim()
+                                  .replace(/^(\d+),(\d+)$/u, '$1.$2');
+                                if (typed !== volume.number) {
                                   dispatch({
                                     type: 'renumber-volume',
                                     volumeId: volume.id,
-                                    number: event.target.value,
+                                    number: typed,
                                   });
                                 }
+                                // A number that was refused leaves the volume as it was, and the
+                                // field must not go on showing one the volume does not have.
+                                if (!isVolumeNumber(typed)) event.target.value = volume.number;
                               }}
                             />
                           </div>

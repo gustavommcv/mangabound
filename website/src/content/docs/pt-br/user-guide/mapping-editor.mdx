@@ -47,6 +47,16 @@ Selecione capítulos, escolha o volume e use **Assign selected**.
 
 </details>
 
+## O mesmo capítulo duas vezes
+
+Às vezes uma pasta traz um capítulo de dois grupos, por exemplo `Ch.0002 [G1]` e `Ch.0002 [G2]`. O mangabind não consegue escolher entre as cópias: ele deixa **todas** de fora do livro, e colocar uma delas em um volume não muda isso. Por isso o editor mostra um erro, **Chapter 2 is in the folder more than once**, até você remover todas as cópias menos uma da pasta e adicionar a pasta de novo.
+
+Se um livro for feito mesmo assim e algo ficou de fora, os resultados avisam abaixo do livro: por exemplo, capítulos com mais de uma cópia, capítulos faltando dentro de um volume, capítulos sem páginas ou links que levam para fora da pasta que ficaram de fora. Um link em uma pasta de mangá só é seguido quando leva a um arquivo dentro dessa pasta, para que uma pasta vinda de outra pessoa não ponha um arquivo seu em um livro; para manter essa página, coloque uma cópia do arquivo na pasta.
+
+## Pastas cujo nome não é um nome de capítulo
+
+O mangabind procura um número de capítulo no nome de cada pasta. Uma pasta que ele não consegue ler (`Omake`, `Ch.004 [GroupA]`, um nome em outro alfabeto sem número) não entra em nenhum volume nem em nenhum livro, e o editor não consegue colocá-la, porque não sabe qual capítulo é. A linha da fila e o editor avisam, com os nomes, em **Folders left out**. Renomeie as pastas para incluir um número de capítulo, por exemplo `Ch.005`, e adicione a pasta de novo. Em uma biblioteca, a linha da fila nomeia cada título com as pastas que ficaram de fora, e o editor desse título as lista; depois de renomear, adicione a biblioteca de novo.
+
 ## Online source: sugestões opcionais
 
 Escolha **Online source**, selecione MangaDex, informe o título e pressione **Search**.

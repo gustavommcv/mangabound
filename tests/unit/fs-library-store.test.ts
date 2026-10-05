@@ -153,6 +153,8 @@ describe('FsLibraryStore (mocked filesystem)', () => {
     const readdir = vi.fn(() =>
       Promise.resolve([
         direntLike('Subfolder', false),
+        // A folder that happens to be named like a book is not one.
+        direntLike('Folder.epub', false),
         direntLike('Vol.01.epub', true),
         direntLike('notes.txt', true),
         direntLike('Loose.cbz', true),

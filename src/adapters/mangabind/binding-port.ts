@@ -133,7 +133,7 @@ export class MangabindBindingAdapter implements BindingPort {
       } catch (error) {
         throw new ConversionWorkflowError(
           'mapping_save_failed',
-          "Couldn't save mangabind.json in the source folder. Check that the folder is writable and try again.",
+          "Couldn't save mangabind.json in the source folder. Check that the folder is writable and that its mangabind.json is valid JSON.",
           { cause: error },
         );
       }
@@ -209,6 +209,7 @@ export class MangabindBindingAdapter implements BindingPort {
       .map((volume) => ({
         name: path.basename(checkedChildPath(workspace.volumesPath, volume.output_path)),
         pageCount: volume.page_count,
+        number: volume.number,
       }));
     return { title: manga.name, volumes, issues: collectIssues(result) };
   }
@@ -276,27 +277,56 @@ export class MangabindBindingAdapter implements BindingPort {
       );
       return {
         workspaceId,
-        titles: result.report.manga.map((manga) => {
-          const combinedOutputPath =
-            combine === true && manga.combined_output_path !== undefined
-              ? checkedChildPath(volumesPath, manga.combined_output_path)
-              : undefined;
-          return {
-            title: manga.name,
-            status: manga.status,
-            volumes: manga.volumes
-              .filter((volume) => volume.written)
-              .sort((left, right) => left.number - right.number)
-              .map((volume) => ({
-                number: volume.number,
-                path: checkedChildPath(volumesPath, volume.output_path),
-              })),
-            ...(combinedOutputPath === undefined ? {} : { combinedOutputPath }),
-            issues: manga.issues.map(toPipelineIssue),
-          };
-        }),
+        titles: result.report.manga.map((manga) => boundTitle(manga, volumesPath, combine)),
         issues: result.report.issues.map(toPipelineIssue),
       };
+    } catch (error) {
+      await this.release(workspaceId);
+      throw error;
+    }
+  }
+
+  async bindTitles(
+    parentPath: string,
+    folders: readonly string[],
+    signal?: AbortSignal,
+    combine?: boolean,
+    onProgress?: (progress: BindingProgress) => void,
+  ): Promise<BindingBatchResult> {
+    const rootPath = await this.files.createTemporaryDirectory(
+      path.join(this.temporaryRoot, 'mangabound-'),
+    );
+    const workspaceId = this.createId();
+    const volumesPath = path.join(rootPath, 'volumes');
+    this.workspaces.set(workspaceId, {
+      rootPath,
+      inputPath: parentPath,
+      metadataPath: path.join(rootPath, 'mangabind.json'),
+      volumesPath,
+    });
+    try {
+      await this.files.createDirectory(volumesPath);
+      const titles: BindingBatchResult['titles'][number][] = [];
+      const issues: PipelineIssue[] = [];
+      // A folder run on its own reads the folder's own mangabind.json, as a library run does.
+      for (const folder of folders) {
+        const result = await this.cli.run(
+          { inputPath: folder, outputPath: volumesPath, dryRun: false, combine },
+          {
+            ...(signal === undefined ? {} : { signal }),
+            ...(onProgress === undefined
+              ? {}
+              : {
+                  onProgress: (event: MangabindProgressEvent) => {
+                    onProgress(toBindingProgress(event));
+                  },
+                }),
+          },
+        );
+        titles.push(...result.report.manga.map((manga) => boundTitle(manga, volumesPath, combine)));
+        issues.push(...result.report.issues.map(toPipelineIssue));
+      }
+      return { workspaceId, titles, issues };
     } catch (error) {
       await this.release(workspaceId);
       throw error;
@@ -317,7 +347,7 @@ export class MangabindBindingAdapter implements BindingPort {
     } catch (error) {
       throw new ConversionWorkflowError(
         'mapping_save_failed',
-        "Couldn't save mangabind.json in the source folder. Check that the folder is writable and try again.",
+        "Couldn't save mangabind.json in the source folder. Check that the folder is writable and that its mangabind.json is valid JSON.",
         { cause: error },
       );
     }
@@ -423,6 +453,31 @@ function titleFromManga(
         name: path.basename(checkedChildPath(volumesPath, volume.output_path)),
         pageCount: volume.page_count,
       })),
+    issues: manga.issues.map(toPipelineIssue),
+  };
+}
+
+/** What a run wrote for one manga, with every path checked to be inside the run's own folder. */
+function boundTitle(
+  manga: MangabindReport['manga'][number],
+  volumesPath: string,
+  combine: boolean | undefined,
+): BindingBatchResult['titles'][number] {
+  const combinedOutputPath =
+    combine === true && manga.combined_output_path !== undefined
+      ? checkedChildPath(volumesPath, manga.combined_output_path)
+      : undefined;
+  return {
+    title: manga.name,
+    status: manga.status,
+    volumes: manga.volumes
+      .filter((volume) => volume.written)
+      .sort((left, right) => left.number - right.number)
+      .map((volume) => ({
+        number: volume.number,
+        path: checkedChildPath(volumesPath, volume.output_path),
+      })),
+    ...(combinedOutputPath === undefined ? {} : { combinedOutputPath }),
     issues: manga.issues.map(toPipelineIssue),
   };
 }

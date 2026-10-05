@@ -1,4 +1,4 @@
-import type { BookDetails } from './book-details';
+import { type BookDetails, volumeBookTitle } from './book-details';
 import type { MappingDraft } from './mapping';
 import type { MangapressSettings } from './output-profile';
 import type { ProcessMode } from './process-mode';
@@ -22,6 +22,8 @@ export interface InspectedTitle {
   readonly issues: readonly PipelineIssue[];
   /** The author and language kept with the title's folder, when there are any. */
   readonly details?: BookDetails;
+  /** The names of the title's folders its tool could not read as chapters: left out of its books. */
+  readonly unrecognized?: readonly string[];
 }
 
 export interface InspectedInput {
@@ -33,6 +35,8 @@ export interface InspectedInput {
   readonly details?: BookDetails;
   /** The manga folders of a library. Their paths stay with the workflow. */
   readonly titles?: readonly InspectedTitle[];
+  /** The names of the folders of a manga that its tool could not read as chapters: left out of every book. */
+  readonly unrecognized?: readonly string[];
   readonly issues: readonly PipelineIssue[];
 }
 
@@ -78,6 +82,24 @@ export interface ConversionArtifact {
 export interface PlannedBook {
   readonly name: string;
   readonly pageCount: number;
+}
+
+/**
+ * The name of the book mangapress makes of one joined volume, which is not the name of the CBZ
+ * mangabind joined it into: the typed title and the number of the volume if there is a title, else
+ * the file's own name, and the extension of the format chosen. (A Kobo's EPUB has another
+ * extension, which this does not know.)
+ */
+export function plannedVolumeBookName(
+  volume: { readonly name: string; readonly number?: number },
+  typedTitle: string | undefined,
+  format: BookFormat,
+): string {
+  const title =
+    typedTitle !== undefined && volume.number !== undefined
+      ? volumeBookTitle(typedTitle, volume.number)
+      : volume.name.replace(/\.cbz$/iu, '');
+  return `${title}.${format}`;
 }
 
 /** A combined series is one planned EPUB; its volumes remain table-of-contents sections. */

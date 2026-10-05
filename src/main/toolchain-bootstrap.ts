@@ -31,7 +31,7 @@ function executablePath(
  * workflow onto the context so every IPC handler can reach it. Runs once, during app.whenReady().
  */
 export async function bootstrapToolchain(
-  context: Pick<MainContext, 'workflow' | 'mangapressCli'>,
+  context: Pick<MainContext, 'workflow' | 'mangapressCli' | 'coverStore'>,
 ): Promise<ToolchainStatus> {
   const toolchainRoot = app.isPackaged
     ? path.join(process.resourcesPath, 'toolchain')
@@ -69,6 +69,7 @@ export async function bootstrapToolchain(
       randomUUID,
       new FsBookFileStore(),
       conversionConcurrency(availableParallelism(), totalmem()),
+      context.coverStore,
     );
   }
   return toolchainStatus;

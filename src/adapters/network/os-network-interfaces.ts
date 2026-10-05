@@ -5,6 +5,8 @@ import type {
   NetworkInterfacePort,
 } from '@/application/ports/network-interfaces';
 
+const loopbackAddress = '127.0.0.1';
+
 export class OsNetworkInterfaces implements NetworkInterfacePort {
   constructor(private readonly listInterfaces: typeof networkInterfaces = networkInterfaces) {}
 
@@ -18,5 +20,9 @@ export class OsNetworkInterfaces implements NetworkInterfacePort {
       }
     }
     return options;
+  }
+
+  canShareOn(address: string): boolean {
+    return address === loopbackAddress || this.list().some((option) => option.address === address);
   }
 }

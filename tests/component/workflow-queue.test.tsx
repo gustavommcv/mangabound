@@ -170,6 +170,8 @@ describe('queue application workflow', () => {
     expect(screen.getByRole('group', { name: 'Confirm deletion of Same.epub' })).toHaveTextContent(
       'Books saved elsewhere will stay untouched.',
     );
+    // The question has the focus, and Tab goes on to its buttons.
+    expect(screen.getByRole('group', { name: 'Confirm deletion of Same.epub' })).toHaveFocus();
     expect(discardPendingRun).not.toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(discardPendingRun).not.toHaveBeenCalled();
@@ -338,6 +340,66 @@ describe('queue application workflow', () => {
     // What was saved leaves the queue, and its scratch copy is released.
     expect(screen.queryByRole('list', { name: 'Queued items' })).not.toBeInTheDocument();
     expect(releaseInput).toHaveBeenCalledWith('session');
+  });
+
+  it('does not carry an error about a book it could not open to the queue it goes back to', async () => {
+    const user = userEvent.setup();
+    const convert = vi.fn<MangaboundBridge['convert']>(() =>
+      Promise.resolve({
+        ok: true,
+        value: [{ id: 'artifact', name: 'Offline Work.epub', bytes: 2048, format: 'epub' }],
+      }),
+    );
+    const openArtifact = vi.fn<MangaboundBridge['openArtifact']>(() =>
+      Promise.resolve({
+        ok: false,
+        error: { code: 'artifact_not_found', message: 'The saved book is no longer available.' },
+      }),
+    );
+    installBridge(bridge({ convert, openArtifact }));
+    render(<App />);
+    await addFolder(user);
+    await user.click(await runButton(1));
+    expect(await screen.findByRole('heading', { name: '1 book ready' })).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Open Offline Work.epub' }));
+    expect(await screen.findByText('The saved book is no longer available.')).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Convert more' }));
+
+    expect(await screen.findByRole('heading', { name: 'Queue' })).toBeVisible();
+    expect(screen.queryByText('The saved book is no longer available.')).not.toBeInTheDocument();
+  });
+
+  it('says on the row, and in the editor, which folders mangabind could not read as chapters', async () => {
+    const user = userEvent.setup();
+    installBridge(
+      bridge({
+        inspectInput: (id) => {
+          const read = inspection(id);
+          return Promise.resolve(
+            read.ok
+              ? {
+                  ok: true as const,
+                  value: { ...read.value, unrecognized: ['Omake', 'Ch.004 [GroupA]'] },
+                }
+              : read,
+          );
+        },
+      }),
+    );
+    render(<App />);
+
+    await addFolder(user);
+
+    const told =
+      '2 folders have a name mangabind cannot read as a chapter, so they are left out of the books: Omake, Ch.004 [GroupA]. Rename them to include a chapter number (Ch.005, for one), then add the folder again.';
+    const list = screen.getByRole('list', { name: 'Queued items' });
+    expect(within(list).getByText(told)).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Edit volumes for Offline Work' }));
+    expect(await screen.findByRole('heading', { name: 'Folders left out' })).toBeVisible();
+    expect(screen.getByText(told)).toBeVisible();
   });
 
   it('focuses the Queue heading as soon as the app opens', async () => {
@@ -792,6 +854,34 @@ describe('queue application workflow', () => {
 
     await user.click(screen.getByRole('button', { name: 'Cancel conversion' }));
     expect(cancelConversion).toHaveBeenCalledWith(jobId);
+  });
+
+  it('shows what a job reports before the screen has been drawn again for it', async () => {
+    const user = userEvent.setup();
+    let emit: (progress: ConversionProgressPayload) => void = () => undefined;
+    // The tool's first word arrives while the call is being made, ahead of the render that follows
+    // the item starting: it belongs to the run all the same.
+    const convert = vi.fn<MangaboundBridge['convert']>((command) => {
+      act(() => {
+        emit({ jobId: command.jobId, stage: 'processing', message: 'Opened the first chapter.' });
+      });
+      return new Promise(() => undefined);
+    });
+    installBridge(
+      bridge({
+        convert,
+        onConversionProgress: (listener) => {
+          emit = listener;
+          return () => undefined;
+        },
+      }),
+    );
+    render(<App />);
+    await addFolder(user);
+
+    await user.click(await runButton(1));
+
+    expect(await screen.findByText('Opened the first chapter.')).toBeVisible();
   });
 
   it('says why an item was not added and lets the message be dismissed', async () => {

@@ -26,6 +26,16 @@ Use **Edit volumes** for chapter-to-volume mapping. A library opens its list of 
 
 Use the book-details action to set **Series title** or **Book title**, **Author**, and **Language** for each item. You can enter the author yourself or look it up online. If the folder names say the manga is in another language than the one the books are made in, the **Language** field offers a button to use it, such as **Use pt-BR**; nothing changes until you click it. You can type a language in any capitalization: books are always written with the standard form, so `pt-br` becomes `pt-BR`. For a library, set these details for each title.
 
+### A cover of your own
+
+The same page has **Covers**, with one line for each book the item makes. A book without a cover of its own uses its first page, as before.
+
+- **Choose cover…** picks an image for that book; dropping an image on the line does the same. The image can be anywhere and have any name: Mangabound keeps its own copy, so the original can be moved or deleted afterwards.
+- **Add covers from a folder…** gives the folder's images to the books in order of name: the first to the first book, the second to the second. Dropping a folder, or several images, on the list does the same. A cover you chose by hand is never replaced this way; one that came from an earlier folder is.
+- Each cover can be changed or removed on its line. The covers are remembered for that folder or file, and come back the next time you add it.
+
+Covers are JPEG, PNG, WebP, GIF or BMP images. Mangabound checks that a file really is one when you choose it: a damaged file, or one that only has an image's name, is not used, and the page says so. In a folder, such an image keeps its place in the order, so the images after it still go to the books they line up with, and its book keeps its first page. If a cover still cannot be used when the book is made, the error names the book and says to remove the cover or choose another image on this page. **Cut the front cover from a wide image** and **Crop the cover to fill the screen**, in the [conversion options](../output-profiles/), apply to them too. A PDF has no cover.
+
 ## Chapters have no volume names
 
 You do not have to rename the whole collection. Open the mapping editor: if no volume grouping exists, it switches to **Manual** and offers **Online source** as an optional alternative. Follow [volume mapping](../mapping-editor/).

@@ -34,6 +34,11 @@ describe('the warnings of a run, as the results show them', () => {
     ['spread_labels_ignored', 'A .json file beside the book was not used'],
     ['spread_labels_skipped', 'Some labelled spreads were not joined'],
     ['output_collision', 'Saved under another name'],
+    // From mangabind, when it had to leave something out of a book.
+    ['chapter_conflict', 'Chapters with more than one copy were left out'],
+    ['chapter_gap', 'Chapters are missing inside a volume'],
+    ['empty_chapter', 'Chapters with no pages were left out'],
+    ['link_skipped', 'Links that lead outside the folder were left out'],
   ])('knows %s', (code, title) => {
     const [notice] = warningNotices([{ name: 'One.epub', warnings: [{ code, message: 'x' }] }]);
     expect(notice?.title).toBe(title);
@@ -76,6 +81,19 @@ describe('the warnings of a run, as the results show them', () => {
       ['images_smaller_than_device', 'In Two.epub.'],
     ]);
   });
+
+  it.each(['constructor', 'toString', 'hasOwnProperty', '__proto__', 'valueOf'])(
+    'does not take %s, a name every object has, for a code it knows',
+    (code) => {
+      const notices = warningNotices([
+        { name: 'One.epub', warnings: [{ code, message: 'The tool’s sentence.' }] },
+      ]);
+
+      expect(notices).toEqual([
+        { code, title: 'A note from mangapress', message: 'The tool’s sentence.' },
+      ]);
+    },
+  );
 
   it('shows the tool’s own sentence for a code it does not know', () => {
     const later = { code: 'added_in_a_later_release', message: 'Something new was noticed.' };

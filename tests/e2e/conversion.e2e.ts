@@ -5,7 +5,15 @@ import path from 'node:path';
 
 import { $, browser } from '@wdio/globals';
 
-import { readZipEntry, resetQueue, saveAllBooks, saveBookAs, waitForFolderNames } from './support';
+import {
+  readZipEntry,
+  recordProgress,
+  reportedProgress,
+  resetQueue,
+  saveAllBooks,
+  saveBookAs,
+  waitForFolderNames,
+} from './support';
 
 const temporaryDirectories: string[] = [];
 
@@ -200,8 +208,32 @@ describe('packaged conversion pipeline', () => {
 
     await $('button=Queue').click();
     await $('span=2 titles').waitForDisplayed({ timeout: 30_000 });
+    await recordProgress();
     await $('button=Process 1 item').click();
     await $('h1=2 books ready').waitForDisplayed({ timeout: 120_000 });
+    const progressSeen = await reportedProgress();
+    // All of it is of the one run, and begins with the library being bound.
+    assert.equal(new Set(progressSeen.map((progress) => progress.jobId)).size, 1);
+    assert.equal(progressSeen[0]?.message, 'Building volume files for the library…');
+    const titles = ['Auto-Resolved Manga', 'Needs Mapping Manga'];
+    for (const title of titles) {
+      const own = progressSeen.filter((progress) => progress.title === title);
+      for (const stage of ['binding', 'processing', 'saving']) {
+        assert.ok(
+          own.some((progress) => progress.stage === stage),
+          `${title} should have been reported in the ${stage} stage.`,
+        );
+      }
+      // The pages are counted up to the whole of the title's book.
+      const counted = own.filter((progress) => progress.total !== undefined);
+      assert.ok(counted.length > 0);
+      assert.equal(counted.at(-1)?.completed, counted.at(-1)?.total);
+    }
+    // The titles are converted one after the other, in the order of the library.
+    const converting = progressSeen
+      .filter((progress) => progress.stage === 'processing')
+      .map((progress) => progress.title);
+    assert.deepEqual([...new Set(converting)], titles);
     assert.deepEqual(await readdir(outputLibraryPath), []);
     // A file blocking the catalog directory lets the books copy but produces a warning.
     // Retrying after removing the obstruction must not require another conversion.
@@ -242,6 +274,102 @@ describe('packaged conversion pipeline', () => {
       describeAppState: () => $('main').getText(),
     });
     assert.equal(openDialog.mock.calls.length, 4);
+  });
+
+  it('binds only the titles of a library that are ready, and leaves the others alone', async () => {
+    const testRoot = await mkdtemp(path.join(os.tmpdir(), 'mangabound-library-subset-e2e-'));
+    temporaryDirectories.push(testRoot);
+    const sourceLibrary = path.resolve('tests', 'fixtures', 'e2e', 'manga-batch', 'Library');
+    const libraryParentPath = path.join(testRoot, 'Library');
+    await cp(sourceLibrary, libraryParentPath, { recursive: true });
+    const openDialog = await browser.electron.mock('dialog', 'showOpenDialog');
+    await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [libraryParentPath] });
+
+    await resetQueue();
+    await $('button=Folder').click();
+    // One title has volumes and the other waits for them, so a run is of one title of two.
+    await $('span=1 title').waitForDisplayed({ timeout: 60_000 });
+    assert.match(await $('main').getText(), /1 title left out until they have volumes/u);
+    await recordProgress();
+    await $('button=Process 1 item').click();
+    await $('h1=1 book ready').waitForDisplayed({ timeout: 120_000 });
+
+    // The title that waits was not bound: nothing was said of it, as it was when the whole library
+    // was bound first and the title it was asked for picked from it.
+    const titles = new Set((await reportedProgress()).map((progress) => progress.title));
+    assert.ok(titles.has('Auto-Resolved Manga'));
+    assert.equal(titles.has('Needs Mapping Manga'), false);
+  });
+
+  it('keeps sharing every ready book, the one converted after sharing started included', async () => {
+    const directCbzPath = path.resolve('tests', 'fixtures', 'e2e', 'cbz', 'Mangabound Direct.cbz');
+    const openDialog = await browser.electron.mock('dialog', 'showOpenDialog');
+    await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [directCbzPath] });
+    await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [directCbzPath] });
+    const hrefsOf = (feed: string): string[] =>
+      [...feed.matchAll(/href="([^"]*\/books\/[^"]*)"/gu)].map((match) => match[1] ?? '');
+
+    await resetQueue();
+    await $('button=Files').click();
+    await $('span=Ready').waitForDisplayed({ timeout: 30_000 });
+    await $('button=Process 1 item').click();
+    await $('h1=1 book ready').waitForDisplayed({ timeout: 120_000 });
+
+    // The person shares the books that are ready, as the results screen offers.
+    const shared = await browser.execute(async () => {
+      const bridge = window.mangabound;
+      if (bridge === undefined) throw new Error('The app bridge is unavailable.');
+      const listed = await bridge.listPendingRuns();
+      if (!listed.ok) throw new Error(listed.error.message);
+      const run = listed.value[0];
+      if (run === undefined) throw new Error('The converted book was not registered as pending.');
+      const started = await bridge.startSharing(run.libraryId, '127.0.0.1', {
+        username: '',
+        password: '',
+      });
+      if (!started.ok) throw new Error(started.error.message);
+      return { runId: run.libraryId, url: started.value.url };
+    });
+    try {
+      if (shared.url === undefined) throw new Error('The pending catalog has no address.');
+      const before = hrefsOf(await (await fetch(`${shared.url}/recent`)).text());
+      assert.ok(before.length > 0);
+
+      // Another book is converted while sharing goes on: it is a conversion of its own.
+      await $('button=Convert more').click();
+      await $('h1=Queue').waitForDisplayed();
+      await $('button=Files').click();
+      await $('span=Ready').waitForDisplayed({ timeout: 30_000 });
+      await $('button=Process 1 item').click();
+      await $('h1=1 book ready').waitForDisplayed({ timeout: 120_000 });
+
+      const after = hrefsOf(await (await fetch(`${shared.url}/recent`)).text());
+      const added = after.filter((href) => !before.includes(href));
+      assert.equal(added.length, 1, 'The book converted after sharing started should be listed.');
+      assert.equal(after.length, before.length + 1);
+      for (const href of [...before, ...added]) {
+        const book = await fetch(href);
+        assert.equal(book.status, 200, `${href} should be served.`);
+        assert.equal(
+          Buffer.from(await book.arrayBuffer())
+            .subarray(0, 2)
+            .toString('ascii'),
+          'PK',
+        );
+      }
+
+      // Every pending conversion is in what is served, so none can be deleted meanwhile.
+      const refusal = await browser.execute(async (runId) => {
+        const result = await window.mangabound?.discardPendingRun(runId);
+        if (result === undefined) return 'the bridge is unavailable';
+        return result.ok ? 'deleted' : result.error.code;
+      }, shared.runId);
+      assert.equal(refusal, 'pending_in_use');
+    } finally {
+      await browser.execute(async () => {
+        await window.mangabound?.stopSharing();
+      });
+    }
   });
 
   it('recovers an unsaved book after the window reloads', async () => {
@@ -316,7 +444,7 @@ describe('packaged conversion pipeline', () => {
     await deletionError.waitForDisplayed();
     assert.equal(
       await deletionError.getText(),
-      'Stop sharing these books before deleting their pending copies.',
+      'The ready books are being shared. Stop sharing before deleting their pending copies.',
     );
     assert.ok((await readdir(pendingRoot)).includes(newRuns[0]!));
     await browser.execute(async () => {

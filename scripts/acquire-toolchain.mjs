@@ -112,6 +112,10 @@ if (!toolchainRoot.startsWith(expectedToolchainRoot)) {
 }
 
 if (await alreadyAcquired(path.join(toolchainRoot, target), target, lock)) {
+  // A restored CI cache keeps the modes it was saved with, so it can still hold the folder as
+  // an older version of this script left it. Fixing it here keeps a stale cache from reaching a
+  // package.
+  if (process.platform !== 'win32') await chmod(path.join(toolchainRoot, target), 0o755);
   console.log(`Toolchain already acquired and verified for ${target}.`);
   process.exit(0);
 }
@@ -168,6 +172,10 @@ try {
     'utf8',
   );
 
+  // mkdtemp creates the staging folder readable by its owner alone, and a rename keeps that. The
+  // folder ends up inside the installed app, which is put there by root and used by a person, so
+  // left as it is the bundled tools sit where only root can reach them.
+  if (process.platform !== 'win32') await chmod(stagingDirectory, 0o755);
   const targetDirectory = path.join(toolchainRoot, target);
   await rm(targetDirectory, { force: true, recursive: true });
   await rename(stagingDirectory, targetDirectory);

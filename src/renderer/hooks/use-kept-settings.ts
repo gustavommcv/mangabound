@@ -1,4 +1,11 @@
-import { type Dispatch, type SetStateAction, useEffect, useRef, useState } from 'react';
+import {
+  type Dispatch,
+  type SetStateAction,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 
 import { type BookFormat } from '@/domain/conversion';
 import {
@@ -62,13 +69,38 @@ export function useKeptSettings(
     SetStateAction<NetworkInterfaceOption | undefined>
   >;
 } {
-  const [settings, setSettings] = useState<MangapressSettings>(defaultMangapressSettings);
-  const [format, setFormat] = useState<BookFormat>(defaultFormat);
-  const [mode, setMode] = useState<ProcessMode>(defaultProcessMode);
-  const [singleBook, setSingleBook] = useState(false);
-  const [selectedProviderId, setSelectedProviderId] = useState<string>();
-  const [preferredNetworkInterface, setPreferredNetworkInterface] =
+  const [settings, setSettingsNow] = useState<MangapressSettings>(defaultMangapressSettings);
+  const [format, setFormatNow] = useState<BookFormat>(defaultFormat);
+  const [mode, setModeNow] = useState<ProcessMode>(defaultProcessMode);
+  const [singleBook, setSingleBookNow] = useState(false);
+  const [selectedProviderId, setSelectedProviderIdNow] = useState<string>();
+  const [preferredNetworkInterface, setPreferredNetworkInterfaceNow] =
     useState<NetworkInterfaceOption>();
+  // The controls work with the defaults while the kept choices are being read. A choice made in
+  // that moment is the person's, and is put back over what was kept once it arrives, so that it
+  // is neither lost nor allowed to cost the rest of what was kept.
+  const readYet = useRef(false);
+  const earlyChoices = useRef<(() => void)[]>([]);
+  const choosing = useCallback(
+    <Value>(set: Dispatch<SetStateAction<Value>>): Dispatch<SetStateAction<Value>> =>
+      (action) => {
+        set(action);
+        if (!readYet.current) {
+          earlyChoices.current.push(() => {
+            set(action);
+          });
+        }
+      },
+    [],
+  );
+  const [setters] = useState(() => ({
+    setSettings: choosing(setSettingsNow),
+    setFormat: choosing(setFormatNow),
+    setMode: choosing(setModeNow),
+    setSingleBook: choosing(setSingleBookNow),
+    setSelectedProviderId: choosing(setSelectedProviderIdNow),
+    setPreferredNetworkInterface: choosing(setPreferredNetworkInterfaceNow),
+  }));
   // What was kept from the last session is read once; nothing is saved before it has been (ADR 0014).
   const [restored, setRestored] = useState(false);
   // What was last read or written, so only a real change is written: a first launch leaves no file,
@@ -85,7 +117,9 @@ export function useKeptSettings(
       )
       .then((saved) => {
         if (!current) return;
+        readYet.current = true;
         if (saved === undefined) {
+          earlyChoices.current = [];
           // Nothing is saved from here on: what is on screen is only the defaults, and saving
           // them would overwrite what was kept.
           notify('The saved settings could not be loaded.');
@@ -109,12 +143,15 @@ export function useKeptSettings(
             preferredNetworkInterface: saved.preferredNetworkInterface,
           }),
         );
-        setSingleBook(restoredSingleBook);
-        setMode(resolvedMode);
-        setFormat(resolvedFormat);
-        setSettings(resolvedSettings);
-        setSelectedProviderId(saved.preferences.providerId);
-        setPreferredNetworkInterface(saved.preferredNetworkInterface);
+        setSingleBookNow(restoredSingleBook);
+        setModeNow(resolvedMode);
+        setFormatNow(resolvedFormat);
+        setSettingsNow(resolvedSettings);
+        setSelectedProviderIdNow(saved.preferences.providerId);
+        setPreferredNetworkInterfaceNow(saved.preferredNetworkInterface);
+        // What was chosen before this arrived, over it: a change from what was kept, so it is saved.
+        for (const choose of earlyChoices.current) choose();
+        earlyChoices.current = [];
         for (const notice of saved.notices) notify(notice);
         setRestored(true);
       });
@@ -165,16 +202,11 @@ export function useKeptSettings(
 
   return {
     mode,
-    setMode,
     format,
-    setFormat,
     settings,
-    setSettings,
     singleBook,
-    setSingleBook,
     selectedProviderId,
-    setSelectedProviderId,
     preferredNetworkInterface,
-    setPreferredNetworkInterface,
+    ...setters,
   };
 }

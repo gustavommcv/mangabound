@@ -13,6 +13,7 @@ import {
 } from 'node:fs/promises';
 import path from 'node:path';
 
+import { newestChange } from '@/adapters/fs/newest-change';
 import { writeFileAtomically, type AtomicWriteDeps } from '@/adapters/fs/write-file-atomically';
 import type { LibraryBookEntry } from '@/library/manifest';
 import { toLibraryRelativePath } from '@/library/paths';
@@ -46,9 +47,15 @@ export interface FsPendingRunsDeps extends AtomicWriteDeps {
   readonly readFile: (filePath: string, encoding: 'utf8') => Promise<string>;
   readonly stat: (filePath: string) => Promise<Pick<Stats, 'isFile' | 'birthtimeMs'>>;
   readonly link: (from: string, to: string) => Promise<void>;
+  readonly copyFile: (from: string, to: string, mode: number) => Promise<void>;
 }
 
 /** Owns durable, app-local conversion output. Each run is isolated from name collisions in others. */
+/** Whether a folder's name is one a pending run is made under (an id the app gave it). */
+export function isPendingRunFolder(name: string): boolean {
+  return /^[0-9a-f-]{36}$/iu.test(name);
+}
+
 export class FsPendingRuns {
   private readonly io: FsPendingRunsDeps;
 
@@ -61,6 +68,7 @@ export class FsPendingRuns {
       readFile: deps.readFile ?? readFile,
       stat: deps.stat ?? stat,
       link: deps.link ?? link,
+      copyFile: deps.copyFile ?? copyFile,
       writeFile: deps.writeFile ?? writeFile,
       rename: deps.rename ?? rename,
       rm: deps.rm ?? rm,
@@ -85,7 +93,7 @@ export class FsPendingRuns {
     const children = await readdir(this.root, { withFileTypes: true });
     const runs: PendingRun[] = [];
     for (const child of children) {
-      if (!child.isDirectory() || !/^[0-9a-f-]{36}$/iu.test(child.name)) continue;
+      if (!child.isDirectory() || !isPendingRunFolder(child.name)) continue;
       const runPath = path.join(this.root, child.name);
       const manifest = await this.libraries.read(runPath);
       const state = await this.readState(runPath);
@@ -134,7 +142,7 @@ export class FsPendingRuns {
       `.${path.basename(destination)}.${randomUUID()}.tmp`,
     );
     try {
-      await copyFile(book.path, tempPath, constants.COPYFILE_EXCL);
+      await this.io.copyFile(book.path, tempPath, constants.COPYFILE_EXCL);
       if (overwrite) await rename(tempPath, destination);
       else {
         try {
@@ -144,8 +152,11 @@ export class FsPendingRuns {
           const code = (error as NodeJS.ErrnoException).code;
           if (!new Set(['EPERM', 'ENOTSUP', 'EOPNOTSUPP', 'ENOSYS']).has(code ?? '')) throw error;
           // FAT/exFAT and some network drives cannot make hard links. Exclusive copying is
-          // not atomic, but it never replaces an existing book and leaves the source intact.
-          await copyFile(tempPath, destination, constants.COPYFILE_EXCL);
+          // not atomic, but it never replaces an existing book and leaves the source intact. The
+          // staged copy goes first: with both on the drive it would need twice the book's size, and
+          // a book that fits would be refused as "the destination is full".
+          await rm(tempPath, { force: true });
+          await this.io.copyFile(book.path, destination, constants.COPYFILE_EXCL);
         }
       }
     } finally {
@@ -186,10 +197,28 @@ export class FsPendingRuns {
     }
     // A cancelled or wholly failed run may never have produced a book or catalog.
     for (const child of await readdir(this.root, { withFileTypes: true })) {
-      if (!child.isDirectory() || !/^[0-9a-f-]{36}$/iu.test(child.name)) continue;
+      if (!child.isDirectory() || !isPendingRunFolder(child.name)) continue;
       const runPath = path.join(this.root, child.name);
       if ((await readdir(runPath)).length === 0)
         await rm(runPath, { recursive: true, force: true });
+    }
+  }
+
+  /**
+   * Removes a run folder that holds no finished book and that nothing has changed for
+   * `olderThanMs`: what is left when the app is killed while the first book of a run is being made.
+   * Nothing lists such a folder, so nothing else could ever remove it. A newer one may be in the
+   * middle of that book, in this app or in another copy of it, and stays.
+   */
+  async pruneAbandoned(olderThanMs: number, now = Date.now()): Promise<void> {
+    const listed = new Set((await this.list()).map((run) => run.id));
+    for (const child of await readdir(this.root, { withFileTypes: true })) {
+      if (!child.isDirectory() || !isPendingRunFolder(child.name)) continue;
+      if (listed.has(child.name)) continue;
+      const runPath = path.join(this.root, child.name);
+      if (now - (await newestChange(runPath)) > olderThanMs) {
+        await rm(runPath, { recursive: true, force: true });
+      }
     }
   }
 

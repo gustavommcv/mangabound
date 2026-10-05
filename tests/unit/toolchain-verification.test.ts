@@ -1,10 +1,11 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { copyFile, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
+import { FsCoverStore } from '@/adapters/covers/fs-cover-store';
 import { MangapressCliAdapter } from '@/adapters/mangapress/cli';
 import { MangapressConversionAdapter } from '@/adapters/mangapress/conversion-port';
 import { createNodeProcessRunner } from '@/adapters/process/node-process-runner';
@@ -180,6 +181,119 @@ describe('bundled toolchain verification', () => {
     expect(status.state).toBe('blocked');
     expect(status.tools.every((tool) => tool.state === 'failed')).toBe(true);
     expect(status.tools.every((tool) => /Reinstall Mangabound/u.test(tool.message))).toBe(true);
+  });
+
+  describe('does not let a tool that fails any one check run, however well the other does', () => {
+    const verify = (
+      run: Runner,
+      hashFile: (executablePath: string) => Promise<string> = successfulDependencies.hashFile,
+    ) =>
+      verifyBundledToolchain({
+        arch: 'x64',
+        dependencies: { hashFile, run },
+        manifest,
+        platform: 'win32',
+        toolchainRoot: 'C:\\bundled-tools',
+      });
+
+    /** Answers like the real tools, except where `change` says otherwise for one tool and one flag. */
+    const answering =
+      (
+        tool: 'mangabind' | 'mangapress',
+        flag: '--version' | '--protocol-version',
+        change: (normal: string) => string,
+      ): Runner =>
+      (executablePath, arguments_) => {
+        const normal = successfulDependencies.run(executablePath, arguments_);
+        return toolFromPath(executablePath) === tool && arguments_[0] === flag
+          ? normal.then(({ stdout, stderr }) => ({ stderr, stdout: change(stdout) }))
+          : normal;
+      };
+
+    it('blocks the toolchain when one tool fails its hash and the other passes, naming the one', async () => {
+      const onlyMangapressTampered = await verify(successfulDependencies.run, (executablePath) =>
+        toolFromPath(executablePath) === 'mangapress'
+          ? Promise.resolve('tampered')
+          : successfulDependencies.hashFile(executablePath),
+      );
+      const onlyMangabindTampered = await verify(successfulDependencies.run, (executablePath) =>
+        toolFromPath(executablePath) === 'mangabind'
+          ? Promise.resolve('tampered')
+          : successfulDependencies.hashFile(executablePath),
+      );
+
+      expect(onlyMangapressTampered.state).toBe('blocked');
+      expect(onlyMangapressTampered.tools.map(({ name, state }) => [name, state])).toEqual([
+        ['mangabind', 'ready'],
+        ['mangapress', 'failed'],
+      ]);
+      expect(onlyMangabindTampered.state).toBe('blocked');
+      expect(onlyMangabindTampered.tools.map(({ name, state }) => [name, state])).toEqual([
+        ['mangabind', 'failed'],
+        ['mangapress', 'ready'],
+      ]);
+    });
+
+    it.each(['mangabind', 'mangapress'] as const)(
+      'blocks %s when its version is wrong while its handshake is right',
+      async (tool) => {
+        const status = await verify(
+          answering(tool, '--version', (normal) => normal.replace(/\d+\.\d+\.\d+/u, '99.0.0')),
+        );
+
+        expect(status.state).toBe('blocked');
+        expect(status.tools.find((candidate) => candidate.name === tool)?.state).toBe('failed');
+        expect(
+          status.tools
+            .filter((candidate) => candidate.name !== tool)
+            .every((other) => other.state === 'ready'),
+        ).toBe(true);
+      },
+    );
+
+    it.each([
+      [
+        'mangabind',
+        'that does not list the report capability',
+        (normal: string) =>
+          JSON.stringify({ ...(JSON.parse(normal) as object), capabilities: ['progress-json'] }),
+      ],
+      [
+        'mangabind',
+        'on another protocol version',
+        (normal: string) =>
+          JSON.stringify({ ...(JSON.parse(normal) as object), protocol_version: 2 }),
+      ],
+      [
+        'mangapress',
+        'that does not list the events capability',
+        (normal: string) =>
+          JSON.stringify({ ...(JSON.parse(normal) as object), capabilities: ['profiles'] }) + '\n',
+      ],
+      [
+        'mangapress',
+        'that does not list the profiles capability',
+        (normal: string) =>
+          JSON.stringify({ ...(JSON.parse(normal) as object), capabilities: ['events'] }) + '\n',
+      ],
+      [
+        'mangapress',
+        'on another protocol version',
+        (normal: string) =>
+          JSON.stringify({ ...(JSON.parse(normal) as object), protocol_version: 2 }) + '\n',
+      ],
+      [
+        'mangapress',
+        'that is not the protocol event',
+        (normal: string) =>
+          JSON.stringify({ ...(JSON.parse(normal) as object), type: 'progress' }) + '\n',
+      ],
+    ] as const)('blocks %s answering a handshake %s', async (tool, _what, change) => {
+      const status = await verify(answering(tool, '--protocol-version', change));
+
+      expect(status.state).toBe('blocked');
+      expect(status.tools.find((candidate) => candidate.name === tool)?.state).toBe('failed');
+    });
   });
 
   it('blocks version skew and malformed or incompatible protocol handshakes', async () => {
@@ -390,6 +504,62 @@ describe('bundled toolchain verification', () => {
       expect(enlarged).not.toHaveProperty('warnings');
     } finally {
       await rm(outputDirectory, { recursive: true, force: true });
+    }
+  });
+
+  // A cover of the person's own is an image from anywhere, under any name, copied by the app and
+  // handed over with --cover (ADR 0040). The real tool has to take it and still make the book.
+  it('makes a book with a cover of the person’s own with the real pinned mangapress', async () => {
+    const target = resolveToolchainTarget(process.platform, process.arch)!;
+    const executableName = target.startsWith('win32-') ? 'mangapress.exe' : 'mangapress';
+    const conversion = new MangapressConversionAdapter(
+      new MangapressCliAdapter(
+        path.join(repositoryRoot, 'vendor', 'toolchain', target, executableName),
+        createNodeProcessRunner(),
+      ),
+    );
+    const inputPath = path.join(
+      repositoryRoot,
+      'tests',
+      'fixtures',
+      'e2e',
+      'cbz',
+      'Mangabound Direct.cbz',
+    );
+    const work = await mkdtemp(path.join(tmpdir(), 'mangabound-cover-'));
+    try {
+      const store = new FsCoverStore(path.join(work, 'covers'));
+      const picked = path.join(work, 'any name at all.png');
+      await copyFile(path.join(repositoryRoot, 'tests', 'fixtures', 'covers', 'front.png'), picked);
+      await store.attach(inputPath, { slot: 'book', origin: 'chosen', sourcePath: picked });
+      await rm(picked);
+      const [cover] = await store.list(inputPath);
+
+      const withCover = await conversion.convert(
+        {
+          inputPath,
+          outputDirectory: path.join(work, 'with'),
+          settings: defaultMangapressSettings,
+          cover: cover!.path,
+          format: 'epub',
+        },
+        { onProgress: () => undefined },
+      );
+      const without = await conversion.convert(
+        {
+          inputPath,
+          outputDirectory: path.join(work, 'without'),
+          settings: defaultMangapressSettings,
+          format: 'epub',
+        },
+        { onProgress: () => undefined },
+      );
+
+      expect(withCover.bytes).toBeGreaterThan(0);
+      // The cover is a different image, so the book is a different size.
+      expect(withCover.bytes).not.toBe(without.bytes);
+    } finally {
+      await rm(work, { recursive: true, force: true });
     }
   });
 

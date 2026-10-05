@@ -99,6 +99,62 @@ export const SeriesWithoutVolumesYet: Story = {
   },
 };
 
+const coverActions = {
+  onChoose: () => undefined,
+  onChooseFolder: () => undefined,
+  onDropFiles: () => undefined,
+  onRemove: () => undefined,
+};
+
+/**
+ * Covers of the person's own: one chosen for a book, others taken from a folder in order, and
+ * the rest left to their first page.
+ */
+export const WithCovers: Story = {
+  args: {
+    volumes: [1, 2, 3, 4, 5],
+    covers: {
+      ...coverActions,
+      attached: [
+        { slot: 1, name: '01.jpg', origin: 'folder' },
+        { slot: 2, name: 'IMG_2041.jpg', origin: 'chosen' },
+        { slot: 3, name: '03.jpg', origin: 'folder' },
+      ],
+      note: '1 book keeps the cover chosen for it. There were 3 images for 5 books; the other books are unchanged.',
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const covers = within(
+      within(canvasElement).getByRole('list', { name: 'Books and their covers' }),
+    );
+    await expect(covers.getAllByRole('listitem')).toHaveLength(5);
+    await expect(covers.getByText('01.jpg · from a folder')).toBeVisible();
+    await expect(covers.getByText('IMG_2041.jpg')).toBeVisible();
+    await expect(covers.getAllByText('First page')).toHaveLength(2);
+  },
+};
+
+/** One book has one cover to give; a series with no volumes yet has none to give them to. */
+export const OneBookWithoutACover: Story = {
+  args: {
+    name: 'Vagabond Vol.03.cbz',
+    defaultTitle: 'Vagabond Vol.03',
+    covers: { ...coverActions, attached: [] },
+  },
+  render: (args) => {
+    const { volumes: _volumes, ...rest } = args;
+    void _volumes;
+    return <Stateful {...rest} />;
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole('button', { name: 'Choose a cover for Vagabond Vol.03' }),
+    ).toBeVisible();
+    await expect(canvas.getByRole('button', { name: /Add covers from a folder/u })).toBeVisible();
+  },
+};
+
 /** A loose CBZ, or a series made into one book: the title is the book's, with no volumes. */
 export const OneBook: Story = {
   args: { name: 'Vagabond Vol.03.cbz', defaultTitle: 'Vagabond Vol.03' },

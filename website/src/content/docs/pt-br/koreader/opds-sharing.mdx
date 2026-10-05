@@ -9,7 +9,7 @@ Compartilhe livros com o KOReader pela rede local. Abra o **catálogo OPDS** do 
 
 ## Inicie o compartilhamento
 
-1. Use **Share these books** nos resultados para compartilhar aquela conversão ou **Share** na barra superior para escolher uma pasta de biblioteca existente.
+1. Use **Share these books** nos resultados para compartilhar os livros prontos para salvar, ou **Share** na barra superior para escolher uma pasta de biblioteca existente. Os livros prontos são todos eles: os desta conversão e os de qualquer conversão anterior que ainda esteja em **Ready books**, e um livro que você converter com o compartilhamento ativo também aparece no leitor. Enquanto eles estão compartilhados, uma conversão pendente não pode ser apagada; pare o compartilhamento antes.
 2. Selecione **Network interface** da rede acessível ao leitor. O computador pode usar Ethernet mesmo com o leitor no Wi-Fi. Evite adaptadores VPN, a menos que ambos alcancem essa rede. A interface escolhida é lembrada.
 3. Preencha opcionalmente **Username** e **Password**, ou deixe ambos vazios.
 4. Selecione **Start sharing** e use **Copy** no endereço mostrado. Mantenha o Mangabound aberto até os downloads terminarem.
@@ -46,7 +46,7 @@ Use o endereço do catálogo exibido após iniciar o compartilhamento. Mantenha 
 O compartilhamento usa HTTP. A autenticação Basic opcional restringe acesso, mas não criptografa credenciais nem livros. Não exponha a porta na internet nem utilize uma rede não confiável.
 :::
 
-Continue em [conectando o KOReader](../connecting/). Use **Stop sharing** ao terminar.
+Continue em [conectando o KOReader](../connecting/). Use **Stop sharing** ao terminar: o compartilhamento termina na hora, e um livro que ainda estiver sendo baixado nesse momento é interrompido. O Mangabound também derruba uma conexão que ficou um minuto em silêncio, como um e-reader que entrou em repouso no meio de um download.
 
 ## Se um livro não aparecer
 
@@ -55,3 +55,5 @@ O Mangabound serve apenas arquivos que estão dentro da pasta compartilhada. Uma
 ## Se o leitor não conectar
 
 Confira se ambos alcançam a mesma rede local, a interface escolhida está correta, o compartilhamento está ativo e o firewall permite o aplicativo nessa rede confiável. Wi-Fi de convidados, isolamento de clientes e VPNs podem bloquear acesso mesmo com internet nos dois aparelhos. Se o IP do computador mudar, atualize o endereço no KOReader.
+
+O Mangabound responde apenas a um endereço do computador em que roda: os números que ele mostra (como `192.168.1.150`), `localhost` ou o nome do próprio computador. Um pedido que chegue por qualquer outro nome é recusado, para que uma página web que você visite não alcance o seu catálogo pelo navegador. Se o seu roteador dá ao computador um nome próprio e o leitor usa esse nome, use o endereço mostrado no aplicativo; o registro do aplicativo diz qual nome foi recusado.

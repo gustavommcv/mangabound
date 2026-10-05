@@ -215,6 +215,14 @@ test('the title, author and language of an item remain visually consistent', asy
   await expect(page.locator('#storybook-root')).toHaveScreenshot('book-details.png');
 });
 
+test('the details page lists every book with the cover it has', async ({ page }) => {
+  await page.goto('/iframe.html?id=workflows-book-details--with-covers&viewMode=story');
+  await expect(page.getByRole('heading', { name: 'Covers', exact: true })).toBeVisible();
+  await expect(page.getByText('01.jpg · from a folder', { exact: true })).toBeVisible();
+  await page.evaluate(async () => document.fonts.ready);
+  await expect(page.locator('#storybook-root')).toHaveScreenshot('book-details-covers.png');
+});
+
 test('full output settings remain visually consistent', async ({ page }) => {
   await page.goto('/iframe.html?id=workflows-output-settings--normal&viewMode=story');
   await expect(page.getByRole('heading', { name: 'Device & output' })).toBeVisible();

@@ -66,6 +66,8 @@ export interface BindingPlan {
   readonly volumes: readonly {
     readonly name: string;
     readonly pageCount: number;
+    /** The volume's number in its series, when the tool said it. */
+    readonly number?: number;
   }[];
   readonly issues: readonly PipelineIssue[];
 }
@@ -103,6 +105,17 @@ export interface BindingPort {
   /** Joins every title of a library with one mangabind `--batch` run. */
   bindBatch(
     parentPath: string,
+    signal?: AbortSignal,
+    combine?: boolean,
+    onProgress?: (progress: BindingProgress) => void,
+  ): Promise<BindingBatchResult>;
+  /**
+   * Joins only the titles in these folders, each with its own mangabind run, and leaves the rest of
+   * the library alone: a library of fifty titles of which one is asked for does not get fifty bound.
+   */
+  bindTitles(
+    parentPath: string,
+    folders: readonly string[],
     signal?: AbortSignal,
     combine?: boolean,
     onProgress?: (progress: BindingProgress) => void,
@@ -145,6 +158,8 @@ export interface ConversionPort {
       readonly settings: MangapressSettings;
       /** The title, author and language of this book, where they were set for it. */
       readonly book?: BookDetails;
+      /** An image of the person's own to make this book's cover from, in the place of its first. */
+      readonly cover?: string;
       readonly format: BookFormat;
       readonly nestedToc?: boolean;
     },

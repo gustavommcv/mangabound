@@ -9,7 +9,7 @@ Share books with KOReader over your local network. Open Mangabound's **OPDS cata
 
 ## Start sharing
 
-1. Use **Share these books** in the results to share that conversion, or **Share** in the titlebar to choose an existing library folder.
+1. Use **Share these books** in the results to share the books that are ready to save, or **Share** in the titlebar to choose an existing library folder. The ready books are all of them: those of this conversion and of any earlier one still waiting under **Ready books**, and a book you convert while sharing is running shows up on the reader too. While they are shared, a pending conversion cannot be deleted; stop sharing first.
 2. Select **Network interface** for the network your reader can reach—Ethernet is fine even if the reader uses Wi-Fi. Avoid a VPN adapter unless both devices can reach that network. The chosen interface is remembered.
 3. Optionally fill in both **Username** and **Password**, or leave both empty.
 4. Select **Start sharing**, then **Copy** the address the app displays. Keep Mangabound open until downloads finish.
@@ -46,7 +46,7 @@ Use the catalog address shown after sharing starts. Keep Mangabound open during 
 Sharing uses HTTP. Optional Basic authentication restricts access but does not encrypt credentials or books. Do not expose the port to the internet or use it on an untrusted network.
 :::
 
-Continue with [connecting KOReader](../connecting/). Use **Stop sharing** when finished.
+Continue with [connecting KOReader](../connecting/). Use **Stop sharing** when finished: it ends right away, and a book still being downloaded at that moment is cut off. Mangabound also drops a connection that has been silent for a minute, such as an e-reader that went to sleep halfway through a download.
 
 ## If a book does not show up
 
@@ -55,3 +55,5 @@ Mangabound serves only files that are inside the shared folder. A subfolder that
 ## If your reader cannot connect
 
 Check that both devices can reach the same local network, the chosen interface is correct, sharing is still active, and your firewall allows the app on that trusted network. Guest Wi-Fi/client isolation and VPNs can block access even when both devices have internet. If the selected computer IP changes, update the catalog address in KOReader.
+
+Mangabound answers only to an address of the computer it runs on: the numbers it shows (such as `192.168.1.150`), `localhost`, or the computer's own name. A request that comes by any other name is refused, so a web page you happen to visit cannot reach your catalog through your browser. If your router gives the computer a name of its own and your reader uses it, use the address shown in the app instead; the app's log says which name was refused.

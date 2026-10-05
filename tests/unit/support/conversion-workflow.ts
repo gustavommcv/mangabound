@@ -1,6 +1,13 @@
 import { vi } from 'vitest';
 import type { BookFileStorePort } from '@/application/ports/book-file-store';
 import type { BindingPort, ConversionPort } from '@/application/ports/conversion-tools';
+import type {
+  CoverImage,
+  CoverSourcePort,
+  CoverStorePort,
+  StoredCover,
+} from '@/application/ports/cover-store';
+import { isCoverImage } from '@/domain/book-covers';
 import { ConversionWorkflow } from '@/application/workflows/conversion-workflow';
 import type { ConversionArtifact, InputSelection } from '@/domain/conversion';
 import { createMappingDraft, type MappingDraft } from '@/domain/mapping';
@@ -121,6 +128,25 @@ export function dependencies({
       issues: [],
     }),
   );
+  // Each folder asked for is a title named after it, with two volumes of its own.
+  const bindTitles = vi.fn<BindingPort['bindTitles']>((_parentPath, folders, _signal, combine) =>
+    Promise.resolve({
+      workspaceId: 'titles-workspace',
+      titles: folders.map((folder) => {
+        const name = folder.split('/').at(-1) ?? folder;
+        return {
+          title: name,
+          status: 'completed' as const,
+          volumes: combine
+            ? []
+            : numbered([`/work/titles/${name}-vol-1.cbz`, `/work/titles/${name}-vol-2.cbz`]),
+          combinedOutputPath: combine ? `/work/titles/${name}-combined.cbz` : undefined,
+          issues: [],
+        };
+      }),
+      issues: [],
+    }),
+  );
   const writeTitleMapping = vi.fn<BindingPort['writeTitleMapping']>(() => Promise.resolve());
   const readDetails = vi.fn<BindingPort['readDetails']>(() => Promise.resolve({}));
   const writeDetails = vi.fn<BindingPort['writeDetails']>(() => Promise.resolve());
@@ -142,6 +168,7 @@ export function dependencies({
       release,
       planBatch,
       bindBatch,
+      bindTitles,
       writeTitleMapping,
       readDetails,
       writeDetails,
@@ -157,6 +184,7 @@ export function dependencies({
     conversionPlan,
     planBatch,
     bindBatch,
+    bindTitles,
     writeTitleMapping,
     readDetails,
     writeDetails,
@@ -190,6 +218,7 @@ export const libraryRead = createMappingDraft({
 export async function openLibrary(
   ports: ReturnType<typeof dependencies>,
   maxParallelConversions = 1,
+  coverStore?: CoverStorePort & CoverSourcePort,
 ) {
   ports.inspect.mockResolvedValue({ workspaceId: 'workspace-1', draft: libraryRead, issues: [] });
   let id = 0;
@@ -199,7 +228,66 @@ export async function openLibrary(
     () => `id-${String(++id)}`,
     ports.bookFiles,
     maxParallelConversions,
+    ...(coverStore === undefined ? [] : [coverStore]),
   );
   const inspected = await workflow.inspect(library);
   return { workflow, sessionId: inspected.sessionId };
+}
+
+/**
+ * Covers kept in memory, by item and book, the way the real store keeps them on disk. A path that
+ * names a folder is given by `folders`: what it holds, as file names.
+ */
+export function memoryCovers(folders: Readonly<Record<string, readonly string[]>> = {}): {
+  readonly store: CoverStorePort & CoverSourcePort;
+  readonly kept: Map<string, StoredCover[]>;
+} {
+  const kept = new Map<string, StoredCover[]>();
+  const nameOf = (filePath: string): string => filePath.split('/').at(-1) ?? filePath;
+  const store: CoverStorePort & CoverSourcePort = {
+    list: (itemPath) => Promise.resolve(kept.get(itemPath) ?? []),
+    attach: (itemPath, cover) => {
+      const others = (kept.get(itemPath) ?? []).filter((entry) => entry.slot !== cover.slot);
+      kept.set(itemPath, [
+        ...others,
+        {
+          slot: cover.slot,
+          origin: cover.origin,
+          name: nameOf(cover.sourcePath),
+          path: `/covers${cover.sourcePath}`,
+        },
+      ]);
+      return Promise.resolve();
+    },
+    remove: (itemPath, slot) => {
+      kept.set(
+        itemPath,
+        (kept.get(itemPath) ?? []).filter((entry) => entry.slot !== slot),
+      );
+      return Promise.resolve();
+    },
+    imagesIn: (paths) =>
+      Promise.resolve(
+        paths.flatMap((candidate): CoverImage[] => {
+          const inside = folders[candidate];
+          if (inside !== undefined) {
+            return inside.filter(isCoverImage).map((name) => ({
+              path: `${candidate}/${name}`,
+              name,
+              readable: !name.includes('broken'),
+            }));
+          }
+          return isCoverImage(nameOf(candidate))
+            ? [
+                {
+                  path: candidate,
+                  name: nameOf(candidate),
+                  readable: !nameOf(candidate).includes('broken'),
+                },
+              ]
+            : [];
+        }),
+      ),
+  };
+  return { store, kept };
 }

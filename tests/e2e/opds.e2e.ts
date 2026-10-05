@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import http from 'node:http';
 import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -115,6 +116,27 @@ describe('packaged OPDS delivery', () => {
 
       const unauthorized = await fetch(`${url}/recent`);
       assert.equal(unauthorized.status, 401);
+
+      // A page that has made its own name point at this computer reaches the server by that name,
+      // which is refused, the right password included (ADR 0018, amendment).
+      const foreignHost = await new Promise<number>((resolve, reject) => {
+        const { port } = new URL(url);
+        const request = http.request(
+          {
+            host: '127.0.0.1',
+            port,
+            path: '/recent',
+            headers: { Host: `evil.example:${port}`, Authorization: authorization },
+          },
+          (response) => {
+            response.resume();
+            resolve(response.statusCode ?? 0);
+          },
+        );
+        request.on('error', reject);
+        request.end();
+      });
+      assert.equal(foreignHost, 403);
 
       const recentResponse = await fetch(`${url}/recent`, {
         headers: { Authorization: authorization },

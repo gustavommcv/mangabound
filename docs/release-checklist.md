@@ -19,6 +19,7 @@ CI automates the repeatable launch and rendering checks. Compositor policy and r
 
 - Test current Windows at 100%, 125%, and 200% scaling.
 - Verify drag, double-click maximize/restore, snap layouts, and multi-monitor movement.
+- Convert a book without saving it, install the next version over the first, and check the book is still in the queue. Uninstall, and check `%LOCALAPPDATA%\Mangabound Data` is still there with it.
 
 ## macOS
 
@@ -27,6 +28,7 @@ CI automates the repeatable launch and rendering checks. Compositor policy and r
 
 ## Linux
 
+- Install each package (`.deb`, `.rpm`, Arch) and run one real conversion as a normal user. The app opens even when it cannot reach its bundled tools, so launching alone proves nothing.
 - Test X11 and native Wayland on the supported package.
 - Test GNOME/KDE fractional scaling and system file associations.
 - On Sway and Hyprland, verify launch, focus, drag regions, compositor-native move/resize, maximize/fullscreen, tiling/floating transitions, and clean shutdown.

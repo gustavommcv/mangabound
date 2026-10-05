@@ -32,7 +32,7 @@ Link verification resolves the URLs the browser will use, using the shared `site
 
 ## Dependency audit
 
-Before publishing, `npm run check` also runs `npm run audit`: npm's full dependency report checked by lockfile-pinned `audit-ci`, with every severity blocking by default. [SECURITY.md](SECURITY.md) records the owner-approved, expiring exception and its exposure analysis, scope guards, regression tests, and removal procedure. Do not replace this gate with a higher severity threshold or omit development dependencies. The desktop application's audit is separate and unchanged.
+Before publishing, `npm run check` also runs `npm run audit`: npm's full dependency report checked by lockfile-pinned `audit-ci`, with every severity blocking by default. No exception is in effect; [SECURITY.md](SECURITY.md) records what an owner-approved, expiring exception requires, and the one there was. Do not replace this gate with a higher severity threshold or omit development dependencies. The desktop application's audit is separate and unchanged.
 
 ## Write or translate a page
 

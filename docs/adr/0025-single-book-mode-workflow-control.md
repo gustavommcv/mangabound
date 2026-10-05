@@ -56,7 +56,7 @@ In ADR 0024, the control was initially placed inside the mangapress options pane
 
 ### 6. Library Batch Processing
 
-- When converting a library in single-book mode, mangabound passes `combine: true` to `BindingPort.bindBatch`, which invokes mangabind with both `-batch` and `-combine`.
+- When converting a library in single-book mode, mangabound passes `combine: true` to `BindingPort.bindBatch`, which invokes mangabind with both `-batch` and `-combine`. When only some titles of the library are converted (a re-run of the ones that failed), `BindingPort.bindTitles` runs mangabind with `-combine` on each of their folders instead, so the rest of the library is not bound (audit P2-02).
 - Each completed title's `combined_output_path` is converted once to EPUB with `nestedToc: true`.
 - Per-title failure isolation is strictly preserved: a failure in one title's binding or conversion does not interrupt processing of remaining titles.
 - Temporary workspaces are guaranteed to be cleaned up via `finally` blocks.

@@ -20,6 +20,7 @@ import { ProcessSteps } from '@/renderer/components/settings/process-steps';
 import { ResetOptions } from '@/renderer/components/settings/reset-options';
 import { SettingFieldHeader } from '@/renderer/components/settings/setting-field-header';
 import { Button } from '@/renderer/components/ui/button';
+import { useFocusOnOpen } from '@/renderer/hooks/use-focus-on-open';
 import { Checkbox } from '@/renderer/components/ui/checkbox';
 import { NativeSelect } from '@/renderer/components/ui/native-select';
 import { SegmentedControl } from '@/renderer/components/ui/segmented-control';
@@ -409,6 +410,7 @@ function PendingRunItem({
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const deleteTrigger = useRef<HTMLButtonElement>(null);
+  const question = useFocusOnOpen<HTMLDivElement>(confirming && onDelete !== undefined);
   const firstBook = run.artifacts[0]?.name ?? 'Earlier conversion';
   const remaining = run.artifacts.length - 1;
   const description =
@@ -460,11 +462,13 @@ function PendingRunItem({
       {confirming && onDelete !== undefined && (
         <div
           aria-label={`Confirm deletion of ${firstBook}`}
-          className="border-border bg-background space-y-2 rounded-lg border p-3"
+          className="border-border bg-background focus-visible:ring-ring focus-visible:ring-offset-background space-y-2 rounded-lg border p-3 outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
           onKeyDown={(event) => {
             if (event.key === 'Escape' && !deleting) close();
           }}
+          ref={question}
           role="group"
+          tabIndex={-1}
         >
           <p className="text-muted-foreground text-xs leading-relaxed">
             Permanently delete this conversion's {plural(run.artifacts.length, 'pending book')}?

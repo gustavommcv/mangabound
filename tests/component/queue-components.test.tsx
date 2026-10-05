@@ -124,6 +124,9 @@ describe('ResultsScreen', () => {
     [1023, '1023 B'],
     [1536, '1.5 KB'],
     [5 * 1024 * 1024, '5.0 MB'],
+    [1024 * 1024 * 1024 - 1, '1024.0 MB'],
+    [1536 * 1024 * 1024, '1.5 GB'],
+    [3 * 1024 * 1024 * 1024, '3.0 GB'],
   ])('formats %i bytes as %s', (bytes, expected) => {
     expect(formatBytes(bytes)).toBe(expected);
   });

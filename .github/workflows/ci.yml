@@ -95,6 +95,8 @@ jobs:
           key: toolchain-${{ runner.os }}-${{ hashFiles('toolchain.lock.json') }}
       - run: npm run package:e2e
       - run: npm run test:e2e
+      - name: Check the end-to-end run left nothing in the temporary folder
+        run: node scripts/verify-no-test-leftovers.mjs
       - name: Upload E2E diagnostics
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

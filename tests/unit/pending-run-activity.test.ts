@@ -24,4 +24,18 @@ describe('pending run activity', () => {
     expect(activity.isDeleting('run')).toBe(false);
     expect(activity.beginExport('run')).toBeDefined();
   });
+
+  it('says whether any run is being deleted, for what is shared across all of them', () => {
+    const activity = new PendingRunActivity();
+    expect(activity.isDeletingAny()).toBe(false);
+
+    const finishFirst = activity.beginDelete('first');
+    const finishSecond = activity.beginDelete('second');
+    expect(activity.isDeletingAny()).toBe(true);
+    finishFirst?.();
+    expect(activity.isDeletingAny()).toBe(true);
+    finishSecond?.();
+
+    expect(activity.isDeletingAny()).toBe(false);
+  });
 });

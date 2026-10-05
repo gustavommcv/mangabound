@@ -12,6 +12,14 @@ export async function readZipEntry(
   filePath: string,
   matches: (name: string) => boolean,
 ): Promise<string> {
+  return (await readZipEntryBytes(filePath, matches)).toString('utf8');
+}
+
+/** The same entry as it is stored, for the ones that are not text: an image. */
+export async function readZipEntryBytes(
+  filePath: string,
+  matches: (name: string) => boolean,
+): Promise<Buffer> {
   const zip = await readFile(filePath);
   // The end-of-central-directory record is the last 22 bytes unless a comment follows it.
   let end = zip.length - 22;
@@ -34,8 +42,8 @@ export async function readZipEntry(
     const localExtraLength = zip.readUInt16LE(localOffset + 28);
     const start = localOffset + 30 + localNameLength + localExtraLength;
     const data = zip.subarray(start, start + compressedSize);
-    if (method === 0) return data.toString('utf8');
-    if (method === 8) return inflateRawSync(data).toString('utf8');
+    if (method === 0) return Buffer.from(data);
+    if (method === 8) return inflateRawSync(data);
     throw new Error(`${name} uses compression method ${String(method)}, which is not supported.`);
   }
   throw new Error(`${filePath} has no entry that matched.`);
@@ -159,4 +167,30 @@ export async function resetQueue(): Promise<void> {
     await clear.click();
     await clear.waitForExist({ reverse: true, timeout: 10_000 });
   }
+}
+
+/** What the main process tells the window while a run goes on. */
+export interface ReportedProgress {
+  readonly jobId: string;
+  readonly stage: string;
+  readonly title?: string;
+  readonly message: string;
+  readonly completed?: number;
+  readonly total?: number;
+}
+
+/**
+ * Starts keeping what the main process tells the window as it arrives: the screen shows it for a
+ * moment, so a run is read from what was kept once it is over (`reportedProgress`).
+ */
+export async function recordProgress(): Promise<void> {
+  await browser.execute(() => {
+    const seen: unknown[] = [];
+    Reflect.set(window, 'progressSeen', seen);
+    window.mangabound?.onConversionProgress((progress) => seen.push(progress));
+  });
+}
+
+export function reportedProgress(): Promise<readonly ReportedProgress[]> {
+  return browser.execute(() => Reflect.get(window, 'progressSeen') as readonly ReportedProgress[]);
 }

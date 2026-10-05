@@ -1,5 +1,10 @@
 import type { BindingPort, ConversionPort } from '@/application/ports/conversion-tools';
-import type { BookInput, BookProduction } from '@/application/workflows/book-production';
+import type { CoverLookup } from '@/application/workflows/book-covers';
+import {
+  type BookInput,
+  type BookProduction,
+  withCovers,
+} from '@/application/workflows/book-production';
 import {
   type ActiveSession,
   type InputSessions,
@@ -12,13 +17,16 @@ import {
   validateRunOptions,
 } from '@/application/workflows/run-preconditions';
 import { presentBindingProgress } from '@/application/workflows/binding-progress';
-import { detailsForBook, noBookDetails } from '@/domain/book-details';
+import { withBindingWarnings } from '@/application/workflows/binding-warnings';
+import { detailsForBook, noBookDetails, normalizeBookDetails } from '@/domain/book-details';
 import {
   type ConversionArtifact,
   type ConversionProgress,
   type ConversionRequest,
   ConversionWorkflowError,
+  type PipelineIssue,
   plannedSingleBook,
+  plannedVolumeBookName,
   type WorkflowPlan,
 } from '@/domain/conversion';
 import { type ProcessMode, unsupportedModeReason, usesMangapress } from '@/domain/process-mode';
@@ -30,6 +38,7 @@ export class SingleInputRun {
     private readonly conversion: ConversionPort,
     private readonly sessions: InputSessions,
     private readonly books: BookProduction,
+    private readonly covers: CoverLookup,
   ) {}
 
   async convert(
@@ -49,6 +58,7 @@ export class SingleInputRun {
 
     const details = usesMangapress(mode) ? (request.details ?? noBookDetails) : noBookDetails;
     let inputs: readonly BookInput[];
+    let bindingIssues: readonly PipelineIssue[] = [];
     if (session.selection.kind === 'cbz' || mode === 'convert-only') {
       // Already one book (or explicitly not grouped): straight to mangapress, no mapping needed.
       inputs = [{ path: session.selection.inputPath }];
@@ -77,6 +87,7 @@ export class SingleInputRun {
           onProgress(presentBindingProgress(p));
         },
       );
+      bindingIssues = bound.issues;
       if (singleBook) {
         if (bound.combinedOutputPath === undefined) {
           throw emptyBindingError('no_volumes');
@@ -88,6 +99,11 @@ export class SingleInputRun {
         }
         inputs = bound.volumes.map((volume) => ({ path: volume.path, volume: volume.number }));
       }
+    }
+
+    // A cover is for mangapress to make; a run that stops at the joined volumes has no use for one.
+    if (usesMangapress(mode)) {
+      inputs = withCovers(inputs, await this.covers.pathsFor(session.selection.inputPath));
     }
 
     const result = await this.books.produceVolumes(
@@ -103,7 +119,12 @@ export class SingleInputRun {
       { onArtifact, onProgress, signal },
     );
     if (result.status === 'failed') throw result.error;
-    const { artifacts } = result;
+    // What the joining step left out of the books is told with them, since the run went on.
+    const artifacts = withBindingWarnings(
+      result.artifacts,
+      inputs.map((input) => input.volume),
+      bindingIssues,
+    );
     onProgress({
       stage: 'saving',
       message: `${String(artifacts.length)} book${artifacts.length === 1 ? '' : 's'} saved.`,
@@ -166,7 +187,18 @@ export class SingleInputRun {
       tool: 'mangabind',
       title: plan.title,
       message: `mangabind validated ${String(plan.volumes.length)} volume${plan.volumes.length === 1 ? '' : 's'}${singleBook ? ' · single book for the series' : mode === 'bind-only' ? ' · saved as CBZ files, mangapress not run' : ''} · no library files written`,
-      books: singleBook ? [plannedSingleBook(plan.title, plan.volumes)] : plan.volumes,
+      books: singleBook
+        ? [plannedSingleBook(plan.title, plan.volumes)]
+        : usesMangapress(mode)
+          ? plan.volumes.map((volume) => ({
+              name: plannedVolumeBookName(
+                volume,
+                normalizeBookDetails(request.details ?? noBookDetails).title,
+                request.format,
+              ),
+              pageCount: volume.pageCount,
+            }))
+          : plan.volumes,
       issues: plan.issues,
     };
   }

@@ -99,6 +99,48 @@ describe('mangapress settings editor', () => {
     expect(screen.getByLabelText('EPUB language')).not.toHaveAttribute('placeholder');
   });
 
+  it('takes a new number typed after clearing a required field, not the old one with it', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<StatefulEditor onChange={onChange} />);
+    const field = screen.getByLabelText('Cropping power');
+    expect(field).toHaveValue(1);
+
+    await user.clear(field);
+    await user.type(field, '2');
+
+    expect(field).toHaveValue(2);
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ croppingPower: 2 }));
+  });
+
+  it('keeps the last valid number while a required field is empty, and shows it again once left', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<StatefulEditor onChange={onChange} />);
+    const field = screen.getByLabelText('Cropping power');
+
+    await user.clear(field);
+    expect(field).toHaveValue(null);
+    expect(onChange).not.toHaveBeenCalled();
+
+    await user.tab();
+    expect(field).toHaveValue(1);
+  });
+
+  it('empties an optional field and reports it unset', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<StatefulEditor onChange={onChange} />);
+    const field = screen.getByLabelText('Gamma (optional)');
+
+    await user.type(field, '1.5');
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ gamma: 1.5 }));
+    await user.clear(field);
+
+    expect(field).toHaveValue(null);
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ gamma: undefined }));
+  });
+
   it('updates effective hints when the selected device changes', async () => {
     const user = userEvent.setup();
     render(<StatefulEditor />);
