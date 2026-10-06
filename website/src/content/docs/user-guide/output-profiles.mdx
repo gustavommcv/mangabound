@@ -30,11 +30,24 @@ These dimensions are an example; use the size appropriate for your screen.
 
 - **Reading** says what the images are. **Content** is **Manga or comic pages**, where each image is a page, or **Webtoon strips**, where each chapter is joined into one long strip and cut into pages between panels. **Manga reading order** reads right to left and puts the right half of a split spread first.
 - **Double-page spreads** decides what becomes of a page that is two pages wide. **Wide pages** splits it in two, keeps it whole as one page, or does both. When the whole spread is kept you can put it before its halves (**Whole spread first**), leave it upright instead of turned on its side (**Keep the whole spread upright**, to read with the device in landscape), or turn it the other way (**Rotate clockwise**). **Restack 4-panel strips as 2×2** is for pages made of two tall strips, and replaces the handling of wide pages.
+
+<TutorialImage
+  name="generated/page-layout"
+  alt="Webtoon strips selected in Reading, with manga reading order and double-page spread controls disabled and their reasons shown."
+  caption="With Webtoon strips, manga reading order and wide-page controls do not apply. For ordinary manga pages, keep Manga or comic pages."
+/>
+
 - **Size and borders**: **Page size** fits each page to the screen, with or without enlarging small ones, stretches it, or crops it to fill the screen. **Borders** are automatic (each page's own background), white, or black.
 - **Cropping** removes margins, with optional page-number detection, and the empty space between panels. If artwork is cut off, reduce or disable cropping.
 - **Two-page view** is for readers that show two pages side by side, such as Kobo's and Kindle's own: which side the book starts on, a single centered page, and the direction pages turn. It applies to EPUB only, and **KOReader ignores these**.
 - **Color and tone**: **Color pages** converts every page to grayscale or keeps in color the pages that have real color; it follows the device, so choosing a reader with a color screen turns it on and choosing any other turns it off. **Autocontrast** stretches tones to full black and white for black-and-white pages only, for color pages too, or not at all. **Reduce rainbow effect** reduces certain moiré artifacts on color e-ink screens; compare results on your own pages. An empty **Gamma** uses the device's own, not zero.
 - **Page images**: **Page format** saves each page as a JPEG with every tone, or as a PNG reduced to the grays the screen can show. For PNG pages, **Keep all 256 grays** skips that reduction, **8-bit PNG** is for readers that cannot open the more compact kind, and **Color pages as PNG too** also saves as PNG the pages kept in color, which otherwise stay JPEG. All three make larger files. An empty **JPEG quality** uses the device default; the field says what it still applies to, since an EPUB's cover is a JPEG whatever the pages are.
+
+<TutorialImage
+  name="generated/page-images"
+  alt="Color and tone and page-image controls for a color device, with PNG grayscale pages and JPEG quality available for pages kept in color."
+  caption="In this example, color pages stay JPEG. Color pages as PNG too saves them as PNG instead."
+/>
 
 **Use the images as they are**, beside the device, packages the pages untouched: nothing is cropped, resized, converted to grayscale or saved again. Use it for images that were already prepared for your reader. Everything that would change an image is locked while it is on. The reading order, the webtoon cut and the two-page view still apply, and an EPUB's cover is still made from the first image.
 

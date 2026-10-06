@@ -26,7 +26,7 @@ type Capture = (
   page: Page,
   name: string,
   story: string,
-  region?: Locator,
+  region?: Locator | [Locator, Locator],
   includeContext?: boolean,
 ) => Promise<void>;
 
@@ -90,7 +90,7 @@ async function capture(
   name: string,
   story: string,
   requestedRatios: Set<number>,
-  region?: Locator,
+  region?: Locator | [Locator, Locator],
   includeContext = false,
 ): Promise<void> {
   await page.evaluate(async () => {
@@ -98,10 +98,19 @@ async function capture(
     // Documentation illustrates mouse use; keyboard-focus behavior stays tested separately.
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
   });
-  const target = region ?? page.locator('#storybook-root');
+  const target = Array.isArray(region) ? region[0] : (region ?? page.locator('#storybook-root'));
   await target.scrollIntoViewIfNeeded();
   const bounds = await target.boundingBox();
   if (bounds === null) throw new Error(`Tutorial region is not visible: ${name}`);
+  if (Array.isArray(region)) {
+    const end = await region[1].boundingBox();
+    if (end === null) throw new Error(`Tutorial end region is not visible: ${name}`);
+    // Two consecutive panels in one column retain their real gap, not a stitched bitmap.
+    expect(end.x).toBeCloseTo(bounds.x, 1);
+    expect(end.width).toBeCloseTo(bounds.width, 1);
+    expect(end.y).toBeGreaterThan(bounds.y + bounds.height);
+    bounds.height = end.y + end.height - bounds.y;
+  }
   const inset = includeContext ? screenInset : 0;
   const area = { width: bounds.width + inset * 2, height: bounds.height + inset * 2 };
   const pixelRatio = await page.evaluate(() => window.devicePixelRatio);
@@ -121,7 +130,7 @@ async function capture(
     scale: 'device' as const,
   };
   let screenshot: Buffer;
-  if (includeContext) {
+  if (includeContext || Array.isArray(region)) {
     const pageBounds = await page.evaluate(() => ({
       scrollX: window.scrollX,
       scrollY: window.scrollY,
@@ -222,6 +231,103 @@ tutorial('online mapping shows a search and the reviewed suggestion', async (pag
 });
 
 tutorial(
+  'book details show editable metadata and the resulting volume titles',
+  async (page, capture) => {
+    const story = 'workflows-book-details--finding-the-author';
+    await openStory(page, story);
+    await expect(page.getByLabel('Author', { exact: true })).toHaveValue('Fujimoto Tatsuki');
+    await page.getByLabel('Series title', { exact: true }).fill('Chainsaw Man (Deluxe)');
+    await page.getByLabel('Language', { exact: true }).fill('pt-BR');
+    await expect(page.getByLabel('Series title', { exact: true })).toHaveValue(
+      'Chainsaw Man (Deluxe)',
+    );
+    await expect(page.getByLabel('Language', { exact: true })).toHaveValue('pt-BR');
+    await expect(page.getByRole('list', { name: 'Book titles' })).toContainText(
+      'Chainsaw Man (Deluxe) - Vol.01',
+    );
+    await capture(
+      page,
+      'book-details',
+      story,
+      page.locator('#storybook-root section').first(),
+      true,
+    );
+  },
+);
+
+tutorial(
+  'covers distinguish individual choices, folder images and first-page fallbacks',
+  async (page, capture) => {
+    const story = 'workflows-book-details--with-covers';
+    await openStory(page, story);
+    const covers = page.getByRole('list', { name: 'Books and their covers' });
+    await expect(covers.getByRole('listitem')).toHaveCount(5);
+    await expect(covers.getByText('01.jpg · from a folder', { exact: true })).toBeVisible();
+    await expect(covers.getByText('IMG_2041.jpg', { exact: true })).toBeVisible();
+    await expect(covers.getByText('First page', { exact: true })).toHaveCount(2);
+    await expect(page.getByRole('button', { name: 'Add covers from a folder…' })).toBeVisible();
+    await capture(
+      page,
+      'book-covers',
+      story,
+      page
+        .getByRole('heading', { name: 'Covers', exact: true })
+        .locator('xpath=ancestor::section[1]'),
+    );
+  },
+);
+
+tutorial(
+  'reading and spread controls show their real conditional choices',
+  async (page, capture) => {
+    const story = 'workflows-output-settings--webtoon-strips';
+    await openStory(page, story);
+    await expect(page.getByRole('combobox', { name: 'Content', exact: true })).toHaveValue(
+      'webtoon',
+    );
+    await expect(page.getByRole('checkbox', { name: 'Manga reading order' })).toBeDisabled();
+    await expect(page.getByRole('combobox', { name: 'Wide pages', exact: true })).toBeDisabled();
+    await expect(
+      page.getByRole('checkbox', { name: 'Keep the whole spread upright' }),
+    ).toBeDisabled();
+    await capture(page, 'page-layout', story, [
+      page
+        .getByRole('heading', { name: 'Reading', exact: true })
+        .locator('xpath=ancestor::section[1]'),
+      page
+        .getByRole('heading', { name: 'Double-page spreads', exact: true })
+        .locator('xpath=ancestor::section[1]'),
+    ]);
+  },
+);
+
+tutorial(
+  'color and page-image controls explain PNG choices and remaining JPEG pages',
+  async (page, capture) => {
+    const story = 'workflows-output-settings--color-and-png';
+    await openStory(page, story);
+    await expect(page.getByRole('combobox', { name: 'Color pages', exact: true })).toHaveValue(
+      'color',
+    );
+    await expect(page.getByRole('combobox', { name: 'Page format', exact: true })).toHaveValue(
+      'png',
+    );
+    await expect(page.getByRole('checkbox', { name: 'Keep all 256 grays' })).toBeChecked();
+    await expect(page.getByRole('checkbox', { name: '8-bit PNG' })).toBeDisabled();
+    await expect(page.getByLabel(/^JPEG quality/u)).toBeEnabled();
+    await expect(page.getByText(/^For the color pages, which stay JPEG\./u)).toBeVisible();
+    await capture(page, 'page-images', story, [
+      page
+        .getByRole('heading', { name: 'Color and tone', exact: true })
+        .locator('xpath=ancestor::section[1]'),
+      page
+        .getByRole('heading', { name: 'Page images', exact: true })
+        .locator('xpath=ancestor::section[1]'),
+    ]);
+  },
+);
+
+tutorial(
   'custom dimensions are real controlled fields, not an edited image',
   async (page, capture) => {
     const story = 'workflows-conversion-options--normal';
@@ -308,6 +414,26 @@ tutorial('ready books expose reopening and safe deletion', async (page, capture)
   ).toBeVisible();
   await capture(page, 'ready-books', story, page.getByRole('region', { name: 'Earlier books' }));
 });
+
+tutorial(
+  'warnings name affected books without turning successful conversion into failure',
+  async (page, capture) => {
+    const story = 'workflows-results--with-warnings';
+    await openStory(page, story);
+    await expect(page.getByRole('heading', { name: '3 books ready' })).toBeVisible();
+    await expect(page.getByText('Pages smaller than the screen', { exact: true })).toHaveCount(1);
+    await expect(page.getByText('Pages already converted once', { exact: true })).toHaveCount(1);
+    await expect(page.getByText(/^In all 3 books\./u)).toBeVisible();
+    await expect(page.getByText(/^In Vagabond Vol\.03\.epub\./u)).toBeVisible();
+    await capture(
+      page,
+      'book-warnings',
+      story,
+      page.locator('#storybook-root section').first(),
+      true,
+    );
+  },
+);
 
 tutorial('sharing explains the interface and then the catalog address', async (page, capture) => {
   const setup = 'workflows-share-panel--ready-to-start';
