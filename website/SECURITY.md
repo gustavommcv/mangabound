@@ -4,6 +4,14 @@
 
 **No exception is in effect.** The allowlist in `audit-ci.json` is empty, and a test says so: adding a record means changing that test in the same PR.
 
+## Overrides in effect
+
+An override makes a dependency use a version it did not ask for, so each one is recorded here with its evidence and the condition for removing it.
+
+- **`postcss-selector-parser` is forced to `^7.1.6`** (since 2026-10-06). [GHSA-rj75-hqrm-r3gf](https://github.com/advisories/GHSA-rj75-hqrm-r3gf), moderate: quadratic complexity in selector parsing can exhaust the CPU in versions below 7.1.6. The one path to it is `@astrojs/starlight`, `astro-expressive-code`, `@expressive-code/core`, then `postcss-nested@6.2.0`, which asks for `^6.1.1`. The newest published `@expressive-code/core` (0.44.2) still asks for `postcss-nested@^6`, and npm's only suggested fix was rolling Starlight back to 0.21.5.
+- **Evidence:** the site built before and after is the same, file by file (209 files). The one exception is `pagefind/pagefind-entry.json`, whose bytes also differ between two builds of the same tree and whose content is equal. The unit, browser and media tests and the audit pass.
+- **Remove it** when a published `@expressive-code/core` depends on a `postcss-nested` that asks for the patched parser (`postcss-nested@8.0.1` asks for `^7.1.4`), then build, test and audit again.
+
 ## What an exception requires
 
 An exception is temporary and is the repository owner's to approve, in a reviewed PR that adds:
