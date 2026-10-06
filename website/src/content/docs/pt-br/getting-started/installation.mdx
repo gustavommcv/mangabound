@@ -39,7 +39,27 @@ Escolha o pacote da sua distribuição:
 | Fedora e sistemas compatíveis          | `.rpm`         |
 | Arch Linux e sistemas compatíveis      | `.pkg.tar.zst` |
 
-Instale o arquivo baixado com o gerenciador de pacotes da distribuição. Preserve seu nome original: os separadores de versão e revisão variam conforme o formato.
+Abra um terminal na pasta do download e use o comando da sua distribuição abaixo. Substitua `package.deb`, `package.rpm` ou `package.pkg.tar.zst` pelo nome exato do arquivo que você baixou. Preserve o nome original; não é preciso renomeá-lo.
+
+**[Debian / Ubuntu](https://documentation.ubuntu.com/project/contributors/bug-fix/install-built-packages/)**
+
+```bash
+sudo apt install ./package.deb
+```
+
+**[Fedora](https://dnf.readthedocs.io/en/latest/command_ref.html#install-command)**
+
+```bash
+sudo dnf install ./package.rpm
+```
+
+**[Arch Linux](https://man.archlinux.org/man/pacman.8.en)**
+
+```bash
+sudo pacman -U ./package.pkg.tar.zst
+```
+
+Depois, abra **Mangabound** pelo menu de aplicativos. Use `sudo` apenas para instalar, não para abrir o aplicativo.
 
 </TabItem>
 </Tabs>

@@ -50,17 +50,33 @@ test('language switching preserves the page and translates navigation', async ({
   ).toBeVisible();
 });
 
-test('installation tabs support keyboard navigation', async ({ page }) => {
-  await page.goto(`${root}getting-started/installation/`);
-  const windows = page.getByRole('tab', { name: 'Windows', exact: true });
-  await windows.focus();
-  await windows.press('ArrowRight');
-  await expect(page.getByRole('tab', { name: 'macOS', exact: true })).toHaveAttribute(
-    'aria-selected',
-    'true',
-  );
-  await expect(page.getByRole('tabpanel', { name: 'macOS', exact: true })).toBeVisible();
-});
+for (const locale of ['', 'pt-br/']) {
+  test(`installation tabs support keyboard navigation: ${locale || 'en'}`, async ({
+    page,
+  }, testInfo) => {
+    await page.goto(`${root}${locale}getting-started/installation/`);
+    const windows = page.getByRole('tab', { name: 'Windows', exact: true });
+    const macOS = page.getByRole('tab', { name: 'macOS', exact: true });
+    await windows.focus();
+    await windows.press('ArrowRight');
+    await expect(macOS).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('tabpanel', { name: 'macOS', exact: true })).toBeVisible();
+    await macOS.press('ArrowRight');
+    await expect(page.getByRole('tab', { name: 'Linux', exact: true })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    const linux = page.getByRole('tabpanel', { name: 'Linux', exact: true });
+    await expect(linux).toBeVisible();
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+    await linux.screenshot({
+      path: testInfo.outputPath('linux-installation.png'),
+      animations: 'disabled',
+    });
+  });
+}
 
 test('Portuguese search returns a result that opens the right locale', async ({ page }) => {
   await page.goto(`${root}pt-br/`);
