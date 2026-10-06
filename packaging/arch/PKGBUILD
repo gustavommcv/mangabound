@@ -44,6 +44,7 @@ sha256sums=()
 package() {
   local payload="$startdir/payload"
   local desktop="$startdir/mangabound.desktop"
+  local icon="$startdir/mangabound.png"
 
   install -dm755 "$pkgdir/opt/mangabound"
   cp -a "$payload/." "$pkgdir/opt/mangabound/"
@@ -75,4 +76,12 @@ package() {
   ln -s /opt/mangabound/mangabound "$pkgdir/usr/bin/mangabound"
 
   install -Dm644 "$desktop" "$pkgdir/usr/share/applications/mangabound.desktop"
+
+  # The icon the desktop entry's Icon= names. Until the app has one of its own this is the default
+  # the .deb and .rpm makers fall back to (Electron's), staged from the very same file by
+  # .github/workflows/arch-package.yml so every Linux package shows the same one. A single PNG
+  # goes in pixmaps, where electron-installer-common puts it for the .deb, and where launchers
+  # look after the icon theme. Without it the entry has nothing to show: rofi, GNOME and KDE draw
+  # a blank or a generic icon in its place.
+  install -Dm644 "$icon" "$pkgdir/usr/share/pixmaps/mangabound.png"
 }

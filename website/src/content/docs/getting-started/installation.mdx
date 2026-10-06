@@ -44,8 +44,18 @@ Install the actual downloaded file with your distribution's package manager. Kee
 </TabItem>
 </Tabs>
 
+## Check your download
+
+Each release has a `SHA256SUMS` file that lists the checksum of every other file of the release. Put it in the folder you downloaded to and run `sha256sum -c SHA256SUMS` (`shasum -a 256 -c SHA256SUMS` on macOS). On Windows, `Get-FileHash <file>` in PowerShell prints the value to compare with the line of that file. A file that is not in the folder is reported as missing, and one that does not match is reported as failed.
+
+The checksums show that a download is what the release collected and that it arrived whole. They do not show where the files were built, and there is no build attestation yet. Releases before alpha.11 have no `SHA256SUMS`.
+
 ## If installation fails
 
-Check that the download matches your system and architecture. If you report a problem, include the release version, operating system, and exact message. Never download an unofficial replacement executable to bypass a toolchain verification error.
+Check that the download matches your system and architecture. Never download an unofficial replacement executable to bypass a toolchain verification error.
+
+## Reporting a problem
+
+[Open an issue](https://github.com/gustavommcv/mangabound/issues) and include the release version, your operating system, what you were trying to do and what happened. For a crash or a failed conversion, include the exact error message.
 
 Ready? Follow the [quickstart](../quickstart/).

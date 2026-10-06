@@ -29,6 +29,7 @@ CI automates the repeatable launch and rendering checks. Compositor policy and r
 ## Linux
 
 - Install each package (`.deb`, `.rpm`, Arch) and run one real conversion as a normal user. The app opens even when it cannot reach its bundled tools, so launching alone proves nothing.
+- Check that each package shows an icon in the application launcher (GNOME, KDE, a Wayland launcher such as rofi), and in the window list.
 - Test X11 and native Wayland on the supported package.
 - Test GNOME/KDE fractional scaling and system file associations.
 - On Sway and Hyprland, verify launch, focus, drag regions, compositor-native move/resize, maximize/fullscreen, tiling/floating transitions, and clean shutdown.

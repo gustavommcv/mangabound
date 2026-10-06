@@ -24,4 +24,18 @@ Organization, conversion, and saving happen on your computer. Online searches fo
 
 Network sharing is enabled from the **Share** panel. Keep the app open while your reader downloads the books.
 
+## Known limitations
+
+Mangabound is an alpha.
+
+- Combining a whole series into one book supports EPUB only, not CBZ or PDF.
+- The author is written into EPUB and PDF books only. A CBZ carries no author.
+- Pending books are local to this installation and are not a backup. Once a conversion has been deleted, or cleaned up after all its books were saved, getting its books again means processing the source again.
+- Sharing the ready books shares all of them, including old conversions that were never saved or deleted.
+- A link in a manga folder, or in a shared folder, that leads outside that folder is not followed.
+- The app is in English only.
+- There are no automatic updates: download and install each release yourself.
+- The installers are not code-signed or notarized, and no build attestation is published.
+- macOS builds are for Apple Silicon only. There is no AppImage, and the Arch package is a direct download, not an AUR submission.
+
 Follow the [quickstart](../quickstart/) to try it. For implementation details, see the [architecture guide](../../development/architecture/).

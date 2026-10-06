@@ -44,8 +44,18 @@ Instale o arquivo baixado com o gerenciador de pacotes da distribuição. Preser
 </TabItem>
 </Tabs>
 
+## Confira o download
+
+Cada release tem um arquivo `SHA256SUMS` com o checksum de todos os outros arquivos dela. Coloque-o na pasta onde você baixou e execute `sha256sum -c SHA256SUMS` (`shasum -a 256 -c SHA256SUMS` no macOS). No Windows, `Get-FileHash <arquivo>` no PowerShell mostra o valor para comparar com a linha daquele arquivo. Um arquivo que não está na pasta é informado como ausente, e um que não confere é informado como falho.
+
+Os checksums mostram que o download é o que a release reuniu e que chegou inteiro. Eles não mostram onde os arquivos foram construídos, e ainda não há atestado de build. As releases anteriores à alpha.11 não têm `SHA256SUMS`.
+
 ## Se a instalação falhar
 
-Confira se o download corresponde ao sistema e à arquitetura. Ao relatar um problema, inclua a versão, o sistema operacional e a mensagem exata. Não baixe executáveis substitutos não oficiais para contornar um erro de verificação das ferramentas.
+Confira se o download corresponde ao sistema e à arquitetura. Não baixe executáveis substitutos não oficiais para contornar um erro de verificação das ferramentas.
+
+## Relatar um problema
+
+[Abra uma issue](https://github.com/gustavommcv/mangabound/issues) e inclua a versão da release, o sistema operacional, o que você tentava fazer e o que aconteceu. Para uma falha ou conversão que não terminou, inclua a mensagem de erro exata.
 
 Tudo pronto? Siga o [guia rápido](../quickstart/).

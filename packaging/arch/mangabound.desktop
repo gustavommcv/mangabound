@@ -3,6 +3,7 @@ Type=Application
 Name=Mangabound
 Comment=A desktop workflow for binding, converting, and delivering manga to e-readers
 Exec=mangabound %U
+Icon=mangabound
 Terminal=false
 Categories=Graphics;Utility;
 StartupWMClass=Mangabound
