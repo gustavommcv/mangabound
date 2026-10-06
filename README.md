@@ -41,6 +41,8 @@ Organization, conversion, and saving run on your computer. Online searches for v
 
 ## Development
 
+For bugs and suggestions, use the [issue templates](https://github.com/gustavommcv/mangabound/issues/new/choose). Read [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md) before contributing. Report suspected vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
+
 Requirements:
 
 - Node.js 24 LTS

@@ -1,0 +1,24 @@
+name: Feature request
+description: Suggest an improvement to Mangabound or its user guide.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check existing issues first. Describe the problem you want to solve; you do not need to design the implementation.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What are you trying to do, and what makes it difficult today?
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested improvement
+      description: Optional. Explain how you would like it to work and what a user would notice.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives or context
+      description: Optional. Mention any workaround you use, related issues, or examples. Remove private information from attachments.
