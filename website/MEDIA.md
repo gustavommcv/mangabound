@@ -8,7 +8,9 @@ From the repository root, run `npm run site:media`. Playwright serves the static
 
 The original keeps its `<name>.png` filename; lower-density alternatives use `<name>@<density>x.png`. The website uses only the files listed in the current manifest, not any old files remaining from earlier local generation. Both locales and repeated walkthrough instances share the same variants. The browser chooses a native alternative using `srcset` and `sizes="auto, …"`: lazy-image auto sizing uses the actual CSS layout, with a conventional fallback for older browsers. See [MDN's auto sizing guidance](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/img#sizes). Increasing a monitor's pixel dimensions alone does not enlarge the guide column; display scaling and browser zoom determine its required pixel density. Beyond 4×, the full-size link remains available, but there is no promise of unlimited zoom detail.
 
-Frame screen regions comfortably: queue, results, and processing captures include 24 CSS pixels of their existing Storybook background on every side, using Playwright's documented page screenshot clip. Other captures retain the padding already present in their enclosing panel or whole-screen story. Do not change application styles, paint padding into a bitmap, or capture neighboring controls to manufacture space. Generation fails if the requested area no longer fits within the story. Browser tests inspect actual native PNG edge strips to catch overly tight crops. The shared `TutorialImage` link adds the site's theme-aware border, small shadow, and rounded outline using Starlight tokens, so dark app captures and white reader captures remain distinguishable in both website themes. Its uniform 0.5rem inset separates that frame from any panel outline already present in the screenshot: those captured corners scale with the displayed image, so they must not be forced to match the site's fixed radius. Browser tests measure the visible space on all four sides, including the ready-books and single-book panels. These decorations are CSS only; full-size files remain unmodified.
+Frame screen regions comfortably: queue, book-details, results, and processing captures include 24 CSS pixels of their existing Storybook background on every side, using Playwright's documented page screenshot clip. Other captures retain the padding already present in their enclosing panel or whole-screen story. Do not change application styles, paint padding into a bitmap, or capture neighboring controls to manufacture space. Generation fails if the requested area no longer fits within the story. Browser tests inspect actual native PNG edge strips to catch overly tight crops. The shared `TutorialImage` link adds the site's theme-aware border, small shadow, and rounded outline using Starlight tokens, so dark app captures and white reader captures remain distinguishable in both website themes. Its uniform 0.5rem inset separates that frame from any panel outline already present in the screenshot: those captured corners scale with the displayed image, so they must not be forced to match the site's fixed radius. Browser tests measure the visible space on all four sides, including the ready-books and single-book panels. These decorations are CSS only; full-size files remain unmodified.
+
+The layout and image-options captures span two consecutive settings panels in the same column. Their native bounding boxes define one Playwright page screenshot clip, preserving the actual gap and panel padding without stitching, hiding other controls, or changing application styles. Capture assertions check the selected values and conditional locks before rendering. Book details use the existing author-lookup story and real controlled fields; covers and warnings use their existing deterministic states. The tutorial does not claim to exercise a native image picker or a live conversion.
 
 Native variants deliberately avoid downsampling text screenshots: experiments found that resampling antialiased letters could make a smaller lossless WebP heavier than its native original. Keep lossless encoding and measure the files actually selected by browsers; a lower pixel count alone is not evidence of a smaller download. The browser suite covers mobile/desktop densities from 1× to 4×, sufficient selected resolution, lighter aggregate transfers at lower densities, and decoded-pixel equality against independent PNG inputs. Both development and production tests follow full-size links as document navigations, not just image requests.
 
@@ -16,20 +18,25 @@ Documentation CI generates these images for every PR and `main` update, then pas
 
 Generated PNGs live in ignored `src/assets/tutorial/generated/`. Both locales share them. Root `site:dev`, `site:build`, and `site:check` prepare them automatically. Rerun generation after UI changes during a dev session. The guide follows `main`, so images may show changes not yet in the latest downloadable release.
 
-| Capture                     | State illustrated                                  | Guide                            |
-| --------------------------- | -------------------------------------------------- | -------------------------------- |
-| `queue-inputs.png`          | Chapter folder, manga library, and complete CBZ    | Quick start; adding manga        |
-| `manual-mapping-start.png`  | Offline editor before creating the first volume    | Chapter mapping, expandable step |
-| `manual-mapping.png`        | Two selected chapters assigned to a created volume | Chapter mapping                  |
-| `online-mapping-search.png` | Search results from the selected source            | Chapter mapping, expandable step |
-| `online-mapping.png`        | Proposed volume mapping before confirmation        | Chapter mapping                  |
-| `device-settings.png`       | Device profile with custom width and height        | Conversion settings              |
-| `single-book.png`           | Single-book mode and locked steps/format           | Conversion settings              |
-| `processing-details.png`    | Completed, converting, and saving volumes          | Processing                       |
-| `save-results.png`          | Individual save, repeatable Save All, and sharing  | Quick start; saving              |
-| `ready-books.png`           | Reopen and delete a pending run                    | Saving and ready books           |
-| `share-setup.png`           | Library, interface, and optional credentials       | Local sharing, expandable step   |
-| `share-panel.png`           | Active server with an example catalog address      | Local sharing                    |
+| Capture                     | State illustrated                                    | Guide                            |
+| --------------------------- | ---------------------------------------------------- | -------------------------------- |
+| `queue-inputs.png`          | Chapter folder, manga library, and complete CBZ      | Quick start; adding manga        |
+| `manual-mapping-start.png`  | Offline editor before creating the first volume      | Chapter mapping, expandable step |
+| `manual-mapping.png`        | Two selected chapters assigned to a created volume   | Chapter mapping                  |
+| `online-mapping-search.png` | Search results from the selected source              | Chapter mapping, expandable step |
+| `online-mapping.png`        | Proposed volume mapping before confirmation          | Chapter mapping                  |
+| `book-details.png`          | Title, author, language, and generated volume titles | Adding manga                     |
+| `book-covers.png`           | Individual, folder-assigned, and first-page covers   | Adding manga                     |
+| `device-settings.png`       | Device profile with custom width and height          | Conversion settings              |
+| `page-layout.png`           | Reading and spread options with conditional locks    | Conversion settings              |
+| `page-images.png`           | Color, PNG choices, and remaining JPEG pages         | Conversion settings              |
+| `single-book.png`           | Single-book mode and locked steps/format             | Conversion settings              |
+| `processing-details.png`    | Completed, converting, and saving volumes            | Processing                       |
+| `save-results.png`          | Individual save, repeatable Save All, and sharing    | Quick start; saving              |
+| `book-warnings.png`         | Ready books with grouped warnings naming the books   | Saving and conversion warnings   |
+| `ready-books.png`           | Reopen and delete a pending run                      | Saving and ready books           |
+| `share-setup.png`           | Library, interface, and optional credentials         | Local sharing, expandable step   |
+| `share-panel.png`           | Active server with an example catalog address        | Local sharing                    |
 
 These are existing application components with deterministic Storybook sample data, not screenshots of live filesystem operations. Manga titles illustrate filenames; no manga pages are included. The LAN address is synthetic. The normal application unit/component/story/accessibility/visual/e2e gates remain independent.
 

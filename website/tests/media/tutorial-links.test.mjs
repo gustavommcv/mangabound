@@ -9,6 +9,11 @@ for (const locale of ['', 'pt-br/']) {
   }) => {
     for (const [route, name] of [
       ['getting-started/quickstart/', 'generated/save-results'],
+      ['user-guide/adding-manga/', 'generated/book-details'],
+      ['user-guide/adding-manga/', 'generated/book-covers'],
+      ['user-guide/output-profiles/', 'generated/page-layout'],
+      ['user-guide/output-profiles/', 'generated/page-images'],
+      ['user-guide/exporting/', 'generated/book-warnings'],
       ['koreader/recommended-settings/', 'koreader/status-overlap'],
     ]) {
       await page.goto(`${base.replace(/\/?$/, '/')}${locale}${route}`);

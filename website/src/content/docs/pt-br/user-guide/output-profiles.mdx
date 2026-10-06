@@ -30,11 +30,24 @@ Essas dimensões são apenas um exemplo; use o tamanho adequado à sua tela.
 
 - **Reading** diz o que as imagens são. **Content** é **Manga or comic pages**, em que cada imagem é uma página, ou **Webtoon strips**, em que cada capítulo é unido numa tira longa e cortado em páginas entre os quadros. **Manga reading order** lê da direita para a esquerda e coloca a metade direita de uma página dupla primeiro ao dividir.
 - **Double-page spreads** decide o que acontece com uma página da largura de duas. **Wide pages** divide em duas, mantém inteira como uma página ou faz as duas coisas. Quando a página dupla inteira é mantida, você pode colocá-la antes das metades (**Whole spread first**), deixá-la em pé em vez de girada (**Keep the whole spread upright**, para ler com o aparelho em paisagem) ou girá-la para o outro lado (**Rotate clockwise**). **Restack 4-panel strips as 2×2** serve para páginas formadas por duas tiras altas e substitui o tratamento das páginas largas.
+
+<TutorialImage
+  name="generated/page-layout"
+  alt="Webtoon strips selecionado em Reading, com a ordem de leitura de mangá e os controles de páginas duplas desabilitados e seus motivos visíveis."
+  caption="Com Webtoon strips, a ordem de leitura de mangá e os controles de páginas largas não se aplicam. Para páginas comuns de mangá, mantenha Manga or comic pages."
+/>
+
 - **Size and borders**: **Page size** ajusta cada página à tela, ampliando ou não as pequenas, estica ou recorta até preencher a tela. **Borders** são automáticas (o fundo de cada página), brancas ou pretas.
 - **Cropping** remove margens, com detecção opcional de números de página, e o espaço vazio entre os quadros. Se cortar a arte, reduza ou desative o recorte.
 - **Two-page view** é para leitores que mostram duas páginas lado a lado, como os nativos da Kobo e do Kindle: de que lado o livro começa, uma única página centralizada e a direção em que as páginas viram. Vale só para EPUB, e **o KOReader ignora essas opções**.
 - **Color and tone**: **Color pages** converte todas as páginas para tons de cinza ou mantém em cor as páginas que têm cor de verdade; ela acompanha o dispositivo, então escolher um leitor de tela colorida liga a opção e escolher qualquer outro desliga. **Autocontrast** estica os tons até o preto e o branco puros só nas páginas em preto e branco, também nas coloridas, ou em nenhuma. **Reduce rainbow effect** reduz certos artefatos de moiré em telas e-ink coloridas; compare o resultado nas suas páginas. **Gamma** vazio usa o do dispositivo, não zero.
 - **Page images**: **Page format** salva cada página como JPEG com todos os tons, ou como PNG reduzido aos tons de cinza que a tela mostra. Para páginas em PNG, **Keep all 256 grays** pula essa redução, **8-bit PNG** serve para leitores que não abrem o tipo mais compacto, e **Color pages as PNG too** salva também em PNG as páginas mantidas em cor, que de outro modo continuam em JPEG. As três geram arquivos maiores. **JPEG quality** vazio usa o padrão do dispositivo; o campo diz ao que ele ainda se aplica, já que a capa de um EPUB é um JPEG sejam quais forem as páginas.
+
+<TutorialImage
+  name="generated/page-images"
+  alt="Controles de cor e formato de imagem para um dispositivo colorido, com páginas em tons de cinza em PNG e qualidade JPEG disponível para as páginas mantidas em cor."
+  caption="Neste exemplo, as páginas coloridas continuam em JPEG. Color pages as PNG too também as salva em PNG."
+/>
 
 **Use the images as they are**, junto do dispositivo, empacota as páginas sem tocar nelas: nada é recortado, redimensionado, convertido para tons de cinza ou salvo de novo. Use para imagens que já foram preparadas para o seu leitor. Tudo o que mudaria uma imagem fica travado enquanto a opção está ligada. A ordem de leitura, o corte de webtoon e a visão de duas páginas continuam valendo, e a capa de um EPUB ainda é feita a partir da primeira imagem.
 

@@ -11,15 +11,15 @@ const root = base.replace(/\/?$/, '/');
 test.use({ deviceScaleFactor: 2 });
 const applicationPages = [
   ['getting-started/quickstart/', ['queue-inputs', 'save-results']],
-  ['user-guide/adding-manga/', ['queue-inputs']],
+  ['user-guide/adding-manga/', ['queue-inputs', 'book-details', 'book-covers']],
   [
     'user-guide/mapping-editor/',
     ['manual-mapping', 'online-mapping'],
     ['manual-mapping', 'online-mapping'],
   ],
-  ['user-guide/output-profiles/', ['device-settings', 'single-book']],
+  ['user-guide/output-profiles/', ['device-settings', 'page-layout', 'page-images', 'single-book']],
   ['user-guide/processing/', ['processing-details']],
-  ['user-guide/exporting/', ['save-results', 'ready-books']],
+  ['user-guide/exporting/', ['save-results', 'book-warnings', 'ready-books']],
   ['koreader/opds-sharing/', ['share-panel'], ['share-panel']],
 ];
 
@@ -59,7 +59,13 @@ test('screen captures retain background space around their content', async () =>
       'utf8',
     ),
   );
-  for (const name of ['queue-inputs', 'save-results', 'processing-details']) {
+  for (const name of [
+    'queue-inputs',
+    'book-details',
+    'save-results',
+    'processing-details',
+    'book-warnings',
+  ]) {
     const capture = manifest.captures.find((entry) => entry.name === name);
     for (const variant of capture.variants) {
       const image = sharp(
@@ -91,8 +97,12 @@ for (const colorScheme of ['light', 'dark']) {
     await page.emulateMedia({ colorScheme });
     for (const [route, names] of [
       ['getting-started/quickstart/', ['generated/queue-inputs', 'generated/save-results']],
-      ['user-guide/exporting/', ['generated/ready-books']],
-      ['user-guide/output-profiles/', ['generated/single-book']],
+      ['user-guide/adding-manga/', ['generated/book-details', 'generated/book-covers']],
+      ['user-guide/exporting/', ['generated/ready-books', 'generated/book-warnings']],
+      [
+        'user-guide/output-profiles/',
+        ['generated/single-book', 'generated/page-layout', 'generated/page-images'],
+      ],
       ['koreader/recommended-settings/', ['koreader/status-overlap']],
     ]) {
       await page.goto(`${root}${route}`);
@@ -155,6 +165,11 @@ test('published tutorial images and their full-size links retain the source pixe
     ),
   );
   for (const [route, name] of [
+    ['user-guide/adding-manga/', 'generated/book-details'],
+    ['user-guide/adding-manga/', 'generated/book-covers'],
+    ['user-guide/output-profiles/', 'generated/page-layout'],
+    ['user-guide/output-profiles/', 'generated/page-images'],
+    ['user-guide/exporting/', 'generated/book-warnings'],
     ['user-guide/processing/', 'generated/processing-details'],
     ['koreader/connecting/', 'koreader/opds-setup'],
     ['koreader/recommended-settings/', 'koreader/status-overlap'],
@@ -371,7 +386,15 @@ for (const density of [1, 2, 3, 4]) {
           expect((await sharp(masterData).metadata()).width).toBeGreaterThanOrEqual(2880);
         }
       }
-      expect(seen.size).toBe(12);
+      const manifest = JSON.parse(
+        await readFile(
+          new URL('../../src/assets/tutorial/generated/capture.json', import.meta.url),
+          'utf8',
+        ),
+      );
+      expect([...seen].sort()).toEqual(
+        manifest.captures.map((capture) => `generated/${capture.name}`).sort(),
+      );
       if (density <= 2) {
         expect(selectedBytes).toBeLessThan(fullSizeBytes);
         // Native lazy selection must not silently preload the heavyweight fallback as well.
