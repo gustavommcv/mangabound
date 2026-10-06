@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Mangabound is in alpha. Security fixes target `main` and the latest published release; older alpha releases do not receive separate patches. Where possible, check whether the problem still occurs in the latest release before reporting it. Reports about development builds are also welcome: include the commit SHA.
+Mangabound is in alpha, and only the latest published release is supported. Security fixes are made on `main` and shipped in a new release; older alpha releases do not receive separate patches. Where possible, check whether the problem still occurs in the latest release before reporting it. Reports about development builds are also welcome: include the commit SHA.
 
 ## Report a vulnerability privately
 
