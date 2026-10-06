@@ -9,6 +9,12 @@ updates:
       electron-forge:
         patterns:
           - '@electron-forge/*'
+      # The packages share one version: each requires vitest at exactly its own, so a bump of one
+      # alone fails `npm ci` with ERESOLVE (the first proposal for 5.0.3 did).
+      vitest:
+        patterns:
+          - vitest
+          - '@vitest/*'
       storybook:
         patterns:
           - '@storybook/*'
