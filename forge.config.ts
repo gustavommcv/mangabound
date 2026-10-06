@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { FuseVersion, FuseV1Options } from '@electron/fuses';
@@ -11,6 +12,7 @@ import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { WebpackPlugin } from '@electron-forge/plugin-webpack';
 import type { ForgeConfig } from '@electron-forge/shared-types';
 
+import { bundleVersionOf, withBundleVersion } from './scripts/lib/bundle-version';
 import { mainConfig } from './webpack.main.config';
 import { rendererConfig } from './webpack.renderer.config';
 
@@ -43,18 +45,33 @@ const config: ForgeConfig = {
     asar: true,
     executableName: 'mangabound',
     extraResource: [path.join(import.meta.dirname, 'vendor', 'toolchain')],
-    // Apple documents CFBundleShortVersionString/CFBundleVersion as period-separated
-    // integers; electron-packager writes appVersion into both verbatim, with no
-    // validation. Strip the prerelease suffix only for that OS metadata - the full
-    // SemVer string (from package.json, untouched) is what app.getVersion() reads at
-    // runtime and what the UI shows, so nothing about the visible alpha label changes.
-    // Windows keeps the full string: its readable ProductVersion/FileVersion resources
-    // already display it correctly without any override (see RELEASING.md).
-    ...(process.platform === 'darwin' ? { appVersion: version.split('-')[0] } : {}),
+    // No appVersion here, on any platform. The packager writes it into the packaged app's own
+    // package.json, so that app.getVersion() returns it (@electron/packager 20 does; 18 only wrote it
+    // into the OS metadata), and an appVersion of `0.1.0` for macOS made the title bar read v0.1.0
+    // instead of the full SemVer string. The package.json version stays what app.getVersion() reads
+    // and the UI shows: the visible alpha label does not change. macOS's Info.plist wants integers,
+    // and gets them from the postPackage hook below. Windows keeps the full string: its readable
+    // ProductVersion/FileVersion resources already display it correctly (see RELEASING.md).
   },
   hooks: {
     generateAssets: async (_configuration, platform, arch) => {
       await acquireToolchain(platform, arch);
+    },
+    // The target's platform, not the one running the build. Done here and not through packager
+    // options because the packager merges `extendInfo` before it writes the version, and would
+    // overwrite it. The app is not signed while it is packaged; one that is would need this done
+    // before signing, since the plist is part of what a signature covers.
+    postPackage: async (_configuration, { platform, outputPaths }) => {
+      if (platform !== 'darwin') return;
+      for (const outputPath of outputPaths) {
+        const bundles = (await readdir(outputPath)).filter((name) => name.endsWith('.app'));
+        if (bundles.length === 0) throw new Error(`No .app bundle was packaged in ${outputPath}.`);
+        for (const bundle of bundles) {
+          const plistPath = path.join(outputPath, bundle, 'Contents', 'Info.plist');
+          const plist = await readFile(plistPath, 'utf8');
+          await writeFile(plistPath, withBundleVersion(plist, bundleVersionOf(version)));
+        }
+      }
     },
   },
   rebuildConfig: {},
