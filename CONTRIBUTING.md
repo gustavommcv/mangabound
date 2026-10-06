@@ -4,6 +4,12 @@ Mangabound uses an npm lockfile and treats formatting, linting, type checking, t
 
 To understand the code before touching it, read [the architecture overview](docs/architecture.md) first. It is one page, and it says where each kind of change goes.
 
+## Community and reports
+
+Follow the [Code of Conduct](CODE_OF_CONDUCT.md) when participating. Use the [issue templates](https://github.com/gustavommcv/mangabound/issues/new/choose) for bugs and suggestions; check existing issues first and remove private information from attachments. A bug report should include the app version, system, reproduction steps, expected result, and actual result.
+
+For suspected vulnerabilities, follow [SECURITY.md](SECURITY.md) and report privately rather than opening a public issue or pull request. The pull request template asks for a short summary and verification evidence; the requirements below remain the source of truth.
+
 ## Before opening a pull request
 
 Run:

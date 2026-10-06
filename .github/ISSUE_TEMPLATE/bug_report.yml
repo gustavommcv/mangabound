@@ -1,0 +1,54 @@
+name: Bug report
+description: Report something that does not work as expected.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check existing issues first. For a suspected security vulnerability, use [private reporting](https://github.com/gustavommcv/mangabound/security/advisories/new), not this public form.
+
+        Remove personal paths, passwords, and other sensitive information from screenshots and diagnostics. Do not upload manga archives or pages; a small sample you are allowed to share is enough if one is needed.
+  - type: input
+    id: version
+    attributes:
+      label: Mangabound version
+      description: Copy the version shown next to the app name. For a development build, include the commit SHA. For a website-only issue, write "Website".
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: System and installation
+      description: Include your operating system and version, and whether you use an installer, portable package, or development build. For website issues, include your browser instead.
+      placeholder: Windows 11, installer
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Describe the smallest sequence that triggers the problem. For conversion issues, include the input type, device, output format, and relevant settings.
+      placeholder: |
+        1. Add a chapter folder.
+        2. Select the device and format.
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What happened instead? Include the exact error or warning if there was one.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Screenshots or additional details
+      description: Optional. Add redacted screenshots, diagnostic output, or anything else that helps reproduce the problem.
