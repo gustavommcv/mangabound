@@ -81,6 +81,38 @@ This project's own CI proves `make` succeeds, and for every Linux package it rea
 - **macOS (arm64):** download the real `.zip`, unzip, attempt to open, and record the exact Gatekeeper wording and the bypass steps that actually work on the macOS version tested — same update-the-installation-guide step as Windows. Confirm launch and one real conversion.
 - **Linux:** install the real `.deb` on a Debian/Ubuntu machine and the real `.rpm` on a Fedora-family machine (or at minimum confirm `rpm -i` validates without erroring), confirm launch on each, then run one real conversion on each as a normal user (not root): the app opens even when it cannot reach its bundled tools, and only a conversion shows it. Install the real `.pkg.tar.zst` with `sudo pacman -U ./mangabound-<version>-1-x86_64.pkg.tar.zst` on a real Arch machine and confirm launch there too — CI's own Arch job runs in a fresh container every time, which is not the same thing as an existing, personally-configured Arch install.
 
+Record the release tag and source commit, the successful release run, the exact asset hashes, the OS version and privileges, inputs, observed results, and untested checks in `docs/releases/verification/`. Use the [alpha.11 Windows portable verification](docs/releases/verification/v0.1.0-alpha.11-windows.md) as the first example: its download checks cover all packages, but its functional results apply only to the portable Windows app. Neither an isolated profile nor a passing checksum proves installer integration or another platform's conversion behavior.
+
+### Repeat the download check
+
+Download the public assets, not the Actions artifacts, into a new empty directory. For example, with GitHub CLI:
+
+```text
+gh release download v0.1.0-alpha.11 --repo gustavommcv/mangabound --dir release-check-alpha11
+```
+
+From that directory, Linux can use `sha256sum -c SHA256SUMS`, and macOS can use `shasum -a 256 -c SHA256SUMS`. On Windows, PowerShell's built-in hashing can check every listed file without an additional dependency:
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$lines = @(Get-Content -LiteralPath .\SHA256SUMS)
+if ($lines.Count -eq 0) { throw 'SHA256SUMS is empty.' }
+foreach ($line in $lines) {
+    if ($line -notmatch '^([a-fA-F0-9]{64})  ([A-Za-z0-9._-]+)$') {
+        throw 'Unexpected SHA256SUMS entry.'
+    }
+    $expectedHash = $Matches[1]
+    $assetName = $Matches[2]
+    $actualHash = (Get-FileHash -LiteralPath $assetName -Algorithm SHA256).Hash
+    if ($actualHash -ne $expectedHash) { throw "Checksum mismatch: $assetName" }
+    Write-Output "OK: $assetName"
+}
+```
+
+A missing file, malformed entry, or hash mismatch blocks testing: do not run that download. Compare the filename set and byte sizes with `gh release view <tag> --repo gustavommcv/mangabound --json assets`; the asset `digest` is a second published value to compare, not an independent build attestation. Then extract/install the intended package and exercise the GUI with copies of the procedural [end-to-end fixtures](tests/fixtures/e2e/README.md): chapter-folder processing, standalone CBZ processing, native export, sharing before export, and recovery of unsaved books after a full process restart. Record what actually ran; leave unavailable platforms and security prompts for a person with the appropriate machine rather than bypassing them.
+
+For Linux download inspection, reuse [the package-permission gate](.github/scripts/check-package-permissions.sh) on the public package files where its listing tools are available. It uses the existing checker for DEB, RPM, and Arch metadata. Passing that check does not replace installing and converting as a normal user on each target.
+
 ## 8b. Withdrawing a real release
 
 A release that turns out to be bad (a package that does not start, a conversion that is wrong) cannot be recalled from people who already downloaded it: there is no update feed. Published `SHA256SUMS` identifies the original assets and detects a damaged download, but cannot notify an installed app that its release was withdrawn. What can be done, in this order:

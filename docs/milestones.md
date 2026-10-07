@@ -2,7 +2,7 @@
 
 ## Current priorities
 
-Status reviewed on **2026-10-06**. The initial M0–M7b implementation has been delivered; M8 remains in progress while public alpha releases continue. The converters are pinned and bundled, and application and documentation CI run on pull requests and `main`. Later CLI options can be explicitly deferred under [ADR 0035](adr/0035-mangapress-0-7-first-its-options-in-steps.md); the capability check reports that list. The milestones below retain the original implementation sequence, not a description of an unfinished scaffold.
+Status reviewed on **2026-10-07**. The initial M0–M7b implementation has been delivered; M8 remains in progress while public alpha releases continue. The converters are pinned and bundled, and application and documentation CI run on pull requests and `main`. Later CLI options can be explicitly deferred under [ADR 0035](adr/0035-mangapress-0-7-first-its-options-in-steps.md); the capability check reports that list. The milestones below retain the original implementation sequence, not a description of an unfinished scaffold.
 
 Keep this short list current as work lands. Each item needs its own focused change and verification; a merge does not authorize a release tag. The full desktop checks remain in the [release checklist](release-checklist.md), not duplicated here.
 
@@ -13,6 +13,8 @@ Keep this short list current as work lands. Each item needs its own focused chan
 | 3        | Establish verifiable release origin and installer signing.                                                                                               | Publish build attestations with verification instructions; sign Windows packages and sign/notarize macOS packages when credentials and costs are approved. Checksums alone are not proof of origin.                                             |
 | 4        | Finish the real-desktop release checks.                                                                                                                  | Record the tested version, platforms, and results for accessibility, scaling, title bars, update/recovery, removable-drive export, and corrupt-library scenarios. Headless checks do not substitute for compositor or physical-reader behavior. |
 | 5        | Enforce the documented contribution and security policies in GitHub settings.                                                                            | With owner authorization, require PRs and CI on `main`, keep squash merges, protect release tags, and enable Dependabot alerts/security updates. Verify the applied rules without requiring a nonexistent second maintainer.                    |
+
+Priority 1 has a [first published alpha.11 verification](releases/verification/v0.1.0-alpha.11-windows.md): all package checksums match, and Windows portable chapter-folder/CBZ conversion, native export, local OPDS acquisition, and unsaved-book recovery after a process restart passed. Installer and native macOS/Linux conversion checks remain pending; this does not close the priority or M8. The repeatable download/checksum procedure is in [Releasing](../RELEASING.md#repeat-the-download-check).
 
 The last two audits retain smaller, lower-priority findings and accepted trade-offs: [1 October](audit-2026-10-01.md) and [4 October](audit-2026-10-04.md). This list is not a promise of new features, release dates, or bit-for-bit reproducible builds. AppImage, an alternative Windows installer, and Intel Mac support remain separate, deferred work.
 

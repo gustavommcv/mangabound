@@ -4,6 +4,8 @@ CI automates the repeatable launch and rendering checks. Compositor policy and r
 
 Record the release version, source commit, exact successful CI runs, and hands-on results in the release pull request or a linked verification record. Mark untested checks as pending, with the platform and limitation stated; do not infer a manual pass from a green automated job. Use the actual published downloads for the post-publication checks in [Releasing](../RELEASING.md). Signing/notarization remains unfinished release-hardening work: current unsigned alphas disclose that limitation, not a pass of the signing check below.
 
+The first [published alpha.11 verification](releases/verification/v0.1.0-alpha.11-windows.md) covers all download hashes, Linux package permission listings, and Windows portable conversion, native export, local OPDS acquisition, and full-process recovery. It lists the remaining installer, platform, and desktop checks explicitly; it does not complete this checklist.
+
 ## All targets
 
 - Installer is signed/notarized as applicable and contains the exact locked CLI binaries.
