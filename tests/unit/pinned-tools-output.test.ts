@@ -9,6 +9,7 @@ import { MangabindCliAdapter } from '@/adapters/mangabind/cli';
 import { MangapressCliAdapter } from '@/adapters/mangapress/cli';
 import { createNodeProcessRunner } from '@/adapters/process/node-process-runner';
 import { resolveToolchainTarget } from '@/adapters/toolchain/verification';
+import { skippedLinkNames } from '@/domain/library-links';
 
 /**
  * The pinned tools are the ones that will ship, and what they print is read with the app's own
@@ -101,6 +102,42 @@ describe('what the pinned tools print, read with the app’s own parsers', () =>
       // An earlier mangabind (0.6.0) copied the target into the volume and said nothing.
       expect(report.manga[0]?.issues.map((issue) => issue.code)).toContain('link_skipped');
       expect(report.manga[0]?.volumes.map((volume) => volume.page_count)).toEqual([1]);
+    } finally {
+      await rm(root, { force: true, recursive: true });
+    }
+  }, 60_000);
+
+  it('says which series of a library are links it did not follow, with or without other series', async ({
+    skip,
+  }) => {
+    const cli = new MangabindCliAdapter(executable('mangabind'), runner, true);
+    const root = await mkdtemp(path.join(tmpdir(), 'mangabound-pinned-library-links-'));
+    const adapter = new MangabindBindingAdapter(cli, undefined, root);
+    try {
+      const chapter = path.join(root, 'Library', 'Plain', 'Vol.01 Ch.001');
+      await mkdir(chapter, { recursive: true });
+      await writeFile(path.join(chapter, '001.png'), 'a page');
+      const real = path.join(root, 'Elsewhere', 'Linked', 'Vol.01 Ch.001');
+      await mkdir(real, { recursive: true });
+      await writeFile(path.join(real, '001.png'), 'a page');
+      try {
+        await symlink(path.join(root, 'Elsewhere', 'Linked'), path.join(root, 'Library', 'Linked'));
+        await mkdir(path.join(root, 'OnlyLinks'));
+        await symlink(path.join(root, 'Elsewhere', 'Linked'), path.join(root, 'OnlyLinks', 'A'));
+        await symlink(path.join(root, 'Elsewhere', 'Linked'), path.join(root, 'OnlyLinks', 'B'));
+      } catch {
+        // Windows allows a link only with Developer Mode or an elevated shell.
+        skip('This system does not allow a symbolic link here.');
+      }
+
+      const mixed = await adapter.planBatch(path.join(root, 'Library'));
+      const onlyLinks = await adapter.planBatch(path.join(root, 'OnlyLinks'));
+
+      // An earlier mangabind (0.6.1) skipped a linked series without a word.
+      expect(mixed.titles.map((title) => title.title)).toEqual(['Plain']);
+      expect(skippedLinkNames(mixed.issues)).toEqual(['Linked']);
+      expect(onlyLinks.titles).toEqual([]);
+      expect(skippedLinkNames(onlyLinks.issues).slice().sort()).toEqual(['A', 'B']);
     } finally {
       await rm(root, { force: true, recursive: true });
     }

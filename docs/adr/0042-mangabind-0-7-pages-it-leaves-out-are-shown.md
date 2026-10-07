@@ -1,6 +1,6 @@
 # ADR 0042: Take mangabind 0.7.0; show the pages it leaves out, and stop a volume number where it does
 
-- Status: Accepted
+- Status: Accepted (amended by 0043)
 - Date: 2026-10-07
 
 ## Context
@@ -32,3 +32,7 @@ Looked at and left as it is:
 
 - **Cancelling** a run kills `mangabind`, which now stops on SIGTERM with exit 130, removes its unfinished `.part` file and reports `interrupted`. The app's runner rejects with its own cancellation at the moment of the abort, before the exit is read, so that report is not seen; and the files are in the run's scratch folder, which the app removes. Nothing to change.
 - **A link in a library folder** (a series kept as a link to a folder) is skipped, and now said so by `mangabind` as an issue of the whole run. The app carries it in the plan of the library and in the result of the run, and shows it nowhere: it belongs to no book, and showing it is a screen of its own. It is the follow-up this record leaves open.
+
+## Amendment (2026-10-07): the library's links
+
+The follow-up this record left open is [ADR 0043](0043-a-series-kept-as-a-link-is-said-to-be-missing.md): the library's screen and the queue row say which series are links that were not read.

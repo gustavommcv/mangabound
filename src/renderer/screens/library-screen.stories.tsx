@@ -80,6 +80,11 @@ export const WithDetails: Story = {
   },
 };
 
+/** Series kept as links are not read, and so are not in the list: the screen says which. */
+export const WithLinksNotRead: Story = {
+  args: { skippedLinks: ['Vinland Saga'] },
+};
+
 export const AllReady: Story = {
   args: { titles: titles.slice(0, 2) },
 };

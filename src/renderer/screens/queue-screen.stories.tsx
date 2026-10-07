@@ -230,6 +230,25 @@ export const LibraryNeedsVolumes: Story = {
   args: { rows: [{ ...libraryRow, titles: libraryTitles.slice(2) }] },
 };
 
+/** Every manga of the folder is a link, which mangabind does not follow: it says so, by name. */
+export const FolderOfLinks: Story = {
+  args: {
+    rows: [
+      {
+        id: 'links',
+        kind: 'folder',
+        displayName: 'Manga Library',
+        displayPath: 'D:\\Manga\\Manga Library',
+        state: 'inspected',
+        sessionId: 'session-links',
+        mapping: createMappingDraft({ mangaTitle: 'Manga Library', chapters: [] }),
+        confirmed: false,
+        skippedLinks: ['Berserk', 'Vagabond', 'Monster', 'Vinland Saga'],
+      },
+    ],
+  },
+};
+
 export const LibraryWhenNotGrouping: Story = {
   args: { rows: [libraryRow], mode: 'convert-only' },
 };

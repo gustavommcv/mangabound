@@ -207,6 +207,22 @@ test('the titles of a library remain visually consistent', async ({ page }) => {
   await expect(page.locator('#storybook-root')).toHaveScreenshot('library-titles.png');
 });
 
+test('a library with links that were not read says so above its titles', async ({ page }) => {
+  await page.goto('/iframe.html?id=workflows-library-titles--with-links-not-read&viewMode=story');
+  await expect(
+    page.getByRole('status', { name: '1 folder in this library was not read' }),
+  ).toBeVisible();
+  await page.evaluate(async () => document.fonts.ready);
+  await expect(page.locator('#storybook-root')).toHaveScreenshot('library-titles-links.png');
+});
+
+test('a folder of links says why it holds no manga', async ({ page }) => {
+  await page.goto('/iframe.html?id=workflows-queue--folder-of-links&viewMode=story');
+  await expect(page.getByText(/folders in it are links/u)).toBeVisible();
+  await page.evaluate(async () => document.fonts.ready);
+  await expect(page.locator('#storybook-root')).toHaveScreenshot('queue-folder-of-links.png');
+});
+
 test('the title, author and language of an item remain visually consistent', async ({ page }) => {
   await page.goto('/iframe.html?id=workflows-book-details--typed-for-a-series&viewMode=story');
   // The story types into the title, so what is captured is what it ends up as.

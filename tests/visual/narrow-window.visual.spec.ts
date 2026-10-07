@@ -22,6 +22,8 @@ const screens = [
   'workflows-mapping-editor--online-source-list-open',
   'workflows-mapping-editor--needs-attention',
   'workflows-library-titles--every-state',
+  'workflows-library-titles--with-links-not-read',
+  'workflows-queue--folder-of-links',
   'workflows-book-details--with-covers',
   'workflows-book-details--finding-the-author',
   'workflows-running--multiple-volumes',

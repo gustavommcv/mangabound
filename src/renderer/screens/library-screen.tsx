@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 
 import { hasBookDetails } from '@/domain/book-details';
 import { isPendingTitle, isWaitingTitle, type LibraryTitle } from '@/domain/input-queue';
+import { skippedLinksNotice } from '@/domain/library-links';
 import { unassignedChapterCount } from '@/domain/input-queue';
 import { Button } from '@/renderer/components/ui/button';
 import { InfoBanner } from '@/renderer/components/shared/info-banner';
@@ -15,6 +16,8 @@ export interface LibraryScreenProps {
   /** Absent when the run does not make books with mangapress, so there is nothing to edit. */
   readonly onEditDetails?: (title: string) => void;
   readonly singleBook?: boolean;
+  /** Links in the library folder that were not followed: series that are not in the list. */
+  readonly skippedLinks?: readonly string[];
   readonly titles: readonly LibraryTitle[];
 }
 
@@ -28,6 +31,7 @@ export function LibraryScreen({
   onEdit,
   onEditDetails,
   singleBook,
+  skippedLinks = [],
   titles,
 }: LibraryScreenProps): React.JSX.Element {
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -52,6 +56,7 @@ export function LibraryScreen({
           {plural(titles.length, 'title')}. A title with no volumes is left out of a run until you
           group it.
         </p>
+        {skippedLinks.length > 0 && <SkippedLinks names={skippedLinks} />}
         {singleBook && (
           <InfoBanner
             className="mt-3"
@@ -71,6 +76,22 @@ export function LibraryScreen({
         ))}
       </ul>
     </section>
+  );
+}
+
+/** Series kept as links are not in the list below, and nothing else says so. */
+function SkippedLinks({ names }: { readonly names: readonly string[] }): React.JSX.Element {
+  const notice = skippedLinksNotice(names);
+  return (
+    <InfoBanner
+      className="mt-3"
+      message={
+        <>
+          {notice.advice} <strong className="text-foreground">{notice.names}</strong>.
+        </>
+      }
+      title={notice.title}
+    />
   );
 }
 

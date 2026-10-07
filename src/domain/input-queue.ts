@@ -1,4 +1,5 @@
 import { type BookDetails, hasBookDetails, normalizeBookDetails } from './book-details';
+import { onlyLinksNote } from './library-links';
 import { type MappingDraft, mappingSignature } from './mapping';
 import { libraryReason, type ProcessMode, resolveMode } from './process-mode';
 import { unrecognizedChaptersNote, unrecognizedInLibraryNote } from './unrecognized-chapters';
@@ -60,6 +61,8 @@ export type QueueRow = QueueRowBase &
         readonly details?: BookDetails;
         /** Folders of the manga that could not be read as chapters, and are in no book. */
         readonly unrecognized?: readonly string[];
+        /** Links in a library folder that were not followed: manga that are in no list of titles. */
+        readonly skippedLinks?: readonly string[];
       }
   );
 
@@ -86,6 +89,8 @@ export type QueueAction =
       readonly details?: BookDetails;
       /** Folders that could not be read as chapters. */
       readonly unrecognized?: readonly string[];
+      /** Links in the folder that were not followed. */
+      readonly skippedLinks?: readonly string[];
     }
   | { readonly type: 'inspect-failed'; readonly id: string; readonly message: string }
   /** The library was read again, after a title had its volumes saved. Saved titles stay saved. */
@@ -146,6 +151,9 @@ export function queueReducer(rows: readonly QueueRow[], action: QueueAction): re
               ...(action.unrecognized === undefined || action.unrecognized.length === 0
                 ? {}
                 : { unrecognized: action.unrecognized }),
+              ...(action.skippedLinks === undefined || action.skippedLinks.length === 0
+                ? {}
+                : { skippedLinks: action.skippedLinks }),
             }
           : row,
       );
@@ -361,7 +369,11 @@ function describeRowBase(row: QueueRow, mode: ProcessMode): RowView {
       tone: 'danger',
       detail: 'Folder · no chapters found',
       runnable: false,
-      note: 'mangabind found no chapters here. Turn off "Group chapters into volumes" to convert the folder as one book.',
+      // A folder of links holds manga that were not read, and grouping is not why none was found.
+      note:
+        row.skippedLinks === undefined
+          ? 'mangabind found no chapters here. Turn off "Group chapters into volumes" to convert the folder as one book.'
+          : onlyLinksNote(row.skippedLinks),
     };
   }
   const fromNames =

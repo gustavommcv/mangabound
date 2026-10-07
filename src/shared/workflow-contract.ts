@@ -345,6 +345,8 @@ export interface InspectedInputPayload {
   readonly titles?: readonly LibraryTitleSummary[];
   /** The names of the folders that could not be read as chapters, and so are in no book. */
   readonly unrecognized?: readonly string[];
+  /** The names of links in a library folder that were not followed, and so are in no book. */
+  readonly skippedLinks?: readonly string[];
   readonly issues: readonly PipelineIssue[];
 }
 

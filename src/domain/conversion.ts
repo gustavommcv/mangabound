@@ -37,6 +37,8 @@ export interface InspectedInput {
   readonly titles?: readonly InspectedTitle[];
   /** The names of the folders of a manga that its tool could not read as chapters: left out of every book. */
   readonly unrecognized?: readonly string[];
+  /** The names of links in a library folder that its tool did not follow: no manga, and in no book. */
+  readonly skippedLinks?: readonly string[];
   readonly issues: readonly PipelineIssue[];
 }
 

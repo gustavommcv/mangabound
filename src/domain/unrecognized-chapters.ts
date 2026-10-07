@@ -1,7 +1,5 @@
 import type { PipelineIssue } from './conversion';
-
-/** How many names are spelled out before "and N more". */
-const namedInTheNote = 3;
+import { lastPathPart, listNames } from './folder-names';
 
 /**
  * The names of the folders `mangabind` could not read as chapters, from what it reported. It says
@@ -11,22 +9,8 @@ const namedInTheNote = 3;
 export function unrecognizedChapterNames(issues: readonly PipelineIssue[]): readonly string[] {
   return issues
     .filter((issue) => issue.code === 'unparsed_chapter' && issue.path !== undefined)
-    .map(
-      (issue) =>
-        issue
-          .path!.split(/[\\/]/u)
-          .filter((part) => part !== '')
-          .at(-1) ?? '',
-    )
+    .map((issue) => lastPathPart(issue.path!))
     .filter((name) => name !== '');
-}
-
-/** The names, as many as are spelled out, and how many more there are. */
-function listed(names: readonly string[], more: string): string {
-  const shown = names.slice(0, namedInTheNote).join(', ');
-  return names.length > namedInTheNote
-    ? `${shown} and ${String(names.length - namedInTheNote)} more${more}`
-    : shown;
 }
 
 /**
@@ -40,7 +24,7 @@ export function unrecognizedChaptersNote(
   again: 'folder' | 'library' = 'folder',
 ): string {
   if (names.length === 0) return '';
-  return `${leftOut(names.length)}: ${listed(names, '')}. ${renameThem(names.length)}, then add the ${again} again.`;
+  return `${leftOut(names.length)}: ${listNames(names, '')}. ${renameThem(names.length)}, then add the ${again} again.`;
 }
 
 /** The same for a library: the folders are named under the title they are in. */
@@ -50,8 +34,8 @@ export function unrecognizedInLibraryNote(
   const affected = titles.filter((title) => title.names.length > 0);
   if (affected.length === 0) return '';
   const folders = affected.reduce((count, title) => count + title.names.length, 0);
-  const where = affected.map((title) => `${title.title} (${listed(title.names, '')})`);
-  return `${leftOut(folders)}: ${listed(where, ' titles')}. ${renameThem(folders)}, then add the library again.`;
+  const where = affected.map((title) => `${title.title} (${listNames(title.names, '')})`);
+  return `${leftOut(folders)}: ${listNames(where, ' titles')}. ${renameThem(folders)}, then add the library again.`;
 }
 
 function leftOut(count: number): string {

@@ -11,6 +11,7 @@ import {
   type InspectedTitle,
   type LibraryPlan,
 } from '@/domain/conversion';
+import { skippedLinkNames } from '@/domain/library-links';
 import { createMappingDraft, type MappingDraft, validateMapping } from '@/domain/mapping';
 import { unrecognizedChapterNames } from '@/domain/unrecognized-chapters';
 
@@ -49,17 +50,18 @@ export class InputSessions {
     }
 
     const inspection = await this.binding.inspect(selection.inputPath, signal);
-    const library = await this.probeLibrary(selection.inputPath, inspection.draft, signal);
-    if (library !== undefined) {
+    const probed = await this.probeLibrary(selection.inputPath, inspection.draft, signal);
+    if (probed !== undefined && probed.titles.length > 0) {
       // Reading the folder as one manga left a scratch copy behind that a library has no use for.
       await this.binding.release(inspection.workspaceId);
-      this.sessions.set(sessionId, { selection, library: { titles: library.titles } });
+      this.sessions.set(sessionId, { selection, library: { titles: probed.titles } });
       return {
         sessionId,
         displayName: selection.displayName,
         kind: 'library',
-        titles: await this.summarize(library.titles),
-        issues: library.issues,
+        titles: await this.summarize(probed.titles),
+        ...(probed.skippedLinks.length === 0 ? {} : { skippedLinks: probed.skippedLinks }),
+        issues: probed.issues,
       };
     }
     this.sessions.set(sessionId, {
@@ -76,6 +78,10 @@ export class InputSessions {
       mapping: inspection.draft,
       ...(hasBookDetails(details) ? { details } : {}),
       ...(unrecognized.length === 0 ? {} : { unrecognized }),
+      // A folder whose manga were all links is not a library to read, and says why it holds none.
+      ...(probed === undefined || probed.skippedLinks.length === 0
+        ? {}
+        : { skippedLinks: probed.skippedLinks }),
       issues: inspection.issues,
     };
   }
@@ -94,14 +100,19 @@ export class InputSessions {
    * Tells a library from a manga folder. A manga folder holds chapters with pages in them. A
    * library holds manga folders, which mangabind reads as chapters that have no pages of their own
    * (a title named like "Mob Psycho 100" even parses as one), so a folder with no chapter that has
-   * pages is read once more as a library. It is one only if that finds manga with chapters in them.
+   * pages is read once more as a library. It is one only if that finds manga with chapters in them;
+   * what it found is returned either way, since a folder of links has no manga and needs saying so.
    */
   private async probeLibrary(
     inputPath: string,
     draft: MappingDraft,
     signal: AbortSignal | undefined,
   ): Promise<
-    | { readonly titles: readonly BindingBatchTitle[]; readonly issues: LibraryPlan['issues'] }
+    | {
+        readonly titles: readonly BindingBatchTitle[];
+        readonly issues: LibraryPlan['issues'];
+        readonly skippedLinks: readonly string[];
+      }
     | undefined
   > {
     if (draft.chapters.some((chapter) => chapter.pageCount > 0)) return undefined;
@@ -114,7 +125,7 @@ export class InputSessions {
       return undefined;
     }
     const titles = plan.titles.filter((title) => title.draft.chapters.length > 0);
-    return titles.length === 0 ? undefined : { titles, issues: plan.issues };
+    return { titles, issues: plan.issues, skippedLinks: skippedLinkNames(plan.issues) };
   }
 
   /** Reads the library again, for instance after a title's mapping was saved. */
