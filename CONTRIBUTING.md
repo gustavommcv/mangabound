@@ -25,6 +25,12 @@ To offer another online source for volume data, follow [the provider guide](docs
 
 Use Conventional Commit-style subjects where practical. Architecture changes require a new ADR; accepted ADRs are never rewritten to conceal a reversed decision.
 
+### Language and documentation
+
+Write application text, code comments, contributor documentation, commit subjects, and pull request descriptions in English. The user guide intentionally has English and Portuguese versions; write each naturally in its own language and keep the application's actual English control labels in both.
+
+Check documentation against the current scripts, configuration, and behavior when changing it. Keep current priorities in [the milestones page](docs/milestones.md#current-priorities), not in a second roadmap. Audit findings preserve the evidence from their original review; append dated status updates with the implementing pull request or verification evidence instead of rewriting the original finding. Accepted ADRs follow the separate immutability rule above.
+
 ### Documentation website
 
 The Astro/Starlight website is a separate package under `website/`, with its own lockfile and gates; `docs/` holds only the contributor documents (architecture, ADRs, releases) that GitHub renders. For website changes, also run `npm --prefix website ci`, install Playwright's Chromium, and run `npm run site:check`. The root command generates tutorial images from the static Storybook build before running the website's checks. `npm run site:dev` does the same before starting a local guide. This checks the built site, both language trees, links and media, keyboard navigation, search, mobile layout, accessibility, collapsible tutorial steps, and development-only media markers on Windows and Linux CI. The application's checks do not replace these gates, and website checks do not replace the application's CI.
@@ -35,19 +41,19 @@ Read [the website contributor guide](website/README.md) and [the tutorial media 
 
 `npm run check` runs the first nine of these together, plus an audit of the production dependencies and a check of the tool pins. Run a single one while you work.
 
-| Command                               | What it holds                                                                                                                                                                      |
-| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm run format:check`                | Prettier. `npm run format` fixes it.                                                                                                                                               |
-| `npm run lint`                        | ESLint with no warnings allowed.                                                                                                                                                   |
-| `npm run lint:boundaries`             | ADR 0001's module boundaries, from `eslint.config.mjs`'s `no-restricted-imports` overrides (below).                                                                                |
-| `npm run typecheck`                   | Strict TypeScript over the source and the tests.                                                                                                                                   |
-| `npm run test:unit`                   | Domain, application, adapters, library, OPDS and `renderer/lib`. **100% statements, branches, functions and lines, or it fails.** It also acquires and verifies the bundled tools. |
-| `npm run capabilities:check`          | Fails when mangabind or mangapress has a flag the app does not represent.                                                                                                          |
-| `npm run test:component`              | Components and the whole app against a fake bridge (React Testing Library, jsdom).                                                                                                 |
-| `npm run test:stories`                | Every Storybook story: its interactions and its accessibility check.                                                                                                               |
-| `npm run build-storybook`             | That Storybook still builds.                                                                                                                                                       |
-| `npm run test:visual`                 | Screenshots of the stories against the committed baselines. CI runs this on Windows (see below).                                                                                   |
-| `npm run package`, `npm run test:e2e` | The packaged application, driven for real with the real tools.                                                                                                                     |
+| Command                                   | What it holds                                                                                                                                                                      |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run format:check`                    | Prettier. `npm run format` fixes it.                                                                                                                                               |
+| `npm run lint`                            | ESLint with no warnings allowed.                                                                                                                                                   |
+| `npm run lint:boundaries`                 | Tests the resolving module-boundary rule registered in `eslint.config.mjs`; `npm run lint` also applies it to the actual source (below).                                           |
+| `npm run typecheck`                       | Strict TypeScript over the source and the tests.                                                                                                                                   |
+| `npm run test:unit`                       | Domain, application, adapters, library, OPDS and `renderer/lib`. **100% statements, branches, functions and lines, or it fails.** It also acquires and verifies the bundled tools. |
+| `npm run capabilities:check`              | Fails when mangabind or mangapress has a flag the app does not represent.                                                                                                          |
+| `npm run test:component`                  | Components and the whole app against a fake bridge (React Testing Library, jsdom).                                                                                                 |
+| `npm run test:stories`                    | Every Storybook story: its interactions and its accessibility check.                                                                                                               |
+| `npm run build-storybook`                 | That Storybook still builds.                                                                                                                                                       |
+| `npm run test:visual`                     | Screenshots of the stories against the committed baselines. CI runs this on Windows (see below).                                                                                   |
+| `npm run package:e2e`, `npm run test:e2e` | The packaged application with the test bridge enabled, driven for real with the real tools.                                                                                        |
 
 ## Module boundaries
 
@@ -85,6 +91,8 @@ We use it for five things:
 3. **Interaction tests.** A story can have a `play` function that clicks and types as a person would, and asserts what happens (for example, opening the Share panel).
 4. **Visual regression.** `npm run test:visual` takes a screenshot of each story and compares it with the baseline in `tests/visual/__screenshots__`. A change that alters how something looks fails until the baseline is deliberately updated.
 5. **Tutorial images.** `npm run site:media` builds Storybook and uses Playwright to capture selected states and interactions into the ignored `website/src/assets/tutorial/generated/` directory. Documentation CI shares one artifact with both site verification jobs and publication. These images do not change or approve visual baselines.
+
+The README reuses the committed `tests/visual/__screenshots__/queue-plan-validated.png` baseline rather than keeping a second screenshot. Update it through the normal visual-review procedure below, not by changing a baseline to improve the README's appearance. Its sample filenames contain no manga pages or personal paths.
 
 **Writing a story.** Put `<component>.stories.tsx` next to the component. Give it a `title`, default `args` (the props), and one exported story per state:
 

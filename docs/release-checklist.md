@@ -2,6 +2,8 @@
 
 CI automates the repeatable launch and rendering checks. Compositor policy and real desktop integration still require hands-on verification before a release.
 
+Record the release version, source commit, exact successful CI runs, and hands-on results in the release pull request or a linked verification record. Mark untested checks as pending, with the platform and limitation stated; do not infer a manual pass from a green automated job. Use the actual published downloads for the post-publication checks in [Releasing](../RELEASING.md). Signing/notarization remains unfinished release-hardening work: current unsigned alphas disclose that limitation, not a pass of the signing check below.
+
 ## All targets
 
 - Installer is signed/notarized as applicable and contains the exact locked CLI binaries.

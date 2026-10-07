@@ -31,6 +31,10 @@ What does not belong in the notes, because it is the same in every release and l
 
 ## 3. Tag and push
 
+Obtain explicit authorization for the version tag; approval to merge a pull request does not authorize a release. Before tagging, verify the remote application and documentation checks for the exact approved commit of `main`, following [the completion gate](CONTRIBUTING.md#remote-ci-is-the-completion-gate). A queued or running check, an earlier green commit, or local checks alone do not satisfy it. If the remote result cannot be verified, stop and report the missing evidence.
+
+From that verified commit:
+
 ```text
 git tag v<version>
 git push origin v<version>
@@ -38,9 +42,9 @@ git push origin v<version>
 
 Tag a commit of `main`: it is the only long-lived branch, and releases are cut from it. The tag then names exactly what the release was built from.
 
-Pushing a tag matching `v*` is the only thing that triggers `.github/workflows/release.yml` — nothing runs on an ordinary push or PR.
+Pushing a tag matching `v*` triggers `.github/workflows/release.yml`; that workflow does not run on an ordinary push or PR.
 
-The workflow itself refuses a commit that is not on `main`, or whose CI run (the `CI` workflow, on its push to `main`) did not pass; see `verify-commit` below. Tagging right after a merge is fine: if CI is still running it waits for it, up to twenty minutes. It still pays to look at the run of the exact commit before tagging, as the checklist asks, since a failure here costs a tag to delete and push again.
+The workflow also refuses a commit that is not on `main`, or whose application CI run (the `CI` workflow, on its push to `main`) did not pass; see `verify-commit` below. Its bounded wait handles an unfinished run, but is a safety net, not permission to skip the pre-tag verification above.
 
 ## 4. What the workflow does automatically
 
@@ -48,11 +52,11 @@ The workflow itself refuses a commit that is not on `main`, or whose CI run (the
 2. **`verify-commit`** requires that the tagged commit is reachable from `main` and that the `CI` workflow ran for exactly that commit, on a push, and passed (`scripts/verify-release-commit.mjs`, which decides from what the workflow asks GitHub; the newest run of the commit is the one that counts). A run that has not finished, or has not started, is waited for; anything else stops the release before anything is built. This is what keeps a tag on a commit that never went green from publishing. It is a check of the commit, not of who pushed the tag: the workflow file is the tagged commit's own, so a rule that only the owner may create `v*` tags (a tag ruleset in the repository settings) is still what protects against a tag made from someone else's branch.
 3. **`build`** — one job per platform (`windows-latest`, `ubuntu-latest`, and a pinned arm64 macOS runner, see below), each running the real `npm run make` and uploading its own output as an ordinary CI artifact. Defined once in `.github/workflows/make.yml` and called from here with `workflow_call`, not copy-pasted — `ci.yml`'s `make-verification` job calls the exact same file, so the two can never drift the way they once did.
 4. **`arch-package`** — Electron Forge has no maker for Arch/pacman, so this hand-rolls one: packages the app the same way `build` does, then wraps it in a `.pkg.tar.zst` with a PKGBUILD (`packaging/arch/`), following the ArchWiki's Electron package guidelines. Also defined once, in `.github/workflows/arch-package.yml`, shared with `ci.yml`'s `arch-package-verification`. It installs the same default icon the `.deb` and `.rpm` fall back to (Electron's) until the app has an icon of its own, and a gate fails the job when the desktop entry's `Icon=` names an icon the package does not install.
-5. **`publish`** — runs only once every job in steps 2 and 3 has succeeded (a failure in any one of them means no Release is created at all, verified for real during this workflow's dry run, not just read off the YAML). Downloads every artifact, keeps only the files a user should actually download (see "Public assets" below), and creates the Release from `docs/releases/v<version>.md`, marked pre-release whenever the tag has a hyphen.
+5. **`publish`** — runs only after every `build` matrix job and `arch-package` have succeeded; a failed build prevents publication. Downloads every artifact, keeps only the files a user should actually download (see "Public assets" below), and creates the Release from `docs/releases/v<version>.md`, marked pre-release whenever the tag has a hyphen.
 
 ## 5. macOS is Apple Silicon only, on purpose
 
-The `build` matrix pins an explicit `macos-15` runner label, not `macos-latest`. That alias currently resolves to Apple Silicon, but it's a moving target GitHub has already silently repointed from Intel to Apple Silicon once before — pinning an explicit, non-deprecated arm64 label keeps the architecture a deliberate choice this project made, not a default that could quietly change underneath it. Intel Mac (`darwin-x64`) is a real, listed target in `toolchain.lock.json` but has never actually been built or tested by this project — treat adding it as its own piece of work (a real Intel runner, a real test pass), not a one-line matrix addition.
+The shared installer matrix in `.github/workflows/make.yml` selects `macos-15` for the Apple Silicon package instead of `macos-latest`. Intel Mac (`darwin-x64`) is listed in `toolchain.lock.json` but is not a shipped or validated release target. Adding it requires an Intel build runner and real packaging and conversion checks, not just another matrix row. Explicit runner labels do not freeze the runner image or guarantee bit-for-bit reproducible builds.
 
 ## 6. Where to check the run
 
@@ -79,7 +83,7 @@ This project's own CI proves `make` succeeds, and for every Linux package it rea
 
 ## 8b. Withdrawing a real release
 
-A release that turns out to be bad (a package that does not start, a conversion that is wrong) has no way to be recalled from the people who downloaded it: there is no update feed, and the files carry no published checksums to tell a withdrawn file from a good one. What can be done, in this order:
+A release that turns out to be bad (a package that does not start, a conversion that is wrong) cannot be recalled from people who already downloaded it: there is no update feed. Published `SHA256SUMS` identifies the original assets and detects a damaged download, but cannot notify an installed app that its release was withdrawn. What can be done, in this order:
 
 1. Edit the release notes on GitHub so that the first line says the release is withdrawn, what is wrong and which release to use instead.
 2. Mark the release as a pre-release if it is not one, so that it stops being the "latest" one.
