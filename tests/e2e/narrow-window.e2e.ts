@@ -58,12 +58,15 @@ describe('packaged application beside another window', () => {
         .querySelector('[role="dialog"][aria-labelledby="share-title"]')
         ?.getBoundingClientRect();
       // The part of the bar the window's own buttons leave free: the panel hangs from its right
-      // edge, so it must not reach under the buttons or past the left edge of the window.
-      const area = (
+      // edge, so it must not reach under the buttons or past the left edge of the window. Where the
+      // buttons are not drawn over the page (macOS draws them on the left, outside it) the area is
+      // not reported and the bar is the whole width.
+      const overlay = (
         navigator as Navigator & {
-          windowControlsOverlay?: { getTitlebarAreaRect: () => DOMRect };
+          windowControlsOverlay?: { visible: boolean; getTitlebarAreaRect: () => DOMRect };
         }
-      ).windowControlsOverlay?.getTitlebarAreaRect();
+      ).windowControlsOverlay;
+      const area = overlay?.visible === true ? overlay.getTitlebarAreaRect() : undefined;
       return {
         left: box?.left ?? Number.NaN,
         right: box?.right ?? Number.NaN,
