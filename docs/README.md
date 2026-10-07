@@ -10,7 +10,7 @@ Start with [current priorities](milestones.md#current-priorities) for pending wo
 | [Architecture decisions](adr/README.md)                  | Why it is built this way, one short record per decision                          |
 | [Adding an online source](adding-a-metadata-provider.md) | The rules and the steps for offering another source of volume data               |
 | [Current priorities and milestones](milestones.md)       | Pending work, completion criteria, and the implementation history                |
-| [Release checklist](release-checklist.md)                | The checks that need hands on a real machine before a release                    |
+| [Release checklist](release-checklist.md)                | The basic release smoke test and checks for changed desktop integrations         |
 | [Release notes](releases/)                               | One file per published version; the release workflow publishes them as they are  |
 | [Audit, September 2026](audit-2026-09.md)                | The first architecture and code-quality audit, with what was done about it       |
 | [Audit, 30 September 2026](audit-2026-09-30.md)          | The second audit: findings with evidence, the plan, and what has been done since |

@@ -1,163 +1,114 @@
 # Contributing
 
-Mangabound uses an npm lockfile and treats formatting, linting, type checking, tests, packaging, and packaged-app smoke tests as build gates. This page is what to know before changing anything: how to run the gates, what each kind of test is for, what Storybook is, and how to open a pull request.
-
-To understand the code before touching it, read [the architecture overview](docs/architecture.md) first. It is one page, and it says where each kind of change goes.
+Start with the [architecture overview](docs/architecture.md) for module boundaries and [current priorities](docs/milestones.md#current-priorities) for pending work. The [documentation index](docs/README.md) links to the detailed guides.
 
 ## Community and reports
 
-Follow the [Code of Conduct](CODE_OF_CONDUCT.md) when participating. Use the [issue templates](https://github.com/gustavommcv/mangabound/issues/new/choose) for bugs and suggestions; check existing issues first and remove private information from attachments. A bug report should include the app version, system, reproduction steps, expected result, and actual result.
+Follow the [Code of Conduct](CODE_OF_CONDUCT.md). Use the [issue templates](https://github.com/gustavommcv/mangabound/issues/new/choose) for bugs and suggestions; check existing issues and remove private information from attachments. Include the app version, system, reproduction steps, expected result, and actual result.
 
-For suspected vulnerabilities, follow [SECURITY.md](SECURITY.md) and report privately rather than opening a public issue or pull request. The pull request template asks for a short summary and verification evidence; the requirements below remain the source of truth.
+Report suspected vulnerabilities privately through [SECURITY.md](SECURITY.md), not a public issue or pull request.
 
 ## Before opening a pull request
 
-Run:
+Use Node.js 24 and npm 11+, then run:
 
 ```text
 npm ci
+npx playwright install chromium
 npm run check
 npm run package:e2e
 npm run test:e2e
 ```
 
-To offer another online source for volume data, follow [the provider guide](docs/adding-a-metadata-provider.md): it lists what a source may and may not be, and every step.
+On Linux, browser setup may require `npx playwright install --with-deps chromium`. On Windows, use PowerShell: Git Bash's `tar` breaks toolchain extraction. Stop `npm start` and Storybook before packaging; their watchers can lock the build folder.
 
-Use Conventional Commit-style subjects where practical. Architecture changes require a new ADR; accepted ADRs are never rewritten to conceal a reversed decision.
+Run individual checks while working. The full local checks prepare the change for review; they do not replace the [remote-CI completion gate](#remote-ci-is-the-completion-gate).
 
 ### Language and documentation
 
-Write application text, code comments, contributor documentation, commit subjects, and pull request descriptions in English. The user guide intentionally has English and Portuguese versions; write each naturally in its own language and keep the application's actual English control labels in both.
+Write application text, comments, contributor documents, commit subjects, and PR descriptions in English. The public guide has English and Portuguese versions; write each naturally and retain the application's actual English control labels in both.
 
-Check documentation against the current scripts, configuration, and behavior when changing it. Keep current priorities in [the milestones page](docs/milestones.md#current-priorities), not in a second roadmap. Audit findings preserve the evidence from their original review; append dated status updates with the implementing pull request or verification evidence instead of rewriting the original finding. Accepted ADRs follow the separate immutability rule above.
+Check changed documentation against current behavior and scripts. Keep pending work in [current priorities](docs/milestones.md#current-priorities). Preserve audit findings and accepted ADRs as historical records; append dated outcomes to audits rather than rewriting their original evidence.
 
 ### Documentation website
 
-The Astro/Starlight website is a separate package under `website/`, with its own lockfile and gates; `docs/` holds only the contributor documents (architecture, ADRs, releases) that GitHub renders. For website changes, also run `npm --prefix website ci`, install Playwright's Chromium, and run `npm run site:check`. The root command generates tutorial images from the static Storybook build before running the website's checks. `npm run site:dev` does the same before starting a local guide. This checks the built site, both language trees, links and media, keyboard navigation, search, mobile layout, accessibility, collapsible tutorial steps, and development-only media markers on Windows and Linux CI. The application's checks do not replace these gates, and website checks do not replace the application's CI.
+The user guide is the independent Astro/Starlight package under `website/`; `docs/` holds contributor documents. For website changes, also run `npm --prefix website ci` and `npm run site:check`. Application and website checks remain separate requirements.
 
-Read [the website contributor guide](website/README.md) and [the tutorial media plan](website/MEDIA.md). Keep English and Portuguese pages together, preserve the actual English application labels, and link to canonical architecture/protocol/provider documents instead of copying them into a second reference. The guide and automatic app captures track `main`, which may contain changes not yet released (ADR 0034). KOReader images identify the supplied device/version. Media must never be the only instructions for a task.
+`npm run site:dev` generates the tutorial images and starts the guide. The guide and automatic app captures follow `main`, which may be ahead of the latest release; KOReader captures are supplied manually. Update both languages together, and never use images as the only instructions. See [website/README.md](website/README.md) for development and checks, and [MEDIA.md](website/MEDIA.md) for illustrations.
 
 ## The gates, and what each is for
 
-`npm run check` runs the first nine of these together, plus an audit of the production dependencies and a check of the tool pins. Run a single one while you work.
+`npm run check` runs formatting, linting, module-boundary tests, type checking, the production dependency audit, tool-pin verification, unit and component tests, story tests, and the Storybook build. Visual and packaged-app tests are separate commands.
 
-| Command                                   | What it holds                                                                                                                                                                      |
-| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm run format:check`                    | Prettier. `npm run format` fixes it.                                                                                                                                               |
-| `npm run lint`                            | ESLint with no warnings allowed.                                                                                                                                                   |
-| `npm run lint:boundaries`                 | Tests the resolving module-boundary rule registered in `eslint.config.mjs`; `npm run lint` also applies it to the actual source (below).                                           |
-| `npm run typecheck`                       | Strict TypeScript over the source and the tests.                                                                                                                                   |
-| `npm run test:unit`                       | Domain, application, adapters, library, OPDS and `renderer/lib`. **100% statements, branches, functions and lines, or it fails.** It also acquires and verifies the bundled tools. |
-| `npm run capabilities:check`              | Fails when mangabind or mangapress has a flag the app does not represent.                                                                                                          |
-| `npm run test:component`                  | Components and the whole app against a fake bridge (React Testing Library, jsdom).                                                                                                 |
-| `npm run test:stories`                    | Every Storybook story: its interactions and its accessibility check.                                                                                                               |
-| `npm run build-storybook`                 | That Storybook still builds.                                                                                                                                                       |
-| `npm run test:visual`                     | Screenshots of the stories against the committed baselines. CI runs this on Windows (see below).                                                                                   |
-| `npm run package:e2e`, `npm run test:e2e` | The packaged application with the test bridge enabled, driven for real with the real tools.                                                                                        |
+| Command                                   | Purpose                                                                          |
+| ----------------------------------------- | -------------------------------------------------------------------------------- |
+| `npm run format:check`                    | Prettier; `npm run format` applies formatting.                                   |
+| `npm run lint`                            | ESLint, with no warnings allowed.                                                |
+| `npm run lint:boundaries`                 | Regression tests for the module-boundary rule.                                   |
+| `npm run typecheck`                       | Strict TypeScript over source and tests.                                         |
+| `npm run audit:production`                | Audit the app's production dependencies.                                         |
+| `npm run toolchain:check`                 | Validate the pinned converter manifest.                                          |
+| `npm run test:unit`                       | Logic, adapters, and selected main/preload helpers; acquires the verified tools. |
+| `npm run capabilities:check`              | Detect CLI flags the app does not represent.                                     |
+| `npm run test:component`                  | Accessible React behavior against a fake desktop bridge.                         |
+| `npm run test:stories`                    | Storybook interactions and axe accessibility checks.                             |
+| `npm run build-storybook`                 | Build the isolated UI reference.                                                 |
+| `npm run test:visual`                     | Compare selected UI states with Windows CI baselines.                            |
+| `npm run package:e2e`, `npm run test:e2e` | Exercise the packaged Electron app with real converters.                         |
 
 ## Module boundaries
 
-[ADR 0001](docs/adr/0001-electron-react-and-module-boundaries.md), elaborated in [the "May import" column of the architecture overview](docs/architecture.md#layers), says what each top-level folder under `src` may import. `eslint.config.mjs` registers a local rule, `eslint-rules/module-boundaries.mjs`, that enforces it, checked by `npm run lint:boundaries` (part of `npm run check`); `scripts/verify-lint-boundaries.mjs` is that rule's own test, proving a legitimate import from each layer still passes and a representative violation of each boundary fails.
-
-The rule resolves every import to the file it actually targets — the same resolution the `@/*` alias or a relative specifier would go through at run time — and checks the target's layer, not the text of the specifier. A forbidden import is caught the same way whether it is written with the alias (`@/adapters/foo`) or as a relative path at any depth (`../../adapters/foo`), which `scripts/verify-lint-boundaries.mjs` proves directly by asserting both forms of the same violation fail identically. There is no depth-dependent gap to work around.
+Follow the [layer table](docs/architecture.md#layers). `npm run lint` enforces it by resolving imports to their target files, including aliases and relative paths. `npm run lint:boundaries` tests the rule itself. Keep domain rules independent of React, Electron, Node, and adapters.
 
 ## Testing expectations
 
-- Pure domain and application behavior belongs in Vitest unit tests.
-- The IPC registration and conversion-job lifetime helpers (`src/main/ipc/handle.ts` and `run-job.ts`) the preload's reading of dropped files (`src/preload/dropped-paths.ts`) and the decisions of the window and of the handlers that need no Electron (`src/main/permission-policy.ts`, `src/main/renderer-files.ts`, `src/main/quit-cleanup.ts` and the units beside `handle.ts` in `src/main/ipc`) also have focused unit tests and belong to the 100% coverage gate. Only the Electron registrar is replaced in the registration tests; real bridge and dialog wiring still require the packaged end-to-end suite. The remaining main-process files are not covered by that unit gate.
-- React behavior belongs in React Testing Library component tests.
-- Reusable component states belong in Storybook and visual regression coverage.
-- User-critical workflows belong in WebdriverIO tests against a packaged Electron application.
-- Changes to mangabind or mangapress follow those repositories' existing fixture and test conventions.
+- Use Vitest for pure rules, workflows, adapters, and framework-independent main/preload decisions. The files listed in `vitest.config.ts` require **100% statements, branches, functions, and lines**; this is not a whole-app coverage claim.
+- Use React Testing Library for what users see and do, not component internals.
+- Cover relevant normal, loading, empty, disabled, warning, and error states in Storybook, with interaction, accessibility, and visual checks where applicable.
+- Cover critical workflows with WebdriverIO against the packaged app and real tools. A manual check does not replace an automated regression test.
+- Use recorded real responses for online providers. Changes to mangabind or mangapress follow those repositories' fixture and test conventions.
 
-Tests must assert behavior and actionable outcomes, not implementation details. A manual run is useful evidence, but it never replaces an automated regression test for a critical path.
-
-Tests for online sources use responses recorded from the real service, never invented ones; the provider guide says how to record them.
+Tests should detect a broken behavior, not merely confirm the current implementation or increase a coverage number. See [the provider guide](docs/adding-a-metadata-provider.md) for adding and testing another online source.
 
 ## Storybook: what it is and how it is used here
 
-**Storybook is a workshop for the interface.** It draws each screen and component on its own, in each state it can be in (a _story_), without running the app, Electron, or the conversion tools. To see it:
+`npm run storybook` opens an isolated UI workshop at <http://localhost:6006>, without Electron or conversion tools. Put `<component>.stories.tsx` beside the component, reuse existing story patterns, and use `play` interactions where behavior matters. Every story runs an axe WCAG A/AA check.
 
-```text
-npm run storybook
-```
+`npm run test:stories` needs Playwright's Chromium. If downloading it is unavailable, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to an existing Chromium executable; CI uses Playwright's matching browser.
 
-then open `http://localhost:6006`. The sidebar lists everything under `Workflows/`, `Shell/` and so on; each story is one state, such as "Queue / With items" or "Reset options / Asking to confirm".
+Visual baselines live in `tests/visual/__screenshots__` and come from Windows CI, not local rendering:
 
-We use it for five things:
+1. Push the UI change. A missing or changed baseline makes the visual job upload `storybook-visual-diff`.
+2. Inspect each relevant `*-actual.png` and copy approved images over their baselines.
+3. Commit, push, and verify the new remote run. Delete a known-stale baseline first if a small change falls below the comparison threshold.
 
-1. **A reference for how every state looks,** including the ones that are hard to reach in the real app, such as an error, a failed step, or a library where one title needs volumes.
-2. **An accessibility check on every state.** Each story is scanned with axe against WCAG A and AA, and a violation fails `npm run test:stories`.
-3. **Interaction tests.** A story can have a `play` function that clicks and types as a person would, and asserts what happens (for example, opening the Share panel).
-4. **Visual regression.** `npm run test:visual` takes a screenshot of each story and compares it with the baseline in `tests/visual/__screenshots__`. A change that alters how something looks fails until the baseline is deliberately updated.
-5. **Tutorial images.** `npm run site:media` builds Storybook and uses Playwright to capture selected states and interactions into the ignored `website/src/assets/tutorial/generated/` directory. Documentation CI shares one artifact with both site verification jobs and publication. These images do not change or approve visual baselines.
-
-The README reuses the committed `tests/visual/__screenshots__/queue-plan-validated.png` baseline rather than keeping a second screenshot. Update it through the normal visual-review procedure below, not by changing a baseline to improve the README's appearance. Its sample filenames contain no manga pages or personal paths.
-
-**Writing a story.** Put `<component>.stories.tsx` next to the component. Give it a `title`, default `args` (the props), and one exported story per state:
-
-```tsx
-const meta = { title: 'Workflows/Reset options', component: ResetOptions, args: { … } } satisfies Meta<typeof ResetOptions>;
-export default meta;
-
-export const Available: StoryObj<typeof meta> = {};
-export const AskingToConfirm: StoryObj<typeof meta> = {
-  play: async ({ canvasElement }) => {
-    await userEvent.click(within(canvasElement).getByRole('button', { name: 'Reset to defaults' }));
-  },
-};
-```
-
-Any state that a person can end up in deserves a story, and a screenshot test if how it looks matters.
-
-**Running the story tests locally.** `npm run test:stories` needs a Chromium. Either `npx playwright install chromium`, or point it at a browser you already have:
-
-```text
-PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="/path/to/chrome" npm run test:stories
-```
-
-**Updating visual baselines.** The baselines are drawn by the Windows job in CI, and rendering differs slightly between machines, so do not generate them locally. When a story changes:
-
-1. Push. The visual job fails and uploads an artifact named `storybook-visual-diff`.
-2. Download it, look at each `*-actual.png` (it is the new state; check it is what you meant), and copy it over `tests/visual/__screenshots__/<name>.png`. A story that is new has no baseline yet and is added the same way.
-3. Commit and push. The job should now pass.
-
-A tiny text change can fall under the comparison threshold and pass against a stale baseline. If you know a baseline is out of date, delete it so CI regenerates it.
-
-## Working on Windows
-
-Run the npm scripts from PowerShell. The `tar` that ships with Git Bash breaks the step that unpacks the bundled tools.
-
-Do not package (`npm run package`) while Storybook or `npm start` is running: their watchers hold the `.webpack` folder and packaging fails with an `EPERM` on a rename.
+The README reuses the queue's committed baseline. Tutorial captures are separate: `npm run site:media` generates ignored images for the website from the same source commit. They never approve or replace visual baselines.
 
 ## Updating the bundled tools
 
-mangabind and mangapress are pinned in `toolchain.lock.json`, and taking a newer release of either is a manual, deliberate step ([ADR 0017](docs/adr/0017-bundled-tools-are-updated-by-hand.md)). When one has published a release you want to ship:
+mangabind and mangapress are updated deliberately through `toolchain.lock.json` ([ADR 0017](docs/adr/0017-bundled-tools-are-updated-by-hand.md)):
 
-1. Run, from PowerShell on Windows: `npm run toolchain:update -- --tool mangabind` (or `mangapress`; with no `--tool` it does both). It looks up the tool's latest release, downloads every supported platform's asset, checks each against the upstream `checksums.txt` and GitHub's digest, unpacks and hashes the executables, and writes the new pin into `toolchain.lock.json`. It does not run the tools, and the protocol version it writes is the one already assumed (`1`): the handshake of each tool (its version and protocol) is checked against the pin when the build acquires the tools (`scripts/acquire-toolchain.mjs`) and by `npm run test:unit`, which also runs the real tools and reads what they print with the app's parsers (`tests/unit/pinned-tools-output.test.ts`), so a protocol change fails there and not in this step. To take a specific release instead of the latest, add `--mangabind v0.5.0` (or `--mangapress v0.6.0`).
-2. Add `--pr-body pr.md` (for one tool at a time) to also write a pull request description with the old and new release, the protocol versions and the upstream release notes.
-3. Check it: `npm run toolchain:check`, `npm run capabilities:check` (it fails if the tool has a flag the app does not represent), `npm run test:unit`, then `npm run package:e2e` and `npm run test:e2e`. A flag the app will offer in a later pull request goes in the `deferred` group of `schemas/cli-capabilities.json`, and an ADR says when and why ([ADR 0035](docs/adr/0035-mangapress-0-7-first-its-options-in-steps.md) is the example); the check prints the deferred flags on every run.
-4. Open a pull request with that change alone. CI packages and exercises the candidate on Windows, macOS, Linux and Wayland, and a person merges it.
-
-If a release changes the machine-protocol version, that is a compatibility change and not just a new pin: the adapters validate the protocol they were written against, so it needs code changes and probably an ADR.
+1. Run `npm run toolchain:update -- --tool mangabind` or `--tool mangapress`. With no tool argument it updates both. To choose a specific release, add `--mangabind v<version>` or `--mangapress v<version>`. The script verifies upstream checksums and GitHub digests, then pins each platform's archive and executable hashes.
+2. Optionally add `--pr-body pr.md` for a one-tool update to generate a PR description. The update script does not run a protocol handshake; it retains protocol version `1`. Acquisition and tests check the actual binaries and protocol, including their real JSON output.
+3. Run the full checks above. Review `capabilities:check`; explicitly deferred flags belong in `schemas/cli-capabilities.json`, with the reason recorded as in [ADR 0035](docs/adr/0035-mangapress-0-7-first-its-options-in-steps.md).
+4. Open a focused PR. A protocol change needs adapter changes, not just a new pin.
 
 ## Writing an ADR
 
-A decision that changes how the app is built or what it does gets a short record in `docs/adr/`: a number, a title, a status and date, what it amends if anything, the context, the decision, and the consequences including known limits. Add its row to `docs/adr/README.md`. Accepted ADRs are immutable; when a premise changes, write a new one that says it amends the old one, and mark the old one "amended by" in the index.
+Write an ADR for a lasting architecture or product-boundary decision with meaningful trade-offs: for example, changing the CLI protocol, persistence model, security boundary, or supported output behavior. Routine bug fixes, wording, layout adjustments, and defaults normally need only the PR explanation, unless they change an accepted decision.
+
+Keep it short: status and date, context, decision, consequences, and any ADR it amends. Add it to [the index](docs/adr/README.md). Accepted records remain immutable; supersede or amend them in a new record rather than rewriting or deleting the history.
 
 ## Pull requests
 
-- Start feature and fix branches from an up-to-date `main` and target their pull requests to `main`. There is one long-lived branch: `main` is the latest state, and a release is a version tag on a commit of `main`.
-- A pull request is merged only when every check has passed, as a squash merge, so `main` has one commit per change. A release needs an explicitly authorized version tag: merging a change does not authorize one.
-- Application and documentation CI run for pull requests and pushes to `main`. Verify the exact PR head before merging and the exact resulting `main` commit after merging, following the remote-CI gate below. The documentation site is published only from `main`.
-- One topic per pull request, and a description that says what changed, why, and how it was checked. Reviewers should be able to judge it without opening the diff first.
-- Keep a change small enough to review. A refactor and a feature are two pull requests.
-- The description of a user-visible change says what a person will notice.
-- Delete merged feature/fix branches after the resulting commit's CI succeeds. `main` is the only long-lived branch.
+- Branch from up-to-date `main` and target `main`, the only long-lived branch.
+- Keep one reviewable topic per PR; separate a refactor from a feature. Explain what changed, why, what users will notice, and how it was checked. Use Conventional Commit-style subjects where practical.
+- Wait for every check on the exact PR head and the repository owner's explicit approval before a squash merge. Verify the resulting `main` commit too. A merge does not authorize a release tag.
+- Delete merged branches after the resulting commit's CI succeeds. The website publishes from `main`.
 
 ## Documentation dependency audit exceptions
 
-The documentation package audits all of its dependencies in `npm --prefix website run check`, using lockfile-pinned `audit-ci`. A temporary exception requires the repository owner's explicit approval, an exposure assessment in [website/SECURITY.md](website/SECURITY.md), exact advisory/path records with an enforced UTC expiry, and regression tests proving unaccepted findings and audit failures still block. Do not add package-wide or wildcard exclusions, raise the severity threshold, omit development dependencies, or automatically renew an exception. The application's production-dependency audit is unchanged. An accepted exception is not a vulnerability fix and does not relax the exact-commit remote-CI gate below.
+The documentation package audits all of its dependencies at every severity through lockfile-pinned `audit-ci`. A temporary exception requires the owner's explicit approval, an exposure assessment in [website/SECURITY.md](website/SECURITY.md), exact advisory/path records, an enforced UTC expiry, and regression tests. Do not use package-wide or wildcard exclusions, raise the threshold, omit development dependencies, or automatically renew an exception. The app's production audit is unchanged.
 
 ## Remote CI is the completion gate
 
