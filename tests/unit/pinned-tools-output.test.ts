@@ -106,6 +106,34 @@ describe('what the pinned tools print, read with the app’s own parsers', () =>
     }
   }, 60_000);
 
+  it('counts only the images of a chapter, and says which other files it left out', async () => {
+    const cli = new MangabindCliAdapter(executable('mangabind'), runner, true);
+    const scratch = await mkdtemp(path.join(tmpdir(), 'mangabound-pinned-pages-'));
+    const adapter = new MangabindBindingAdapter(cli, undefined, scratch);
+    try {
+      const chapter = path.join(scratch, 'Mixed', 'Vol.01 Ch.001');
+      await mkdir(chapter, { recursive: true });
+      await writeFile(path.join(chapter, '001.png'), 'a page');
+      await writeFile(path.join(chapter, '002.png'), 'a page');
+      // Known junk is left out without a word; any other file is left out and named.
+      await writeFile(path.join(chapter, '.DS_Store'), 'junk');
+      await writeFile(path.join(chapter, 'credits.txt'), 'not a page');
+
+      const inspection = await adapter.inspect(path.join(scratch, 'Mixed'));
+
+      // An earlier mangabind (0.6.1) counted all four files as pages.
+      expect(inspection.draft.chapters.map((entry) => entry.pageCount)).toEqual([2]);
+      const issues = inspection.issues.filter((issue) => issue.code === 'unsupported_page_files');
+      expect(issues).toHaveLength(1);
+      expect(issues[0]).toMatchObject({ severity: 'warning', stage: 'inspect', volume: '1' });
+      expect(issues[0]?.message).toContain('credits.txt');
+      expect(issues[0]?.message).not.toContain('.DS_Store');
+      await adapter.release(inspection.workspaceId);
+    } finally {
+      await rm(scratch, { force: true, recursive: true });
+    }
+  }, 60_000);
+
   it('reads the event stream of mangapress for a plan, a conversion and its list of devices', async () => {
     const mangapress = new MangapressCliAdapter(executable('mangapress'), runner);
     const input = path.join(fixtures, 'cbz', 'Mangabound Direct.cbz');

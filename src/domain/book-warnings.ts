@@ -67,6 +67,16 @@ const knownWarnings: Readonly<Record<string, Pick<WarningNotice, 'title' | 'mess
     message:
       'A file in the folder is a link that does not lead to a file inside it (it leads outside the folder, to a folder, or to nothing), so it was not copied into the book: a folder that came from someone else could otherwise put a file of yours into it. If the page is meant to be there, put a copy of the file in the folder and convert again.',
   },
+  unsupported_page_files: {
+    title: 'Files in a chapter that are not page images were left out',
+    message:
+      'A chapter holds files whose names do not say they are images (JPEG, PNG, WebP, GIF, BMP, AVIF, JPEG XL or TIFF), so they are not pages of the book. If one of them is a page, give it the extension of its format and convert again.',
+  },
+  page_entries_too_large: {
+    title: 'Pages that expand to too much were left out',
+    message:
+      'A page in a .cbz chapter says it expands to far more than a page can be (over 256 MiB, or over a thousand times its size in the archive), which is how a file made to fill the memory of a computer looks, so it is not in the book. If it is a real page, save it again as an ordinary image and convert again.',
+  },
 };
 
 /** For a code a later mangapress adds: its own sentence, under a heading that says whose it is. */

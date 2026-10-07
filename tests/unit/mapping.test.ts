@@ -504,8 +504,13 @@ describe('what a volume number and a chapter number may be', () => {
     expect(addVolume(draft, 'v1', typed).volumes[0]?.number).toBe(written);
   });
 
-  it('takes the largest volume number whose digits survive', () => {
-    expect(addVolume(draft, 'v1', '9007199254740991').volumes[0]?.number).toBe('9007199254740991');
+  it('takes the highest volume number mangabind takes, and no more', () => {
+    expect(addVolume(draft, 'v1', '100000').volumes[0]?.number).toBe('100000');
+    for (const number of ['100001', '100000.5', '9007199254740991']) {
+      expect(() => addVolume(draft, 'v1', number)).toThrowError(
+        expect.objectContaining({ code: 'invalid_volume_number' }),
+      );
+    }
   });
 
   it('does not take a draft whose volume is numbered with an exponent from the page', () => {
@@ -615,9 +620,27 @@ describe('the language chapters declare', () => {
 });
 
 describe('isVolumeNumber', () => {
-  it.each(['1', '01', '12', '1.5', '0', ' 2 '])('takes %j for a volume number', (typed) => {
-    expect(isVolumeNumber(typed)).toBe(true);
-  });
+  it.each(['1', '01', '12', '1.5', '0', ' 2 ', '100000'])(
+    'takes %j for a volume number',
+    (typed) => {
+      expect(isVolumeNumber(typed)).toBe(true);
+    },
+  );
+
+  // mangabind refuses a mapping file with a volume above 100000, so the field must not take it.
+  it.each([
+    '100001',
+    '100000.5',
+    '9007199254740993',
+    '1'.padEnd(400, '0'),
+    // Too small to be written without an exponent.
+    '0.0000001',
+  ])(
+    'does not take %j, which mangabind would refuse or which would not be kept as typed',
+    (typed) => {
+      expect(isVolumeNumber(typed)).toBe(false);
+    },
+  );
 
   it.each(['', 'one', '1,5', '-1', '+1', '1e3', '0x10', '.5', '1.'])(
     'does not take %j for one',

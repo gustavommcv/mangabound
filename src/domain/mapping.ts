@@ -79,6 +79,9 @@ export class MappingValidationError extends Error {
   }
 }
 
+/** The highest volume number `mangabind` takes from a file (its `maxVolumeNumber`, from 0.7.0). */
+const highestVolumeNumber = 100_000;
+
 function canonicalVolumeNumber(value: string): string {
   const trimmed = value.trim();
   if (!/^\d+(?:\.\d+)?$/u.test(trimmed)) {
@@ -86,9 +89,10 @@ function canonicalVolumeNumber(value: string): string {
   }
   const number = Number(trimmed);
   const written = String(number);
-  // Past 2^53 the digits stop being the ones typed, and past 10^21 the number is written with an
-  // exponent (1e+22), which is not what a volume of mangabind.json is: no series has either.
-  if (!Number.isSafeInteger(Math.trunc(number)) || !/^\d+(?:\.\d+)?$/u.test(written)) {
+  // `mangabind` refuses a mapping file with a volume above its limit, so one typed here would only
+  // fail later, after the person has done the rest. It is also what keeps the digits the ones
+  // typed (past 2^53 they are not) and the number out of an exponent (1e+22): no series has either.
+  if (number > highestVolumeNumber || !/^\d+(?:\.\d+)?$/u.test(written)) {
     throw new MappingOperationError('invalid_volume_number', `Invalid volume number: ${value}`);
   }
   return written;

@@ -7,37 +7,37 @@
     "mangabind": {
       "sourceRepo": "https://github.com/gustavommcv/mangabind",
       "pin": {
-        "releaseTag": "v0.6.1",
+        "releaseTag": "v0.7.0",
         "protocolVersion": "1",
         "checksums": {
           "assetName": "checksums.txt",
-          "url": "https://github.com/gustavommcv/mangabind/releases/download/v0.6.1/checksums.txt",
-          "sha256": "7c53b96f52df1f404ef1aa288c0a8d3ca7b5e70b657a2f77083f42c56be556f4"
+          "url": "https://github.com/gustavommcv/mangabind/releases/download/v0.7.0/checksums.txt",
+          "sha256": "5e57a2bdf77d11eb2ed04dbcb79ca7ef1a4c7006830764be6b6532f3a02ac98c"
         },
         "artifacts": {
           "win32-x64": {
             "assetName": "mangabind_windows_amd64.zip",
-            "url": "https://github.com/gustavommcv/mangabind/releases/download/v0.6.1/mangabind_windows_amd64.zip",
-            "archiveSha256": "fc4eace562043feddd236aa3eae90e1a48a59ac4468cc4fb6c3629a5435a9f1f",
-            "executableSha256": "6e38503ba0393a4e4e06389f317c2cc34c0a69a21727b381a091d68d26872a08"
+            "url": "https://github.com/gustavommcv/mangabind/releases/download/v0.7.0/mangabind_windows_amd64.zip",
+            "archiveSha256": "2ddea5b77927d4f0964110134ba14e3359857a46cdc5e05b59a1612ec8a01231",
+            "executableSha256": "0256996add9618b1c1a463224de6b9f5a32d578db30a536c0fa1935f2fae3e75"
           },
           "linux-x64": {
             "assetName": "mangabind_linux_amd64.tar.gz",
-            "url": "https://github.com/gustavommcv/mangabind/releases/download/v0.6.1/mangabind_linux_amd64.tar.gz",
-            "archiveSha256": "af6eae9f11bbed34796de9eef937ba40bfe2a54a8d87d5490e4ae3460bcbeed3",
-            "executableSha256": "a98008f32221b6c35ca5ef6ea1dc131e761a18a54534991bd537ad6796dedaa0"
+            "url": "https://github.com/gustavommcv/mangabind/releases/download/v0.7.0/mangabind_linux_amd64.tar.gz",
+            "archiveSha256": "f52bf1dd717af1a4b16c331f6332c76f613f4dd33d41d6825e3a9222b0925301",
+            "executableSha256": "5a1c84b6b26f0d1c6cf783c342c78ccbb7dc2214e4bb8975cd88a2b0e4381d6e"
           },
           "darwin-x64": {
             "assetName": "mangabind_darwin_amd64.tar.gz",
-            "url": "https://github.com/gustavommcv/mangabind/releases/download/v0.6.1/mangabind_darwin_amd64.tar.gz",
-            "archiveSha256": "30b76fb7cdc4ea7d2ac7761c2a4b9d7c09714660cdad7fd7feb2ef656cd7c0ae",
-            "executableSha256": "e9c9455f050686abdd6a6864949e9849dbad31eb79304802204477a5e40bd1e1"
+            "url": "https://github.com/gustavommcv/mangabind/releases/download/v0.7.0/mangabind_darwin_amd64.tar.gz",
+            "archiveSha256": "524c7ba9110dd967c9a6985ab15a4ba8a7d3e78afca2244b8641e98209e256d9",
+            "executableSha256": "b08d9776f1ce7320fea26f210101daf3087a7240da04f07562d96196ebce5615"
           },
           "darwin-arm64": {
             "assetName": "mangabind_darwin_arm64.tar.gz",
-            "url": "https://github.com/gustavommcv/mangabind/releases/download/v0.6.1/mangabind_darwin_arm64.tar.gz",
-            "archiveSha256": "9db0e338c9713060b8b33a01a48319d459881b0acc0d3caf0c80fa11c7c0e025",
-            "executableSha256": "d224a22550cb8027681128738a590f98bb1a8a5ff0b21e126d0819d0f9f33875"
+            "url": "https://github.com/gustavommcv/mangabind/releases/download/v0.7.0/mangabind_darwin_arm64.tar.gz",
+            "archiveSha256": "78eebd7cad73bcfaf35fb9181c3f63b8fdaf2c5098c75ece097a6aae484e3a9b",
+            "executableSha256": "acb6ba617fcba55d479a154bad1da1c408d04f604ee990bf26128cdd8aae5e70"
           }
         }
       }

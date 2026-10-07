@@ -33,6 +33,14 @@ Quando o mangapress percebe algo sobre um livro que mesmo assim foi feito, os re
 - **A .json file beside the book was not used** e **Some labelled spreads were not joined**: o mangapress lê um arquivo de rótulos de página dupla que fica ao lado de um CBZ convertido como está; esses avisos dizem que o arquivo não era uma lista desse tipo, ou que uma posição rotulada não tinha página com que ser unida.
 - **Saved under another name**: o livro substituiria o próprio arquivo de origem.
 
+A etapa que junta os capítulos em volumes, o mangabind, dá avisos próprios quando deixa algo seu de fora de um livro:
+
+- **Chapters with more than one copy were left out**: um capítulo está na pasta mais de uma vez, então nenhuma das cópias está no livro. Remova todas menos uma e converta de novo.
+- **Chapters are missing inside a volume** e **Chapters with no pages were left out**: falta um número de capítulo entre o primeiro e o último de um volume, ou um capítulo não tem páginas.
+- **Links that lead outside the folder were left out**: um arquivo da pasta é um link que não leva a um arquivo dentro dela, então não foi copiado. Coloque uma cópia do arquivo na pasta, se ele deve estar lá.
+- **Files in a chapter that are not page images were left out**: os nomes desses arquivos não dizem que são imagens (JPEG, PNG, WebP, GIF, BMP, AVIF, JPEG XL ou TIFF). Se um for uma página, dê a ele a extensão do seu formato e converta de novo. Arquivos ocultos do sistema, como `.DS_Store`, ficam de fora sem aviso.
+- **Pages that expand to too much were left out**: uma página de um CBZ diz que se expande para muito mais do que uma página pode ser, que é a aparência de um arquivo feito para encher a memória de um computador.
+
 Um aviso de um tipo que esta versão não conhece é mostrado com as palavras do próprio mangapress. Os avisos aparecem com os resultados da conversão que os gerou; livros reabertos depois em **Ready books** são listados sem eles.
 
 ## Abra ou compartilhe

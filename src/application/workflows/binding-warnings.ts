@@ -11,6 +11,8 @@ const leftOutCodes: ReadonlySet<string> = new Set([
   'chapter_gap',
   'empty_chapter',
   'link_skipped',
+  'unsupported_page_files',
+  'page_entries_too_large',
 ]);
 
 /**
