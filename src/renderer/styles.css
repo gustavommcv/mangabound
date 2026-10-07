@@ -131,6 +131,14 @@ textarea {
   -webkit-app-region: no-drag;
 }
 
+/* What opens from the bar hangs from the right edge of the area the window's own buttons leave
+   free, so it may be as wide as that area less a margin on each side, not as the whole window: with
+   the buttons beside it, a window narrower than the panel would cut off its left side. Outside the
+   desktop window (Storybook) there are no buttons and the area is the whole width. */
+.window-titlebar-popover {
+  max-width: calc(env(titlebar-area-x, 0px) + env(titlebar-area-width, 100vw) - 2rem);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

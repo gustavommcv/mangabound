@@ -22,8 +22,12 @@ export const createMainWindow = (): BrowserWindow => {
     // window and its process tree alive indefinitely because nothing ever called show().
     backgroundColor: '#121214',
     height: 760,
-    minHeight: 600,
-    minWidth: 900,
+    // Small enough for half of a 1366px-wide screen with a tiling window manager's gaps and a
+    // reader beside it: a tiled window is not allowed under its minimum, so a larger one is drawn
+    // past the edge of the screen instead of being made to fit. The pages are laid out and checked
+    // down to this width (tests/visual/narrow-window.visual.spec.ts).
+    minHeight: 400,
+    minWidth: 480,
     title: 'Mangabound',
     titleBarStyle: 'hidden',
     width: 1180,

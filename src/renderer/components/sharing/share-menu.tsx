@@ -79,7 +79,7 @@ export function ShareMenu({
       {open && (
         <div
           aria-labelledby="share-title"
-          className="absolute top-full right-0 z-50 mt-2 max-h-[calc(100vh-4.5rem)] w-[26rem] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl outline-none"
+          className="window-titlebar-popover absolute top-full right-0 z-50 mt-2 max-h-[calc(100vh-4.5rem)] w-[26rem] overflow-y-auto rounded-xl outline-none"
           id={panelId}
           ref={panel}
           role="dialog"
