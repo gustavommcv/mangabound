@@ -241,6 +241,9 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
           ...(result.value.unrecognized === undefined
             ? {}
             : { unrecognized: result.value.unrecognized }),
+          ...(result.value.skippedLinks === undefined
+            ? {}
+            : { skippedLinks: result.value.skippedLinks }),
         });
       }
     })();
@@ -949,6 +952,9 @@ export function WorkflowApp({ bridge }: { readonly bridge: MangaboundBridge }): 
                       },
                     }
                   : {})}
+                {...(editingRow.skippedLinks === undefined
+                  ? {}
+                  : { skippedLinks: editingRow.skippedLinks })}
                 singleBook={singleBook}
                 titles={editingRow.titles}
               />

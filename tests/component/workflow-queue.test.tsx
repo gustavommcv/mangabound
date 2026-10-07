@@ -402,6 +402,40 @@ describe('queue application workflow', () => {
     expect(screen.getByText(told)).toBeVisible();
   });
 
+  it('says on the row that a folder holds no manga because they are links, not to turn grouping off', async () => {
+    const user = userEvent.setup();
+    installBridge(
+      bridge({
+        inspectInput: (id) => {
+          const read = inspection(id);
+          return Promise.resolve(
+            read.ok
+              ? {
+                  ok: true as const,
+                  value: {
+                    ...read.value,
+                    mapping: createMappingDraft({ mangaTitle: 'Offline Work', chapters: [] }),
+                    skippedLinks: ['Berserk', 'Vagabond'],
+                  },
+                }
+              : read,
+          );
+        },
+      }),
+    );
+    render(<App />);
+
+    await addFolder(user);
+
+    const list = screen.getByRole('list', { name: 'Queued items' });
+    expect(
+      within(list).getByText(
+        '2 folders in it are links, and mangabind does not follow links to a series, so they were not read: Berserk, Vagabond. Put the real folders in the library and add it again.',
+      ),
+    ).toBeVisible();
+    expect(within(list).queryByText(/Turn off "Group chapters into volumes"/u)).toBeNull();
+  });
+
   it('focuses the Queue heading as soon as the app opens', async () => {
     installBridge(bridge());
     render(<App />);

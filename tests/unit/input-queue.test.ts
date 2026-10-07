@@ -843,6 +843,40 @@ describe('the author and language read with a folder', () => {
   });
 });
 
+describe('the links of a library that mangabind did not follow', () => {
+  const inspect = (skippedLinks?: readonly string[]) =>
+    queueReducer(queueReducer(emptyQueue, { type: 'add', inputs: [folderInput] }), {
+      type: 'inspected',
+      id: 'a',
+      sessionId: 'session-a',
+      mapping: grouped,
+      ...(skippedLinks === undefined ? {} : { skippedLinks }),
+    })[0] as InspectedRow;
+
+  it('are kept with the row, and nothing when there were none', () => {
+    expect(inspect(['Berserk', 'Vagabond']).skippedLinks).toEqual(['Berserk', 'Vagabond']);
+    expect(inspect([])).not.toHaveProperty('skippedLinks');
+    expect(inspect()).not.toHaveProperty('skippedLinks');
+  });
+
+  it('say why a folder of links has no chapters, instead of advising to turn grouping off', () => {
+    const noChapters = {
+      ...inspectedFolder(undefined),
+      mapping: createMappingDraft({ mangaTitle: 'Work', chapters: [] }),
+    };
+
+    const view = describeRow({ ...noChapters, skippedLinks: ['Berserk'] }, 'bind-and-convert');
+
+    expect(view).toMatchObject({ chip: 'Not recognized', tone: 'danger', runnable: false });
+    expect(view.note).toBe(
+      'A folder in it is a link, and mangabind does not follow links to a series, so it was not read: Berserk. Put the real folder in the library and add it again.',
+    );
+    expect(describeRow(noChapters, 'bind-and-convert').note).toContain(
+      'Turn off "Group chapters into volumes"',
+    );
+  });
+});
+
 describe('what a row says of the folders mangabind could not read', () => {
   const told =
     'A folder has a name mangabind cannot read as a chapter, so it is left out of the books: Omake. Rename it to include a chapter number (Ch.005, for one), then add the folder again.';

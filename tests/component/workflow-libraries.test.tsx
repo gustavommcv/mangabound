@@ -594,6 +594,50 @@ describe('libraries in the queue', () => {
     expect(screen.queryByText('Folders left out')).not.toBeInTheDocument();
   });
 
+  it('says on the library screen which folders were links, and so are not in the list', async () => {
+    const user = userEvent.setup();
+    installBridge(
+      libraryBridge([goodTitle], {
+        inspectInput: () =>
+          Promise.resolve({
+            ok: true,
+            value: {
+              sessionId: 'library-session',
+              displayName: 'Manga Library',
+              kind: 'library',
+              titles: [goodTitle],
+              skippedLinks: ['Berserk', 'Vagabond'],
+              issues: [],
+            },
+          }),
+      }),
+    );
+    render(<App />);
+    await addFolder(user);
+
+    await user.click(screen.getByRole('button', { name: 'Edit titles of Manga Library' }));
+
+    const notice = await screen.findByRole('status', {
+      name: '2 folders in this library were not read',
+    });
+    expect(notice).toHaveTextContent(
+      'They are links, and mangabind does not follow links to a series. Put the real folders in the library, or add each on its own: Berserk, Vagabond.',
+    );
+    expect(screen.getByRole('list', { name: 'Titles' })).toBeVisible();
+  });
+
+  it('says nothing of links on the library screen when there were none', async () => {
+    const user = userEvent.setup();
+    installBridge(libraryBridge([goodTitle]));
+    render(<App />);
+    await addFolder(user);
+
+    await user.click(screen.getByRole('button', { name: 'Edit titles of Manga Library' }));
+
+    expect(await screen.findByRole('list', { name: 'Titles' })).toBeVisible();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
   it('goes back to the queue, and from the title editor to the library', async () => {
     const user = userEvent.setup();
     installBridge(libraryBridge([goodTitle]));

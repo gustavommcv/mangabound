@@ -12,6 +12,7 @@ import {
   folder,
   cbz,
   library,
+  libraryRead,
   openLibrary,
 } from './support/conversion-workflow';
 
@@ -1007,5 +1008,120 @@ describe('the folders of a manga that mangabind could not read as chapters', () 
 
       expect(inspected.titles?.some((title) => 'unrecognized' in title)).toBe(false);
     });
+  });
+});
+
+describe('the links of a library that mangabind did not follow', () => {
+  const linkSkipped = (name: string) => ({
+    tool: 'mangabind' as const,
+    severity: 'warning' as const,
+    code: 'link_skipped',
+    stage: 'inspect',
+    recoverable: true,
+    message: `found a link "${name}" that leads to a folder, and the manga folders of a library are not followed through links, skipped`,
+    path: `/input/Library/${name}`,
+  });
+  const goodTitle = {
+    title: 'Good Manga',
+    inputPath: '/input/Library/Good Manga',
+    status: 'completed' as const,
+    draft: trustedDraft,
+    volumes: [{ name: 'Good Manga - Vol.01.cbz', pageCount: 2 }],
+    issues: [],
+  };
+
+  async function inspected(
+    plan: Awaited<ReturnType<ReturnType<typeof dependencies>['planBatch']>>,
+    read = libraryRead,
+  ) {
+    const ports = dependencies();
+    ports.inspect.mockResolvedValue({ workspaceId: 'workspace-1', draft: read, issues: [] });
+    ports.planBatch.mockResolvedValue(plan);
+    let id = 0;
+    const workflow = new ConversionWorkflow(
+      ports.binding,
+      ports.conversion,
+      () => String(++id),
+      ports.bookFiles,
+    );
+    return { ports, result: await workflow.inspect(library) };
+  }
+
+  it('are told by name with the titles that were read, so that a series kept as one is not missing unseen', async () => {
+    const { result } = await inspected({
+      titles: [goodTitle],
+      issues: [linkSkipped('Berserk'), linkSkipped('Vagabond')],
+    });
+
+    expect(result.kind).toBe('library');
+    expect(result.titles?.map((title) => title.title)).toEqual(['Good Manga']);
+    expect(result.skippedLinks).toEqual(['Berserk', 'Vagabond']);
+  });
+
+  it('are not mentioned when there are none', async () => {
+    const { result } = await inspected({ titles: [goodTitle], issues: [] });
+
+    expect(result.kind).toBe('library');
+    expect(result).not.toHaveProperty('skippedLinks');
+  });
+
+  it('are told for a folder whose manga were all links, which is then not a library', async () => {
+    const { ports, result } = await inspected({
+      titles: [],
+      issues: [linkSkipped('Berserk')],
+    });
+
+    expect(result.kind).toBe('folder');
+    expect(result.skippedLinks).toEqual(['Berserk']);
+    // It is read as the one folder it was taken for, which holds no chapter with a page.
+    expect(ports.release).not.toHaveBeenCalled();
+  });
+
+  it('are not mentioned for a folder that was read as one manga, and so never read as a library', async () => {
+    const ports = dependencies();
+    let id = 0;
+    const workflow = new ConversionWorkflow(
+      ports.binding,
+      ports.conversion,
+      () => String(++id),
+      ports.bookFiles,
+    );
+
+    const result = await workflow.inspect(folder);
+
+    expect(ports.planBatch).not.toHaveBeenCalled();
+    expect(result).not.toHaveProperty('skippedLinks');
+  });
+
+  it('are not mentioned for an empty folder, where there is nothing to say of them', async () => {
+    const { result } = await inspected(
+      { titles: [], issues: [] },
+      createMappingDraft({ mangaTitle: 'Empty', chapters: [] }),
+    );
+
+    expect(result.kind).toBe('folder');
+    expect(result).not.toHaveProperty('skippedLinks');
+  });
+
+  it('are not mentioned when a folder cannot be read as a library either', async () => {
+    const ports = dependencies();
+    ports.inspect.mockResolvedValue({
+      workspaceId: 'workspace-1',
+      draft: createMappingDraft({ mangaTitle: 'Empty', chapters: [] }),
+      issues: [],
+    });
+    ports.planBatch.mockRejectedValue(new Error('not a library'));
+    let id = 0;
+    const workflow = new ConversionWorkflow(
+      ports.binding,
+      ports.conversion,
+      () => String(++id),
+      ports.bookFiles,
+    );
+
+    const result = await workflow.inspect(library);
+
+    expect(result.kind).toBe('folder');
+    expect(result).not.toHaveProperty('skippedLinks');
   });
 });
