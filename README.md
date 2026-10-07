@@ -4,10 +4,16 @@
 
 Mangabound is a desktop app for organizing manga chapters into volumes and converting them into books for your e-reader. Choose how chapters are grouped and fine-tune page size, margins, and image quality for your device. Once processed, save your books locally or share them directly with KOReader over your local network.
 
-- Group chapters into volumes.
-- Prepare books for devices such as Kindle, Kobo, and reMarkable, or set custom page dimensions.
-- Combine a series' chapters and volumes into a single book.
-- Save processed books locally or share them with KOReader over your local network.
+[Download](https://github.com/gustavommcv/mangabound/releases) · [User guide](https://gustavommcv.github.io/mangabound/) · [Guia em português](https://gustavommcv.github.io/mangabound/pt-br/) · [Contribute](CONTRIBUTING.md)
+
+![Mangabound's queue with a validated volume plan, device settings, and EPUB, CBZ, and PDF format choices](tests/visual/__screenshots__/queue-plan-validated.png)
+
+_Interface example with Storybook sample data. The guide and screenshots follow `main`, which may be ahead of the latest release._
+
+- Review and edit chapter-to-volume assignments before processing.
+- Create EPUB, CBZ, or PDF books for devices such as Kindle, Kobo, and reMarkable, or use custom page dimensions.
+- Produce separate volumes or combine a series into one book (EPUB only for now).
+- Set book details, covers, and image-processing options.
 
 ## Download
 
@@ -21,7 +27,7 @@ Choose your package from [GitHub Releases](https://github.com/gustavommcv/mangab
 | Linux, Fedora/RHEL family, x64   | `.rpm`                                    |
 | Linux, Arch, x64                 | `.pkg.tar.zst`                            |
 
-Mangabound is in **alpha**. The [installation guide](https://gustavommcv.github.io/mangabound/getting-started/installation/) has the steps, the notices about unsigned installers and how to check a download, and the [known limitations](https://gustavommcv.github.io/mangabound/getting-started/overview/#known-limitations) are listed on the overview page. The release notes only say what changed.
+Mangabound is in **alpha**, and the installers are not yet code-signed. See the [installation guide](https://gustavommcv.github.io/mangabound/getting-started/installation/) for setup and download verification, and the [known limitations](https://gustavommcv.github.io/mangabound/getting-started/overview/#known-limitations) for current platform and feature restrictions.
 
 ## Get started
 
@@ -39,11 +45,15 @@ Mangabound accepts chapter folders and CBZ files. Finished books open in your sy
 
 Organization, conversion, and saving run on your computer. Online searches for volumes or an author are optional and use the title and selected work's metadata, not your manga pages. Network sharing runs only when enabled and stops when the app closes.
 
-## Development
+## Contributing
 
 For bugs and suggestions, use the [issue templates](https://github.com/gustavommcv/mangabound/issues/new/choose). Read [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md) before contributing. Report suspected vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 
-Requirements:
+The [current priorities](docs/milestones.md#current-priorities) describe the remaining release and maintenance work, with a completion criterion for each item. Documentation, translations, reproducible bug reports, and platform testing are useful contributions too.
+
+### Run from source
+
+Development requirements:
 
 - Node.js 24 LTS
 - npm 11+
@@ -58,28 +68,9 @@ npm ci
 npm start
 ```
 
-Run every local quality gate (formatting, lint, types, tests with the coverage gate, Storybook build):
+Run `npm run check` for the local quality gates, or `npm run storybook` to browse interface states without running a conversion. The [contributor guide](CONTRIBUTING.md) explains the tests, browser setup, packaged-app checks, and exact-commit CI requirement.
 
-```text
-npm run check
-```
-
-Browse every screen and state without running the app or the conversion tools:
-
-```text
-npm run storybook
-```
-
-The unit-test gate downloads the two immutable release assets for the current platform, verifies both checksum layers and the unpacked executables, then executes their version and protocol handshakes. Generated binaries stay under the ignored `vendor/toolchain/` and are never committed.
-
-Package and exercise the actual Electron application:
-
-```text
-npm run package
-npm run test:e2e
-```
-
-What each kind of test covers, and what Storybook is for, is in [CONTRIBUTING.md](CONTRIBUTING.md).
+Development setup acquires and verifies the pinned converters under the ignored `vendor/toolchain/` directory. Installed packages already include them; the app does not download or update converters at runtime.
 
 ## Documentation
 
@@ -90,15 +81,11 @@ What each kind of test covers, and what Storybook is for, is in [CONTRIBUTING.md
 | [Architecture decisions](docs/adr/README.md)                       | Why it is built this way, one short record per decision                         |
 | [Contributing](CONTRIBUTING.md)                                    | The gates, the kinds of tests, Storybook, and how to open a pull request        |
 | [Adding an online source](docs/adding-a-metadata-provider.md)      | The rules and the steps for offering another source of volume data              |
-| [Milestones](docs/milestones.md)                                   | What has been built and what comes next                                         |
+| [Current priorities and milestones](docs/milestones.md)            | Concrete pending work and the implementation history                            |
 | [Release checklist](docs/release-checklist.md)                     | The checks that need hands on a real machine before a release                   |
 | [Releasing](RELEASING.md)                                          | How to cut and publish a release, step by step                                  |
 
-## Bundled CLI updates
-
-The app bundles pinned releases of mangabind and mangapress. `toolchain.lock.json` records the versions and archive/executable checksums for each platform. The build and app verify them before use.
-
-Taking a newer release of either tool is a deliberate, manual step: `npm run toolchain:update -- --tool mangabind` (or `mangapress`) pins its latest release after downloading and checking every platform's asset, and you open a pull request with the result. The steps are in [CONTRIBUTING.md](CONTRIBUTING.md#updating-the-bundled-tools) and the reasoning is in [ADR 0017](docs/adr/0017-bundled-tools-are-updated-by-hand.md). Nothing is ever downloaded or updated in an installed app.
+Bundled converters are pinned in `toolchain.lock.json`. Updating a pin is a separate, reviewed change; see [Updating the bundled tools](CONTRIBUTING.md#updating-the-bundled-tools).
 
 ## Credits
 
@@ -106,3 +93,7 @@ Taking a newer release of either tool is a deliberate, manual step: `npm run too
 - **[mangapress](https://github.com/gustavommcv/mangapress)** processes pages and creates the finished books.
 - **[MangaDex](https://mangadex.org)** provides optional volume and author metadata. Mangabound is free and ad-free; see the [provider guide](docs/adding-a-metadata-provider.md) for attribution and API requirements.
 - **[Kindle Comic Converter](https://github.com/ciromattia/kcc)** informs mangapress's conversion algorithms and Mangabound's default image settings ([ADR 0011](docs/adr/0011-kcc-default-options.md), [ADR 0015](docs/adr/0015-paperwhite-as-the-starting-device.md)).
+
+## License
+
+Mangabound is released under the [MIT license](LICENSE). The bundled tools and third-party dependencies retain their own licenses.

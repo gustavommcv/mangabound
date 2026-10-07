@@ -1,6 +1,24 @@
 # Implementation milestones
 
-The dependency order is **protocol first, with only contract-safe foundation work in parallel**. Building the real subprocess adapters against unreleased, moving JSON would create the exact version-skew risk the bundled-binary decision is meant to remove. The current repository scaffold, pure domain rules, UI system, and checked-in contract fixtures can proceed while the CLI work lands; real orchestration waits for published pins.
+## Current priorities
+
+Status reviewed on **2026-10-06**. The initial M0–M7b implementation has been delivered; M8 remains in progress while public alpha releases continue. The converters are pinned and bundled, and application and documentation CI run on pull requests and `main`. Later CLI options can be explicitly deferred under [ADR 0035](adr/0035-mangapress-0-7-first-its-options-in-steps.md); the capability check reports that list. The milestones below retain the original implementation sequence, not a description of an unfinished scaffold.
+
+Keep this short list current as work lands. Each item needs its own focused change and verification; a merge does not authorize a release tag. The full desktop checks remain in the [release checklist](release-checklist.md), not duplicated here.
+
+| Priority | Pending work                                                                                                                                             | Completion criterion                                                                                                                                                                                                                            |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1        | Verify the actual published release packages, not only CI builds.                                                                                        | Download the published artifacts, verify checksums, and exercise a real conversion as a normal user. Automate repeatable checks and record the remaining hands-on results as required by [Releasing](../RELEASING.md).                          |
+| 2        | Track and address remaining development-tool dependency findings after the Forge 8 upgrade ([#186](https://github.com/gustavommcv/mangabound/pull/186)). | Assess affected dependency paths and exposure, test compatible fixes through packaging, and record unresolved upstream findings. Do not suppress findings or treat a production-only audit as an audit of the build tooling.                    |
+| 3        | Establish verifiable release origin and installer signing.                                                                                               | Publish build attestations with verification instructions; sign Windows packages and sign/notarize macOS packages when credentials and costs are approved. Checksums alone are not proof of origin.                                             |
+| 4        | Finish the real-desktop release checks.                                                                                                                  | Record the tested version, platforms, and results for accessibility, scaling, title bars, update/recovery, removable-drive export, and corrupt-library scenarios. Headless checks do not substitute for compositor or physical-reader behavior. |
+| 5        | Enforce the documented contribution and security policies in GitHub settings.                                                                            | With owner authorization, require PRs and CI on `main`, keep squash merges, protect release tags, and enable Dependabot alerts/security updates. Verify the applied rules without requiring a nonexistent second maintainer.                    |
+
+The last two audits retain smaller, lower-priority findings and accepted trade-offs: [1 October](audit-2026-10-01.md) and [4 October](audit-2026-10-04.md). This list is not a promise of new features, release dates, or bit-for-bit reproducible builds. AppImage, an alternative Windows installer, and Intel Mac support remain separate, deferred work.
+
+## Implementation history
+
+The original dependency order was **protocol first, with only contract-safe foundation work in parallel**. Building subprocess adapters against unreleased, moving JSON would create the version-skew risk the bundled-binary decision is meant to remove. Foundation work could proceed while the CLI contracts landed; real orchestration waited for published pins.
 
 ## M0 — Foundation and decisions
 
@@ -101,6 +119,8 @@ Paused partway through to ship the first public alpha instead of finishing every
 **Done:**
 
 - GitHub Actions pinned to commit SHAs, not tags (PR #35).
+- A release tag must name a commit reachable from `main` whose exact push CI passed; all release builds wait for that gate. Public assets include `SHA256SUMS`, with a check that its filenames match the uploaded assets ([RELEASING.md](../RELEASING.md)). This is not a build attestation or an installer signature.
+- Contributor policies, issue/PR templates, and private vulnerability reporting are documented. The independent bilingual guide has automated Storybook tutorial captures and its own browser, accessibility, link, and dependency-audit gates ([website/README.md](../website/README.md)). GitHub settings still need to enforce the repository policies.
 - Focus management for screen transitions and the Share panel: the six main screens' headings, and the running screen specifically, move focus on mount; SharePanel's start/stop transitions focus sensibly even when "Start sharing" is disabled (PR #36).
 - The real Windows bug the alpha surfaced - the app opening once via Squirrel's own post-install launch, then never again via the Start Menu shortcut, leaving idle background processes - root-caused (an Electron `<44.4.4` regression, `electron/electron#54025`) and fixed by the Electron bump plus dropping the app's dependence on `ready-to-show` entirely (`src/main/window.ts`).
 - A portable Windows build (`.zip`, unzip and run, no installer, no admin rights) ships alongside Squirrel.
@@ -115,10 +135,8 @@ Paused partway through to ship the first public alpha instead of finishing every
 - A wizard-based Windows installer (`@electron-forge/maker-wix`, replacing Squirrel's silent install): the wizard itself worked; its shortcut mechanism is broken by a crashing vendored binary this project doesn't control.
 - AppImage as a fourth Linux artifact: a structural FUSE/`chrome-sandbox` incompatibility in the format itself (see `docs/releases/v0.1.0-alpha.1.md`'s "Known limitations").
 
-**Still open, waiting on a decision rather than blocked on anything technical:**
+**Still open:**
 
-- Sign/notarize installers and document release provenance.
-- Complete custom-title-bar checks across Windows, macOS, X11, Wayland, and representative tiling window managers.
-- Complete keyboard, screen-reader, reduced-motion, scaling, update, recovery, and corrupt-library scenarios beyond what's covered above.
+The [current priorities](#current-priorities) distinguish engineering work from owner-controlled credentials/settings and hands-on platform validation. Signing, provenance, and the remaining desktop checks are not complete merely because the automated suites pass.
 
 Exit: release checklist, CI, and artifacts meet the accepted platform and quality constraints.
