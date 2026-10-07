@@ -42,7 +42,9 @@ export function QueueRowItem({
     usesMangapress(process);
   const detailsSet = row.state === 'inspected' && hasBookDetails(row.details);
   return (
-    <li className="hover:bg-muted/40 flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors">
+    // The status and the buttons are one group that drops under the name when the row is too narrow
+    // for both, rather than leaving the name a few letters wide.
+    <li className="hover:bg-muted/40 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl px-3 py-2.5 transition-colors">
       <span
         aria-hidden="true"
         className="bg-muted text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-lg"
@@ -53,7 +55,7 @@ export function QueueRowItem({
           <Icon className="size-4" />
         )}
       </span>
-      <div className="min-w-0 flex-1">
+      <div className="min-w-48 flex-1">
         <p className="truncate text-sm font-medium" title={row.displayPath}>
           {row.displayName}
         </p>
@@ -62,51 +64,55 @@ export function QueueRowItem({
           <p className="text-muted-foreground mt-0.5 text-xs">{view.note}</p>
         )}
       </div>
-      <span
-        className={cn(
-          'shrink-0 rounded-full px-2.5 py-0.5 text-xs whitespace-nowrap',
-          chipTone[view.tone],
+      <div className="ml-auto flex items-center gap-3">
+        <span
+          className={cn(
+            'shrink-0 rounded-full px-2.5 py-0.5 text-xs whitespace-nowrap',
+            chipTone[view.tone],
+          )}
+        >
+          {view.chip}
+        </span>
+        {editable && (
+          <Button
+            aria-label={
+              row.kind === 'library'
+                ? `Edit titles of ${row.displayName}`
+                : `Edit volumes for ${row.displayName}`
+            }
+            onClick={onEdit}
+            size="icon"
+            title={row.kind === 'library' ? 'Edit titles' : 'Edit volumes'}
+            variant="ghost"
+          >
+            <Layers />
+          </Button>
         )}
-      >
-        {view.chip}
-      </span>
-      {editable && (
+        {detailsEditable && (
+          <Button
+            aria-label={`Edit details of ${row.displayName}`}
+            className={cn(detailsSet && 'text-accent')}
+            onClick={onEditDetails}
+            size="icon"
+            title={
+              detailsSet
+                ? 'Edit title, author and language (set)'
+                : 'Edit title, author and language'
+            }
+            variant="ghost"
+          >
+            <UserPen />
+          </Button>
+        )}
         <Button
-          aria-label={
-            row.kind === 'library'
-              ? `Edit titles of ${row.displayName}`
-              : `Edit volumes for ${row.displayName}`
-          }
-          onClick={onEdit}
+          aria-label={`Remove ${row.displayName}`}
+          onClick={onRemove}
           size="icon"
-          title={row.kind === 'library' ? 'Edit titles' : 'Edit volumes'}
           variant="ghost"
         >
-          <Layers />
+          <X />
         </Button>
-      )}
-      {detailsEditable && (
-        <Button
-          aria-label={`Edit details of ${row.displayName}`}
-          className={cn(detailsSet && 'text-accent')}
-          onClick={onEditDetails}
-          size="icon"
-          title={
-            detailsSet ? 'Edit title, author and language (set)' : 'Edit title, author and language'
-          }
-          variant="ghost"
-        >
-          <UserPen />
-        </Button>
-      )}
-      <Button
-        aria-label={`Remove ${row.displayName}`}
-        onClick={onRemove}
-        size="icon"
-        variant="ghost"
-      >
-        <X />
-      </Button>
+      </div>
     </li>
   );
 }

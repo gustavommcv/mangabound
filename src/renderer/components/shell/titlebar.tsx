@@ -29,8 +29,9 @@ export function Titlebar({ children, platform, version }: TitlebarProps): React.
       >
         <span aria-hidden="true" className="bg-accent size-2 rounded-full" />
         <span className="text-sm font-semibold tracking-tight">Mangabound</span>
+        {/* The first to go when the window is narrow: its buttons take the space from the bar. */}
         {version !== undefined && (
-          <span className="text-subtle-foreground text-xs">v{version}</span>
+          <span className="text-subtle-foreground hidden text-xs sm:inline">v{version}</span>
         )}
         <span className="flex-1" />
         {children !== undefined && <div className="window-titlebar-actions">{children}</div>}

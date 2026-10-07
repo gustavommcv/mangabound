@@ -530,11 +530,11 @@ export function MappingEditor({
                 </Button>
               </div>
 
-              <fieldset className="border-border grid gap-3 rounded-lg border p-4 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
+              <fieldset className="border-border grid gap-3 rounded-lg border p-4 sm:grid-cols-2 sm:items-end md:grid-cols-[1fr_1fr_1fr_auto]">
                 <legend className="text-muted-foreground px-1 text-xs font-medium">
                   Assign a chapter range
                 </legend>
-                <p className="text-muted-foreground text-xs sm:col-span-4">
+                <p className="text-muted-foreground text-xs sm:col-span-2 md:col-span-4">
                   The first and last chapter are both included.
                 </p>
                 <div className="space-y-2">
