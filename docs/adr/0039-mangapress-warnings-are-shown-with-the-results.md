@@ -1,6 +1,6 @@
 # ADR 0039: What mangapress noticed is shown with the results, once per kind
 
-- Status: Accepted
+- Status: Accepted (amended by 0042)
 - Date: 2026-10-03
 
 ## Context
@@ -41,3 +41,7 @@ The same place shows what the joining step left out. [P2-01 of the audit](../aud
 - Three of `mangabind`'s documented codes are carried to the books as warnings: `chapter_conflict` (copies of a chapter were all skipped), `chapter_gap` (chapter numbers are missing inside a volume) and `empty_chapter` (a chapter holds no pages). A fourth, `link_skipped`, is added by the [audit's P1-04](../audit-2026-10-04.md): `mangabind` does not follow a link that leads outside the folder, to a folder or to nothing (its ADR 0014), and says so for each, with the volume of the chapter it was in. They are the ones that say content of the person's is not in a book. The others (a chapter in no volume, a name no parser read) the person already saw while placing chapters, and an unknown code is not shown, since the app would have to title it.
 - A note that names a volume goes to that volume's book; a note that names none, or a series bound as one book, goes to every book it could be about. The results group them by kind like the others, with the app's words.
 - The editor refuses to place one of two copies of a chapter (`duplicate_chapter`): `mangabind.json` can only say "chapter 2", so every copy in the folder is found for it and all are skipped. A copy that the file name puts in another volume is not counted, since `mangabind` tells those apart. The message says to remove all but one from the folder, the one thing that fixes it.
+
+## Amendment (2026-10-07): two more notes of mangabind
+
+`mangabind` v0.7.0 leaves out a file that is not named like an image, and a `.cbz` page that declares it expands to far more than a page can be, with `unsupported_page_files` and `page_entries_too_large`. Both are carried to the books like the four above ([ADR 0042](0042-mangabind-0-7-pages-it-leaves-out-are-shown.md)).

@@ -33,7 +33,12 @@ describe('withBindingWarnings', () => {
       withBindingWarnings(
         volumes,
         [1, 2, 3],
-        [issue('unassigned_chapter', { volume: '1' }), issue('a_code_from_a_later_mangabind')],
+        [
+          issue('unassigned_chapter', { volume: '1' }),
+          // A file the person did not write in the app: the app writes the mapping itself.
+          issue('metadata_duplicate_chapter', { stage: 'metadata' }),
+          issue('a_code_from_a_later_mangabind'),
+        ],
       ),
     ).toBe(volumes);
   });
@@ -86,6 +91,27 @@ describe('withBindingWarnings', () => {
       },
     ]);
   });
+
+  it.each([
+    [
+      'unsupported_page_files',
+      'chapter "Vol.02 Ch.9": skipped 1 file that is not an image: "x.txt"',
+    ],
+    ['page_entries_too_large', 'chapter "Vol.02 Ch.9": skipped 1 page that expands to 300 MiB'],
+  ])(
+    'gives a page that was left out of a chapter (%s) to the book of its volume',
+    (code, message) => {
+      const result = withBindingWarnings(
+        volumes,
+        [1, 2, 3],
+        [issue(code, { stage: 'inspect', volume: '2', chapter: '9', message })],
+      );
+
+      expect(result[0]).toBe(volumes[0]);
+      expect(result[1]?.warnings).toEqual([{ code, message }]);
+      expect(result[2]).toBe(volumes[2]);
+    },
+  );
 
   it('gives a note that names no volume to every book', () => {
     const result = withBindingWarnings(volumes, [1, 2, 3], [issue('empty_chapter')]);

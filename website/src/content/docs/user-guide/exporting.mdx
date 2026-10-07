@@ -33,6 +33,14 @@ When mangapress notices something about a book it still made, the results say so
 - **A .json file beside the book was not used** and **Some labelled spreads were not joined**: mangapress reads a file of spread labels that sits beside a CBZ converted as it is; these say that the file was not such a list, or that a labelled position had no page to be joined with.
 - **Saved under another name**: the book would have replaced its own source.
 
+The step that joins the chapters into volumes, mangabind, gives warnings of its own when it leaves something of yours out of a book:
+
+- **Chapters with more than one copy were left out**: a chapter is in the folder more than once, so none of its copies is in the book. Remove all but one and convert again.
+- **Chapters are missing inside a volume** and **Chapters with no pages were left out**: a chapter number is missing between the first and the last of a volume, or a chapter holds no pages.
+- **Links that lead outside the folder were left out**: a file in the folder is a link that does not lead to a file inside it, so it was not copied. Put a copy of the file in the folder if it is meant to be there.
+- **Files in a chapter that are not page images were left out**: the names of these files do not say they are images (JPEG, PNG, WebP, GIF, BMP, AVIF, JPEG XL or TIFF). If one is a page, give it the extension of its format and convert again. Hidden system files such as `.DS_Store` are left out without a warning.
+- **Pages that expand to too much were left out**: a page in a CBZ says it expands to far more than a page can be, which is how a file made to fill a computer's memory looks.
+
 A warning of a kind this version does not know is shown in mangapress's own words. Warnings are shown with the results of the conversion that gave them; books reopened later from **Ready books** are listed without them.
 
 ## Open or share

@@ -39,6 +39,8 @@ describe('the warnings of a run, as the results show them', () => {
     ['chapter_gap', 'Chapters are missing inside a volume'],
     ['empty_chapter', 'Chapters with no pages were left out'],
     ['link_skipped', 'Links that lead outside the folder were left out'],
+    ['unsupported_page_files', 'Files in a chapter that are not page images were left out'],
+    ['page_entries_too_large', 'Pages that expand to too much were left out'],
   ])('knows %s', (code, title) => {
     const [notice] = warningNotices([{ name: 'One.epub', warnings: [{ code, message: 'x' }] }]);
     expect(notice?.title).toBe(title);
