@@ -44,7 +44,10 @@ const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
     executableName: 'mangabound',
-    extraResource: [path.join(import.meta.dirname, 'vendor', 'toolchain')],
+    extraResource: [
+      path.join(import.meta.dirname, 'vendor', 'toolchain'),
+      path.join(import.meta.dirname, 'THIRD-PARTY-NOTICES.md'),
+    ],
     // No appVersion here, on any platform. The packager writes it into the packaged app's own
     // package.json, so that app.getVersion() returns it (@electron/packager 20 does; 18 only wrote it
     // into the OS metadata), and an appVersion of `0.1.0` for macOS made the title bar read v0.1.0

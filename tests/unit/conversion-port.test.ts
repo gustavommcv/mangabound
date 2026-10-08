@@ -71,6 +71,63 @@ const request = {
 };
 
 describe('mangapress conversion port', () => {
+  it.each([
+    ['Kindle', 'KPW6', 'epub', {}, 'epub'],
+    ['Kobo', 'KoLC', 'epub', {}, 'kepub.epub'],
+    ['Kobo with plain EPUB', 'KoLC', 'epub', { noKepub: true }, 'epub'],
+    ['Kobo with custom width', 'KoLC', 'epub', { customWidth: 1200 }, 'epub'],
+    ['Kobo with custom height', 'KoLC', 'epub', { customHeight: 1600 }, 'epub'],
+    [
+      'Kobo with unset custom dimensions',
+      'KoLC',
+      'epub',
+      { customWidth: 0, customHeight: 0 },
+      'kepub.epub',
+    ],
+    ['Kobo CBZ', 'KoLC', 'cbz', {}, 'cbz'],
+    ['reMarkable PDF', 'Rmk1', 'pdf', {}, 'pdf'],
+  ] as const)(
+    'uses a typed title in the explicit output for %s, in both plan and conversion',
+    async (_label, deviceProfile, format, options, extension) => {
+      const run = vi.fn<MangapressCliAdapter['run']>(() => Promise.resolve(runResult()));
+      const adapter = new MangapressConversionAdapter({ run });
+      const titled = {
+        ...request,
+        book: { title: 'My Series - Vol.01' },
+        format,
+        settings: { ...defaultMangapressSettings, deviceProfile, ...options },
+      };
+      await adapter.convert(titled, { onProgress: vi.fn() });
+      run.mockResolvedValueOnce(
+        runResult({ result: resultEvent({ dry_run: true, written: false }) }),
+      );
+      await adapter.plan(titled);
+      for (const [arguments_] of run.mock.calls) {
+        expect(arguments_).toMatchObject({
+          title: 'My Series - Vol.01',
+          outputPath: path.join(request.outputDirectory, `My Series - Vol.01.${extension}`),
+        });
+      }
+    },
+  );
+
+  it.each([
+    ['A: Book / Extra', 'A- Book - Extra'],
+    ['../Outside\\Book', '..-Outside-Book'],
+    ['CON', '-'],
+    ['Title. ', 'Title-'],
+    ['日本語', '日本語'],
+    ['', 'Book'],
+  ])('uses a portable filename for %s without changing its metadata title', async (title, stem) => {
+    const run = vi.fn<MangapressCliAdapter['run']>(() => Promise.resolve(runResult()));
+    const adapter = new MangapressConversionAdapter({ run });
+    await adapter.convert({ ...request, book: { title } }, { onProgress: vi.fn() });
+    expect(run.mock.calls[0]?.[0]).toMatchObject({
+      title,
+      outputPath: path.join(request.outputDirectory, `${stem}.epub`),
+    });
+  });
+
   it('is no success when the tool exits with an error even though it printed a result', async () => {
     const run = vi.fn(() => Promise.resolve(runResult({ exitCode: 1 })));
     const adapter = new MangapressConversionAdapter({ run });

@@ -93,6 +93,8 @@ mangabind and mangapress are updated deliberately through `toolchain.lock.json` 
 3. Run the full checks above. Review `capabilities:check`; explicitly deferred flags belong in `schemas/cli-capabilities.json`, with the reason recorded as in [ADR 0035](docs/adr/0035-mangapress-0-7-first-its-options-in-steps.md).
 4. Open a focused PR. A protocol change needs adapter changes, not just a new pin.
 
+Acquisition also preserves each tool's upstream licenses and notices under `vendor/toolchain/<target>/licenses/<tool>/`. Cached copies are rechecked; incomplete caches are downloaded again. The packaged-shell tests verify these documents reach the app's resources unchanged.
+
 ## Writing an ADR
 
 Write an ADR for a lasting architecture or product-boundary decision with meaningful trade-offs: for example, changing the CLI protocol, persistence model, security boundary, or supported output behavior. Routine bug fixes, wording, layout adjustments, and defaults normally need only the PR explanation, unless they change an accepted decision.

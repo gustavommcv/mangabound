@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
 import {
+  alreadyAcquired,
+  copyToolLicenses,
   downloadFile,
   extractExecutable,
   hostTarget,
@@ -22,36 +24,6 @@ const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url))
 function valueAfter(flag) {
   const index = process.argv.indexOf(flag);
   return index === -1 ? undefined : process.argv[index + 1];
-}
-
-/**
- * True when `targetDirectory` already holds exactly what `lock` pins for `target`: the same pin
- * data recorded in its own manifest, and an executable whose bytes still hash to what that pin
- * commits to. Lets a CI cache of `vendor/toolchain/` (keyed on the lock file's own hash) skip the
- * network entirely instead of re-downloading and re-verifying binaries the cache already proved
- * good - the pin is exact and content-addressed, so nothing is trusted that isn't re-hashed here.
- */
-async function alreadyAcquired(targetDirectory, target, lock) {
-  let manifest;
-  try {
-    manifest = JSON.parse(await readFile(path.join(targetDirectory, 'manifest.json'), 'utf8'));
-  } catch {
-    return false;
-  }
-  if (manifest.target !== target) return false;
-  for (const toolName of ['mangabind', 'mangapress']) {
-    const pin = lock.tools[toolName].pin;
-    if (JSON.stringify(manifest.tools?.[toolName]?.pin) !== JSON.stringify(pin)) return false;
-    const executablePath = path.join(targetDirectory, toolSpecs[toolName].executableName(target));
-    let actualHash;
-    try {
-      actualHash = await sha256File(executablePath);
-    } catch {
-      return false;
-    }
-    if (actualHash !== pin.artifacts[target].executableSha256) return false;
-  }
-  return true;
 }
 
 async function runHandshake(toolName, executablePath, pin) {
@@ -129,6 +101,7 @@ if (!resolvedWorkspace.startsWith(`${path.resolve(tmpdir())}${path.sep}`)) {
 }
 
 try {
+  const licenses = {};
   for (const toolName of ['mangabind', 'mangapress']) {
     const spec = toolSpecs[toolName];
     const pin = lock.tools[toolName].pin;
@@ -157,6 +130,7 @@ try {
       archivePath,
       extractedDirectory,
       spec.executableName(target),
+      spec.licenseFiles,
     );
     if ((await sha256File(extractedExecutable)) !== artifact.executableSha256) {
       throw new Error(`${toolName} executable does not match the committed lock`);
@@ -164,11 +138,12 @@ try {
     if (process.platform !== 'win32') await chmod(extractedExecutable, 0o755);
     await runHandshake(toolName, extractedExecutable, pin);
     await copyFile(extractedExecutable, path.join(stagingDirectory, spec.executableName(target)));
+    licenses[toolName] = await copyToolLicenses(toolName, extractedDirectory, stagingDirectory);
   }
 
   await writeFile(
     path.join(stagingDirectory, 'manifest.json'),
-    JSON.stringify({ target, tools: lock.tools }, null, 2),
+    JSON.stringify({ target, tools: lock.tools, licenses }, null, 2),
     'utf8',
   );
 

@@ -7,8 +7,8 @@ describe('toolchain manifest', () => {
     const manifest = loadToolchainManifest();
 
     expect(manifest.state).toBe('locked');
-    expect(manifest.tools.mangabind.pin.releaseTag).toBe('v0.7.0');
-    expect(manifest.tools.mangapress.pin.releaseTag).toBe('v0.7.2');
+    expect(manifest.tools.mangabind.pin.releaseTag).toBe('v0.7.1');
+    expect(manifest.tools.mangapress.pin.releaseTag).toBe('v0.7.3');
     expect(Object.keys(manifest.tools.mangapress.pin.artifacts)).toHaveLength(4);
   });
 

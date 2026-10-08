@@ -17,7 +17,7 @@ export const noBookDetails: BookDetails = Object.freeze({});
 export const maxDetailLength = 300;
 
 /**
- * The most a title may hold, in bytes of UTF-8. The tools name the book's file after its title, and
+ * The most a title may hold, in bytes of UTF-8. Book files use their titles as names, and
  * a file name is limited in bytes (255 on the usual systems), not in characters: a title of 90
  * Japanese characters is 270 bytes and converted every page before failing to save the book. The
  * limit leaves room for ` - Vol.01` and the extension.

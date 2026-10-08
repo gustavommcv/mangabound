@@ -7,9 +7,11 @@ import { describe, expect, it } from 'vitest';
 import { MangabindBindingAdapter } from '@/adapters/mangabind/binding-port';
 import { MangabindCliAdapter } from '@/adapters/mangabind/cli';
 import { MangapressCliAdapter } from '@/adapters/mangapress/cli';
+import { MangapressConversionAdapter } from '@/adapters/mangapress/conversion-port';
 import { createNodeProcessRunner } from '@/adapters/process/node-process-runner';
 import { resolveToolchainTarget } from '@/adapters/toolchain/verification';
 import { skippedLinkNames } from '@/domain/library-links';
+import { defaultMangapressSettings } from '@/domain/output-profile';
 
 /**
  * The pinned tools are the ones that will ship, and what they print is read with the app's own
@@ -28,6 +30,38 @@ const fixtures = path.resolve('tests', 'fixtures', 'e2e');
 const runner = createNodeProcessRunner();
 
 describe('what the pinned tools print, read with the app’s own parsers', () => {
+  it.each([
+    ['Kindle', 'KPW6', {}, 'epub'],
+    ['Kobo', 'KoLC', {}, 'kepub.epub'],
+    ['Kobo with plain EPUB', 'KoLC', { noKepub: true }, 'epub'],
+    ['Kobo with custom dimensions', 'KoLC', { customWidth: 800, customHeight: 1200 }, 'epub'],
+  ] as const)(
+    'uses the custom filename for %s with the real converter, without changing its title',
+    async (_label, deviceProfile, settings, extension) => {
+      const output = await mkdtemp(path.join(tmpdir(), 'mangabound-pinned-custom-name-'));
+      const adapter = new MangapressConversionAdapter(
+        new MangapressCliAdapter(executable('mangapress'), runner),
+      );
+      const request = {
+        inputPath: path.join(fixtures, 'cbz', 'Mangabound Direct.cbz'),
+        outputDirectory: output,
+        book: { title: 'Custom: Book' },
+        format: 'epub' as const,
+        settings: { ...defaultMangapressSettings, deviceProfile, noProcessing: true, ...settings },
+      };
+      try {
+        const plan = await adapter.plan(request);
+        const artifact = await adapter.convert(request, { onProgress: () => undefined });
+        expect(plan.name).toBe(`Custom- Book.${extension}`);
+        expect(artifact.name).toBe(plan.name);
+        expect(artifact.title).toBe('Custom: Book');
+      } finally {
+        await rm(output, { force: true, recursive: true });
+      }
+    },
+    60_000,
+  );
+
   it('reads the report of mangabind for a folder of chapters, a plan and a library', async () => {
     const mangabind = new MangabindCliAdapter(executable('mangabind'), runner);
     const output = path.join(tmpdir(), 'mangabound-pinned-never-written');
@@ -200,6 +234,38 @@ describe('what the pinned tools print, read with the app’s own parsers', () =>
       expect(devices.profiles.length).toBeGreaterThan(5);
     } finally {
       await rm(output, { force: true, recursive: true });
+    }
+  }, 60_000);
+
+  it('keeps unsupported-input warnings when mangabind finds no chapters', async () => {
+    const cli = new MangabindCliAdapter(executable('mangabind'), runner, true);
+    const scratch = await mkdtemp(path.join(tmpdir(), 'mangabound-pinned-no-chapters-'));
+    const adapter = new MangabindBindingAdapter(cli, undefined, scratch);
+    try {
+      const input = path.join(scratch, 'Series');
+      await mkdir(input);
+      await writeFile(path.join(input, 'chapter.pdf'), 'not a supported chapter');
+      await writeFile(path.join(input, 'chapter.epub'), 'not a supported chapter');
+      await writeFile(path.join(input, '.DS_Store'), 'known junk');
+
+      const inspection = await adapter.inspect(input);
+
+      expect(inspection.draft.chapters).toEqual([]);
+      expect(inspection.issues.map((issue) => issue.code)).toEqual([
+        'unsupported_input_file',
+        'unsupported_input_file',
+        'no_chapters_found',
+      ]);
+      expect(
+        inspection.issues
+          .filter((issue) => issue.code === 'unsupported_input_file')
+          .map((issue) => path.basename(issue.path!))
+          .sort(),
+      ).toEqual(['chapter.epub', 'chapter.pdf']);
+      expect(inspection.issues.every((issue) => issue.severity === 'warning')).toBe(true);
+      await adapter.release(inspection.workspaceId);
+    } finally {
+      await rm(scratch, { force: true, recursive: true });
     }
   }, 60_000);
 });
