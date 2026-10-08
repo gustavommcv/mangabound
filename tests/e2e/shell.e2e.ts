@@ -11,8 +11,14 @@ const { version } = JSON.parse(
 ) as { version: string };
 
 describe('packaged application shell', () => {
-  it('ships the upstream licenses and notices alongside both bundled tools', async () => {
-    const resources = await browser.electron.execute<string, []>(() => process.resourcesPath);
+  it('ships the upstream licenses and notices alongside both bundled tools', () => {
+    // The production Wayland build disables the main-process debugging bridge. Read the real
+    // resources beside the binary WebdriverIO launched, without weakening those fuses.
+    const { binary } = browser.requestedCapabilities['goog:chromeOptions'] as { binary: string };
+    const resources = path.resolve(
+      path.dirname(binary),
+      process.platform === 'darwin' ? '../Resources' : 'resources',
+    );
     const filenameNotices = readFileSync(path.join(resources, 'THIRD-PARTY-NOTICES.md'), 'utf8');
     for (const dependency of [
       'sanitize-filename 1.6.4',
