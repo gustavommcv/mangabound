@@ -96,4 +96,4 @@ Bundled converters are pinned in `toolchain.lock.json`. Updating a pin is a sepa
 
 ## License
 
-Mangabound is released under the [MIT license](LICENSE). The bundled tools and third-party dependencies retain their own licenses.
+Mangabound is released under the [MIT license](LICENSE). The bundled tools and third-party dependencies retain their own licenses. Each package includes the converters' licenses and notices under `toolchain/<target>/licenses/` in the app's resources directory, alongside the [filename dependency notices](THIRD-PARTY-NOTICES.md).

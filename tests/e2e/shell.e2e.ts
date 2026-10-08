@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import path from 'node:path';
 
 import { $, browser } from '@wdio/globals';
 
@@ -9,6 +11,45 @@ const { version } = JSON.parse(
 ) as { version: string };
 
 describe('packaged application shell', () => {
+  it('ships the upstream licenses and notices alongside both bundled tools', async () => {
+    const resources = await browser.electron.execute<string, []>(() => process.resourcesPath);
+    const filenameNotices = readFileSync(path.join(resources, 'THIRD-PARTY-NOTICES.md'), 'utf8');
+    for (const dependency of [
+      'sanitize-filename 1.6.4',
+      'truncate-utf8-bytes 1.0.2',
+      'utf8-byte-length 1.0.5',
+    ]) {
+      assert.ok(
+        filenameNotices.includes(dependency),
+        `Missing filename dependency notice: ${dependency}`,
+      );
+    }
+    const target = `${process.platform}-${process.arch}`;
+    const toolchain = path.join(resources, 'toolchain', target);
+    const manifest = JSON.parse(readFileSync(path.join(toolchain, 'manifest.json'), 'utf8')) as {
+      licenses: Record<string, Record<string, string>>;
+    };
+    const required = {
+      mangabind: ['LICENSE'],
+      mangapress: [
+        'LICENSE-MIT',
+        'LICENSE-APACHE',
+        'THIRD-PARTY-NOTICES.md',
+        'DEPENDENCY-LICENSES.txt',
+      ],
+    };
+    for (const [tool, files] of Object.entries(required)) {
+      for (const file of files) {
+        const contents = readFileSync(path.join(toolchain, 'licenses', tool, file));
+        assert.ok(contents.toString('utf8').trim(), `${tool} ${file} must not be empty`);
+        assert.equal(
+          createHash('sha256').update(contents).digest('hex'),
+          manifest.licenses[tool]?.[file],
+        );
+      }
+    }
+  });
+
   it('launches with the packaged CLI binaries verified and ready, saying nothing about it', async () => {
     assert.equal(await browser.getTitle(), 'Mangabound');
     assert.equal(await $('h1').getText(), 'Queue');

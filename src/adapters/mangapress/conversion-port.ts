@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import sanitizeFilename from 'sanitize-filename';
+
 import type { MangapressCliAdapter } from './cli';
 import { isMangapressPageEvent, type MangapressErrorEvent, type MangapressEvent } from './protocol';
 
@@ -39,7 +41,7 @@ export class MangapressConversionAdapter implements ConversionPort {
     const run = await this.cli.run(
       {
         inputPath: request.inputPath,
-        outputPath: request.outputDirectory,
+        outputPath: conversionOutputPath(request),
         profile: deviceProfile,
         format: request.format,
         dryRun: true,
@@ -95,7 +97,7 @@ export class MangapressConversionAdapter implements ConversionPort {
     const run = await this.cli.run(
       {
         inputPath: request.inputPath,
-        outputPath: request.outputDirectory,
+        outputPath: conversionOutputPath(request),
         profile: deviceProfile,
         format: request.format,
         dryRun: false,
@@ -232,6 +234,30 @@ function checkedChildPath(parentPath: string, childPath: string): string {
     throw new Error('Mangapress reported an output outside the selected library.');
   }
   return child;
+}
+
+/**
+ * Since mangapress 0.7.3, --title changes metadata only. Use its existing explicit-file output
+ * for a typed title, leaving validation, collision handling and publication to the tool.
+ */
+function conversionOutputPath(request: {
+  readonly outputDirectory: string;
+  readonly book?: BookDetails;
+  readonly format: BookFormat;
+  readonly settings: MangapressSettings;
+}): string {
+  if (request.book?.title === undefined) return request.outputDirectory;
+  // Reuse portable filename sanitization; the metadata still receives the original title.
+  const stem = sanitizeFilename(request.book.title, { replacement: '-' }) || 'Book';
+  // This is the pinned tool's profile-code convention and --nokepub/custom-size rule, not a
+  // separate list of devices. Explicit output files retain the extension we ask for.
+  const kepub =
+    request.format === 'epub' &&
+    request.settings.deviceProfile.startsWith('Ko') &&
+    !request.settings.noKepub &&
+    (request.settings.customWidth ?? 0) === 0 &&
+    (request.settings.customHeight ?? 0) === 0;
+  return path.join(request.outputDirectory, `${stem}.${kepub ? 'kepub.epub' : request.format}`);
 }
 
 /** The title, author and language one book is made with: its own details over the defaults. */

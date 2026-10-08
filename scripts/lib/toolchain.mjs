@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { chmod, copyFile, lstat, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
@@ -14,6 +14,7 @@ export const supportedTargets = ['win32-x64', 'linux-x64', 'darwin-x64', 'darwin
 export const toolSpecs = {
   mangabind: {
     executableName: (target) => (target.startsWith('win32-') ? 'mangabind.exe' : 'mangabind'),
+    licenseFiles: ['LICENSE'],
     releaseAssetName: {
       'win32-x64': 'mangabind_windows_amd64.zip',
       'linux-x64': 'mangabind_linux_amd64.tar.gz',
@@ -25,6 +26,12 @@ export const toolSpecs = {
   },
   mangapress: {
     executableName: (target) => (target.startsWith('win32-') ? 'mangapress.exe' : 'mangapress'),
+    licenseFiles: [
+      'LICENSE-MIT',
+      'LICENSE-APACHE',
+      'THIRD-PARTY-NOTICES.md',
+      'DEPENDENCY-LICENSES.txt',
+    ],
     releaseAssetName: {
       'win32-x64': 'mangapress-x86_64-pc-windows-msvc.zip',
       'linux-x64': 'mangapress-x86_64-unknown-linux-musl.tar.gz',
@@ -55,35 +62,42 @@ async function commandOutput(command, arguments_) {
   return result.stdout;
 }
 
-export async function extractExecutable(archivePath, destination, executableName) {
+export async function extractExecutable(
+  archivePath,
+  destination,
+  executableName,
+  additionalFiles = [],
+) {
   await mkdir(destination, { recursive: true });
-
-  if (archivePath.endsWith('.zip') && process.platform !== 'win32') {
-    const entries = (await commandOutput('unzip', ['-Z1', archivePath]))
-      .split(/\r?\n/u)
-      .filter(Boolean);
-    const matches = entries.filter((entry) => normalizeArchiveEntry(entry) === executableName);
+  const useUnzip = archivePath.endsWith('.zip') && process.platform !== 'win32';
+  const entries = (
+    await commandOutput(useUnzip ? 'unzip' : 'tar', [useUnzip ? '-Z1' : '-tf', archivePath])
+  )
+    .split(/\r?\n/u)
+    .filter(Boolean);
+  const files = [executableName, ...additionalFiles];
+  const selectedEntries = files.map((fileName) => {
+    const matches = entries.filter((entry) => normalizeArchiveEntry(entry) === fileName);
     if (matches.length !== 1) {
-      throw new Error(
-        `${path.basename(archivePath)} must contain exactly one root ${executableName}`,
-      );
+      throw new Error(`${path.basename(archivePath)} must contain exactly one root ${fileName}`);
     }
-    await execFileAsync('unzip', ['-qq', archivePath, matches[0], '-d', destination], {
+    return matches[0];
+  });
+
+  if (useUnzip) {
+    await execFileAsync('unzip', ['-qq', archivePath, ...selectedEntries, '-d', destination], {
       windowsHide: true,
     });
   } else {
-    const entries = (await commandOutput('tar', ['-tf', archivePath]))
-      .split(/\r?\n/u)
-      .filter(Boolean);
-    const matches = entries.filter((entry) => normalizeArchiveEntry(entry) === executableName);
-    if (matches.length !== 1) {
-      throw new Error(
-        `${path.basename(archivePath)} must contain exactly one root ${executableName}`,
-      );
-    }
-    await execFileAsync('tar', ['-xf', archivePath, '-C', destination, matches[0]], {
+    await execFileAsync('tar', ['-xf', archivePath, '-C', destination, ...selectedEntries], {
       windowsHide: true,
     });
+  }
+
+  for (const fileName of files) {
+    if (!(await lstat(path.join(destination, fileName))).isFile()) {
+      throw new Error(`${path.basename(archivePath)} ${fileName} must be a regular file`);
+    }
   }
 
   return path.join(destination, executableName);
@@ -93,6 +107,53 @@ export async function sha256File(filePath) {
   const hash = createHash('sha256');
   await pipeline(createReadStream(filePath), hash);
   return hash.digest('hex');
+}
+
+export async function copyToolLicenses(toolName, sourceDirectory, targetDirectory) {
+  const licenseRoot = path.join(targetDirectory, 'licenses');
+  const destination = path.join(licenseRoot, toolName);
+  await mkdir(destination, { recursive: true });
+  if (process.platform !== 'win32') {
+    await chmod(licenseRoot, 0o755);
+    await chmod(destination, 0o755);
+  }
+  const hashes = {};
+  for (const fileName of toolSpecs[toolName].licenseFiles) {
+    const source = path.join(sourceDirectory, fileName);
+    if ((await readFile(source, 'utf8')).trim() === '') {
+      throw new Error(`${toolName} ${fileName} must not be empty`);
+    }
+    const copied = path.join(destination, fileName);
+    await copyFile(source, copied);
+    if (process.platform !== 'win32') await chmod(copied, 0o644);
+    hashes[fileName] = await sha256File(copied);
+  }
+  return hashes;
+}
+
+// Old caches without notices, or caches with missing or changed files, are acquired again.
+// Notice hashes record the files copied from the verified archive; they are not a signature.
+export async function alreadyAcquired(targetDirectory, target, lock) {
+  try {
+    const manifest = JSON.parse(
+      await readFile(path.join(targetDirectory, 'manifest.json'), 'utf8'),
+    );
+    if (manifest?.target !== target) return false;
+    for (const toolName of ['mangabind', 'mangapress']) {
+      const pin = lock.tools[toolName].pin;
+      if (JSON.stringify(manifest.tools?.[toolName]?.pin) !== JSON.stringify(pin)) return false;
+      const executable = path.join(targetDirectory, toolSpecs[toolName].executableName(target));
+      if ((await sha256File(executable)) !== pin.artifacts[target].executableSha256) return false;
+      for (const fileName of toolSpecs[toolName].licenseFiles) {
+        const license = path.join(targetDirectory, 'licenses', toolName, fileName);
+        const expected = manifest.licenses?.[toolName]?.[fileName];
+        if (typeof expected !== 'string' || (await sha256File(license)) !== expected) return false;
+      }
+    }
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function downloadFile(url, destination) {
@@ -226,6 +287,7 @@ export async function buildReleasePin(toolName, tag) {
         archivePath,
         extractionDirectory,
         spec.executableName(target),
+        spec.licenseFiles,
       );
       artifacts[target] = {
         assetName,

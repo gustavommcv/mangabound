@@ -1,7 +1,7 @@
 {
   "name": "mangabound",
   "productName": "Mangabound",
-  "version": "0.1.0-alpha.11",
+  "version": "0.1.0-alpha.12",
   "private": true,
   "description": "A desktop workflow for binding, converting, and delivering manga to e-readers.",
   "author": "Mangabound contributors",
@@ -50,6 +50,7 @@
     "lucide-react": "^1.50.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
+    "sanitize-filename": "1.6.4",
     "tailwind-merge": "^3.3.1",
     "zod": "^4.1.11"
   },
