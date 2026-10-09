@@ -40,6 +40,7 @@ Tags matching `v*` trigger `.github/workflows/release.yml`; ordinary pushes and 
 3. **`build`:** builds Windows, Linux, and Apple Silicon packages through `make.yml`, also used by application CI.
 4. **`arch-package`:** builds the Arch package through `arch-package.yml`, likewise shared with CI.
 5. **`publish`:** waits for every build, collects user-facing assets, generates checksums, and creates the release using the versioned notes.
+6. **`refresh-site`:** after the published asset names are verified, dispatches the existing documentation workflow on `main` to refresh the installation buttons. The guide still publishes only after its own checks pass.
 
 The commit check is not authorization of the person pushing the tag. Release-tag protection belongs in GitHub settings; see [current priorities](docs/milestones.md#current-priorities).
 
@@ -50,6 +51,11 @@ The installer matrix uses `macos-15` for the arm64 package. Intel converters are
 ## 6. Where to check the run
 
 Open GitHub Actions, select **Release**, and find the pushed tag. Check every build and the publication result, then open the corresponding GitHub Release. Do not call publication successful while its jobs are queued, running, or failed.
+
+Also verify the **Documentation** run dispatched on `main`, including its GitHub Pages
+deployment. Dispatching it is not proof that the site has finished updating. If the dispatch or
+site checks fail after the release was created, the release still exists; fix the failure and
+rerun the documentation workflow on `main`, without recreating the tag or release.
 
 ## 7. Public assets
 
@@ -73,9 +79,12 @@ CI tests the packaged app and checks Linux package permissions, but that is not 
 With the owner's approval:
 
 1. Put a withdrawal notice at the top of the release notes, explaining the problem and the version to use.
-2. Mark it as a prerelease so it is no longer latest, and remove its downloadable assets while leaving the notes available.
+2. Mark it as a prerelease and remove its downloadable assets while leaving the notes available. The installation buttons exclude releases with no remaining assets.
 3. Announce the withdrawal and record it beside the release notes in `docs/releases/`.
 4. Publish the fix as a new version. Never reuse the tag or version.
+
+Run the **Documentation** workflow on `main` after removing the assets, so the installation
+buttons point to the latest version still available for download.
 
 There is no update feed to notify installed copies or recall files already downloaded.
 

@@ -48,7 +48,26 @@ Before publishing, `npm run check` also runs `npm run audit`: npm's full depende
 
 ## Deployment
 
-`.github/workflows/deploy-docs.yml` captures the static Storybook UI on Windows for every PR and every `main` update. Both site verification jobs (Windows/Linux) and production consume that same run's `tutorial-images` artifact, including its source-commit record; images are never fetched from a previous run. The PR artifact is also available for visual review. Pull requests have read-only permissions and cannot deploy or cancel a production deployment. Publication is restricted to `main`, after capture and both verification jobs succeed. Merging a pull request into `main` publishes the website, following [the repository's branch workflow](../CONTRIBUTING.md#pull-requests). No release/tag workflow is involved.
+Installation buttons reuse Starlight's `LinkButton` and link directly to the newest public,
+downloadable release, including prereleases. Each build or development server reads GitHub's
+release metadata once, shared by all platform tabs and both languages. `GITHUB_TOKEN` is optional
+locally and supplied with read-only permissions in documentation CI; neither the token nor the
+metadata request runs in the visitor's browser. Do not infer download filenames from
+`package.json`: the guide follows `main`, which can be ahead of the published packages.
+
+An unavailable API, incomplete release, or ambiguous package prevents a new build instead of
+publishing guessed links. Releases without remaining assets are skipped, including withdrawn
+releases. Unit tests replay release metadata and request failures; browser tests exercise the
+actual download links with intercepted file responses, keyboard navigation, mobile layout,
+and accessibility checks. Tests do not download application installers.
+
+`.github/workflows/deploy-docs.yml` captures the static Storybook UI on Windows for every PR and every `main` update. Both site verification jobs (Windows/Linux) and production consume that same run's `tutorial-images` artifact, including its source-commit record; images are never fetched from a previous run. The PR artifact is also available for visual review. Pull requests have read-only permissions and cannot deploy or cancel a production deployment. Publication is restricted to `main`, after capture and both verification jobs succeed. Merging a pull request into `main` publishes the website, following [the repository's branch workflow](../CONTRIBUTING.md#pull-requests). Publishing the guide does not publish an application release.
+
+After a release's assets and checksum filenames are verified, the release workflow dispatches
+this same documentation workflow on `main` to refresh the links. It does not build the guide
+from the version tag or bypass the documentation checks. The existing manual workflow dispatch
+can also refresh the site after a release is withdrawn. No scheduled job, personal access token,
+or client-side download service is required.
 
 `site.config.mjs` is the single source of the GitHub Pages base. Production obtains `BASE_PATH` from `actions/configure-pages`; local development defaults to `/mangabound/`. Keep links base-aware and test any hosting change.
 
