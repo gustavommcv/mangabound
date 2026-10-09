@@ -88,7 +88,7 @@ describe('packaged saved settings', () => {
     await $('button=Reset to defaults').click();
     await $('[role="group"][aria-label="Confirm reset"]').waitForDisplayed({ timeout: 10_000 });
     await $('[role="group"][aria-label="Confirm reset"]').$('button=Reset').click();
-    await browser.waitUntil(async () => (await readKept(settingsPath)).format === 'epub', {
+    await browser.waitUntil(async () => (await readKept(settingsPath)).format === 'cbz', {
       timeout: 15_000,
       timeoutMsg: 'the settings file did not get the defaults back',
     });
@@ -96,7 +96,7 @@ describe('packaged saved settings', () => {
     assert.equal(reset.settings.deviceProfile, 'KPW6');
     assert.equal(reset.outputFolder, undefined);
     assert.equal(await $('#queue-device').getValue(), 'KPW6');
-    assert.equal(await formatRadio('EPUB').getAttribute('aria-checked'), 'true');
+    assert.equal(await formatRadio('CBZ').getAttribute('aria-checked'), 'true');
   });
 
   it('starts from the defaults and says so when the file cannot be read, then replaces it with the next change', async () => {
@@ -109,16 +109,16 @@ describe('packaged saved settings', () => {
     await $(
       'li=The saved settings could not be read, so the defaults are in use.',
     ).waitForDisplayed({ timeout: 10_000 });
-    assert.equal(await formatRadio('EPUB').getAttribute('aria-checked'), 'true');
+    assert.equal(await formatRadio('CBZ').getAttribute('aria-checked'), 'true');
     // Nothing was written over it yet: it is only replaced when something changes.
     assert.equal(await readFile(settingsPath, 'utf8'), '{ this is not json');
 
-    await formatRadio('CBZ').click();
+    await formatRadio('EPUB').click();
     await browser.waitUntil(async () => (await readFile(settingsPath, 'utf8')).startsWith('{\n'), {
       timeout: 15_000,
       timeoutMsg: 'the unreadable file was not replaced by the next change',
     });
-    assert.equal((await readKept(settingsPath)).format, 'cbz');
+    assert.equal((await readKept(settingsPath)).format, 'epub');
   });
 
   it('ignores an unavailable legacy save location without blocking processing', async () => {
@@ -133,6 +133,6 @@ describe('packaged saved settings', () => {
     assert.equal(await $('button[aria-label$="output folder"]').isExisting(), false);
     assert.equal(await $(`li*=The output folder ${gone} is not available`).isExisting(), false);
     // The rest of what was kept still came back.
-    assert.equal(await formatRadio('CBZ').getAttribute('aria-checked'), 'true');
+    assert.equal(await formatRadio('EPUB').getAttribute('aria-checked'), 'true');
   });
 });

@@ -11,7 +11,7 @@ Mangabound is a desktop app for organizing manga chapters into volumes and conve
 _Interface example with Storybook sample data. The guide and screenshots follow `main`, which may be ahead of the latest release._
 
 - Review and edit chapter-to-volume assignments before processing.
-- Create EPUB, CBZ, or PDF books for devices such as Kindle, Kobo, and reMarkable, or use custom page dimensions.
+- Create CBZ, EPUB, or PDF books for devices such as Kindle, Kobo, and reMarkable, or use custom page dimensions.
 - Produce separate volumes or combine a series into one book (EPUB only for now).
 - Set book details, covers, and image-processing options.
 

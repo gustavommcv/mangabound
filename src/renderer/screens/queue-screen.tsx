@@ -71,8 +71,8 @@ export interface QueueScreenProps {
 }
 
 const formatOptions = [
-  { value: 'epub', label: 'EPUB' },
   { value: 'cbz', label: 'CBZ' },
+  { value: 'epub', label: 'EPUB' },
   { value: 'pdf', label: 'PDF' },
 ] as const;
 

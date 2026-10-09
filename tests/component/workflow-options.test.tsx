@@ -555,7 +555,7 @@ describe('the options kept between sessions', () => {
       ).not.toBeChecked();
 
       await user.click(screen.getByRole('button', { name: 'Restore default for Format' }));
-      expect(screen.getByRole('radio', { name: 'EPUB' })).toBeChecked();
+      expect(screen.getByRole('radio', { name: 'CBZ' })).toBeChecked();
       expect(
         screen.getByRole('checkbox', { name: 'Group chapters into volumes' }),
       ).not.toBeChecked();
@@ -623,7 +623,7 @@ describe('the options kept between sessions', () => {
       await user.click(within(confirm).getByRole('button', { name: 'Reset' }));
 
       expect(screen.getByLabelText('Device')).toHaveValue('KPW6');
-      expect(screen.getByRole('radio', { name: 'EPUB' })).toBeChecked();
+      expect(screen.getByRole('radio', { name: 'CBZ' })).toBeChecked();
       expect(screen.getByRole('checkbox', { name: 'Group chapters into volumes' })).toBeChecked();
       expect(screen.getByRole('checkbox', { name: 'Convert for e-reader' })).toBeChecked();
       // The old output preference is not restored as a conversion destination.
@@ -675,7 +675,7 @@ describe('the options kept between sessions', () => {
       await user.click(within(confirm).getByRole('button', { name: 'Reset' }));
 
       expect(screen.getByLabelText('Device profile')).toHaveValue('KPW6');
-      expect(screen.getByLabelText('Book format')).toHaveValue('epub');
+      expect(screen.getByLabelText('Book format')).toHaveValue('cbz');
       await user.click(screen.getByRole('button', { name: 'Back' }));
       // The steps are not on that screen, so they stay as they were set.
       expect(

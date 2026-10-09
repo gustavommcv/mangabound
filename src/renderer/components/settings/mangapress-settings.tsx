@@ -207,10 +207,10 @@ export function MangapressSettingsEditor({
             }}
             value={format}
           >
-            <option value="epub">EPUB</option>
             <option disabled={singleBookActive} value="cbz">
               CBZ
             </option>
+            <option value="epub">EPUB</option>
             <option disabled={singleBookActive} value="pdf">
               PDF
             </option>

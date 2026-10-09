@@ -61,14 +61,16 @@ const profiles = [
 function StatefulEditor({
   onChange = vi.fn(),
   onNotify = vi.fn(),
+  initialFormat = 'epub',
   singleBook,
 }: {
   readonly onChange?: (value: MangapressSettings) => void;
   readonly onNotify?: (message: string) => void;
+  readonly initialFormat?: BookFormat;
   readonly singleBook?: boolean;
 }) {
   const [settings, setSettings] = useState(defaultMangapressSettings);
-  const [format, setFormat] = useState<BookFormat>('epub');
+  const [format, setFormat] = useState<BookFormat>(initialFormat);
   return (
     <MangapressSettingsEditor
       format={format}
@@ -505,10 +507,10 @@ describe('mangapress settings editor', () => {
 
   it('marks changed fields and restores only the chosen select, toggle, text, or number', async () => {
     const user = userEvent.setup();
-    render(<StatefulEditor />);
+    render(<StatefulEditor initialFormat="cbz" />);
     expect(screen.queryByRole('button', { name: /^Restore default for/u })).not.toBeInTheDocument();
 
-    await user.selectOptions(screen.getByLabelText('Book format'), 'cbz');
+    await user.selectOptions(screen.getByLabelText('Book format'), 'epub');
     await user.selectOptions(screen.getByLabelText('Wide pages'), 'rotate');
     await user.click(screen.getByLabelText('Manga reading order'));
     await user.type(screen.getByLabelText('Gamma (optional)'), '1.2');
@@ -532,7 +534,7 @@ describe('mangapress settings editor', () => {
     expect(
       screen.queryByRole('button', { name: 'Restore default for Gamma' }),
     ).not.toBeInTheDocument();
-    expect(screen.getByLabelText('Book format')).toHaveValue('cbz');
+    expect(screen.getByLabelText('Book format')).toHaveValue('epub');
 
     await user.click(screen.getByRole('button', { name: 'Restore default for Book format' }));
     await user.click(screen.getByRole('button', { name: 'Restore default for Wide pages' }));
@@ -540,7 +542,7 @@ describe('mangapress settings editor', () => {
       screen.getByRole('button', { name: 'Restore default for Manga reading order' }),
     );
     await user.click(screen.getByRole('button', { name: 'Restore default for EPUB language' }));
-    expect(screen.getByLabelText('Book format')).toHaveValue('epub');
+    expect(screen.getByLabelText('Book format')).toHaveValue('cbz');
     expect(screen.getByLabelText('Wide pages')).toHaveValue('both');
     expect(screen.getByLabelText('Manga reading order')).toBeChecked();
     expect(screen.getByLabelText('EPUB language')).toHaveValue('en-US');

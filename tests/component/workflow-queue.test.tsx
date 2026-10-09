@@ -320,13 +320,13 @@ describe('queue application workflow', () => {
     await user.click(await runButton(1));
 
     expect(await screen.findByRole('heading', { name: '1 book ready' })).toBeVisible();
-    expect(screen.getByText('Kindle Paperwhite 6 · EPUB')).toBeVisible();
+    expect(screen.getByText('Kindle Paperwhite 6 · CBZ')).toBeVisible();
     expect(convert.mock.calls[0]?.[0]).toMatchObject({
       sessionId: 'session',
       libraryId: 'pending-run',
       mode: 'bind-and-convert',
       settings: defaultMangapressSettings,
-      format: 'epub',
+      format: 'cbz',
       mapping,
     });
     await user.click(screen.getByRole('button', { name: 'Open Offline Work.epub' }));
@@ -805,7 +805,7 @@ describe('queue application workflow', () => {
     expect(convert.mock.calls[0]?.[0]).toMatchObject({
       sessionId: 'cbz-session',
       mode: 'convert-only',
-      format: 'epub',
+      format: 'cbz',
     });
     expect(convert.mock.calls[0]?.[0].mapping).toBeUndefined();
   });
