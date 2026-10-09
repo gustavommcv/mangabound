@@ -94,6 +94,10 @@ Bundled converters are pinned in `toolchain.lock.json`. Updating a pin is a sepa
 - **[MangaDex](https://mangadex.org)** provides optional volume and author metadata. Mangabound is free and ad-free; see the [provider guide](docs/adding-a-metadata-provider.md) for attribution and API requirements.
 - **[Kindle Comic Converter](https://github.com/ciromattia/kcc)** informs mangapress's conversion algorithms and Mangabound's default image settings ([ADR 0011](docs/adr/0011-kcc-default-options.md), [ADR 0015](docs/adr/0015-paperwhite-as-the-starting-device.md)).
 
+## AI disclosure
+
+Parts of Mangabound, including code, tests, and documentation, were written with the help of AI coding assistants. The maintainers direct, review, and test this work, but AI-assisted contributions can contain mistakes like any other. If you find a bug or an error in the documentation, please [open an issue](https://github.com/gustavommcv/mangabound/issues).
+
 ## License
 
 Mangabound is released under the [MIT license](LICENSE). The bundled tools and third-party dependencies retain their own licenses. Each package includes the converters' licenses and notices under `toolchain/<target>/licenses/` in the app's resources directory, alongside the [filename dependency notices](THIRD-PARTY-NOTICES.md).
