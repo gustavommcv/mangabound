@@ -5,15 +5,18 @@ description: 'Baixe e instale o Mangabound no Windows, macOS ou Linux (.deb, .rp
 
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 
-Baixe pela [página oficial de releases](https://github.com/gustavommcv/mangabound/releases). Expanda **Assets** e escolha seu sistema operacional e arquitetura. Versões alfa aparecem como **Pre-release**.
+import ReleaseDownloads from '../../../../components/ReleaseDownloads.astro';
+
+Baixe a última versão disponível para seu sistema abaixo ou consulte [todas as releases](https://github.com/gustavommcv/mangabound/releases).
 
 <Tabs>
 <TabItem label="Windows">
 
 ### Windows x64
 
-- Escolha o instalador **.Setup.exe** para uma instalação normal.
-- Como alternativa, extraia o **.zip win32-x64** e execute o aplicativo dentro da pasta extraída.
+<ReleaseDownloads platform="windows" />
+
+Use o instalador para uma instalação normal. Na versão portátil, extraia o ZIP e execute o aplicativo dentro da pasta extraída.
 
 O instalador alfa não possui assinatura comercial. O SmartScreen pode mostrar um aviso. Só prossiga se esperava esse download e o obteve na página oficial; não desative a segurança do Windows globalmente.
 
@@ -22,7 +25,9 @@ O instalador alfa não possui assinatura comercial. O SmartScreen pode mostrar u
 
 ### macOS Apple Silicon
 
-Baixe o **.zip darwin-arm64**, extraia e mova **Mangabound.app** para **Applications**. Ainda não há pacote para Mac Intel.
+<ReleaseDownloads platform="macOS" />
+
+Extraia o ZIP e mova **Mangabound.app** para **Applications**. Ainda não há pacote para Mac Intel.
 
 O aplicativo alfa não é notarizado. Se o macOS bloquear um aplicativo em que você confia, primeiro tente abri-lo e depois use **Ajustes do Sistema → Privacidade e Segurança → Abrir Mesmo Assim**, se disponível. Siga as [orientações da Apple](https://support.apple.com/en-lamr/102445); não desative o Gatekeeper globalmente.
 
@@ -33,11 +38,7 @@ O aplicativo alfa não é notarizado. Se o macOS bloquear um aplicativo em que v
 
 Escolha o pacote da sua distribuição:
 
-| Distribuição                           | Arquivo        |
-| -------------------------------------- | -------------- |
-| Debian / Ubuntu e sistemas compatíveis | `.deb`         |
-| Fedora e sistemas compatíveis          | `.rpm`         |
-| Arch Linux e sistemas compatíveis      | `.pkg.tar.zst` |
+<ReleaseDownloads platform="linux" />
 
 Abra um terminal na pasta do download e use o comando da sua distribuição abaixo. Substitua `package.deb`, `package.rpm` ou `package.pkg.tar.zst` pelo nome exato do arquivo que você baixou. Preserve o nome original; não é preciso renomeá-lo.
 

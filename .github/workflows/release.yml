@@ -5,9 +5,8 @@ on:
     tags:
       - 'v*'
 
-# Read-only by default (matches ci.yml); only the publish job below is granted write access, and
-# only to contents (creating the Release and uploading its assets) - the build jobs never touch
-# the Releases API at all, so they stay at this default.
+# Read-only by default. Publishing can write release contents; refreshing the site can dispatch
+# its existing workflow. Build jobs retain read-only access.
 permissions:
   contents: read
 
@@ -197,3 +196,17 @@ jobs:
             exit 1
           fi
           echo "SHA256SUMS names every published file as it is published."
+
+  refresh-site:
+    name: Refresh documentation download links
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Rebuild the guide from main after all release assets are verified
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh workflow run deploy-docs.yml --ref main

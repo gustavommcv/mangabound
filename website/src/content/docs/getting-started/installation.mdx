@@ -5,15 +5,18 @@ description: 'Download and install Mangabound on Windows, macOS or Linux (.deb, 
 
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 
-Download from the [official release page](https://github.com/gustavommcv/mangabound/releases). Expand **Assets** and choose your operating system and processor architecture. Alpha releases are marked **Pre-release**.
+import ReleaseDownloads from '../../../components/ReleaseDownloads.astro';
+
+Download the latest available version for your system below, or browse [all releases](https://github.com/gustavommcv/mangabound/releases).
 
 <Tabs>
 <TabItem label="Windows">
 
 ### Windows x64
 
-- Choose the **.Setup.exe** installer for a normal installation.
-- Alternatively, extract the **win32-x64 .zip** and run the executable inside the extracted folder.
+<ReleaseDownloads platform="windows" />
+
+Use the installer for a normal installation. For the portable version, extract the ZIP and run the executable inside the extracted folder.
 
 The alpha installer is not commercially signed. SmartScreen may warn about it. Only proceed if you expected this download and obtained it from the official release page; do not disable Windows security globally.
 
@@ -22,7 +25,9 @@ The alpha installer is not commercially signed. SmartScreen may warn about it. O
 
 ### macOS Apple Silicon
 
-Download the **darwin-arm64 .zip**, extract it, and move **Mangabound.app** to **Applications**. There is currently no Intel Mac package.
+<ReleaseDownloads platform="macOS" />
+
+Extract the ZIP and move **Mangabound.app** to **Applications**. There is currently no Intel Mac package.
 
 The alpha app is not notarized. If macOS blocks an app you trust, first try opening it, then use **System Settings → Privacy & Security → Open Anyway** if available. Follow [Apple's guidance](https://support.apple.com/en-lamr/102445); do not disable Gatekeeper globally.
 
@@ -33,11 +38,7 @@ The alpha app is not notarized. If macOS blocks an app you trust, first try open
 
 Choose the package for your distribution:
 
-| Distribution                           | Asset          |
-| -------------------------------------- | -------------- |
-| Debian / Ubuntu and compatible systems | `.deb`         |
-| Fedora and compatible systems          | `.rpm`         |
-| Arch Linux and compatible systems      | `.pkg.tar.zst` |
+<ReleaseDownloads platform="linux" />
 
 Open a terminal in the folder containing your download and use the command for your distribution below. Replace `package.deb`, `package.rpm`, or `package.pkg.tar.zst` with the exact name of the file you downloaded. Keep its original filename; you do not need to rename it.
 

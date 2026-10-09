@@ -1,0 +1,44 @@
+{
+  "tag_name": "v0.1.0-alpha.12",
+  "html_url": "https://github.com/gustavommcv/mangabound/releases/tag/v0.1.0-alpha.12",
+  "draft": false,
+  "prerelease": true,
+  "published_at": "2026-10-08T18:22:51Z",
+  "assets": [
+    {
+      "name": "Mangabound-0.1.0-alpha.12.Setup.exe",
+      "state": "uploaded",
+      "browser_download_url": "https://github.com/gustavommcv/mangabound/releases/download/v0.1.0-alpha.12/Mangabound-0.1.0-alpha.12.Setup.exe"
+    },
+    {
+      "name": "mangabound-0.1.0.alpha.12-1.x86_64.rpm",
+      "state": "uploaded",
+      "browser_download_url": "https://github.com/gustavommcv/mangabound/releases/download/v0.1.0-alpha.12/mangabound-0.1.0.alpha.12-1.x86_64.rpm"
+    },
+    {
+      "name": "mangabound-0.1.0_alpha.12-1-x86_64.pkg.tar.zst",
+      "state": "uploaded",
+      "browser_download_url": "https://github.com/gustavommcv/mangabound/releases/download/v0.1.0-alpha.12/mangabound-0.1.0_alpha.12-1-x86_64.pkg.tar.zst"
+    },
+    {
+      "name": "Mangabound-darwin-arm64-0.1.0-alpha.12.zip",
+      "state": "uploaded",
+      "browser_download_url": "https://github.com/gustavommcv/mangabound/releases/download/v0.1.0-alpha.12/Mangabound-darwin-arm64-0.1.0-alpha.12.zip"
+    },
+    {
+      "name": "Mangabound-win32-x64-0.1.0-alpha.12.zip",
+      "state": "uploaded",
+      "browser_download_url": "https://github.com/gustavommcv/mangabound/releases/download/v0.1.0-alpha.12/Mangabound-win32-x64-0.1.0-alpha.12.zip"
+    },
+    {
+      "name": "mangabound_0.1.0.alpha.12_amd64.deb",
+      "state": "uploaded",
+      "browser_download_url": "https://github.com/gustavommcv/mangabound/releases/download/v0.1.0-alpha.12/mangabound_0.1.0.alpha.12_amd64.deb"
+    },
+    {
+      "name": "SHA256SUMS",
+      "state": "uploaded",
+      "browser_download_url": "https://github.com/gustavommcv/mangabound/releases/download/v0.1.0-alpha.12/SHA256SUMS"
+    }
+  ]
+}

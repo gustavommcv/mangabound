@@ -1,0 +1,71 @@
+---
+import { LinkButton } from '@astrojs/starlight/components';
+
+import { publishedRelease } from '../published-release.mjs';
+
+interface Props {
+  platform: 'windows' | 'macOS' | 'linux';
+}
+
+const { platform } = Astro.props;
+const release = await publishedRelease;
+const portuguese = Astro.locals.starlightRoute.lang === 'pt-BR';
+const choices = {
+  windows: [
+    { key: 'windowsInstaller', en: 'Download installer (.exe)', pt: 'Baixar instalador (.exe)' },
+    { key: 'windowsPortable', en: 'Download portable (.zip)', pt: 'Baixar versão portátil (.zip)' },
+  ],
+  macOS: [
+    {
+      key: 'macOS',
+      en: 'Download for Apple Silicon (.zip)',
+      pt: 'Baixar para Apple Silicon (.zip)',
+    },
+  ],
+  linux: [
+    { key: 'debian', en: 'Debian / Ubuntu (.deb)', pt: 'Debian / Ubuntu (.deb)' },
+    { key: 'fedora', en: 'Fedora (.rpm)', pt: 'Fedora (.rpm)' },
+    { key: 'arch', en: 'Arch Linux (.pkg.tar.zst)', pt: 'Arch Linux (.pkg.tar.zst)' },
+  ],
+};
+---
+
+<div class="release-downloads" data-release-tag={release.tag}>
+  <div class="buttons">
+    {choices[platform].map((choice, index) => (
+      <LinkButton
+        href={release.assets[choice.key]}
+        variant={platform !== 'linux' && index === 0 ? 'primary' : 'secondary'}
+        icon="download"
+        iconPlacement="start"
+      >
+        {portuguese ? choice.pt : choice.en}
+      </LinkButton>
+    ))}
+  </div>
+  <p class="release-info">
+    {portuguese ? 'Última versão disponível:' : 'Latest available version:'}{' '}
+    <strong>{release.tag}</strong>
+    {release.prerelease && (portuguese ? ' (pré-release)' : ' (pre-release)')}
+    {' · '}
+    <a href={release.notes}>{portuguese ? 'Notas da versão' : 'Release notes'}</a>
+    {' · '}
+    <a href={release.assets.checksums}>SHA256SUMS</a>
+  </p>
+</div>
+
+<style>
+  .buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .buttons :global(.sl-link-button) {
+    margin: 0;
+  }
+
+  .release-info {
+    font-size: var(--sl-text-sm);
+  }
+</style>
