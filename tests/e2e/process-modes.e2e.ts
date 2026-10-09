@@ -5,7 +5,7 @@ import path from 'node:path';
 
 import { $, browser } from '@wdio/globals';
 
-import { resetQueue, saveAllBooks, saveBookAs, setSteps } from './support';
+import { resetQueue, saveAllBooks, saveBookAs, setFormat, setSteps } from './support';
 
 const temporaryDirectories: string[] = [];
 
@@ -94,6 +94,7 @@ describe('packaged process control', () => {
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [inputPath] });
 
     await resetQueue();
+    await setFormat('EPUB');
     await $('button=Folder').click();
     // Nothing groups this folder, so it waits for volumes until grouping is turned off.
     await $('span=Needs volumes').waitForDisplayed({ timeout: 30_000 });

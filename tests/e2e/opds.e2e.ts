@@ -6,7 +6,7 @@ import path from 'node:path';
 
 import { $, browser } from '@wdio/globals';
 
-import { resetQueue, saveBookAs } from './support';
+import { resetQueue, saveBookAs, setFormat } from './support';
 
 const temporaryDirectories: string[] = [];
 
@@ -41,6 +41,7 @@ describe('packaged OPDS delivery', () => {
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [libraryPath] });
 
     await resetQueue();
+    await setFormat('EPUB');
 
     // Convert the folder fixture first, then the CBZ fixture second, so the CBZ's
     // conversion timestamp is deterministically the newest of the two.
@@ -211,6 +212,7 @@ describe('packaged OPDS delivery', () => {
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [libraryPath] });
 
     await resetQueue();
+    await setFormat('EPUB');
     await $('button=Files').click();
     await $('span=Ready').waitForDisplayed({ timeout: 30_000 });
     // The author belongs to the item: it is typed on the item's own details page.

@@ -5,7 +5,7 @@ import path from 'node:path';
 
 import { $, browser } from '@wdio/globals';
 
-import { resetQueue, saveAllBooks, setSteps, waitForFolderNames } from './support';
+import { resetQueue, saveAllBooks, setFormat, setSteps, waitForFolderNames } from './support';
 
 const temporaryDirectories: string[] = [];
 
@@ -46,6 +46,7 @@ describe('packaged runs never let one book replace another', () => {
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [libraryPath] });
 
     await resetQueue();
+    await setFormat('EPUB');
     await $('button=Folder').click();
     await setSteps({ group: false, convert: true });
     await $('button=Process 2 items').waitForExist({ timeout: 30_000 });

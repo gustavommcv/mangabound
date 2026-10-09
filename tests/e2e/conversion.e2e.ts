@@ -10,6 +10,7 @@ import {
   recordProgress,
   reportedProgress,
   resetQueue,
+  setFormat,
   saveAllBooks,
   saveBookAs,
   waitForFolderNames,
@@ -47,6 +48,7 @@ describe('packaged conversion pipeline', () => {
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [directCbzPath] });
 
     await resetQueue();
+    await setFormat('EPUB');
     await $('button=Folder').click();
     // Nothing in the chapter names says which volume they belong to, so the folder waits for a
     // grouping before it can run.
@@ -177,6 +179,7 @@ describe('packaged conversion pipeline', () => {
 
     // The previous test left the app on its "book saved" screen: return to the queue first.
     await resetQueue();
+    await setFormat('EPUB');
     // A library is added like any folder, and turns out to be one once it has been read.
     await $('button=Folder').click();
     await $('span=1 title').waitForDisplayed({ timeout: 60_000 });
@@ -385,6 +388,7 @@ describe('packaged conversion pipeline', () => {
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [directCbzPath] });
 
     await resetQueue();
+    await setFormat('EPUB');
     await $('button=Files').click();
     await $('span=Ready').waitForDisplayed({ timeout: 30_000 });
     await $('button=Process 1 item').click();

@@ -111,7 +111,7 @@ const libraryRow: QueueRow = {
 
 const base: QueueScreenProps = {
   disabled: false,
-  format: 'epub',
+  format: 'cbz',
   mode: 'bind-and-convert',
   onAddFiles: () => undefined,
   onAddFolders: () => undefined,
@@ -312,6 +312,8 @@ export const ToolsNotReady: Story = {
 export const SingleBookActive: Story = {
   args: {
     rows: rows.slice(0, 1),
+    // The whole series as one book needs an EPUB, and turning the mode on selects it.
+    format: 'epub',
     singleBook: true,
   },
 };

@@ -5,7 +5,7 @@ import path from 'node:path';
 
 import { $, $$, browser } from '@wdio/globals';
 
-import { readZipEntry, resetQueue, saveAllBooks, saveBookAs } from './support';
+import { readZipEntry, resetQueue, saveAllBooks, saveBookAs, setFormat } from './support';
 
 const temporaryDirectories: string[] = [];
 
@@ -35,6 +35,7 @@ describe('packaged folder whose names carry the volumes', () => {
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [libraryPath] });
 
     await resetQueue();
+    await setFormat('EPUB');
     await $('button=Folder').click();
 
     // mangabind already grouped it: the row says so, and nothing has to be assigned by hand.
