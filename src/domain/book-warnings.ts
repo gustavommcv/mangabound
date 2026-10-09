@@ -15,7 +15,7 @@ interface BookWithWarnings {
 }
 
 /**
- * What the app says for each warning mangapress 0.7 gives. The tool's own sentences are written
+ * What the app says for each warning mangapress 0.7 gives, and the one the next release adds (`page_truncated`). The tool's own sentences are written
  * for a terminal (the one about small pages names `--upscale`), so a known code gets words that
  * name the option as the screen does; the protocol asks consumers to branch on the code anyway.
  */
@@ -45,6 +45,11 @@ const knownWarnings: Readonly<Record<string, Pick<WarningNotice, 'title' | 'mess
   output_collision: {
     title: 'Saved under another name',
     message: 'The book would have replaced its own source, so it was given another name.',
+  },
+  page_truncated: {
+    title: 'Pages that end early have a blank part',
+    message:
+      'A page’s file ends before its image does, which is usually a download that stopped. The book keeps what could be read, and the rest of that page is blank. Download the chapter again to get the whole page.',
   },
   // From mangabind, which joins the chapters, not from mangapress: the notes it gives when it
   // had to leave something out of a book.
