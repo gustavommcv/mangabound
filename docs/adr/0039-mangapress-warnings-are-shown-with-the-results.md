@@ -1,6 +1,6 @@
 # ADR 0039: What mangapress noticed is shown with the results, once per kind
 
-- Status: Accepted (amended by 0042)
+- Status: Accepted (amended by 0042, 0044)
 - Date: 2026-10-03
 
 ## Context

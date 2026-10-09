@@ -34,6 +34,7 @@ describe('the warnings of a run, as the results show them', () => {
     ['spread_labels_ignored', 'A .json file beside the book was not used'],
     ['spread_labels_skipped', 'Some labelled spreads were not joined'],
     ['output_collision', 'Saved under another name'],
+    ['page_truncated', 'Pages that end early have a blank part'],
     // From mangabind, when it had to leave something out of a book.
     ['chapter_conflict', 'Chapters with more than one copy were left out'],
     ['chapter_gap', 'Chapters are missing inside a volume'],
