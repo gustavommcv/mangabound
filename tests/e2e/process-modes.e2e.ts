@@ -94,13 +94,14 @@ describe('packaged process control', () => {
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [inputPath] });
 
     await resetQueue();
-    await setFormat('EPUB');
     await $('button=Folder').click();
     // Nothing groups this folder, so it waits for volumes until grouping is turned off.
     await $('span=Needs volumes').waitForDisplayed({ timeout: 30_000 });
 
-    // The join-only choice of the test before is still in force: only converting remains.
+    // The join-only choice of the test before is still in force: only converting remains. The
+    // format can be chosen only while mangapress runs, so it comes after the steps.
     await setSteps({ group: false, convert: true });
+    await setFormat('EPUB');
     await $('span=One book').waitForDisplayed({ timeout: 10_000 });
     assert.match(await $('main').getText(), /not grouped/u);
 
