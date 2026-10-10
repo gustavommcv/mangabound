@@ -134,7 +134,11 @@ describe('the conversion options screen', () => {
     const user = userEvent.setup();
     const onSettings = vi.fn();
     const onFormat = vi.fn();
-    render(<ConversionOptionsScreen {...props({ singleBook: true, onFormat, onSettings })} />);
+    render(
+      <ConversionOptionsScreen
+        {...props({ singleBook: true, format: 'epub', onFormat, onSettings })}
+      />,
+    );
 
     expect(screen.getByRole('status', { name: 'Single book for the series' })).toHaveTextContent(
       'Book format and process steps are locked.',

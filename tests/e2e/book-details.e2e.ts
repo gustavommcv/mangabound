@@ -5,7 +5,14 @@ import path from 'node:path';
 
 import { $, browser } from '@wdio/globals';
 
-import { readZipEntry, readZipEntryBytes, resetQueue, saveAllBooks, setSteps } from './support';
+import {
+  readZipEntry,
+  readZipEntryBytes,
+  resetQueue,
+  saveAllBooks,
+  setFormat,
+  setSteps,
+} from './support';
 
 const temporaryDirectories: string[] = [];
 
@@ -50,6 +57,7 @@ describe('packaged title, author and language of a book', () => {
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [libraryPath] });
 
     await resetQueue();
+    await setFormat('EPUB');
     await $('button=Folder').click();
     await $('span=2 volumes').waitForDisplayed({ timeout: 30_000 });
     await setSteps({ group: true, convert: true });
@@ -240,6 +248,7 @@ describe('packaged cover of the person’s own', () => {
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [libraryPath] });
 
     await resetQueue();
+    await setFormat('EPUB');
     await $('button=Folder').click();
     await $('span=2 volumes').waitForDisplayed({ timeout: 30_000 });
     await setSteps({ group: true, convert: true });

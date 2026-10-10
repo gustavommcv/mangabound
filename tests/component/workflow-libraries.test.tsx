@@ -52,7 +52,7 @@ describe('libraries in the queue', () => {
       libraryId: 'pending-run',
       mode: 'bind-and-convert',
       settings: defaultMangapressSettings,
-      format: 'epub',
+      format: 'cbz',
       // Only the title that has volumes goes; the other waits.
       titles: ['Good Manga'],
     });

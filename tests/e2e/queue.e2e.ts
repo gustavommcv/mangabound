@@ -5,7 +5,7 @@ import path from 'node:path';
 
 import { $, browser } from '@wdio/globals';
 
-import { resetQueue, saveAllBooks } from './support';
+import { resetQueue, saveAllBooks, setFormat } from './support';
 
 const temporaryDirectories: string[] = [];
 
@@ -43,6 +43,7 @@ describe('packaged queue', () => {
     await openDialog.mockResolvedValueOnce({ canceled: false, filePaths: [libraryPath] });
 
     await resetQueue();
+    await setFormat('EPUB');
     await $('button=Folder').click();
     await $('span=2 volumes').waitForDisplayed({ timeout: 30_000 });
     await $('span=Needs volumes').waitForDisplayed({ timeout: 30_000 });

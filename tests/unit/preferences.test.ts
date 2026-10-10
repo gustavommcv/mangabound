@@ -13,11 +13,11 @@ describe('the defaults everything starts from', () => {
   it('are the process, format and options a first launch has', () => {
     expect(defaultPreferences).toEqual({
       mode: defaultProcessMode,
-      format: 'epub',
+      format: 'cbz',
       singleBook: false,
       settings: defaultMangapressSettings,
     });
-    expect(defaultFormat).toBe('epub');
+    expect(defaultFormat).toBe('cbz');
     expect(defaultPreferences.providerId).toBeUndefined();
   });
 
@@ -52,7 +52,7 @@ describe('sameSettings', () => {
 
 describe('isDefaultMangapress', () => {
   it('is true for the format and options a fresh start has', () => {
-    expect(isDefaultMangapress('epub', defaultMangapressSettings)).toBe(true);
+    expect(isDefaultMangapress('cbz', defaultMangapressSettings)).toBe(true);
   });
 
   it('is false once the format or an option was changed', () => {

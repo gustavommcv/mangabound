@@ -12,7 +12,7 @@ export interface Preferences {
   readonly providerId?: string;
 }
 
-export const defaultFormat: BookFormat = 'epub';
+export const defaultFormat: BookFormat = 'cbz';
 
 /** Where everything starts, and where a reset returns it. */
 export const defaultPreferences: Preferences = Object.freeze({

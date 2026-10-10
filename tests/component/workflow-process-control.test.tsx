@@ -106,7 +106,7 @@ describe('process control in the queue', () => {
     expect(convert.mock.calls[0]?.[0]).toMatchObject({
       mode: 'convert-only',
       settings: defaultMangapressSettings,
-      format: 'epub',
+      format: 'cbz',
     });
     expect(convert.mock.calls[0]?.[0].mapping).toBeUndefined();
   });

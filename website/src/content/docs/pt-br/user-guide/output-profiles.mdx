@@ -9,13 +9,13 @@ import TutorialImage from '../../../../components/TutorialImage.astro';
 
 Escolha seu modelo em **Device**. Para definir o tamanho das páginas, abra **Advanced conversion options** e preencha **Custom width** e **Custom height** em pixels. Um perfil de dispositivo personalizado exige ambas as dimensões.
 
-| Formato | Quando escolher                                                             |
-| ------- | --------------------------------------------------------------------------- |
-| EPUB    | Livro com navegação de capítulos; obrigatório para o modo de livro único    |
-| CBZ     | Imagens processadas em um ZIP; costuma ser uma escolha direta para KOReader |
-| PDF     | Páginas fixas para leitores ou tablets com suporte a PDF                    |
+| Formato | Quando escolher                                                                                         |
+| ------- | ------------------------------------------------------------------------------------------------------- |
+| CBZ     | O formato inicial. Imagens processadas em um ZIP: o que o guia do próprio KOReader recomenda para mangá |
+| EPUB    | Livro com navegação de capítulos e autor; obrigatório para o modo de livro único                        |
+| PDF     | Páginas fixas para leitores ou tablets com suporte a PDF                                                |
 
-A compatibilidade depende do aplicativo de leitura, não apenas do dispositivo. O leitor nativo do Kindle não abre EPUB diretamente: use um serviço de transferência/conversão compatível ou um leitor instalado, como KOReader. O KOReader trata EPUB de forma diferente de CBZ/PDF; veja [configurações do leitor](../../koreader/recommended-settings/).
+A compatibilidade depende do aplicativo de leitura, não apenas do dispositivo. O leitor nativo do Kindle não abre EPUB diretamente: use um serviço de transferência/conversão compatível ou um leitor instalado, como KOReader. O KOReader trata EPUB de forma diferente de CBZ/PDF: ele diagrama o EPUB como texto, com margens e barra de status próprias em volta de cada página, então a página pode ficar menor que a tela. Veja [configurações do leitor](../../koreader/recommended-settings/).
 
 <TutorialImage
   name="generated/device-settings"

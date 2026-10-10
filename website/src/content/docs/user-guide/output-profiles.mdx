@@ -9,13 +9,13 @@ import TutorialImage from '../../../components/TutorialImage.astro';
 
 Choose your model under **Device**. To set the page size yourself, open **Advanced conversion options** and fill in **Custom width** and **Custom height** in pixels. A custom device profile requires both dimensions.
 
-| Format | When to choose it                                                              |
-| ------ | ------------------------------------------------------------------------------ |
-| EPUB   | A book with chapter navigation; the single-series-book mode requires it        |
-| CBZ    | Processed images in a ZIP archive; often a straightforward choice for KOReader |
-| PDF    | Fixed pages for a reader or tablet that supports PDF                           |
+| Format | When to choose it                                                                                         |
+| ------ | --------------------------------------------------------------------------------------------------------- |
+| CBZ    | The starting format. Processed images in a ZIP archive: the one KOReader's own guide recommends for manga |
+| EPUB   | A book with chapter navigation and an author; the single-series-book mode requires it                     |
+| PDF    | Fixed pages for a reader or tablet that supports PDF                                                      |
 
-Compatibility depends on the reader application as well as the device. Kindle's native reader does not directly open EPUB: use a compatible transfer/conversion service or an installed reader such as KOReader. KOReader treats EPUB differently from CBZ/PDF; see [reader settings](../../koreader/recommended-settings/).
+Compatibility depends on the reader application as well as the device. Kindle's native reader does not directly open EPUB: use a compatible transfer/conversion service or an installed reader such as KOReader. KOReader treats EPUB differently from CBZ/PDF: it lays an EPUB out as text, with its own margins and status bar around each page, so a page can come out smaller than the screen. See [reader settings](../../koreader/recommended-settings/).
 
 <TutorialImage
   name="generated/device-settings"

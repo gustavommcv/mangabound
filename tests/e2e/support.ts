@@ -150,6 +150,21 @@ export async function setSteps(steps: {
 }
 
 /**
+ * Chooses the book format on the queue whatever an earlier test left: the choice is kept for the
+ * rest of the session, and a fresh start is CBZ (ADR 0045). The tests that read an EPUB's package
+ * ask for it here.
+ */
+export async function setFormat(label: 'CBZ' | 'EPUB' | 'PDF'): Promise<void> {
+  const radio = $(`[role="radio"]=${label}`);
+  if ((await radio.getAttribute('aria-checked')) === 'true') return;
+  await radio.click();
+  await browser.waitUntil(async () => (await radio.getAttribute('aria-checked')) === 'true', {
+    timeout: 10_000,
+    timeoutMsg: `The ${label} format was not chosen.`,
+  });
+}
+
+/**
  * Brings the app back to an empty queue, whatever an earlier test left on screen: the results of a
  * run, a library review, or rows that were left over.
  */

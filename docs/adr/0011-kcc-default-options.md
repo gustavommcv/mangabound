@@ -1,6 +1,6 @@
 # ADR 0011: The mangapress options start where Kindle Comic Converter's window starts
 
-- Status: Accepted
+- Status: Accepted (the starting format amended by 0045)
 - Date: 2026-09-19
 - Amends: [ADR 0005](0005-product-boundaries-and-anti-goals.md) (which values the mangapress settings start with)
 
